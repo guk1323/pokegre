@@ -25,6 +25,7 @@ export interface SizeChip {
 
 interface ApparelDetailResponse {
   id: number;
+  productCatalogId?: number;
   localizedName: string;
   primaryMedia?: { imageUrl: string };
   usedMinPrice?: number;
@@ -169,6 +170,79 @@ export async function fetchMoreUniqueCards(
 
   const enriched = await enrichWithCleanImages(collected);
   return { items: enriched, lastPage: page, exhausted };
+}
+
+export type PriceRange = 'oneWeek' | 'oneMonth' | 'threeMonths' | 'all';
+
+export interface PricePoint {
+  timestamp: number;
+  price: number;
+}
+
+export interface Trade {
+  price: number;
+  soldAt: string;
+  title: string;
+  label: string;
+}
+
+export interface RangeOption {
+  key: PriceRange;
+  name: string;
+  hasData: boolean;
+}
+
+export interface ConditionOption {
+  code: string;
+  name: string;
+}
+
+export interface PriceHistory {
+  points: PricePoint[];
+  trades: Trade[];
+  ranges: RangeOption[];
+  conditions: ConditionOption[];
+}
+
+interface TradingHistoryResponse {
+  chart?: { lines?: { points?: PricePoint[] }[]; ranges?: RangeOption[] };
+  trades?: Trade[];
+  filters?: { conditions?: { options?: ConditionOption[] } };
+}
+
+// SNKRDUNK 시세 그래프는 apparelId가 아니라 productCatalogId로 조회한다. 이 값은
+// 상품 상세(/v1/apparels/{id}) 응답에 이미 들어 있어서 한 번 더 태워 얻는다.
+// (apparelId를 그대로 넣으면 200은 오지만 데이터가 비어 있다.)
+//
+// conditionCode를 주지 않으면 PSA10(¥36만)과 생카B(¥4.8만)가 한 줄에 섞여 그려져서
+// 톱니처럼 튀는 무의미한 그래프가 나온다. 등급을 지정해야 시세 추이로 읽을 수 있다.
+export async function fetchPriceHistory(
+  apparelId: number,
+  range: PriceRange = 'all',
+  conditionCode?: string,
+): Promise<PriceHistory | null> {
+  const detailRes = await fetch(`/api/snkrdunk/v1/apparels/${apparelId}`);
+  if (!detailRes.ok) return null;
+  const detail: ApparelDetailResponse = await detailRes.json();
+  const productCatalogId = detail.productCatalogId;
+  if (!productCatalogId) return null;
+
+  const params = new URLSearchParams({ range });
+  if (conditionCode) params.set('condition_code', conditionCode);
+
+  const res = await fetch(`/api/snkrdunk/v3/products/${productCatalogId}/trading-history?${params.toString()}`);
+  if (!res.ok) return null;
+  const data: TradingHistoryResponse = await res.json();
+
+  const points = data.chart?.lines?.find((line) => line.points?.length)?.points ?? [];
+
+  return {
+    points,
+    trades: data.trades ?? [],
+    ranges: data.chart?.ranges ?? [],
+    // 박스는 등급 개념이 없어서 빈 배열로 온다 — 그대로 넘겨서 UI가 선택기를 숨기게 한다.
+    conditions: data.filters?.conditions?.options ?? [],
+  };
 }
 
 const CONDITION_GROUPS: { label: string; codes: string[] }[] = [

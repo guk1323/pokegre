@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   fetchConditionPrices,
+  fetchPriceHistory,
   RAW_GRADE_DESCRIPTION,
   type ConditionGroup,
+  type PriceHistory,
+  type PriceRange,
   type SnkrdunkCard,
 } from '../api/snkrdunk';
+import { PriceChart } from './PriceChart';
 
 const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
 
@@ -13,6 +17,11 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   const [groups, setGroups] = useState<ConditionGroup[]>([]);
   const [loading, setLoading] = useState(!isBox);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<PriceHistory | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [range, setRange] = useState<PriceRange>('all');
+  // '' = 아직 등급 목록을 못 받았거나(첫 조회) 등급이 없는 상품(박스)
+  const [condition, setCondition] = useState('');
 
   // 박스는 등급(PSA/BGS 등) 개념 자체가 없어서 조회할 필요가 없다 — 등급별
   // 최저가 섹션도 통째로 숨긴다.
@@ -26,6 +35,38 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       .catch(() => setError('등급별 시세를 불러오지 못했습니다.'))
       .finally(() => setLoading(false));
   }, [card.apparelId, isBox]);
+
+  // 카드를 바꾸면 기간/등급 선택을 되돌린다. 직전 카드에서 "1주"나 "PSA10"을 보다가
+  // 넘어왔는데 새 카드엔 그 데이터가 없으면 빈 그래프가 뜨기 때문.
+  useEffect(() => {
+    setRange('all');
+    setCondition('');
+  }, [card.apparelId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHistoryLoading(true);
+    setHistory(null);
+    fetchPriceHistory(card.apparelId, range, condition || undefined)
+      .then((result) => {
+        if (cancelled || !result) return;
+        setHistory(result);
+        // 등급이 있는 상품(싱글카드)인데 아직 못 골랐으면 첫 등급으로 자동 선택해서
+        // 다시 조회한다. 등급을 안 주면 PSA10과 생카가 한 줄에 섞여 나오기 때문.
+        // 박스는 conditions가 빈 배열로 와서 이 분기를 타지 않는다(등급 코드를 넘기면
+        // 오히려 실거래 목록이 0건이 된다).
+        if (condition === '' && result.conditions.length > 0) {
+          setCondition(result.conditions[0].code);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [card.apparelId, range, condition]);
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
@@ -41,6 +82,19 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       <div className="rounded-lg bg-neutral-50 p-4 mb-4">
         <p className="text-xs text-neutral-400 mb-1">현재 최저가 (SNKRDUNK)</p>
         <span className="text-2xl font-extrabold text-black">{yen.format(card.price)}</span>
+      </div>
+
+      <div className="mb-4">
+        <PriceChart
+          points={history?.points ?? []}
+          ranges={history?.ranges ?? []}
+          range={range}
+          onRangeChange={setRange}
+          conditions={history?.conditions ?? []}
+          condition={condition}
+          onConditionChange={setCondition}
+          loading={historyLoading}
+        />
       </div>
 
       <a
