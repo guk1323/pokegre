@@ -57,6 +57,10 @@ export class TtlCache<T> {
     return hit.value
   }
 
+  delete(key: string): void {
+    this.store.delete(key)
+  }
+
   set(key: string, value: T): void {
     const now = Date.now()
     for (const [k, v] of this.store) {
@@ -72,6 +76,43 @@ export class TtlCache<T> {
       this.store.delete(oldest)
     }
   }
+}
+
+// 남의 유료 API를 대신 불러주는 엔드포인트(카드 인식, eBay 시세)는 호출마다 사장님
+// 돈이 나간다. 로그인을 걸어 막는 방법도 있지만, 카드 시세 조회는 비로그인도 되는 게
+// 이 서비스의 의도라 그 대신 횟수로 제한한다.
+//
+// 클라이언트 IP는 프록시(Fly) 뒤에서는 소켓 주소가 아니라 fly-client-ip로 온다.
+// 헤더는 위조할 수 있지만, 위조하려면 어차피 요청마다 값을 바꿔야 하고 그건 이 제한이
+// 막으려는 "실수로/스크립트로 몰아치는" 경우와는 다른 수준의 공격이다.
+function clientIp(req: IncomingMessage): string {
+  const header = req.headers['fly-client-ip'] ?? req.headers['x-forwarded-for']
+  const raw = Array.isArray(header) ? header[0] : header
+  return raw?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown'
+}
+
+// 고정 창(fixed window) 방식. 창 경계에서 최대 2배까지 통과할 수 있지만, 여기 목적은
+// 정밀한 제어가 아니라 하루치 크레딧이 한 번에 타는 걸 막는 것이라 이걸로 충분하다.
+export function rateLimiter(limit: number, windowMs: number) {
+  const hits = new TtlCache<{ count: number }>(windowMs, 10_000)
+  return function allow(req: IncomingMessage): boolean {
+    const key = clientIp(req)
+    const found = hits.get(key)
+    if (!found) {
+      hits.set(key, { count: 1 })
+      return true
+    }
+    // 창 안에서는 만료 시각을 그대로 둬야 한다. set으로 다시 넣으면 요청할 때마다
+    // 창이 뒤로 밀려서 계속 두드리는 쪽이 오히려 영원히 통과한다.
+    found.count += 1
+    return found.count <= limit
+  }
+}
+
+function tooManyRequests(res: ServerResponse) {
+  res.statusCode = 429
+  res.setHeader('content-type', 'application/json')
+  res.end(JSON.stringify({ error: 'too_many_requests' }))
 }
 
 const SNKRDUNK_ORIGIN = 'https://snkrdunk.com'
@@ -691,6 +732,10 @@ const PRICE_TRACKER_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 // 응답은 화면용 필드만 추려서 작지만, TTL이 6시간이라 그만큼 오래 쌓인다.
 // 무료 티어가 하루 100건이라 어차피 이만큼 채울 일도 없다.
 const PRICE_TRACKER_MAX_ENTRIES = 200
+// 무료 요금제가 하루 100건이다. 한 사람이 시간당 20건이면 정상 사용에는 걸릴 일이
+// 없으면서, 혼자서 하루치를 태우려면 다섯 시간이 걸린다.
+const PRICE_TRACKER_RATE_LIMIT = 20
+const PRICE_TRACKER_RATE_WINDOW_MS = 60 * 60 * 1000
 
 interface RawEbayGrade {
   count?: number
@@ -765,6 +810,7 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
 // 붙이고 클라이언트에는 절대 내려주지 않는다.
 function mountEbayPrice(app: Mountable, apiKey: string) {
   const cache = new TtlCache<string>(PRICE_TRACKER_CACHE_TTL_MS, PRICE_TRACKER_MAX_ENTRIES)
+  const allow = rateLimiter(PRICE_TRACKER_RATE_LIMIT, PRICE_TRACKER_RATE_WINDOW_MS)
 
   app.use('/api/local/card-prices', async (req, res) => {
     if (!apiKey) {
@@ -782,6 +828,14 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')
       res.end(cached)
+      return
+    }
+
+    // 제한은 캐시 뒤에 둔다. 캐시 적중은 크레딧을 안 쓰므로 셀 이유가 없고, 여기서
+    // 막으면 남이 이미 조회해둔 카드를 보는 정상 사용자만 걸린다. 여기까지 왔다는 건
+    // 진짜로 업스트림을 부른다는 뜻이다.
+    if (!allow(req)) {
+      tooManyRequests(res)
       return
     }
 
@@ -819,6 +873,9 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_IMAGE_BODY_BYTES = 8 * 1024 * 1024
+// 카드를 몇 장 찍어보는 건 넉넉히 되면서, 스크립트로 몰아쳐서 요금을 태우진 못하는 선.
+const SCAN_RATE_LIMIT = 10
+const SCAN_RATE_WINDOW_MS = 60 * 60 * 1000
 const CARD_SCAN_MODEL = 'claude-haiku-4-5'
 
 const CARD_SCAN_PROMPT = `이 이미지는 일본판 포켓몬 카드 사진이다. 카드에 인쇄된 정보를 읽어서 아래 JSON 형식으로만 답하라. 다른 설명은 절대 붙이지 마라.
@@ -831,10 +888,18 @@ const CARD_SCAN_PROMPT = `이 이미지는 일본판 포켓몬 카드 사진이�
 // 우리 검색 파이프라인에 바로 꽂을 수 있게 돌려준다. 이미지 매칭 DB를 직접 구축하는
 // 대신, 카드에 이미 인쇄되어 있는 텍스트를 읽는 방식이라 훨씬 가볍고 정확하다.
 function mountCardScan(app: Mountable, apiKey: string) {
+  const allow = rateLimiter(SCAN_RATE_LIMIT, SCAN_RATE_WINDOW_MS)
+
   app.use('/api/local/scan-card', async (req, res) => {
     if (req.method !== 'POST') {
       res.statusCode = 405
       res.end()
+      return
+    }
+    // 카드 인식은 캐시가 없어서 호출이 곧 요금이다. 로그인을 걸어 막을 수도 있지만
+    // 시세 조회는 비로그인도 되는 게 의도라, 대신 횟수로 막는다.
+    if (!allow(req)) {
+      tooManyRequests(res)
       return
     }
     if (!apiKey) {
@@ -908,6 +973,8 @@ const SESSIONS_FILE = dataFile('sessions.json')
 const COLLECTIONS_FILE = dataFile('collections.json')
 const SESSION_COOKIE = 'pokegre_session'
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const STATE_TTL_MS = 10 * 60 * 1000
+const MAX_PENDING_STATES = 10_000
 const RECENT_LIMIT = 20
 const FAVORITES_LIMIT = 500
 
@@ -1059,9 +1126,21 @@ function publicOrigin(req: IncomingMessage): string {
   return `${proto}://${host}`
 }
 
+// 세션 쿠키 속성. Secure를 무조건 붙이면 개발(http://localhost)에서 브라우저가 쿠키를
+// 아예 저장하지 않아 로그인이 조용히 안 된다. 그래서 실제 스킴을 보고 붙인다.
+// force_https가 있어도 Secure는 필요하다 — http://로 오는 첫 요청에 브라우저가 쿠키를
+// 실어 보낸 뒤에야 리다이렉트되므로, 그 한 번이 평문으로 나간다.
+function sessionCookie(req: IncomingMessage, value: string, maxAgeSeconds: number): string {
+  const secure = publicOrigin(req).startsWith('https://') ? '; Secure' : ''
+  return `${SESSION_COOKIE}=${value}; HttpOnly; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax${secure}`
+}
+
 function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
-  // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다.
-  const pendingStates = new Set<string>()
+  // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
+  // 콜백이 돌아올 때만 지워져서, 로그인하다 그만두면 영원히 남는다. 인증도 필요 없는
+  // /kakao를 반복 호출해 메모리를 불릴 수 있으므로 만료를 붙인다. 카카오 로그인 화면에
+  // 머무는 시간을 감안해도 10분이면 넉넉하다.
+  const pendingStates = new TtlCache<true>(STATE_TTL_MS, MAX_PENDING_STATES)
 
   app.use('/api/local/auth', async (req, res) => {
     const origin = publicOrigin(req)
@@ -1091,7 +1170,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
           sessions = (await loadSessions()).filter((s) => s.token !== token)
           await persistSessions()
         }
-        res.setHeader('set-cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`)
+        res.setHeader('set-cookie', sessionCookie(req, '', 0))
         sendJson(res, 200, { ok: true })
         return
       }
@@ -1174,7 +1253,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
       // GET /kakao — 카카오 인증 페이지로 보낸다
       if (segments[0] === 'kakao' && segments.length === 1) {
         const state = randomUUID()
-        pendingStates.add(state)
+        pendingStates.set(state, true)
         const authUrl = new URL('https://kauth.kakao.com/oauth/authorize')
         authUrl.searchParams.set('client_id', restApiKey)
         authUrl.searchParams.set('redirect_uri', redirectUri)
@@ -1191,7 +1270,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
         const code = url.searchParams.get('code')
         const state = url.searchParams.get('state')
         // state가 없거나 우리가 발급한 게 아니면 CSRF 시도로 보고 거절한다.
-        if (!code || !state || !pendingStates.has(state)) {
+        if (!code || !state || !pendingStates.get(state)) {
           res.statusCode = 302
           res.setHeader('location', '/?login=failed')
           res.end()
@@ -1255,10 +1334,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
         await persistSessions()
 
         // httpOnly라 JS로 못 읽는다(XSS로 세션 탈취 방지).
-        res.setHeader(
-          'set-cookie',
-          `${SESSION_COOKIE}=${token}; HttpOnly; Path=/; Max-Age=${SESSION_TTL_MS / 1000}; SameSite=Lax`,
-        )
+        res.setHeader('set-cookie', sessionCookie(req, token, SESSION_TTL_MS / 1000))
         res.statusCode = 302
         // 닉네임이 없으면 최초 로그인 → 설정 화면을 띄우게 한다.
         res.setHeader('location', user.nickname ? '/' : '/?setNickname=1')
