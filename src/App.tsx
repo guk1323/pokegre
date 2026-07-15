@@ -12,6 +12,8 @@ import {
   getRecentRefs,
   isFavorite as checkIsFavorite,
   toggleFavorite,
+  writeFavoriteRefs,
+  writeRecentRefs,
 } from './lib/localCollections';
 import { resolveStoredCards, type StoredCardRef } from './api/snkrdunk';
 import { SearchBar } from './components/SearchBar';
@@ -28,7 +30,7 @@ import { Community } from './Community';
 import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
 import { MyPage } from './components/MyPage';
-import { fetchMe, logout } from './api/auth';
+import { fetchMe, logout, mergeCollections, saveCollections } from './api/auth';
 
 const INITIAL_TARGET = 16;
 const LOAD_MORE_TARGET = 12;
@@ -122,11 +124,21 @@ function App() {
   // 카카오 콜백이 /?setNickname=1 로 돌려보내면 최초 로그인이라 닉네임 설정을 띄운다.
   // 주소창에 흔적을 남기지 않도록 확인 후 쿼리는 지운다.
   useEffect(() => {
-    fetchMe().then((me) => {
+    fetchMe().then(async (me) => {
       setLoggedIn(me.loggedIn);
       setNickname(me.nickname ?? null);
       setCreatedAt(me.createdAt);
       if (me.loggedIn && !me.nickname) setNeedsNickname(true);
+      if (!me.loggedIn) return;
+
+      // 로그인 상태면 이 기기에 담아둔 걸 계정과 합치고, 합친 결과를 양쪽에 반영한다.
+      // 이 단계가 없으면 로그인하는 순간 비로그인 때 찜해둔 게 사라져 보인다.
+      const merged = await mergeCollections({ favorites: getFavoriteRefs(), recent: getRecentRefs() });
+      if (!merged) return;
+      writeFavoriteRefs(merged.favorites);
+      writeRecentRefs(merged.recent);
+      setFavoriteRefs(merged.favorites);
+      setRecentRefs(merged.recent);
     });
 
     const params = new URLSearchParams(window.location.search);
@@ -268,20 +280,30 @@ function App() {
     setSelectedId((prev) => (items.some((c) => c.apparelId === prev) ? prev : (items[0]?.apparelId ?? null)));
   }, [items]);
 
+  // 저장은 effect가 아니라 여기서 직접 한다. effect로 걸면 로그인 직후 병합 결과가
+  // 다시 저장을 트리거해서 같은 내용을 서버에 한 번 더 쓰게 된다.
+  function rememberViewed(card: SnkrdunkCard) {
+    const next = addRecentlyViewed(card);
+    setRecentRefs(next);
+    if (loggedIn) saveCollections({ recent: next });
+  }
+
   function handleSelectCard(id: number) {
     setSelectedId(id);
     const card = items.find((c) => c.apparelId === id);
-    if (card) setRecentRefs(addRecentlyViewed(card));
+    if (card) rememberViewed(card);
   }
 
   function handleSelectInterestCard(id: number) {
     setInterestSelectedId(id);
     const card = [...recentlyViewed, ...favorites].find((c) => c.apparelId === id);
-    if (card) setRecentRefs(addRecentlyViewed(card));
+    if (card) rememberViewed(card);
   }
 
   function handleToggleFavorite(card: SnkrdunkCard) {
-    setFavoriteRefs(toggleFavorite(card));
+    const next = toggleFavorite(card);
+    setFavoriteRefs(next);
+    if (loggedIn) saveCollections({ favorites: next });
   }
 
   function handleSelectSuggestion(term: string) {

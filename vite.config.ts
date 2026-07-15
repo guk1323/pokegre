@@ -792,8 +792,23 @@ function cardScanPlugin(apiKey: string): Plugin {
 
 const USERS_FILE = path.resolve(__dirname, 'data/users.json')
 const SESSIONS_FILE = path.resolve(__dirname, 'data/sessions.json')
+const COLLECTIONS_FILE = path.resolve(__dirname, 'data/collections.json')
 const SESSION_COOKIE = 'pokegre_session'
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const RECENT_LIMIT = 20
+const FAVORITES_LIMIT = 500
+
+// 카드 참조. 클라이언트의 StoredCardRef와 같은 모양이다 — 가격 같은 변하는 값은
+// 저장하지 않고 볼 때 조회하므로 사용자당 1KB도 안 된다.
+interface CardRef {
+  apparelId: number
+  category: string
+}
+
+interface Collections {
+  favorites: CardRef[]
+  recent: CardRef[]
+}
 
 interface User {
   // 카카오 회원번호. 우리가 저장하는 유일한 카카오 정보다 — 카톡 닉네임/프로필/이메일은
@@ -854,6 +869,48 @@ async function persistSessions() {
   sessions = (sessions ?? []).filter((s) => s.expiresAt > Date.now())
   await mkdir(path.dirname(SESSIONS_FILE), { recursive: true })
   await writeFile(SESSIONS_FILE, JSON.stringify(sessions))
+}
+
+// 카카오 회원번호 → 컬렉션. 즐겨찾기/최근 본 카드를 계정에 묶어 기기가 바뀌거나
+// 브라우저 캐시를 지워도 남게 한다(비로그인은 계속 localStorage를 쓴다).
+let collections: Record<string, Collections> | null = null
+
+async function loadCollections(): Promise<Record<string, Collections>> {
+  if (collections) return collections
+  try {
+    collections = JSON.parse(await readFile(COLLECTIONS_FILE, 'utf-8'))
+  } catch {
+    collections = {}
+  }
+  return collections!
+}
+
+async function persistCollections() {
+  await mkdir(path.dirname(COLLECTIONS_FILE), { recursive: true })
+  await writeFile(COLLECTIONS_FILE, JSON.stringify(collections))
+}
+
+async function getCollections(kakaoId: string): Promise<Collections> {
+  const all = await loadCollections()
+  if (!all[kakaoId]) all[kakaoId] = { favorites: [], recent: [] }
+  return all[kakaoId]
+}
+
+// 클라이언트가 보낸 값을 그대로 믿지 않는다. 카드 참조 외의 필드를 끼워넣거나
+// 목록을 무한정 키우는 걸 막는다.
+function sanitizeRefs(input: unknown, limit: number): CardRef[] {
+  if (!Array.isArray(input)) return []
+  const seen = new Set<number>()
+  const out: CardRef[] = []
+  for (const item of input) {
+    const apparelId = Number((item as CardRef)?.apparelId)
+    if (!Number.isInteger(apparelId) || apparelId <= 0 || seen.has(apparelId)) continue
+    const category = String((item as CardRef)?.category ?? 'card')
+    seen.add(apparelId)
+    out.push({ apparelId, category: ['box', 'card', 'other'].includes(category) ? category : 'card' })
+    if (out.length >= limit) break
+  }
+  return out
 }
 
 async function currentUser(req: import('node:http').IncomingMessage): Promise<User | null> {
@@ -934,6 +991,52 @@ function authPlugin(restApiKey: string, clientSecret: string): Plugin {
             user.nickname = nickname
             await persistUsers()
             sendJson(res, 200, { nickname })
+            return
+          }
+
+          // GET /collections — 계정에 저장된 즐겨찾기/최근 본 카드
+          if (segments[0] === 'collections' && req.method === 'GET') {
+            const user = await currentUser(req)
+            if (!user) {
+              sendJson(res, 401, { error: 'login required' })
+              return
+            }
+            sendJson(res, 200, await getCollections(user.kakaoId))
+            return
+          }
+
+          // PUT /collections — 목록 전체를 덮어쓴다. 하트를 누를 때마다 호출되므로
+          // 부분 갱신보다 단순하고, 참조뿐이라 크기도 작다.
+          if (segments[0] === 'collections' && req.method === 'PUT') {
+            const user = await currentUser(req)
+            if (!user) {
+              sendJson(res, 401, { error: 'login required' })
+              return
+            }
+            const body = JSON.parse((await readBody(req)) || '{}') as { favorites?: unknown; recent?: unknown }
+            const store = await getCollections(user.kakaoId)
+            if (body.favorites !== undefined) store.favorites = sanitizeRefs(body.favorites, FAVORITES_LIMIT)
+            if (body.recent !== undefined) store.recent = sanitizeRefs(body.recent, RECENT_LIMIT)
+            await persistCollections()
+            sendJson(res, 200, store)
+            return
+          }
+
+          // POST /collections/merge — 로그인 직후, 비로그인 상태에서 담아둔 것을
+          // 계정으로 합친다. 이게 없으면 로그인하는 순간 그동안 찜한 게 사라져 보인다.
+          if (segments[0] === 'collections' && segments[1] === 'merge' && req.method === 'POST') {
+            const user = await currentUser(req)
+            if (!user) {
+              sendJson(res, 401, { error: 'login required' })
+              return
+            }
+            const body = JSON.parse((await readBody(req)) || '{}') as { favorites?: unknown; recent?: unknown }
+            const store = await getCollections(user.kakaoId)
+            // 계정 쪽을 앞에 둬서, 기존에 쓰던 순서가 로컬 것 때문에 밀리지 않게 한다.
+            store.favorites = sanitizeRefs([...store.favorites, ...(Array.isArray(body.favorites) ? body.favorites : [])], FAVORITES_LIMIT)
+            store.recent = sanitizeRefs([...store.recent, ...(Array.isArray(body.recent) ? body.recent : [])], RECENT_LIMIT)
+            await persistCollections()
+            sendJson(res, 200, store)
             return
           }
 

@@ -37,6 +37,16 @@ export function getFavoriteRefs(): StoredCardRef[] {
   return readRefs(FAVORITES_KEY);
 }
 
+// 로그인해서 계정 것과 합친 결과를 이 기기에도 반영해둔다. 로그아웃해도 그대로
+// 쓸 수 있게 하려는 것.
+export function writeFavoriteRefs(refs: StoredCardRef[]) {
+  writeRefs(FAVORITES_KEY, refs);
+}
+
+export function writeRecentRefs(refs: StoredCardRef[]) {
+  writeRefs(RECENT_KEY, refs);
+}
+
 export function isFavorite(apparelId: number, favorites: { apparelId: number }[]): boolean {
   return favorites.some((c) => c.apparelId === apparelId);
 }
