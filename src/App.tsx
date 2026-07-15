@@ -26,12 +26,13 @@ import { CardScanButton } from './components/CardScanButton';
 import { Community } from './Community';
 import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
-import { fetchMe, logout, startKakaoLogin } from './api/auth';
+import { MyPage } from './components/MyPage';
+import { fetchMe, logout } from './api/auth';
 
 const INITIAL_TARGET = 16;
 const LOAD_MORE_TARGET = 12;
 
-type MainView = 'cards' | 'interest' | 'community';
+type MainView = 'cards' | 'mypage' | 'community';
 type PriceSource = 'snkrdunk' | 'ebay';
 
 // 오른쪽 상세보기 패널이 비어 있을 때도 320px 칸을 그대로 차지해서 흰 여백만
@@ -75,6 +76,7 @@ function App() {
   const [edition, setEdition] = useState<CardEdition>('japanese');
   const [nickname, setNickname] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [createdAt, setCreatedAt] = useState<number | undefined>(undefined);
   const [needsNickname, setNeedsNickname] = useState(false);
 
   function loadPopularSearches() {
@@ -97,6 +99,7 @@ function App() {
     fetchMe().then((me) => {
       setLoggedIn(me.loggedIn);
       setNickname(me.nickname ?? null);
+      setCreatedAt(me.createdAt);
       if (me.loggedIn && !me.nickname) setNeedsNickname(true);
     });
 
@@ -110,6 +113,7 @@ function App() {
     await logout();
     setLoggedIn(false);
     setNickname(null);
+    setCreatedAt(undefined);
   }
 
   useEffect(() => {
@@ -278,27 +282,19 @@ function App() {
     </>
   );
 
-  const interestMain = (
-    <>
-      <CardRow
-        title="최근 본 카드"
-        items={recentlyViewed}
-        emptyText="아직 본 카드가 없어요. 카드를 검색해서 눌러보세요."
-        selectedId={interestSelectedId}
-        onSelect={handleSelectInterestCard}
-        isFavorite={(id) => checkIsFavorite(id, favorites)}
-        onToggleFavorite={handleToggleFavorite}
-      />
-      <CardRow
-        title="즐겨찾기 카드"
-        items={favorites}
-        emptyText="카드의 하트를 눌러서 즐겨찾기에 담아보세요."
-        selectedId={interestSelectedId}
-        onSelect={handleSelectInterestCard}
-        isFavorite={(id) => checkIsFavorite(id, favorites)}
-        onToggleFavorite={handleToggleFavorite}
-      />
-    </>
+  const myPageMain = (
+    <MyPage
+      loggedIn={loggedIn}
+      nickname={nickname}
+      createdAt={createdAt}
+      onLogout={handleLogout}
+      recentlyViewed={recentlyViewed}
+      favorites={favorites}
+      selectedId={interestSelectedId}
+      onSelect={handleSelectInterestCard}
+      isFavorite={(id) => checkIsFavorite(id, favorites)}
+      onToggleFavorite={handleToggleFavorite}
+    />
   );
 
   const searchMain = (
@@ -407,15 +403,6 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setView('interest')}
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
-                    view === 'interest' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
-                  }`}
-                >
-                  관심
-                </button>
-                <button
-                  type="button"
                   onClick={() => setView('community')}
                   className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
@@ -423,27 +410,17 @@ function App() {
                 >
                   커뮤니티
                 </button>
-
-                {loggedIn ? (
-                  <div className="flex items-center gap-2 pl-2">
-                    <span className="text-sm font-semibold text-neutral-700">{nickname ?? '...'}</span>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="rounded-full px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-100"
-                    >
-                      로그아웃
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={startKakaoLogin}
-                    className="rounded-full bg-[#FEE500] px-4 py-1.5 text-sm font-semibold text-[#191600] hover:brightness-95"
-                  >
-                    카카오 로그인
-                  </button>
-                )}
+                {/* 로그인 버튼을 헤더에 두면 공급자가 늘 때마다(네이버 등) 자리가 모자란다.
+                    진입점을 마이페이지 한 곳으로 모으고, 헤더엔 상태만 드러낸다. */}
+                <button
+                  type="button"
+                  onClick={() => setView('mypage')}
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    view === 'mypage' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                  }`}
+                >
+                  {loggedIn ? (nickname ?? '마이페이지') : '마이페이지'}
+                </button>
               </nav>
             </div>
           </div>
@@ -452,9 +429,9 @@ function App() {
         <main className="px-4 py-6">
           {view === 'community' ? (
             <Community loggedIn={loggedIn} />
-          ) : view === 'interest' ? (
+          ) : view === 'mypage' ? (
             <DetailLayout
-              main={interestMain}
+              main={myPageMain}
               detail={interestSelectedCard ? <CardDetail card={interestSelectedCard} /> : null}
             />
           ) : (

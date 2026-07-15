@@ -11,7 +11,7 @@ import {
   type CommunityPost,
   type CommunityComment,
 } from './api/community';
-import { startKakaoLogin } from './api/auth';
+import { LoginButtons } from './components/LoginButtons';
 
 async function handleReport(action: () => Promise<void>) {
   if (!window.confirm('이 게시물을 신고하시겠어요? 운영자가 확인 후 조치합니다.')) return;
@@ -49,7 +49,7 @@ function PostList({
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-bold text-black">자유게시판</h2>
-        {loggedIn ? (
+        {loggedIn && (
           <button
             type="button"
             onClick={onWrite}
@@ -57,16 +57,15 @@ function PostList({
           >
             글쓰기
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={startKakaoLogin}
-            className="rounded-lg bg-[#FEE500] px-4 py-2 text-sm font-semibold text-[#191600] hover:brightness-95"
-          >
-            카카오 로그인하고 글쓰기
-          </button>
         )}
       </div>
+
+      {!loggedIn && (
+        <div className="mb-4 rounded-xl border border-neutral-200 p-4">
+          <p className="text-xs text-neutral-500 mb-3">글을 남기려면 로그인이 필요해요.</p>
+          <LoginButtons />
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-neutral-400 py-12 text-center">불러오는 중...</p>
@@ -203,13 +202,10 @@ function PostDetail({
           </button>
         </form>
       ) : (
-        <button
-          type="button"
-          onClick={startKakaoLogin}
-          className="w-full rounded-lg bg-[#FEE500] py-2 text-sm font-semibold text-[#191600] hover:brightness-95"
-        >
-          카카오 로그인하고 댓글 남기기
-        </button>
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <p className="text-xs text-neutral-500 mb-3">댓글을 남기려면 로그인이 필요해요.</p>
+          <LoginButtons />
+        </div>
       )}
     </div>
   );

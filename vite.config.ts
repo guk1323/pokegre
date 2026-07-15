@@ -890,7 +890,14 @@ function authPlugin(restApiKey: string, clientSecret: string): Plugin {
           // GET /me — 로그인 상태 확인
           if (segments[0] === 'me') {
             const user = await currentUser(req)
-            sendJson(res, 200, user ? { loggedIn: true, nickname: user.nickname } : { loggedIn: false })
+            // kakaoId는 내려주지 않는다 — 회원번호가 클라이언트로 새면 추적에 쓰일 수 있다.
+            sendJson(
+              res,
+              200,
+              user
+                ? { loggedIn: true, nickname: user.nickname, createdAt: user.createdAt }
+                : { loggedIn: false },
+            )
             return
           }
 

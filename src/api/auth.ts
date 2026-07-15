@@ -1,6 +1,7 @@
 export interface AuthState {
   loggedIn: boolean;
   nickname?: string | null;
+  createdAt?: number;
 }
 
 export async function fetchMe(): Promise<AuthState> {
