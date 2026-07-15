@@ -1,6 +1,5 @@
 import type { SnkrdunkCard } from '../api/snkrdunk';
 import { CardRow } from './CardRow';
-import { LoginButtons } from './LoginButtons';
 
 // 가입 당일이 1일차. (지금 - 가입일)을 그냥 나누면 0일차가 나와서 어색하다.
 function daysSince(createdAt: number): number {
@@ -12,20 +11,30 @@ function AccountCard({
   nickname,
   createdAt,
   onLogout,
+  onRequestLogin,
 }: {
   loggedIn: boolean;
   nickname: string | null;
   createdAt?: number;
   onLogout: () => void;
+  onRequestLogin: () => void;
 }) {
   if (!loggedIn) {
     return (
-      <div className="mb-6 rounded-xl border border-neutral-200 p-5">
-        <p className="text-sm font-bold text-black mb-1">로그인하고 시작하기</p>
-        <p className="text-xs text-neutral-500 mb-4">
-          커뮤니티에 글을 남기려면 로그인이 필요해요. 관심 카드는 로그인 없이도 이 기기에 저장됩니다.
-        </p>
-        <LoginButtons />
+      <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 p-5">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-black mb-1">로그인하고 시작하기</p>
+          <p className="text-xs text-neutral-500">
+            관심 카드를 계정에 보관하고 커뮤니티에 글을 남길 수 있어요.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onRequestLogin}
+          className="flex-shrink-0 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+        >
+          로그인
+        </button>
       </div>
     );
   }
@@ -59,6 +68,7 @@ export function MyPage({
   nickname,
   createdAt,
   onLogout,
+  onRequestLogin,
   recentlyViewed,
   favorites,
   selectedId,
@@ -70,6 +80,7 @@ export function MyPage({
   nickname: string | null;
   createdAt?: number;
   onLogout: () => void;
+  onRequestLogin: () => void;
   recentlyViewed: SnkrdunkCard[];
   favorites: SnkrdunkCard[];
   selectedId: number | null;
@@ -79,7 +90,13 @@ export function MyPage({
 }) {
   return (
     <>
-      <AccountCard loggedIn={loggedIn} nickname={nickname} createdAt={createdAt} onLogout={onLogout} />
+      <AccountCard
+        loggedIn={loggedIn}
+        nickname={nickname}
+        createdAt={createdAt}
+        onLogout={onLogout}
+        onRequestLogin={onRequestLogin}
+      />
 
       <CardRow
         title="최근 본 카드"

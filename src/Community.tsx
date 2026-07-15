@@ -11,7 +11,6 @@ import {
   type CommunityPost,
   type CommunityComment,
 } from './api/community';
-import { LoginButtons } from './components/LoginButtons';
 
 async function handleReport(action: () => Promise<void>) {
   if (!window.confirm('이 게시물을 신고하시겠어요? 운영자가 확인 후 조치합니다.')) return;
@@ -38,34 +37,29 @@ function PostList({
   loggedIn,
   onOpen,
   onWrite,
+  onRequestLogin,
 }: {
   posts: CommunityPost[];
   loading: boolean;
   loggedIn: boolean;
   onOpen: (id: number) => void;
   onWrite: () => void;
+  onRequestLogin: () => void;
 }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-bold text-black">자유게시판</h2>
-        {loggedIn && (
-          <button
-            type="button"
-            onClick={onWrite}
-            className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
-          >
-            글쓰기
-          </button>
-        )}
+        {/* 비로그인이어도 글쓰기 버튼은 보여준다 — 누르면 로그인 모달이 뜨므로,
+            버튼을 숨겨서 "왜 글을 못 쓰지?" 하게 만드는 것보다 낫다. */}
+        <button
+          type="button"
+          onClick={loggedIn ? onWrite : onRequestLogin}
+          className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+        >
+          글쓰기
+        </button>
       </div>
-
-      {!loggedIn && (
-        <div className="mb-4 rounded-xl border border-neutral-200 p-4">
-          <p className="text-xs text-neutral-500 mb-3">글을 남기려면 로그인이 필요해요.</p>
-          <LoginButtons />
-        </div>
-      )}
 
       {loading ? (
         <p className="text-sm text-neutral-400 py-12 text-center">불러오는 중...</p>
@@ -106,11 +100,13 @@ function PostDetail({
   onBack,
   onSubmitComment,
   onDelete,
+  onRequestLogin,
 }: {
   post: CommunityPost;
   comments: CommunityComment[];
   commentsLoading: boolean;
   loggedIn: boolean;
+  onRequestLogin: () => void;
   onBack: () => void;
   onSubmitComment: (content: string) => Promise<void>;
   onDelete: () => void;
@@ -202,10 +198,13 @@ function PostDetail({
           </button>
         </form>
       ) : (
-        <div className="rounded-xl border border-neutral-200 p-4">
-          <p className="text-xs text-neutral-500 mb-3">댓글을 남기려면 로그인이 필요해요.</p>
-          <LoginButtons />
-        </div>
+        <button
+          type="button"
+          onClick={onRequestLogin}
+          className="w-full rounded-lg border border-neutral-300 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-50"
+        >
+          로그인하고 댓글 남기기
+        </button>
       )}
     </div>
   );
@@ -270,7 +269,7 @@ function PostForm({
 
 type View = 'list' | 'detail' | 'write';
 
-export function Community({ loggedIn }: { loggedIn: boolean }) {
+export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onRequestLogin: () => void }) {
   const [view, setView] = useState<View>('list');
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -341,6 +340,7 @@ export function Community({ loggedIn }: { loggedIn: boolean }) {
         onBack={() => setView('list')}
         onSubmitComment={handleCreateComment}
         onDelete={handleDeletePost}
+        onRequestLogin={onRequestLogin}
       />
     );
   }
@@ -352,6 +352,7 @@ export function Community({ loggedIn }: { loggedIn: boolean }) {
       loggedIn={loggedIn}
       onOpen={openPost}
       onWrite={() => setView('write')}
+      onRequestLogin={onRequestLogin}
     />
   );
 }

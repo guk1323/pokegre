@@ -29,6 +29,7 @@ import { CardScanButton } from './components/CardScanButton';
 import { Community } from './Community';
 import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
+import { LoginModal } from './components/LoginModal';
 import { MyPage } from './components/MyPage';
 import { fetchMe, logout, mergeCollections, saveCollections } from './api/auth';
 
@@ -84,6 +85,8 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [createdAt, setCreatedAt] = useState<number | undefined>(undefined);
   const [needsNickname, setNeedsNickname] = useState(false);
+  // 로그인 모달은 마이페이지·커뮤니티 어디서든 열리므로 App이 들고 있는다.
+  const [loginOpen, setLoginOpen] = useState(false);
 
   function loadPopularSearches() {
     fetchPopularSearches()
@@ -336,6 +339,7 @@ function App() {
       nickname={nickname}
       createdAt={createdAt}
       onLogout={handleLogout}
+      onRequestLogin={() => setLoginOpen(true)}
       recentlyViewed={recentlyViewed}
       favorites={favorites}
       selectedId={interestSelectedId}
@@ -476,7 +480,7 @@ function App() {
 
         <main className="px-4 py-6">
           {view === 'community' ? (
-            <Community loggedIn={loggedIn} />
+            <Community loggedIn={loggedIn} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'mypage' ? (
             <DetailLayout
               main={myPageMain}
@@ -572,6 +576,8 @@ function App() {
 
         <Footer />
       </div>
+
+      {loginOpen && !loggedIn && <LoginModal onClose={() => setLoginOpen(false)} />}
 
       {needsNickname && (
         <NicknameSetup

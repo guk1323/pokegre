@@ -39,8 +39,12 @@ interface ApparelDetailResponse {
   productCatalogId?: number;
   localizedName: string;
   primaryMedia?: { imageUrl: string };
+  // 중고(싱글카드) 쪽 값
   usedMinPrice?: number;
   usedListingCount?: number;
+  // 미개봉(박스·팩) 쪽 값
+  minPrice?: number;
+  listingCount?: number;
 }
 
 interface RawProduct {
@@ -125,11 +129,14 @@ export async function fetchApparelDetail(apparelId: number): Promise<{ title: st
   if (!res.ok) return null;
   const data: ApparelDetailResponse = await res.json();
   if (!data.primaryMedia?.imageUrl) return null;
+  // 가격이 상품 종류에 따라 다른 필드에 담겨 온다. 싱글카드는 중고 거래라
+  // usedMinPrice(박스는 0)에, 박스·팩은 미개봉이라 minPrice(싱글은 0)에 들어있다.
+  // 한쪽만 읽으면 다른 쪽이 ¥0으로 보인다.
   return {
     title: data.localizedName,
     imageUrl: data.primaryMedia.imageUrl,
-    price: data.usedMinPrice ?? 0,
-    stock: data.usedListingCount ?? 0,
+    price: data.usedMinPrice || data.minPrice || 0,
+    stock: data.usedListingCount || data.listingCount || 0,
   };
 }
 
