@@ -9,6 +9,7 @@ export function CardRow({
   onSelect,
   isFavorite,
   onToggleFavorite,
+  onClear,
 }: {
   title: string;
   items: SnkrdunkCard[];
@@ -17,10 +18,20 @@ export function CardRow({
   onSelect: (id: number) => void;
   isFavorite: (apparelId: number) => boolean;
   onToggleFavorite: (card: SnkrdunkCard) => void;
+  // 전달하면 제목 옆에 전체 삭제 버튼이 붙는다. 검색 결과처럼 지울 게 없는
+  // 목록에서는 생략한다.
+  onClear?: () => void;
 }) {
   return (
     <div className="mb-6">
-      <p className="text-xs font-semibold text-neutral-500 mb-3">{title}</p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold text-neutral-500">{title}</p>
+        {onClear && items.length > 0 && (
+          <button type="button" onClick={onClear} className="text-xs text-neutral-400 hover:text-rose-500">
+            전체 삭제
+          </button>
+        )}
+      </div>
       {items.length === 0 ? (
         <p className="text-sm text-neutral-400 py-6 text-center rounded-xl border border-dashed border-neutral-200">
           {emptyText}

@@ -1,9 +1,71 @@
+import { useState } from 'react';
 import type { SnkrdunkCard } from '../api/snkrdunk';
+import { NICKNAME_TAKEN, setNickname as saveNickname } from '../api/auth';
 import { CardRow } from './CardRow';
 
 // 가입 당일이 1일차. (지금 - 가입일)을 그냥 나누면 0일차가 나와서 어색하다.
 function daysSince(createdAt: number): number {
   return Math.floor((Date.now() - createdAt) / 86_400_000) + 1;
+}
+
+function NicknameEditor({
+  nickname,
+  onSaved,
+  onCancel,
+}: {
+  nickname: string;
+  onSaved: (nickname: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(nickname);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const next = value.trim();
+    if (!next) return;
+    if (next === nickname) return onCancel();
+    setSaving(true);
+    setError('');
+    try {
+      onSaved(await saveNickname(next));
+    } catch (err) {
+      setError(err instanceof Error && err.message === NICKNAME_TAKEN ? '이미 사용 중인 닉네임이에요.' : '닉네임을 저장하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="min-w-0 flex-1">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={value}
+          autoFocus
+          maxLength={20}
+          onChange={(e) => setValue(e.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+        />
+        <button
+          type="submit"
+          disabled={saving || !value.trim()}
+          className="flex-shrink-0 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 disabled:opacity-50"
+        >
+          저장
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+        >
+          취소
+        </button>
+      </div>
+      {error && <p className="mt-1.5 text-xs text-rose-500">{error}</p>}
+    </form>
+  );
 }
 
 function AccountCard({
@@ -12,13 +74,16 @@ function AccountCard({
   createdAt,
   onLogout,
   onRequestLogin,
+  onNicknameChange,
 }: {
   loggedIn: boolean;
   nickname: string | null;
   createdAt?: number;
   onLogout: () => void;
   onRequestLogin: () => void;
+  onNicknameChange: (nickname: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
   if (!loggedIn) {
     return (
       <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 p-5">
@@ -39,10 +104,36 @@ function AccountCard({
     );
   }
 
+  if (editing && nickname !== null) {
+    return (
+      <div className="mb-6 rounded-xl border border-neutral-200 p-5">
+        <NicknameEditor
+          nickname={nickname}
+          onSaved={(next) => {
+            onNicknameChange(next);
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 p-5">
       <div className="min-w-0">
-        <p className="text-base font-bold text-black truncate">{nickname ?? '...'}</p>
+        <div className="flex items-baseline gap-2">
+          <p className="text-base font-bold text-black truncate">{nickname ?? '...'}</p>
+          {nickname !== null && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="flex-shrink-0 text-xs text-neutral-400 hover:text-black"
+            >
+              변경
+            </button>
+          )}
+        </div>
         {createdAt && (
           <p className="text-xs text-neutral-400 mt-0.5">
             가입 {daysSince(createdAt).toLocaleString()}일차 ·{' '}
@@ -69,24 +160,30 @@ export function MyPage({
   createdAt,
   onLogout,
   onRequestLogin,
+  onNicknameChange,
   recentlyViewed,
   favorites,
   selectedId,
   onSelect,
   isFavorite,
   onToggleFavorite,
+  onClearRecent,
+  onClearFavorites,
 }: {
   loggedIn: boolean;
   nickname: string | null;
   createdAt?: number;
   onLogout: () => void;
   onRequestLogin: () => void;
+  onNicknameChange: (nickname: string) => void;
   recentlyViewed: SnkrdunkCard[];
   favorites: SnkrdunkCard[];
   selectedId: number | null;
   onSelect: (id: number) => void;
   isFavorite: (apparelId: number) => boolean;
   onToggleFavorite: (card: SnkrdunkCard) => void;
+  onClearRecent: () => void;
+  onClearFavorites: () => void;
 }) {
   return (
     <>
@@ -96,6 +193,7 @@ export function MyPage({
         createdAt={createdAt}
         onLogout={onLogout}
         onRequestLogin={onRequestLogin}
+        onNicknameChange={onNicknameChange}
       />
 
       <CardRow
@@ -106,6 +204,7 @@ export function MyPage({
         onSelect={onSelect}
         isFavorite={isFavorite}
         onToggleFavorite={onToggleFavorite}
+        onClear={onClearRecent}
       />
       <CardRow
         title="즐겨찾기 카드"
@@ -115,6 +214,7 @@ export function MyPage({
         onSelect={onSelect}
         isFavorite={isFavorite}
         onToggleFavorite={onToggleFavorite}
+        onClear={onClearFavorites}
       />
     </>
   );

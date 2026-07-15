@@ -309,6 +309,20 @@ function App() {
     if (loggedIn) saveCollections({ favorites: next });
   }
 
+  function handleClearRecent() {
+    if (!window.confirm('최근 본 카드 기록을 모두 지울까요?')) return;
+    writeRecentRefs([]);
+    setRecentRefs([]);
+    if (loggedIn) saveCollections({ recent: [] });
+  }
+
+  function handleClearFavorites() {
+    if (!window.confirm('즐겨찾기한 카드를 모두 지울까요?')) return;
+    writeFavoriteRefs([]);
+    setFavoriteRefs([]);
+    if (loggedIn) saveCollections({ favorites: [] });
+  }
+
   function handleSelectSuggestion(term: string) {
     setQuery(term);
     setSuggestionsOpen(false);
@@ -340,12 +354,15 @@ function App() {
       createdAt={createdAt}
       onLogout={handleLogout}
       onRequestLogin={() => setLoginOpen(true)}
+      onNicknameChange={setNickname}
       recentlyViewed={recentlyViewed}
       favorites={favorites}
       selectedId={interestSelectedId}
       onSelect={handleSelectInterestCard}
       isFavorite={(id) => checkIsFavorite(id, favoriteRefs)}
       onToggleFavorite={handleToggleFavorite}
+      onClearRecent={handleClearRecent}
+      onClearFavorites={handleClearFavorites}
     />
   );
 
