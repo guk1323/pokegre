@@ -1,0 +1,37 @@
+# 앱 이름은 fly launch 때 정해지며 전역에서 유일해야 한다. 이미 쓰는 이름이면
+# fly가 다른 이름을 제안한다. 바뀌면 아래 PUBLIC_ORIGIN도 같이 바꿔야 한다.
+app = "pokegre"
+
+# 도쿄. 사용자와 가까운 것도 있지만, 더 중요한 건 SNKRDUNK가 일본에 있다는 점이다.
+# 서버→업스트림이 같은 나라 안이라 카드 조회가 빨라진다. 싱가포르·미국을 고르면
+# 사용자→서버와 서버→SNKRDUNK 두 홉이 모두 멀어진다.
+primary_region = "nrt"
+
+[build]
+
+[env]
+  PORT = "3000"
+  # 볼륨 마운트 지점. server/api.ts가 이 경로에 사용자·세션·게시글 JSON을 쓴다.
+  POKEGRE_DATA_DIR = "/data"
+  # 카카오에 넘길 redirect_uri의 기준. 앱 이름이나 도메인이 바뀌면 여기도 바꾸고
+  # 카카오 개발자 콘솔에도 같은 주소를 등록해야 한다.
+  PUBLIC_ORIGIN = "https://pokegre.fly.dev"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # 트래픽이 없으면 머신을 재우고 요청이 오면 깨운다. 개인 프로젝트에선 이게 비용을
+  # 크게 줄이고, Fly는 기동이 빨라서(수 초) Render 무료 티어의 40~50초 대기와 다르다.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+# 데이터가 JSON 파일이라 볼륨이 없으면 배포할 때마다 회원과 게시글이 전부 사라진다.
+# 머신 한 대에 붙는 로컬 디스크라, 나중에 여러 대로 늘리려면 그때 DB로 옮겨야 한다.
+[mounts]
+  source = "pokegre_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

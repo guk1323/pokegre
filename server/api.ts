@@ -993,14 +993,30 @@ function sendJson(res: import('node:http').ServerResponse, status: number, data:
 
 // 카카오는 로그인(본인 확인)에만 쓰고, 화면에 보이는 닉네임은 사용자가 직접 정한다.
 // 그래서 동의항목 없이 회원번호만 받으며, 카톡 프로필은 저장하지 않는다.
+// 카카오에 넘기는 redirect_uri를 만들 기준 주소. 예전엔 localhost:5173이 박혀 있어서
+// 배포하면 카카오가 사용자를 로컬 주소로 돌려보내 로그인이 끊긴다.
+//
+// 배포 환경에서는 PUBLIC_ORIGIN을 명시한다. Host 헤더로만 만들면 요청자가 바꿔 넣을 수
+// 있는 값에 의존하게 되는데, 카카오가 등록된 URI 목록과 대조하니 그것만으로 뚫리진
+// 않더라도 굳이 남의 입력을 신뢰할 이유가 없다. 개발에서는 값이 없으니 헤더에서 만든다.
+function publicOrigin(req: IncomingMessage): string {
+  if (process.env.PUBLIC_ORIGIN) return process.env.PUBLIC_ORIGIN
+  // 프록시 뒤(Fly 등)에서는 실제 프로토콜이 x-forwarded-proto로 온다. 값이 여러 개면
+  // 첫 번째가 원 요청의 것이다.
+  const forwarded = req.headers['x-forwarded-proto']
+  const proto = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim() ?? 'http'
+  const host = req.headers.host ?? 'localhost:5173'
+  return `${proto}://${host}`
+}
+
 function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다.
   const pendingStates = new Set<string>()
 
   app.use('/api/local/auth', async (req, res) => {
-    const url = new URL(req.url ?? '', 'http://localhost:5173')
+    const origin = publicOrigin(req)
+    const url = new URL(req.url ?? '', origin)
     const segments = url.pathname.split('/').filter(Boolean)
-    const origin = `http://localhost:5173`
     const redirectUri = `${origin}/api/local/auth/kakao/callback`
 
     try {

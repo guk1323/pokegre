@@ -1,0 +1,17 @@
+# 이미지에 절대 들어가면 안 되는 것들. 특히 .env는 API 키가 들어있고, 이미지는
+# 레지스트리에 저장되므로 한번 들어가면 지웠다고 사라지지 않는다. 배포 환경의 키는
+# fly secrets로 주입한다.
+.env
+.env.*
+
+# data/는 볼륨으로 마운트한다. 이미지에 넣으면 로컬 개발 데이터(사용자·세션·게시글)가
+# 서버로 딸려 올라간다.
+data
+
+node_modules
+dist
+.git
+.gitignore
+*.log
+.DS_Store
+README.md
