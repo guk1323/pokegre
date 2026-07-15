@@ -138,11 +138,14 @@ const COMMENTS_FILE = path.resolve(__dirname, 'data/community-comments.json')
 const REPORTS_FILE = path.resolve(__dirname, 'data/community-reports.json')
 const MAX_POSTS = 500
 
+// 작성자 닉네임은 글에 저장하지 않는다. 저장해두면 나중에 닉네임을 바꿔도 옛 글에는
+// 옛 이름이 박힌 채로 남아, 같은 사람이 두 사람처럼 보인다. authorId만 남기고 닉네임은
+// 매번 조회해서 채운다.
 interface CommunityPost {
   id: number
   title: string
-  author: string
-  // 작성자 카카오 회원번호. 화면에는 절대 내보내지 않고, 본인 글 여부 판별에만 쓴다.
+  // 작성자 카카오 회원번호. 화면에는 절대 내보내지 않고, 닉네임 조회와 본인 글 여부
+  // 판별에만 쓴다.
   authorId: string
   content: string
   createdAt: number
@@ -152,22 +155,36 @@ interface CommunityPost {
 interface CommunityComment {
   id: number
   postId: number
-  author: string
   authorId: string
   content: string
   createdAt: number
 }
 
-// authorId(카카오 회원번호)는 내부 식별용이라 응답에서 제거하고, 대신 "내 글인가"만
-// 알려준다. 회원번호가 클라이언트로 새면 사용자 추적에 쓰일 수 있다.
-function toPublicPost(post: CommunityPost, viewer: User | null) {
-  const { authorId, ...rest } = post
-  return { ...rest, isMine: viewer != null && authorId === viewer.kakaoId }
+// 탈퇴했거나 닉네임을 아직 안 정한 작성자. 글 자체는 남으므로 이름 자리는 채워야 한다.
+const UNKNOWN_AUTHOR = '알 수 없음'
+
+function authorName(authorId: string, all: User[]): string {
+  return all.find((u) => u.kakaoId === authorId)?.nickname ?? UNKNOWN_AUTHOR
 }
 
-function toPublicComment(comment: CommunityComment, viewer: User | null) {
+// authorId(카카오 회원번호)는 내부 식별용이라 응답에서 제거하고, 대신 "내 글인가"만
+// 알려준다. 회원번호가 클라이언트로 새면 사용자 추적에 쓰일 수 있다.
+function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
+  const { authorId, ...rest } = post
+  return {
+    ...rest,
+    author: authorName(authorId, all),
+    isMine: viewer != null && authorId === viewer.kakaoId,
+  }
+}
+
+function toPublicComment(comment: CommunityComment, viewer: User | null, all: User[]) {
   const { authorId, ...rest } = comment
-  return { ...rest, isMine: viewer != null && authorId === viewer.kakaoId }
+  return {
+    ...rest,
+    author: authorName(authorId, all),
+    isMine: viewer != null && authorId === viewer.kakaoId,
+  }
 }
 
 interface CommunityReport {
@@ -253,10 +270,11 @@ function communityPlugin(): Plugin {
           if (segments.length === 1 && segments[0] === 'posts' && req.method === 'GET') {
             const viewer = await currentUser(req)
             const all = await loadPosts()
+            const everyone = await loadUsers()
             sendJson(
               res,
               200,
-              [...all].sort((a, b) => b.createdAt - a.createdAt).map((p) => toPublicPost(p, viewer)),
+              [...all].sort((a, b) => b.createdAt - a.createdAt).map((p) => toPublicPost(p, viewer, everyone)),
             )
             return
           }
@@ -281,7 +299,6 @@ function communityPlugin(): Plugin {
               title,
               // 작성자는 클라이언트가 보낸 값이 아니라 세션에서 가져온다. 아니면
               // 아무나 남의 닉네임을 사칭해 글을 쓸 수 있다.
-              author: user.nickname,
               authorId: user.kakaoId,
               content,
               createdAt: Date.now(),
@@ -290,7 +307,7 @@ function communityPlugin(): Plugin {
             all.push(post)
             if (all.length > MAX_POSTS) all.splice(0, all.length - MAX_POSTS)
             await persistPosts()
-            sendJson(res, 201, toPublicPost(post, user))
+            sendJson(res, 201, toPublicPost(post, user, await loadUsers()))
             return
           }
 
@@ -304,7 +321,7 @@ function communityPlugin(): Plugin {
               sendJson(res, 404, { error: 'not found' })
               return
             }
-            sendJson(res, 200, toPublicPost(post, viewer))
+            sendJson(res, 200, toPublicPost(post, viewer, await loadUsers()))
             return
           }
 
@@ -392,13 +409,14 @@ function communityPlugin(): Plugin {
             if (req.method === 'GET') {
               const viewer = await currentUser(req)
               const all = await loadComments()
+              const everyone = await loadUsers()
               sendJson(
                 res,
                 200,
                 all
                   .filter((c) => c.postId === postId)
                   .sort((a, b) => a.createdAt - b.createdAt)
-                  .map((c) => toPublicComment(c, viewer)),
+                  .map((c) => toPublicComment(c, viewer, everyone)),
               )
               return
             }
@@ -425,7 +443,6 @@ function communityPlugin(): Plugin {
               const comment: CommunityComment = {
                 id: Date.now(),
                 postId,
-                author: user.nickname,
                 authorId: user.kakaoId,
                 content,
                 createdAt: Date.now(),
@@ -434,7 +451,7 @@ function communityPlugin(): Plugin {
               post.commentCount += 1
               await persistComments()
               await persistPosts()
-              sendJson(res, 201, toPublicComment(comment, user))
+              sendJson(res, 201, toPublicComment(comment, user, await loadUsers()))
               return
             }
           }
