@@ -202,6 +202,11 @@ const POSTS_FILE = dataFile('community-posts.json')
 const COMMENTS_FILE = dataFile('community-comments.json')
 const REPORTS_FILE = dataFile('community-reports.json')
 const MAX_POSTS = 500
+// 글 하나가 볼륨을 채우지 못하게 막는 상한. 게시글 500개가 전부 상한을 채워도
+// 25MB 정도라 1GB 볼륨에 여유가 크다.
+const MAX_TITLE_LENGTH = 200
+const MAX_CONTENT_LENGTH = 50_000
+const MAX_COMMENT_LENGTH = 2_000
 
 // 작성자 닉네임은 글에 저장하지 않는다. 저장해두면 나중에 닉네임을 바꿔도 옛 글에는
 // 옛 이름이 박힌 채로 남아, 같은 사람이 두 사람처럼 보인다. authorId만 남기고 닉네임은
@@ -354,6 +359,14 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 400, { error: 'title and content are required' })
           return
         }
+        // 자르지 않고 거절한다. 조용히 잘라내면 사용자는 글이 온전히 저장된 줄 알고
+        // 나중에 뒷부분이 사라진 걸 발견하게 된다.
+        if (title.length > MAX_TITLE_LENGTH || content.length > MAX_CONTENT_LENGTH) {
+          sendJson(res, 400, {
+            error: `title must be <= ${MAX_TITLE_LENGTH} chars and content <= ${MAX_CONTENT_LENGTH} chars`,
+          })
+          return
+        }
         const all = await loadPosts()
         const post: CommunityPost = {
           id: Date.now(),
@@ -494,6 +507,10 @@ function mountCommunity(app: Mountable) {
             sendJson(res, 400, { error: 'content is required' })
             return
           }
+          if (content.length > MAX_COMMENT_LENGTH) {
+            sendJson(res, 400, { error: `content must be <= ${MAX_COMMENT_LENGTH} chars` })
+            return
+          }
           const allPosts = await loadPosts()
           const post = allPosts.find((p) => p.id === postId)
           if (!post) {
@@ -527,12 +544,36 @@ function mountCommunity(app: Mountable) {
 const SEARCH_COUNTS_FILE = dataFile('search-counts.json')
 const SNAPSHOT_FILE = dataFile('search-ranking-snapshot.json')
 const MAX_TRACKED_TERMS = 500
+// 카드명·팩명 검색어라 이보다 길 일이 없다. 넘으면 집계하지 않고 조용히 무시한다
+// (검색 자체는 클라이언트가 알아서 하므로 사용자에게 보이는 변화는 없다).
+const MAX_TERM_LENGTH = 100
 const SNAPSHOT_INTERVAL_MS = 60 * 60 * 1000
 const RANKING_SIZE = 10
 
-async function readBody(req: import('node:http').IncomingMessage): Promise<string> {
+// 요청 바디는 전부 메모리에 올라간다. 상한이 없으면 아무나 거대한 요청 하나로 서버를
+// 죽일 수 있다(track-search는 로그인도 필요 없다). 텍스트 JSON은 이 정도면 넉넉하고,
+// 카드 사진처럼 원래 큰 바디는 호출부에서 따로 넉넉히 준다.
+const MAX_BODY_BYTES = 64 * 1024
+
+export class BodyTooLargeError extends Error {}
+
+async function readBody(
+  req: import('node:http').IncomingMessage,
+  maxBytes: number = MAX_BODY_BYTES,
+): Promise<string> {
   const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(chunk as Buffer)
+  let total = 0
+  for await (const chunk of req) {
+    const buf = chunk as Buffer
+    total += buf.length
+    // 다 받은 뒤에 재면 이미 메모리에 다 올라온 뒤라 아무 소용이 없다. 넘는 순간
+    // 끊어야 버퍼가 딱 그만큼에서 멈춘다.
+    if (total > maxBytes) {
+      req.destroy()
+      throw new BodyTooLargeError()
+    }
+    chunks.push(buf)
+  }
   return Buffer.concat(chunks).toString('utf-8')
 }
 
@@ -598,7 +639,10 @@ function mountSearchTracker(app: Mountable) {
     try {
       const body = JSON.parse(await readBody(req)) as { query?: string }
       const term = body.query?.trim()
-      if (term) {
+      // 검색어가 그대로 JSON 키가 되어 파일에 쌓인다. MAX_TRACKED_TERMS는 개수만 막지
+      // 크기는 안 막아서, 길이를 안 자르면 500개로도 볼륨을 넘길 수 있다. 이 엔드포인트는
+      // 로그인도 필요 없다.
+      if (term && term.length <= MAX_TERM_LENGTH) {
         const current = await loadCounts()
         current[term] = (current[term] ?? 0) + 1
         if (Object.keys(current).length > MAX_TRACKED_TERMS) {
@@ -774,6 +818,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
 }
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
+const MAX_IMAGE_BODY_BYTES = 8 * 1024 * 1024
 const CARD_SCAN_MODEL = 'claude-haiku-4-5'
 
 const CARD_SCAN_PROMPT = `이 이미지는 일본판 포켓몬 카드 사진이다. 카드에 인쇄된 정보를 읽어서 아래 JSON 형식으로만 답하라. 다른 설명은 절대 붙이지 마라.
@@ -800,7 +845,12 @@ function mountCardScan(app: Mountable, apiKey: string) {
     }
 
     try {
-      const body = JSON.parse(await readBody(req)) as { image?: string; mediaType?: string }
+      // 카드 사진이 base64로 담겨 오므로 기본 상한(64KB)으로는 정상 요청도 막힌다.
+      // base64는 원본보다 약 1/3 커지니, 폰 사진 한 장을 넉넉히 받을 만큼만 연다.
+      const body = JSON.parse(await readBody(req, MAX_IMAGE_BODY_BYTES)) as {
+        image?: string
+        mediaType?: string
+      }
       if (!body.image || !body.mediaType) {
         res.statusCode = 400
         res.setHeader('content-type', 'application/json')
