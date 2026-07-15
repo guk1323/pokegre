@@ -25,6 +25,8 @@ import { EbayCardDetail } from './components/EbayCardDetail';
 import { CardScanButton } from './components/CardScanButton';
 import { Community } from './Community';
 import { Footer } from './components/legal/Footer';
+import { NicknameSetup } from './components/NicknameSetup';
+import { fetchMe, logout, startKakaoLogin } from './api/auth';
 
 const INITIAL_TARGET = 16;
 const LOAD_MORE_TARGET = 12;
@@ -71,6 +73,9 @@ function App() {
   const [ebayError, setEbayError] = useState<string | null>(null);
   const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
   const [edition, setEdition] = useState<CardEdition>('japanese');
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [needsNickname, setNeedsNickname] = useState(false);
 
   function loadPopularSearches() {
     fetchPopularSearches()
@@ -85,6 +90,27 @@ function App() {
   useEffect(() => {
     loadPopularSearches();
   }, []);
+
+  // 카카오 콜백이 /?setNickname=1 로 돌려보내면 최초 로그인이라 닉네임 설정을 띄운다.
+  // 주소창에 흔적을 남기지 않도록 확인 후 쿼리는 지운다.
+  useEffect(() => {
+    fetchMe().then((me) => {
+      setLoggedIn(me.loggedIn);
+      setNickname(me.nickname ?? null);
+      if (me.loggedIn && !me.nickname) setNeedsNickname(true);
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('setNickname') || params.has('login')) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  async function handleLogout() {
+    await logout();
+    setLoggedIn(false);
+    setNickname(null);
+  }
 
   useEffect(() => {
     fetchPokemonNews()
@@ -397,6 +423,27 @@ function App() {
                 >
                   커뮤니티
                 </button>
+
+                {loggedIn ? (
+                  <div className="flex items-center gap-2 pl-2">
+                    <span className="text-sm font-semibold text-neutral-700">{nickname ?? '...'}</span>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="rounded-full px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-100"
+                    >
+                      로그아웃
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startKakaoLogin}
+                    className="rounded-full bg-[#FEE500] px-4 py-1.5 text-sm font-semibold text-[#191600] hover:brightness-95"
+                  >
+                    카카오 로그인
+                  </button>
+                )}
               </nav>
             </div>
           </div>
@@ -404,7 +451,7 @@ function App() {
 
         <main className="px-4 py-6">
           {view === 'community' ? (
-            <Community />
+            <Community loggedIn={loggedIn} />
           ) : view === 'interest' ? (
             <DetailLayout
               main={interestMain}
@@ -500,6 +547,15 @@ function App() {
 
         <Footer />
       </div>
+
+      {needsNickname && (
+        <NicknameSetup
+          onDone={(name) => {
+            setNickname(name);
+            setNeedsNickname(false);
+          }}
+        />
+      )}
     </div>
   );
 }

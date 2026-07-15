@@ -2,6 +2,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
 const SNKRDUNK_ORIGIN = 'https://snkrdunk.com'
@@ -141,6 +142,8 @@ interface CommunityPost {
   id: number
   title: string
   author: string
+  // 작성자 카카오 회원번호. 화면에는 절대 내보내지 않고, 본인 글 여부 판별에만 쓴다.
+  authorId: string
   content: string
   createdAt: number
   commentCount: number
@@ -150,8 +153,21 @@ interface CommunityComment {
   id: number
   postId: number
   author: string
+  authorId: string
   content: string
   createdAt: number
+}
+
+// authorId(카카오 회원번호)는 내부 식별용이라 응답에서 제거하고, 대신 "내 글인가"만
+// 알려준다. 회원번호가 클라이언트로 새면 사용자 추적에 쓰일 수 있다.
+function toPublicPost(post: CommunityPost, viewer: User | null) {
+  const { authorId, ...rest } = post
+  return { ...rest, isMine: viewer != null && authorId === viewer.kakaoId }
+}
+
+function toPublicComment(comment: CommunityComment, viewer: User | null) {
+  const { authorId, ...rest } = comment
+  return { ...rest, isMine: viewer != null && authorId === viewer.kakaoId }
 }
 
 interface CommunityReport {
@@ -235,16 +251,26 @@ function communityPlugin(): Plugin {
         try {
           // /posts
           if (segments.length === 1 && segments[0] === 'posts' && req.method === 'GET') {
+            const viewer = await currentUser(req)
             const all = await loadPosts()
-            sendJson(res, 200, [...all].sort((a, b) => b.createdAt - a.createdAt))
+            sendJson(
+              res,
+              200,
+              [...all].sort((a, b) => b.createdAt - a.createdAt).map((p) => toPublicPost(p, viewer)),
+            )
             return
           }
 
           if (segments.length === 1 && segments[0] === 'posts' && req.method === 'POST') {
-            const body = JSON.parse(await readBody(req)) as { title?: string; author?: string; content?: string }
+            // 닉네임까지 정해야 글을 쓸 수 있다(작성자 표시가 닉네임이므로).
+            const user = await currentUser(req)
+            if (!user?.nickname) {
+              sendJson(res, 401, { error: 'login required' })
+              return
+            }
+            const body = JSON.parse(await readBody(req)) as { title?: string; content?: string }
             const title = body.title?.trim()
             const content = body.content?.trim()
-            const author = body.author?.trim() || '익명'
             if (!title || !content) {
               sendJson(res, 400, { error: 'title and content are required' })
               return
@@ -253,7 +279,10 @@ function communityPlugin(): Plugin {
             const post: CommunityPost = {
               id: Date.now(),
               title,
-              author,
+              // 작성자는 클라이언트가 보낸 값이 아니라 세션에서 가져온다. 아니면
+              // 아무나 남의 닉네임을 사칭해 글을 쓸 수 있다.
+              author: user.nickname,
+              authorId: user.kakaoId,
               content,
               createdAt: Date.now(),
               commentCount: 0,
@@ -261,12 +290,13 @@ function communityPlugin(): Plugin {
             all.push(post)
             if (all.length > MAX_POSTS) all.splice(0, all.length - MAX_POSTS)
             await persistPosts()
-            sendJson(res, 201, post)
+            sendJson(res, 201, toPublicPost(post, user))
             return
           }
 
           // /posts/:id
           if (segments.length === 2 && segments[0] === 'posts' && req.method === 'GET') {
+            const viewer = await currentUser(req)
             const id = Number(segments[1])
             const all = await loadPosts()
             const post = all.find((p) => p.id === id)
@@ -274,7 +304,29 @@ function communityPlugin(): Plugin {
               sendJson(res, 404, { error: 'not found' })
               return
             }
-            sendJson(res, 200, post)
+            sendJson(res, 200, toPublicPost(post, viewer))
+            return
+          }
+
+          // DELETE /posts/:id — 본인 글만
+          if (segments.length === 2 && segments[0] === 'posts' && req.method === 'DELETE') {
+            const user = await currentUser(req)
+            const id = Number(segments[1])
+            const all = await loadPosts()
+            const post = all.find((p) => p.id === id)
+            if (!post) {
+              sendJson(res, 404, { error: 'not found' })
+              return
+            }
+            if (!user || post.authorId !== user.kakaoId) {
+              sendJson(res, 403, { error: 'not your post' })
+              return
+            }
+            posts = all.filter((p) => p.id !== id)
+            comments = (await loadComments()).filter((c) => c.postId !== id)
+            await persistPosts()
+            await persistComments()
+            sendJson(res, 200, { ok: true })
             return
           }
 
@@ -338,19 +390,27 @@ function communityPlugin(): Plugin {
             const postId = Number(segments[1])
 
             if (req.method === 'GET') {
+              const viewer = await currentUser(req)
               const all = await loadComments()
               sendJson(
                 res,
                 200,
-                all.filter((c) => c.postId === postId).sort((a, b) => a.createdAt - b.createdAt),
+                all
+                  .filter((c) => c.postId === postId)
+                  .sort((a, b) => a.createdAt - b.createdAt)
+                  .map((c) => toPublicComment(c, viewer)),
               )
               return
             }
 
             if (req.method === 'POST') {
-              const body = JSON.parse(await readBody(req)) as { author?: string; content?: string }
+              const user = await currentUser(req)
+              if (!user?.nickname) {
+                sendJson(res, 401, { error: 'login required' })
+                return
+              }
+              const body = JSON.parse(await readBody(req)) as { content?: string }
               const content = body.content?.trim()
-              const author = body.author?.trim() || '익명'
               if (!content) {
                 sendJson(res, 400, { error: 'content is required' })
                 return
@@ -365,7 +425,8 @@ function communityPlugin(): Plugin {
               const comment: CommunityComment = {
                 id: Date.now(),
                 postId,
-                author,
+                author: user.nickname,
+                authorId: user.kakaoId,
                 content,
                 createdAt: Date.now(),
               }
@@ -373,7 +434,7 @@ function communityPlugin(): Plugin {
               post.commentCount += 1
               await persistComments()
               await persistPosts()
-              sendJson(res, 201, comment)
+              sendJson(res, 201, toPublicComment(comment, user))
               return
             }
           }
@@ -729,6 +790,255 @@ function cardScanPlugin(apiKey: string): Plugin {
   }
 }
 
+const USERS_FILE = path.resolve(__dirname, 'data/users.json')
+const SESSIONS_FILE = path.resolve(__dirname, 'data/sessions.json')
+const SESSION_COOKIE = 'pokegre_session'
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+interface User {
+  // 카카오 회원번호. 우리가 저장하는 유일한 카카오 정보다 — 카톡 닉네임/프로필/이메일은
+  // 동의항목에서 요청하지 않아 애초에 넘어오지 않는다.
+  kakaoId: string
+  nickname: string | null
+  createdAt: number
+}
+
+interface Session {
+  token: string
+  kakaoId: string
+  expiresAt: number
+}
+
+function parseCookies(header?: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const part of (header ?? '').split(';')) {
+    const i = part.indexOf('=')
+    if (i < 0) continue
+    out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim())
+  }
+  return out
+}
+
+// 사용자/세션 저장소는 authPlugin과 communityPlugin이 함께 쓴다. 플러그인마다 캐시를
+// 따로 두면 한쪽에서 쓴 내용을 다른 쪽이 못 봐서 로그인해도 글이 안 써지는 식으로 갈린다.
+let users: User[] | null = null
+let sessions: Session[] | null = null
+
+async function loadUsers(): Promise<User[]> {
+  if (users) return users
+  try {
+    users = JSON.parse(await readFile(USERS_FILE, 'utf-8'))
+  } catch {
+    users = []
+  }
+  return users!
+}
+
+async function persistUsers() {
+  await mkdir(path.dirname(USERS_FILE), { recursive: true })
+  await writeFile(USERS_FILE, JSON.stringify(users))
+}
+
+async function loadSessions(): Promise<Session[]> {
+  if (sessions) return sessions
+  try {
+    sessions = JSON.parse(await readFile(SESSIONS_FILE, 'utf-8'))
+  } catch {
+    sessions = []
+  }
+  return sessions!
+}
+
+async function persistSessions() {
+  // 만료된 세션은 쌓이기만 하므로 저장할 때마다 걸러낸다.
+  sessions = (sessions ?? []).filter((s) => s.expiresAt > Date.now())
+  await mkdir(path.dirname(SESSIONS_FILE), { recursive: true })
+  await writeFile(SESSIONS_FILE, JSON.stringify(sessions))
+}
+
+async function currentUser(req: import('node:http').IncomingMessage): Promise<User | null> {
+  const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
+  if (!token) return null
+  const all = await loadSessions()
+  const session = all.find((s) => s.token === token && s.expiresAt > Date.now())
+  if (!session) return null
+  return (await loadUsers()).find((u) => u.kakaoId === session.kakaoId) ?? null
+}
+
+function sendJson(res: import('node:http').ServerResponse, status: number, data: unknown) {
+  res.statusCode = status
+  res.setHeader('content-type', 'application/json')
+  res.end(JSON.stringify(data))
+}
+
+// 카카오는 로그인(본인 확인)에만 쓰고, 화면에 보이는 닉네임은 사용자가 직접 정한다.
+// 그래서 동의항목 없이 회원번호만 받으며, 카톡 프로필은 저장하지 않는다.
+function authPlugin(restApiKey: string, clientSecret: string): Plugin {
+  // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다.
+  const pendingStates = new Set<string>()
+
+  return {
+    name: 'auth',
+    configureServer(server) {
+      server.middlewares.use('/api/local/auth', async (req, res) => {
+        const url = new URL(req.url ?? '', 'http://localhost:5173')
+        const segments = url.pathname.split('/').filter(Boolean)
+        const origin = `http://localhost:5173`
+        const redirectUri = `${origin}/api/local/auth/kakao/callback`
+
+        try {
+          // GET /me — 로그인 상태 확인
+          if (segments[0] === 'me') {
+            const user = await currentUser(req)
+            sendJson(res, 200, user ? { loggedIn: true, nickname: user.nickname } : { loggedIn: false })
+            return
+          }
+
+          // POST /logout
+          if (segments[0] === 'logout') {
+            const token = parseCookies(req.headers.cookie)[SESSION_COOKIE]
+            if (token) {
+              sessions = (await loadSessions()).filter((s) => s.token !== token)
+              await persistSessions()
+            }
+            res.setHeader('set-cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`)
+            sendJson(res, 200, { ok: true })
+            return
+          }
+
+          // POST /nickname — 최초 로그인 시 표시 닉네임 설정
+          if (segments[0] === 'nickname' && req.method === 'POST') {
+            const user = await currentUser(req)
+            if (!user) {
+              sendJson(res, 401, { error: 'login required' })
+              return
+            }
+            const body = JSON.parse((await readBody(req)) || '{}') as { nickname?: string }
+            const nickname = body.nickname?.trim()
+            if (!nickname || nickname.length > 20) {
+              sendJson(res, 400, { error: 'nickname must be 1-20 chars' })
+              return
+            }
+            const all = await loadUsers()
+            if (all.some((u) => u.nickname === nickname && u.kakaoId !== user.kakaoId)) {
+              sendJson(res, 409, { error: 'nickname taken' })
+              return
+            }
+            user.nickname = nickname
+            await persistUsers()
+            sendJson(res, 200, { nickname })
+            return
+          }
+
+          if (!restApiKey || !clientSecret) {
+            sendJson(res, 501, { error: 'KAKAO_REST_API_KEY / KAKAO_CLIENT_SECRET not configured' })
+            return
+          }
+
+          // GET /kakao — 카카오 인증 페이지로 보낸다
+          if (segments[0] === 'kakao' && segments.length === 1) {
+            const state = randomUUID()
+            pendingStates.add(state)
+            const authUrl = new URL('https://kauth.kakao.com/oauth/authorize')
+            authUrl.searchParams.set('client_id', restApiKey)
+            authUrl.searchParams.set('redirect_uri', redirectUri)
+            authUrl.searchParams.set('response_type', 'code')
+            authUrl.searchParams.set('state', state)
+            res.statusCode = 302
+            res.setHeader('location', authUrl.toString())
+            res.end()
+            return
+          }
+
+          // GET /kakao/callback — 카카오가 code를 들고 돌아오는 곳
+          if (segments[0] === 'kakao' && segments[1] === 'callback') {
+            const code = url.searchParams.get('code')
+            const state = url.searchParams.get('state')
+            // state가 없거나 우리가 발급한 게 아니면 CSRF 시도로 보고 거절한다.
+            if (!code || !state || !pendingStates.has(state)) {
+              res.statusCode = 302
+              res.setHeader('location', '/?login=failed')
+              res.end()
+              return
+            }
+            pendingStates.delete(state)
+
+            const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
+              method: 'POST',
+              headers: { 'content-type': 'application/x-www-form-urlencoded;charset=utf-8' },
+              body: new URLSearchParams({
+                grant_type: 'authorization_code',
+                client_id: restApiKey,
+                client_secret: clientSecret,
+                redirect_uri: redirectUri,
+                code,
+              }).toString(),
+            })
+            if (!tokenRes.ok) {
+              res.statusCode = 302
+              res.setHeader('location', '/?login=failed')
+              res.end()
+              return
+            }
+            const { access_token } = (await tokenRes.json()) as { access_token?: string }
+            if (!access_token) {
+              res.statusCode = 302
+              res.setHeader('location', '/?login=failed')
+              res.end()
+              return
+            }
+
+            // 동의항목을 요청하지 않았으므로 응답의 id(회원번호)만 쓴다.
+            const meRes = await fetch('https://kapi.kakao.com/v2/user/me', {
+              headers: { authorization: `Bearer ${access_token}` },
+            })
+            if (!meRes.ok) {
+              res.statusCode = 302
+              res.setHeader('location', '/?login=failed')
+              res.end()
+              return
+            }
+            const kakaoId = String(((await meRes.json()) as { id?: number | string }).id ?? '')
+            if (!kakaoId) {
+              res.statusCode = 302
+              res.setHeader('location', '/?login=failed')
+              res.end()
+              return
+            }
+
+            const all = await loadUsers()
+            let user = all.find((u) => u.kakaoId === kakaoId)
+            if (!user) {
+              user = { kakaoId, nickname: null, createdAt: Date.now() }
+              all.push(user)
+              await persistUsers()
+            }
+
+            const token = randomUUID()
+            ;(await loadSessions()).push({ token, kakaoId, expiresAt: Date.now() + SESSION_TTL_MS })
+            await persistSessions()
+
+            // httpOnly라 JS로 못 읽는다(XSS로 세션 탈취 방지).
+            res.setHeader(
+              'set-cookie',
+              `${SESSION_COOKIE}=${token}; HttpOnly; Path=/; Max-Age=${SESSION_TTL_MS / 1000}; SameSite=Lax`,
+            )
+            res.statusCode = 302
+            // 닉네임이 없으면 최초 로그인 → 설정 화면을 띄우게 한다.
+            res.setHeader('location', user.nickname ? '/' : '/?setNickname=1')
+            res.end()
+            return
+          }
+
+          sendJson(res, 404, { error: 'not found' })
+        } catch {
+          sendJson(res, 500, { error: 'auth failed' })
+        }
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -742,6 +1052,7 @@ export default defineConfig(({ mode }) => {
       communityPlugin(),
       ebayPricePlugin(env.POKEMON_PRICE_TRACKER_API_KEY ?? ''),
       cardScanPlugin(env.ANTHROPIC_API_KEY ?? ''),
+      authPlugin(env.KAKAO_REST_API_KEY ?? '', env.KAKAO_CLIENT_SECRET ?? ''),
     ],
   }
 })

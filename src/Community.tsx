@@ -5,12 +5,13 @@ import {
   fetchComments,
   createPost,
   createComment,
+  deletePost,
   reportPost,
   reportComment,
   type CommunityPost,
   type CommunityComment,
 } from './api/community';
-import { getSavedNickname, saveNickname } from './lib/nickname';
+import { startKakaoLogin } from './api/auth';
 
 async function handleReport(action: () => Promise<void>) {
   if (!window.confirm('이 게시물을 신고하시겠어요? 운영자가 확인 후 조치합니다.')) return;
@@ -31,18 +32,40 @@ function formatDate(ts: number): string {
   return `${mm}.${dd} ${hh}:${min}`;
 }
 
-function PostList({ posts, loading, onOpen, onWrite }: { posts: CommunityPost[]; loading: boolean; onOpen: (id: number) => void; onWrite: () => void }) {
+function PostList({
+  posts,
+  loading,
+  loggedIn,
+  onOpen,
+  onWrite,
+}: {
+  posts: CommunityPost[];
+  loading: boolean;
+  loggedIn: boolean;
+  onOpen: (id: number) => void;
+  onWrite: () => void;
+}) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-bold text-black">자유게시판</h2>
-        <button
-          type="button"
-          onClick={onWrite}
-          className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
-        >
-          글쓰기
-        </button>
+        {loggedIn ? (
+          <button
+            type="button"
+            onClick={onWrite}
+            className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+          >
+            글쓰기
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={startKakaoLogin}
+            className="rounded-lg bg-[#FEE500] px-4 py-2 text-sm font-semibold text-[#191600] hover:brightness-95"
+          >
+            카카오 로그인하고 글쓰기
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -80,16 +103,19 @@ function PostDetail({
   post,
   comments,
   commentsLoading,
+  loggedIn,
   onBack,
   onSubmitComment,
+  onDelete,
 }: {
   post: CommunityPost;
   comments: CommunityComment[];
   commentsLoading: boolean;
+  loggedIn: boolean;
   onBack: () => void;
-  onSubmitComment: (author: string, content: string) => Promise<void>;
+  onSubmitComment: (content: string) => Promise<void>;
+  onDelete: () => void;
 }) {
-  const [author, setAuthor] = useState(getSavedNickname());
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -98,8 +124,7 @@ function PostDetail({
     if (!content.trim()) return;
     setSubmitting(true);
     try {
-      saveNickname(author.trim() || '익명');
-      await onSubmitComment(author.trim() || '익명', content.trim());
+      await onSubmitComment(content.trim());
       setContent('');
     } finally {
       setSubmitting(false);
@@ -114,13 +139,21 @@ function PostDetail({
 
       <div className="flex items-start justify-between gap-3 mb-1">
         <h2 className="text-lg font-bold text-black">{post.title}</h2>
-        <button
-          type="button"
-          onClick={() => handleReport(() => reportPost(post.id))}
-          className="flex-shrink-0 text-xs text-neutral-400 hover:text-rose-500"
-        >
-          신고
-        </button>
+        <div className="flex flex-shrink-0 gap-2">
+          {post.isMine ? (
+            <button type="button" onClick={onDelete} className="text-xs text-neutral-400 hover:text-rose-500">
+              삭제
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleReport(() => reportPost(post.id))}
+              className="text-xs text-neutral-400 hover:text-rose-500"
+            >
+              신고
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-xs text-neutral-400 mb-4">
         {post.author} · {formatDate(post.createdAt)}
@@ -152,15 +185,8 @@ function PostDetail({
         </ul>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-2">
-        <input
-          type="text"
-          value={author}
-          onChange={(e) => setAuthor(e.target.value)}
-          placeholder="닉네임"
-          className="w-32 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-        />
-        <div className="flex gap-2">
+      {loggedIn ? (
+        <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             type="text"
             value={content}
@@ -175,15 +201,28 @@ function PostDetail({
           >
             등록
           </button>
-        </div>
-      </form>
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={startKakaoLogin}
+          className="w-full rounded-lg bg-[#FEE500] py-2 text-sm font-semibold text-[#191600] hover:brightness-95"
+        >
+          카카오 로그인하고 댓글 남기기
+        </button>
+      )}
     </div>
   );
 }
 
-function PostForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (input: { title: string; author: string; content: string }) => Promise<void> }) {
+function PostForm({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (input: { title: string; content: string }) => Promise<void>;
+}) {
   const [title, setTitle] = useState('');
-  const [author, setAuthor] = useState(getSavedNickname());
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -192,8 +231,7 @@ function PostForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (inp
     if (!title.trim() || !content.trim()) return;
     setSubmitting(true);
     try {
-      saveNickname(author.trim() || '익명');
-      await onSubmit({ title: title.trim(), author: author.trim() || '익명', content: content.trim() });
+      await onSubmit({ title: title.trim(), content: content.trim() });
     } finally {
       setSubmitting(false);
     }
@@ -209,13 +247,6 @@ function PostForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (inp
           onChange={(e) => setTitle(e.target.value)}
           placeholder="제목"
           className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-        />
-        <input
-          type="text"
-          value={author}
-          onChange={(e) => setAuthor(e.target.value)}
-          placeholder="닉네임"
-          className="w-40 rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         />
         <textarea
           value={content}
@@ -243,7 +274,7 @@ function PostForm({ onCancel, onSubmit }: { onCancel: () => void; onSubmit: (inp
 
 type View = 'list' | 'detail' | 'write';
 
-export function Community() {
+export function Community({ loggedIn }: { loggedIn: boolean }) {
   const [view, setView] = useState<View>('list');
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -273,19 +304,31 @@ export function Community() {
       .finally(() => setCommentsLoading(false));
   }
 
-  async function handleCreatePost(input: { title: string; author: string; content: string }) {
+  async function handleCreatePost(input: { title: string; content: string }) {
     const post = await createPost(input);
     setView('list');
     loadPosts();
     openPost(post.id);
   }
 
-  async function handleCreateComment(author: string, content: string) {
+  async function handleCreateComment(content: string) {
     if (!selectedPost) return;
-    const comment = await createComment(selectedPost.id, { author, content });
+    const comment = await createComment(selectedPost.id, { content });
     setComments((prev) => [...prev, comment]);
     setSelectedPost((prev) => (prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev));
     setPosts((prev) => prev.map((p) => (p.id === selectedPost.id ? { ...p, commentCount: p.commentCount + 1 } : p)));
+  }
+
+  async function handleDeletePost() {
+    if (!selectedPost) return;
+    if (!window.confirm('이 글을 삭제할까요? 댓글도 함께 삭제됩니다.')) return;
+    try {
+      await deletePost(selectedPost.id);
+      setView('list');
+      loadPosts();
+    } catch {
+      window.alert('삭제하지 못했습니다.');
+    }
   }
 
   if (view === 'write') {
@@ -298,11 +341,21 @@ export function Community() {
         post={selectedPost}
         comments={comments}
         commentsLoading={commentsLoading}
+        loggedIn={loggedIn}
         onBack={() => setView('list')}
         onSubmitComment={handleCreateComment}
+        onDelete={handleDeletePost}
       />
     );
   }
 
-  return <PostList posts={posts} loading={postsLoading} onOpen={openPost} onWrite={() => setView('write')} />;
+  return (
+    <PostList
+      posts={posts}
+      loading={postsLoading}
+      loggedIn={loggedIn}
+      onOpen={openPost}
+      onWrite={() => setView('write')}
+    />
+  );
 }

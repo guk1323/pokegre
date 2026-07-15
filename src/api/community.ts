@@ -5,6 +5,7 @@ export interface CommunityPost {
   content: string;
   createdAt: number;
   commentCount: number;
+  isMine: boolean;
 }
 
 export interface CommunityComment {
@@ -13,7 +14,10 @@ export interface CommunityComment {
   author: string;
   content: string;
   createdAt: number;
+  isMine: boolean;
 }
+
+export const LOGIN_REQUIRED = 'login_required';
 
 export async function fetchPosts(): Promise<CommunityPost[]> {
   const res = await fetch('/api/local/community/posts');
@@ -27,14 +31,21 @@ export async function fetchPost(id: number): Promise<CommunityPost> {
   return res.json();
 }
 
-export async function createPost(input: { title: string; author: string; content: string }): Promise<CommunityPost> {
+// 작성자는 서버가 세션에서 가져오므로 보내지 않는다.
+export async function createPost(input: { title: string; content: string }): Promise<CommunityPost> {
   const res = await fetch('/api/local/community/posts', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
+  if (res.status === 401) throw new Error(LOGIN_REQUIRED);
   if (!res.ok) throw new Error('게시글을 작성하지 못했습니다.');
   return res.json();
+}
+
+export async function deletePost(id: number): Promise<void> {
+  const res = await fetch(`/api/local/community/posts/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('게시글을 삭제하지 못했습니다.');
 }
 
 export async function fetchComments(postId: number): Promise<CommunityComment[]> {
@@ -43,15 +54,13 @@ export async function fetchComments(postId: number): Promise<CommunityComment[]>
   return res.json();
 }
 
-export async function createComment(
-  postId: number,
-  input: { author: string; content: string },
-): Promise<CommunityComment> {
+export async function createComment(postId: number, input: { content: string }): Promise<CommunityComment> {
   const res = await fetch(`/api/local/community/posts/${postId}/comments`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
+  if (res.status === 401) throw new Error(LOGIN_REQUIRED);
   if (!res.ok) throw new Error('댓글을 작성하지 못했습니다.');
   return res.json();
 }
