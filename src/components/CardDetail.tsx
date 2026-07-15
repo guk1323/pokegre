@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   fetchConditionPrices,
   fetchPriceHistory,
+  koreanizeGrade,
   RAW_GRADE_DESCRIPTION,
   type ConditionGroup,
   type PriceHistory,
@@ -22,6 +23,9 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   const [range, setRange] = useState<PriceRange>('all');
   // '' = 아직 등급 목록을 못 받았거나(첫 조회) 등급이 없는 상품(박스)
   const [condition, setCondition] = useState('');
+  // 수량은 항상 1개(1장)로 고정한다. 사용자가 고를 일이 없고("10박스 묶음 시세"를
+  // 보고 싶은 사람은 없다), 안 고정하면 박스 시세가 묶음 총액과 섞여 부풀려진다.
+  const [variantId, setVariantId] = useState<number | null>(null);
 
   // 박스는 등급(PSA/BGS 등) 개념 자체가 없어서 조회할 필요가 없다 — 등급별
   // 최저가 섹션도 통째로 숨긴다.
@@ -41,22 +45,25 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   useEffect(() => {
     setRange('all');
     setCondition('');
+    setVariantId(null);
   }, [card.apparelId]);
 
   useEffect(() => {
     let cancelled = false;
     setHistoryLoading(true);
     setHistory(null);
-    fetchPriceHistory(card.apparelId, range, condition || undefined)
+    fetchPriceHistory(card.apparelId, range, condition || undefined, variantId ?? undefined)
       .then((result) => {
         if (cancelled || !result) return;
         setHistory(result);
-        // 등급이 있는 상품(싱글카드)인데 아직 못 골랐으면 첫 등급으로 자동 선택해서
-        // 다시 조회한다. 등급을 안 주면 PSA10과 생카가 한 줄에 섞여 나오기 때문.
-        // 박스는 conditions가 빈 배열로 와서 이 분기를 타지 않는다(등급 코드를 넘기면
-        // 오히려 실거래 목록이 0건이 된다).
+        // 첫 조회에서 필터 목록을 받아오면, 그걸로 기본값을 정해 다시 조회한다.
+        // 목록은 상품마다 달라서(박스는 등급이 없고 수량 단위도 個/枚로 다름)
+        // 코드를 박아두지 않고 API가 주는 첫 항목을 쓴다.
         if (condition === '' && result.conditions.length > 0) {
           setCondition(result.conditions[0].code);
+        }
+        if (variantId === null && result.variants.length > 0) {
+          setVariantId(result.variants[0].id);
         }
       })
       .catch(() => undefined)
@@ -66,7 +73,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     return () => {
       cancelled = true;
     };
-  }, [card.apparelId, range, condition]);
+  }, [card.apparelId, range, condition, variantId]);
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
@@ -93,6 +100,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
           conditions={history?.conditions ?? []}
           condition={condition}
           onConditionChange={setCondition}
+          unitLabel={history?.variants[0]?.name}
           loading={historyLoading}
         />
       </div>
@@ -130,7 +138,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
                         chip.hasListing ? 'border-neutral-200' : 'border-neutral-100 opacity-50'
                       }`}
                     >
-                      <p className="text-[11px] font-semibold text-neutral-600">{chip.text}</p>
+                      <p className="text-[11px] font-semibold text-neutral-600">{koreanizeGrade(chip.text)}</p>
                       {chip.hasListing ? (
                         <p className="text-xs font-bold text-black">{yen.format(chip.usedMinPrice ?? 0)}</p>
                       ) : (

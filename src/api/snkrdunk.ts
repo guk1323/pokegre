@@ -197,17 +197,47 @@ export interface ConditionOption {
   name: string;
 }
 
+export interface VariantOption {
+  id: number;
+  name: string;
+}
+
 export interface PriceHistory {
   points: PricePoint[];
   trades: Trade[];
   ranges: RangeOption[];
   conditions: ConditionOption[];
+  variants: VariantOption[];
 }
 
 interface TradingHistoryResponse {
   chart?: { lines?: { points?: PricePoint[] }[]; ranges?: RangeOption[] };
   trades?: Trade[];
-  filters?: { conditions?: { options?: ConditionOption[] } };
+  filters?: {
+    conditions?: { options?: ConditionOption[] };
+    variants?: { options?: VariantOption[] };
+  };
+}
+
+// SNKRDUNK가 등급/수량 표기에 쓰는 일본어. "PSA8以下"처럼 영문 등급명에 한자가 섞여
+// 오기 때문에 부분 문자열로 치환한다. BL(Black Label)/GL(Gold Label)이나 ARS 같은
+// 감정 용어는 국내에서도 그대로 쓰므로 건드리지 않는다.
+// 수량 단위는 상품 종류마다 다르다 — 싱글카드는 枚(장), 박스는 個(개), 팩은 パック(팩).
+const GRADE_TERMS: [string, string][] = [
+  ['他鑑定品', '기타 감정품'],
+  ['以下', ' 이하'],
+  ['新品', '미개봉'],
+  ['パック', '팩'],
+  ['枚', '장'],
+  ['個', '개'],
+];
+
+export function koreanizeGrade(text: string): string {
+  let result = text;
+  for (const [ja, ko] of GRADE_TERMS) {
+    if (result.includes(ja)) result = result.split(ja).join(ko);
+  }
+  return result;
 }
 
 // SNKRDUNK 시세 그래프는 apparelId가 아니라 productCatalogId로 조회한다. 이 값은
@@ -216,10 +246,15 @@ interface TradingHistoryResponse {
 //
 // conditionCode를 주지 않으면 PSA10(¥36만)과 생카B(¥4.8만)가 한 줄에 섞여 그려져서
 // 톱니처럼 튀는 무의미한 그래프가 나온다. 등급을 지정해야 시세 추이로 읽을 수 있다.
+//
+// variantId(수량)도 마찬가지다. 특히 박스는 가격이 묶음 "총액"이라 10개 묶음이
+// ¥109,000에 팔리는데, 필터 없이 조회하면 1개짜리 ¥10,900과 한 줄에 그려져 시세가
+// 10배로 부풀어 보인다(싱글카드는 장당 가격이라 영향이 0.5% 수준으로 작다).
 export async function fetchPriceHistory(
   apparelId: number,
   range: PriceRange = 'all',
   conditionCode?: string,
+  variantId?: number,
 ): Promise<PriceHistory | null> {
   const detailRes = await fetch(`/api/snkrdunk/v1/apparels/${apparelId}`);
   if (!detailRes.ok) return null;
@@ -229,6 +264,7 @@ export async function fetchPriceHistory(
 
   const params = new URLSearchParams({ range });
   if (conditionCode) params.set('condition_code', conditionCode);
+  if (variantId) params.set('variant_id', String(variantId));
 
   const res = await fetch(`/api/snkrdunk/v3/products/${productCatalogId}/trading-history?${params.toString()}`);
   if (!res.ok) return null;
@@ -242,6 +278,7 @@ export async function fetchPriceHistory(
     ranges: data.chart?.ranges ?? [],
     // 박스는 등급 개념이 없어서 빈 배열로 온다 — 그대로 넘겨서 UI가 선택기를 숨기게 한다.
     conditions: data.filters?.conditions?.options ?? [],
+    variants: data.filters?.variants?.options ?? [],
   };
 }
 

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { koreanizeGrade } from '../api/snkrdunk';
 import type { ConditionOption, PricePoint, PriceRange, RangeOption } from '../api/snkrdunk';
 
 const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
@@ -42,6 +43,7 @@ export function PriceChart({
   conditions,
   condition,
   onConditionChange,
+  unitLabel,
   loading,
 }: {
   points: PricePoint[];
@@ -51,6 +53,7 @@ export function PriceChart({
   conditions: ConditionOption[];
   condition: string;
   onConditionChange: (next: string) => void;
+  unitLabel?: string;
   loading: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -86,7 +89,10 @@ export function PriceChart({
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <p className="text-xs font-semibold text-neutral-500">시세 추이 (실거래)</p>
+        {/* 수량은 1개(1장) 고정이라, 무슨 단위 시세인지 밝혀준다. */}
+        <p className="text-xs font-semibold text-neutral-500">
+          시세 추이 (실거래{unitLabel ? ` · ${koreanizeGrade(unitLabel)} 기준` : ''})
+        </p>
         {geom && (
           <span
             className={`text-xs font-semibold ${geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}`}
@@ -107,7 +113,7 @@ export function PriceChart({
         >
           {conditions.map((c) => (
             <option key={c.code} value={c.code}>
-              {c.name}
+              {koreanizeGrade(c.name)}
             </option>
           ))}
         </select>
