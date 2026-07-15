@@ -1,4 +1,5 @@
 import type { SnkrdunkCard } from '../api/snkrdunk';
+import { FavoriteButton } from './FavoriteButton';
 
 const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
 
@@ -25,26 +26,7 @@ export function CardTile({
     >
       <div className="relative h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
         <img src={card.imageUrl} alt={card.title} className="h-full w-full object-contain" loading="lazy" />
-        {onToggleFavorite && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFavorite(card);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.stopPropagation();
-                e.preventDefault();
-                onToggleFavorite(card);
-              }
-            }}
-            className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
-          >
-            {isFavorite ? '❤️' : '🤍'}
-          </span>
-        )}
+        {onToggleFavorite && <FavoriteButton active={!!isFavorite} onToggle={() => onToggleFavorite(card)} />}
       </div>
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.title}</p>
       {/* 찜 수는 검색 결과에만 있다. 저장해둔 카드를 ID로 복원한 경우엔 값이 없어서
