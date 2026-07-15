@@ -30,18 +30,63 @@ export interface ApiEnv {
 const DATA_DIR = process.env.POKEGRE_DATA_DIR ?? path.resolve(process.cwd(), 'data')
 const dataFile = (name: string) => path.join(DATA_DIR, name)
 
+// 만료 시각과 최대 개수를 함께 지키는 캐시.
+//
+// 그냥 Map을 쓰면 두 가지로 샌다. 만료된 항목은 그 키를 누가 다시 찾을 때만 지워지니
+// 인기 없는 키는 영원히 남고, 애초에 개수 상한이 없다. 게다가 여기 캐시들은 키가
+// 전부 요청에서 온다(URL, 쿼리스트링, page 파라미터). 즉 시간이 지나며 느는 정도가
+// 아니라 방문자가 아무 값이나 넣어 무한정 늘릴 수 있다. 개발 중엔 서버를 자주 껐다
+// 켜서 안 드러났지만 상시 서버에선 메모리가 계속 는다.
+export class TtlCache<T> {
+  private store = new Map<string, { value: T; expires: number }>()
+  private ttlMs: number
+  private maxEntries: number
+
+  constructor(ttlMs: number, maxEntries: number) {
+    this.ttlMs = ttlMs
+    this.maxEntries = maxEntries
+  }
+
+  get(key: string): T | undefined {
+    const hit = this.store.get(key)
+    if (!hit) return undefined
+    if (hit.expires <= Date.now()) {
+      this.store.delete(key)
+      return undefined
+    }
+    return hit.value
+  }
+
+  set(key: string, value: T): void {
+    const now = Date.now()
+    for (const [k, v] of this.store) {
+      if (v.expires <= now) this.store.delete(k)
+    }
+    // Map은 이미 있는 키에 다시 넣어도 원래 삽입 순서를 유지한다. 지우고 다시 넣어야
+    // 방금 쓴 항목이 뒤로 가서, 넘칠 때 오래된 것부터 버릴 수 있다.
+    this.store.delete(key)
+    this.store.set(key, { value, expires: now + this.ttlMs })
+    while (this.store.size > this.maxEntries) {
+      const oldest = this.store.keys().next().value
+      if (oldest === undefined) break
+      this.store.delete(oldest)
+    }
+  }
+}
+
 const SNKRDUNK_ORIGIN = 'https://snkrdunk.com'
 const CACHE_TTL_MS = 5 * 60 * 1000
+// 제일 큰 응답이 trading-history의 약 50KB라, 300개면 최대 15MB 정도다.
+const CACHE_MAX_ENTRIES = 300
 
 function mountSnkrdunkProxy(app: Mountable) {
-  const cache = new Map<string, { body: string; status: number; contentType: string; expires: number }>()
+  const cache = new TtlCache<{ body: string; status: number; contentType: string }>(CACHE_TTL_MS, CACHE_MAX_ENTRIES)
 
   app.use('/api/snkrdunk', async (req, res) => {
     const path = req.url ?? ''
     const cached = cache.get(path)
-    const now = Date.now()
 
-    if (cached && cached.expires > now) {
+    if (cached) {
       res.statusCode = cached.status
       res.setHeader('content-type', cached.contentType)
       res.end(cached.body)
@@ -57,7 +102,7 @@ function mountSnkrdunkProxy(app: Mountable) {
       })
       const body = await upstream.text()
       const contentType = upstream.headers.get('content-type') ?? 'application/json'
-      cache.set(path, { body, status: upstream.status, contentType, expires: now + CACHE_TTL_MS })
+      cache.set(path, { body, status: upstream.status, contentType })
       res.statusCode = upstream.status
       res.setHeader('content-type', contentType)
       res.end(body)
@@ -71,6 +116,9 @@ function mountSnkrdunkProxy(app: Mountable) {
 
 const KOREAN_NEWS_ORIGIN = 'https://pokemoncard.co.kr'
 const KOREAN_NEWS_CACHE_TTL_MS = 30 * 60 * 1000
+// 페이지 번호의 상한이자 캐시 항목 수 상한. 소식은 "더보기"로 몇 페이지만 넘겨보는
+// 용도라 이 정도면 충분하다.
+const KOREAN_NEWS_MAX_PAGES = 20
 
 interface KoreanNewsItem {
   url: string
@@ -106,24 +154,26 @@ function parseKoreanNewsHtml(html: string): KoreanNewsItem[] {
 }
 
 function mountKoreanNews(app: Mountable) {
-  const cache = new Map<string, { body: string; expires: number }>()
+  const cache = new TtlCache<string>(KOREAN_NEWS_CACHE_TTL_MS, KOREAN_NEWS_MAX_PAGES)
 
   app.use('/api/local/pokemon-news', async (req, res) => {
     const url = new URL(req.url ?? '', 'http://localhost')
-    const page = url.searchParams.get('page') ?? '1'
-    const cacheKey = page
+    // page를 그대로 쓰면 안 된다. 캐시 키이자 업스트림 요청 파라미터라, 아무 문자열이나
+    // 넣어 캐시를 부풀리고 그때마다 포켓몬코리아로 요청을 날리게 만들 수 있다.
+    const requested = Number(url.searchParams.get('page') ?? '1')
+    const page = Number.isInteger(requested) && requested >= 1 && requested <= KOREAN_NEWS_MAX_PAGES ? requested : 1
+    const cacheKey = String(page)
     const cached = cache.get(cacheKey)
-    const now = Date.now()
 
-    if (cached && cached.expires > now) {
+    if (cached) {
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')
-      res.end(cached.body)
+      res.end(cached)
       return
     }
 
     try {
-      const form = new URLSearchParams({ pn: page, cate: '2', sword: '', rcode: 'menu_news' })
+      const form = new URLSearchParams({ pn: String(page), cate: '2', sword: '', rcode: 'menu_news' })
       const upstream = await fetch(`${KOREAN_NEWS_ORIGIN}/v3/news_ajax`, {
         method: 'POST',
         headers: {
@@ -136,7 +186,7 @@ function mountKoreanNews(app: Mountable) {
       const [, html] = raw.split('#|#')
       const items = parseKoreanNewsHtml(html ?? '')
       const body = JSON.stringify({ items })
-      cache.set(cacheKey, { body, expires: now + KOREAN_NEWS_CACHE_TTL_MS })
+      cache.set(cacheKey, body)
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')
       res.end(body)
@@ -594,6 +644,9 @@ function mountSearchTracker(app: Mountable) {
 
 const PRICE_TRACKER_ORIGIN = 'https://www.pokemonpricetracker.com/api/v2'
 const PRICE_TRACKER_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+// 응답은 화면용 필드만 추려서 작지만, TTL이 6시간이라 그만큼 오래 쌓인다.
+// 무료 티어가 하루 100건이라 어차피 이만큼 채울 일도 없다.
+const PRICE_TRACKER_MAX_ENTRIES = 200
 
 interface RawEbayGrade {
   count?: number
@@ -667,7 +720,7 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
 // 무료 티어가 하루 100크레딧뿐이라 캐시를 길게(6시간) 잡아서 아낀다. API 키는 서버에서만
 // 붙이고 클라이언트에는 절대 내려주지 않는다.
 function mountEbayPrice(app: Mountable, apiKey: string) {
-  const cache = new Map<string, { body: string; status: number; expires: number }>()
+  const cache = new TtlCache<string>(PRICE_TRACKER_CACHE_TTL_MS, PRICE_TRACKER_MAX_ENTRIES)
 
   app.use('/api/local/card-prices', async (req, res) => {
     if (!apiKey) {
@@ -680,12 +733,11 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
     const url = new URL(req.url ?? '', 'http://localhost')
     const cacheKey = url.search
     const cached = cache.get(cacheKey)
-    const now = Date.now()
 
-    if (cached && cached.expires > now) {
-      res.statusCode = cached.status
+    if (cached) {
+      res.statusCode = 200
       res.setHeader('content-type', 'application/json')
-      res.end(cached.body)
+      res.end(cached)
       return
     }
 
@@ -709,7 +761,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       // 원본을 그대로 넘기지 않고 화면용 필드만 추려서 재배포 소지를 없앤다.
       const rawJson = await upstream.json()
       const body = JSON.stringify({ cards: shapeEbayCards(rawJson) })
-      cache.set(cacheKey, { body, status: 200, expires: now + PRICE_TRACKER_CACHE_TTL_MS })
+      cache.set(cacheKey, body)
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')
       res.end(body)
