@@ -9,8 +9,19 @@ export interface SnkrdunkCard {
   imageUrl: string;
   price: number;
   stock: number;
-  favoriteCount: number;
+  // 검색 결과에만 있는 값. 저장해둔 카드를 ID로 복원할 때는 상세 API에 이 필드가
+  // 없어서 채울 수 없다 — 그때는 화면에서 "찜" 표기를 숨긴다.
+  favoriteCount?: number;
   link: string;
+  category: ProductCategory;
+}
+
+// 즐겨찾기·최근 본 카드에 저장하는 최소 단위. 가격·매물수는 계속 변하므로 저장하지
+// 않고 볼 때마다 조회한다(예전엔 카드를 통째로 복사해서 찜한 순간 가격이 박제됐다).
+// ID와 카테고리는 변하지 않으므로 저장해도 안전하고, 카테고리를 들고 있으면 복원할 때
+// 상세 응답의 불안정한 카테고리 표기를 해석하지 않아도 된다.
+export interface StoredCardRef {
+  apparelId: number;
   category: ProductCategory;
 }
 
@@ -120,6 +131,28 @@ export async function fetchApparelDetail(apparelId: number): Promise<{ title: st
     price: data.usedMinPrice ?? 0,
     stock: data.usedListingCount ?? 0,
   };
+}
+
+// 저장해둔 참조(ID + 카테고리)를 현재 시세로 채워서 되살린다. 실패한 카드는 조용히
+// 빼는데, 판매 종료 등으로 사라진 상품을 목록에서 계속 붙들고 있을 이유가 없다.
+export async function resolveStoredCards(refs: StoredCardRef[]): Promise<SnkrdunkCard[]> {
+  const details = await Promise.all(refs.map((ref) => fetchApparelDetail(ref.apparelId).catch(() => null)));
+
+  return refs
+    .map((ref, i) => {
+      const detail = details[i];
+      if (!detail) return null;
+      return {
+        apparelId: ref.apparelId,
+        title: koreanizeTitle(detail.title),
+        imageUrl: detail.imageUrl,
+        price: detail.price,
+        stock: detail.stock,
+        link: `https://snkrdunk.com/apparels/${ref.apparelId}`,
+        category: ref.category,
+      } satisfies SnkrdunkCard;
+    })
+    .filter((card): card is SnkrdunkCard => card !== null);
 }
 
 async function enrichWithCleanImages(cards: SnkrdunkCard[]): Promise<SnkrdunkCard[]> {

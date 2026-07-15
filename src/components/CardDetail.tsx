@@ -83,7 +83,8 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
 
       <h2 className="text-base font-bold text-black mb-1">{card.title}</h2>
       <p className="text-xs text-neutral-400 mb-4">
-        매물 {card.stock.toLocaleString()}개 · 찜 {card.favoriteCount.toLocaleString()}
+        매물 {card.stock.toLocaleString()}개
+        {card.favoriteCount !== undefined && ` · 찜 ${card.favoriteCount.toLocaleString()}`}
       </p>
 
       <div className="rounded-lg bg-neutral-50 p-4 mb-4">

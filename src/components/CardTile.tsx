@@ -47,7 +47,12 @@ export function CardTile({
         )}
       </div>
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.title}</p>
-      <p className="text-xs text-neutral-400 mb-1">매물 {card.stock.toLocaleString()}개 · 찜 {card.favoriteCount.toLocaleString()}</p>
+      {/* 찜 수는 검색 결과에만 있다. 저장해둔 카드를 ID로 복원한 경우엔 값이 없어서
+          "매물 N개"만 보여준다. */}
+      <p className="text-xs text-neutral-400 mb-1">
+        매물 {card.stock.toLocaleString()}개
+        {card.favoriteCount !== undefined && ` · 찜 ${card.favoriteCount.toLocaleString()}`}
+      </p>
       <p className="text-base font-bold text-black">{yen.format(card.price)}</p>
     </button>
   );

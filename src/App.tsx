@@ -8,11 +8,12 @@ import { translateSearchQuery, canonicalizeSearchTerm } from './lib/translateQue
 import { getLocalSuggestions } from './lib/localSuggestions';
 import {
   addRecentlyViewed,
-  getFavorites,
-  getRecentlyViewed,
+  getFavoriteRefs,
+  getRecentRefs,
   isFavorite as checkIsFavorite,
   toggleFavorite,
 } from './lib/localCollections';
+import { resolveStoredCards, type StoredCardRef } from './api/snkrdunk';
 import { SearchBar } from './components/SearchBar';
 import { SearchSuggestions } from './components/SearchSuggestions';
 import { CardTile } from './components/CardTile';
@@ -62,8 +63,11 @@ function App() {
   const [popularSearches, setPopularSearches] = useState<PopularSearch[]>([]);
   const [popularAsOf, setPopularAsOf] = useState<number | null>(null);
   const [popularLoading, setPopularLoading] = useState(true);
-  const [favorites, setFavorites] = useState<SnkrdunkCard[]>(() => getFavorites());
-  const [recentlyViewed, setRecentlyViewed] = useState<SnkrdunkCard[]>(() => getRecentlyViewed());
+  // 저장된 건 참조(ID+카테고리)뿐이고, 화면에 뿌릴 카드는 조회해서 채운다.
+  const [favoriteRefs, setFavoriteRefs] = useState<StoredCardRef[]>(() => getFavoriteRefs());
+  const [recentRefs, setRecentRefs] = useState<StoredCardRef[]>(() => getRecentRefs());
+  const [favorites, setFavorites] = useState<SnkrdunkCard[]>([]);
+  const [recentlyViewed, setRecentlyViewed] = useState<SnkrdunkCard[]>([]);
   const [interestSelectedId, setInterestSelectedId] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -92,6 +96,28 @@ function App() {
   useEffect(() => {
     loadPopularSearches();
   }, []);
+
+  // 참조가 바뀔 때마다 현재 시세로 다시 채운다. 마이페이지를 열 때마다 최신 가격이
+  // 보이는 이유이고, SNKRDUNK 조회는 크레딧을 쓰지 않아 부담이 없다.
+  useEffect(() => {
+    let cancelled = false;
+    resolveStoredCards(favoriteRefs).then((cards) => {
+      if (!cancelled) setFavorites(cards);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [favoriteRefs]);
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveStoredCards(recentRefs).then((cards) => {
+      if (!cancelled) setRecentlyViewed(cards);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [recentRefs]);
 
   // 카카오 콜백이 /?setNickname=1 로 돌려보내면 최초 로그인이라 닉네임 설정을 띄운다.
   // 주소창에 흔적을 남기지 않도록 확인 후 쿼리는 지운다.
@@ -245,17 +271,17 @@ function App() {
   function handleSelectCard(id: number) {
     setSelectedId(id);
     const card = items.find((c) => c.apparelId === id);
-    if (card) setRecentlyViewed(addRecentlyViewed(card));
+    if (card) setRecentRefs(addRecentlyViewed(card));
   }
 
   function handleSelectInterestCard(id: number) {
     setInterestSelectedId(id);
     const card = [...recentlyViewed, ...favorites].find((c) => c.apparelId === id);
-    if (card) setRecentlyViewed(addRecentlyViewed(card));
+    if (card) setRecentRefs(addRecentlyViewed(card));
   }
 
   function handleToggleFavorite(card: SnkrdunkCard) {
-    setFavorites(toggleFavorite(card));
+    setFavoriteRefs(toggleFavorite(card));
   }
 
   function handleSelectSuggestion(term: string) {
@@ -292,7 +318,7 @@ function App() {
       favorites={favorites}
       selectedId={interestSelectedId}
       onSelect={handleSelectInterestCard}
-      isFavorite={(id) => checkIsFavorite(id, favorites)}
+      isFavorite={(id) => checkIsFavorite(id, favoriteRefs)}
       onToggleFavorite={handleToggleFavorite}
     />
   );
@@ -314,7 +340,7 @@ function App() {
               emptyText=""
               selectedId={selectedId}
               onSelect={handleSelectCard}
-              isFavorite={(id) => checkIsFavorite(id, favorites)}
+              isFavorite={(id) => checkIsFavorite(id, favoriteRefs)}
               onToggleFavorite={handleToggleFavorite}
             />
           )}
@@ -329,7 +355,7 @@ function App() {
                     card={card}
                     selected={card.apparelId === selectedId}
                     onSelect={handleSelectCard}
-                    isFavorite={checkIsFavorite(card.apparelId, favorites)}
+                    isFavorite={checkIsFavorite(card.apparelId, favoriteRefs)}
                     onToggleFavorite={handleToggleFavorite}
                   />
                 ))}
