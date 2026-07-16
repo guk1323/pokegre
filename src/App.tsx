@@ -669,7 +669,14 @@ function App() {
                       {suggestionsOpen && <SearchSuggestions items={suggestions} onSelect={handleSelectSuggestion} />}
                     </SearchBar>
                   </div>
-                  <CardScanButton onResult={(name) => setQuery(name)} />
+                  {/* 스캔은 일본판 카드(일본 세트코드·이름)를 읽으므로 이베이(영문 TCGPlayer
+                      기준)에선 안 맞는다. 스캔하면 일본 실거래인 SNKRDUNK로 자동 전환한다. */}
+                  <CardScanButton
+                    onResult={(query) => {
+                      setSource('snkrdunk');
+                      setQuery(query);
+                    }}
+                  />
                 </div>
                 {showTranslationHint && (
                   <p className="text-xs text-neutral-400 mt-2">
