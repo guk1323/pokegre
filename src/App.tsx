@@ -669,11 +669,14 @@ function App() {
                       {suggestionsOpen && <SearchSuggestions items={suggestions} onSelect={handleSelectSuggestion} />}
                     </SearchBar>
                   </div>
-                  {/* 스캔은 일본판 카드(일본 세트코드·이름)를 읽으므로 이베이(영문 TCGPlayer
-                      기준)에선 안 맞는다. 스캔하면 일본 실거래인 SNKRDUNK로 자동 전환한다. */}
+                  {/* 스캔 결과(영어 이름+번호)는 SNKRDUNK·이베이 양쪽에서 다 찾힌다. 다만
+                      북미판(영문) 카드는 SNKRDUNK에 없으니 이베이로 보내고, 일본어·한국어
+                      카드는 지금 보던 소스를 그대로 둔다(둘 다 그 카드를 찾음). 이베이에서
+                      찾을 땐 발매판(일본판/북미판)을 스캔이 판단한 대로 맞춰준다. */}
                   <CardScanButton
-                    onResult={(query) => {
-                      setSource('snkrdunk');
+                    onResult={(query, ed) => {
+                      setEdition(ed);
+                      if (ed === 'english') setSource('ebay');
                       setQuery(query);
                     }}
                   />

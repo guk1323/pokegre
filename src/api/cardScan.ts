@@ -1,8 +1,11 @@
 export interface CardScanResult {
   found: boolean;
-  pokemonNameJa?: string;
-  setCode?: string | null;
+  // 카드가 일본어·한국어로 인쇄돼 있어도 영어 이름으로 온다. 영어 이름+번호는 SNKRDUNK·
+  // 이베이 양쪽에서 다 찾히는 "공용 열쇠"라, 이걸로 검색하면 어느 소스든 좁혀진다.
+  pokemonNameEn?: string;
   cardNumber?: string | null;
+  // 'japanese' = 일본어/한국어 카드(SNKRDUNK·이베이 일본판), 'english' = 북미판(이베이).
+  edition?: 'japanese' | 'english';
 }
 
 function fileToBase64(file: File): Promise<string> {

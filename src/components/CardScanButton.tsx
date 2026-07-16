@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react';
 import { scanCard } from '../api/cardScan';
 
-export function CardScanButton({ onResult }: { onResult: (query: string) => void }) {
+export function CardScanButton({
+  onResult,
+}: {
+  onResult: (query: string, edition: 'japanese' | 'english') => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,17 +19,15 @@ export function CardScanButton({ onResult }: { onResult: (query: string) => void
     setError(null);
     try {
       const result = await scanCard(file);
-      // 번호(+세트 코드)는 그 카드만의 고유 키라, SNKRDUNK가 딱 한 장으로 좁혀준다
-      // (예: "SV5a 090/066"). 게다가 번호로만 찾으면 한글판·이름 오독에도 안 깨진다 —
-      // 오히려 이름을 붙이면 깨진 이름 하나로 결과가 0이 된다. 그래서 번호가 있으면
-      // 세트+번호로만 검색하고, 번호를 못 읽었을 때만 이름으로 후보를 좁혀 사용자가 고른다.
+      // "영어 이름 + 번호"는 SNKRDUNK(영어→일본카드로 연결)와 이베이(영어 색인) 양쪽에서
+      // 똑같이 그 카드 한 장으로 좁혀지는 공용 열쇠다. 그래서 소스와 무관하게 이걸로 찾는다.
+      // (일본 세트코드는 이베이에서 안 먹혀서 안 쓴다.) 번호를 못 읽었으면 이름만으로 후보를
+      // 좁혀 사용자가 고른다.
       const query = result.found
-        ? result.cardNumber
-          ? [result.setCode, result.cardNumber].filter(Boolean).join(' ')
-          : (result.pokemonNameJa ?? '')
+        ? [result.pokemonNameEn, result.cardNumber].filter(Boolean).join(' ')
         : '';
       if (query) {
-        onResult(query);
+        onResult(query, result.edition ?? 'japanese');
       } else {
         setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
       }
