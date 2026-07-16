@@ -15,11 +15,16 @@ export function CardScanButton({ onResult }: { onResult: (query: string) => void
     setError(null);
     try {
       const result = await scanCard(file);
-      if (result.found && result.pokemonNameJa) {
-        // 이름만 넣으면 같은 포켓몬 카드가 수십 종 나온다. Claude가 읽은 카드 번호까지
-        // 붙여 검색하면 딱 그 카드로 좁혀진다(예: "ピカチュウ 133/M-P"). 번호를 못
-        // 읽었으면 이름만으로라도 검색한다.
-        const query = [result.pokemonNameJa, result.cardNumber].filter(Boolean).join(' ');
+      // 번호(+세트 코드)는 그 카드만의 고유 키라, SNKRDUNK가 딱 한 장으로 좁혀준다
+      // (예: "SV5a 090/066"). 게다가 번호로만 찾으면 한글판·이름 오독에도 안 깨진다 —
+      // 오히려 이름을 붙이면 깨진 이름 하나로 결과가 0이 된다. 그래서 번호가 있으면
+      // 세트+번호로만 검색하고, 번호를 못 읽었을 때만 이름으로 후보를 좁혀 사용자가 고른다.
+      const query = result.found
+        ? result.cardNumber
+          ? [result.setCode, result.cardNumber].filter(Boolean).join(' ')
+          : (result.pokemonNameJa ?? '')
+        : '';
+      if (query) {
         onResult(query);
       } else {
         setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
