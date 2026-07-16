@@ -13,17 +13,22 @@ import { CardRow } from './CardRow';
 
 const ALL_PROVIDERS: LoginProvider[] = ['kakao', 'naver'];
 
-// 카카오·네이버는 서로 다른 회원번호를 주고, 이름이나 이메일을 안 받으므로 같은
-// 사람인지 알 방법이 없다. 그래서 자동으로 합치지 않고 여기서 본인이 직접 연결한다.
-// 연결해두면 어느 걸로 들어오든 즐겨찾기와 글이 그대로 따라온다.
-function LinkedAccounts({
+// 계정 카드 안에 들어가는 한 줄. 로그인 수단 연결은 평생 한 번 누르거나 아예 안 누르는
+// 일이라, 상자를 따로 주면 정작 매번 보는 즐겨찾기보다 자리를 더 먹는다.
+//
+// 해제는 연결보다도 훨씬 드물어서 기본으로 감춘다 — "관리"를 눌러야 나온다.
+function LoginMethods({
   providers,
   onChanged,
 }: {
   providers: LoginProvider[];
   onChanged: (next: LoginProvider[]) => void;
 }) {
+  const [managing, setManaging] = useState(false);
   const [busy, setBusy] = useState<LoginProvider | null>(null);
+
+  const linked = ALL_PROVIDERS.filter((p) => providers.includes(p));
+  const unlinked = ALL_PROVIDERS.filter((p) => !providers.includes(p));
 
   async function handleUnlink(provider: LoginProvider) {
     if (!window.confirm(`${PROVIDER_LABEL[provider]} 연결을 해제할까요?`)) return;
@@ -41,51 +46,59 @@ function LinkedAccounts({
     }
   }
 
+  if (linked.length === 0) return null;
+
   return (
-    <div className="mb-6 rounded-xl border border-neutral-200 p-5">
-      <p className="text-sm font-bold text-black mb-1">로그인 수단</p>
-      <p className="text-xs text-neutral-500 mb-3">
-        연결해두면 어느 쪽으로 로그인해도 같은 계정으로 들어옵니다.
-      </p>
-      <ul className="space-y-2">
-        {ALL_PROVIDERS.map((p) => {
-          const linked = providers.includes(p);
-          return (
-            <li key={p} className="flex items-center justify-between gap-3">
-              <span className="text-sm text-neutral-800">
-                {PROVIDER_LABEL[p]}
-                {linked && <span className="ml-2 text-xs text-neutral-400">연결됨</span>}
-              </span>
-              {linked ? (
-                <button
-                  type="button"
-                  disabled={busy === p || providers.length <= 1}
-                  onClick={() => handleUnlink(p)}
-                  // 마지막 하나는 아예 못 누르게 막는다. 눌러보고 거절당하는 것보다
-                  // 처음부터 못 누르는 게 낫다.
-                  title={providers.length <= 1 ? '마지막 로그인 수단은 해제할 수 없습니다' : undefined}
-                  className="flex-shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 disabled:opacity-40"
-                >
-                  해제
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => startLinkLogin(p)}
-                  className="flex-shrink-0 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800"
-                >
-                  연결
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+    <div className="mt-1.5 text-xs text-neutral-400">
+      <span>
+        {linked.map((p) => PROVIDER_LABEL[p]).join(' · ')}
+        {linked.length === 1 ? '로 로그인 중' : ' 연결됨'}
+      </span>
+
+      {/* 아직 안 붙인 게 있으면 바로 연결하게 두고, 다 붙였으면 관리(=해제)만 남는다. */}
+      {unlinked.map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => startLinkLogin(p)}
+          className="ml-1.5 font-semibold text-[#2a78d6] hover:underline"
+        >
+          {PROVIDER_LABEL[p]} 연결
+        </button>
+      ))}
+
+      {linked.length > 1 && (
+        <button
+          type="button"
+          onClick={() => setManaging((v) => !v)}
+          className="ml-1.5 font-semibold text-[#2a78d6] hover:underline"
+        >
+          {managing ? '닫기' : '관리'}
+        </button>
+      )}
+
+      {managing && (
+        <div className="mt-2 space-y-1">
+          {linked.map((p) => (
+            <div key={p} className="flex items-center gap-2">
+              <span className="text-neutral-600">{PROVIDER_LABEL[p]}</span>
+              <button
+                type="button"
+                disabled={busy === p || linked.length <= 1}
+                onClick={() => handleUnlink(p)}
+                className="text-neutral-400 hover:text-rose-500 disabled:opacity-40"
+              >
+                해제
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// 가입 당일이 1일차. (지금 - 가입일)을 그냥 나누면 0일차가 나와서 어색하다.
+
 function daysSince(createdAt: number): number {
   return Math.floor((Date.now() - createdAt) / 86_400_000) + 1;
 }
@@ -157,6 +170,8 @@ function AccountCard({
   onLogout,
   onRequestLogin,
   onNicknameChange,
+  providers,
+  onProvidersChange,
 }: {
   loggedIn: boolean;
   nickname: string | null;
@@ -164,6 +179,8 @@ function AccountCard({
   onLogout: () => void;
   onRequestLogin: () => void;
   onNicknameChange: (nickname: string) => void;
+  providers: LoginProvider[];
+  onProvidersChange: (next: LoginProvider[]) => void;
 }) {
   const [editing, setEditing] = useState(false);
   if (!loggedIn) {
@@ -202,7 +219,9 @@ function AccountCard({
   }
 
   return (
-    <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 p-5">
+    // 로그인 수단 줄이 펼쳐질 수 있어서 items-center 대신 items-start로 둔다.
+    // 가운데 정렬이면 관리를 펼칠 때 로그아웃 버튼이 같이 내려간다.
+    <div className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-neutral-200 p-5">
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <p className="text-base font-bold text-black truncate">{nickname ?? '...'}</p>
@@ -222,6 +241,7 @@ function AccountCard({
             {new Date(createdAt).toLocaleDateString('ko-KR')}
           </p>
         )}
+        <LoginMethods providers={providers} onChanged={onProvidersChange} />
       </div>
       <button
         type="button"
@@ -280,9 +300,9 @@ export function MyPage({
         onLogout={onLogout}
         onRequestLogin={onRequestLogin}
         onNicknameChange={onNicknameChange}
+        providers={providers}
+        onProvidersChange={onProvidersChange}
       />
-
-      {loggedIn && <LinkedAccounts providers={providers} onChanged={onProvidersChange} />}
 
       <CardRow
         title="최근 본 카드"
