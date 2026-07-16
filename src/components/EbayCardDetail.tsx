@@ -31,10 +31,15 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
       <EbayPriceChart grades={card.grades} />
 
       <div>
-        <div className="mb-2 flex items-baseline justify-between">
+        <div className="flex items-baseline justify-between">
           <p className="text-xs font-semibold text-neutral-500">등급별 이베이 시세</p>
           <span className="text-[11px] text-neutral-400">누르면 이베이 낙찰내역 ↗</span>
         </div>
+        {/* 처음 온 사람은 "시세"가 최근 기준인지, "신뢰도"가 뭔지 모른다. 한 줄로만 짚어준다. */}
+        <p className="mb-2 mt-0.5 text-[11px] leading-snug text-neutral-400">
+          최근 낙찰 기준 현재 시세예요. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 거래가 적어
+          값이 불확실하니 참고만 하세요.
+        </p>
         {/* 메인 값은 PPT의 "현재 적정가"(최근 30일 가중)로, 옛 거래에 안 눌린 지금 시세다.
             없는 등급은 중앙값으로 대체한다. 아래 작은 줄에 중앙값을 참고로 곁들이고, 신뢰도가
             낮으면(거래가 적으면) 눈에 띄게 알린다. 행을 누르면 이베이의 그 등급 "낙찰 완료"
