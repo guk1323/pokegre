@@ -1433,11 +1433,13 @@ const MAX_IMAGE_BODY_BYTES = 8 * 1024 * 1024
 // 카드를 몇 장 찍어보는 건 넉넉히 되면서, 스크립트로 몰아쳐서 요금을 태우진 못하는 선.
 const SCAN_RATE_LIMIT = 10
 const SCAN_RATE_WINDOW_MS = 60 * 60 * 1000
-const CARD_SCAN_MODEL = 'claude-haiku-4-5'
+// 홀로(반짝이) 카드는 빛 반사로 작은 글씨가 잘 안 읽힌다. 제일 약한 Haiku 대신 눈이
+// 좋은 Sonnet을 써서 반사·작은 글씨 판독률을 올린다(스캔 한 번당 비용은 여전히 1센트 미만).
+const CARD_SCAN_MODEL = 'claude-sonnet-5'
 
-const CARD_SCAN_PROMPT = `이 이미지는 일본판 포켓몬 카드 사진이다. 카드에 인쇄된 정보를 읽어서 아래 JSON 형식으로만 답하라. 다른 설명은 절대 붙이지 마라.
+const CARD_SCAN_PROMPT = `이 이미지는 일본판 포켓몬 카드 사진이다. 홀로그램 카드라 빛 반사·번들거림이 있을 수 있으니, 반사에 가려지지 않은 또렷한 글자를 최대한 읽어라. 아래 JSON 형식으로만 답하고 다른 설명은 절대 붙이지 마라.
 
-{"found": true, "pokemonNameJa": "카드에 적힌 포켓몬/카드 이름(일본어 그대로)", "setCode": "카드 왼쪽 아래 등에 있는 세트 코드(예: SV2a, M5). 안 보이면 null", "cardNumber": "카드 번호(예: 025/165). 안 보이면 null"}
+{"found": true, "pokemonNameJa": "카드 이름을 일본어 그대로. ex·V·VMAX·VSTAR·GX·SAR 같은 표기가 붙어 있으면 반드시 포함하라(예: リザードンex, ピカチュウV). 이건 큰 글씨라 반사에도 잘 보인다", "cardNumber": "카드 번호(예: 025/165, 133/M-P). 작은 글씨라 반사로 흐릿하면 절대 지어내지 말고 null. 틀린 번호보다 null이 낫다", "setCode": "세트 코드(예: SV2a, M5). 안 보이면 null"}
 
 카드가 안 보이거나 포켓몬 카드가 아니면 {"found": false} 로만 답하라.`
 
