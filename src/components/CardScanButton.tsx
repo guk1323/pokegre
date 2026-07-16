@@ -27,7 +27,8 @@ export function CardScanButton({
         ? [result.pokemonNameEn, result.cardNumber].filter(Boolean).join(' ')
         : '';
       if (query) {
-        onResult(query, result.edition ?? 'japanese');
+        // 'english'만 북미판으로 보고, 그 외(japanese·korean·빈값)는 전부 일본판 시장으로.
+        onResult(query, result.edition === 'english' ? 'english' : 'japanese');
       } else {
         setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
       }
