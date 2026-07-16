@@ -20,11 +20,12 @@ primary_region = "nrt"
 [http_service]
   internal_port = 3000
   force_https = true
-  # 트래픽이 없으면 머신을 재우고 요청이 오면 깨운다. 개인 프로젝트에선 이게 비용을
-  # 크게 줄이고, Fly는 기동이 빨라서(수 초) Render 무료 티어의 40~50초 대기와 다르다.
-  auto_stop_machines = "stop"
+  # 재우지 않는다. 재웠다가 깨우는 데 실제로 재보니 7.9초가 걸렸다(깨어 있으면 0.23초).
+  # 처음 온 사람은 그 8초를 기다리다 고장난 줄 알고 나가버린다. 아껴지는 돈이 월 3달러
+  # 남짓이라 그걸 감수할 이유가 없다.
+  auto_stop_machines = "off"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
 # 데이터가 JSON 파일이라 볼륨이 없으면 배포할 때마다 회원과 게시글이 전부 사라진다.
 # 머신 한 대에 붙는 로컬 디스크라, 나중에 여러 대로 늘리려면 그때 DB로 옮겨야 한다.
