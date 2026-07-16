@@ -15,6 +15,11 @@ export interface CommunityPost {
   authorIsAdmin: boolean;
   content: string;
   createdAt: number;
+  // 고친 적 있으면 그 시각. 화면에 "(수정됨)"을 붙이는 데만 쓴다.
+  editedAt?: number;
+  // 좋아요 개수와, 지금 보는 사람이 눌렀는지. 누가 눌렀는지 목록은 서버가 주지 않는다.
+  likeCount: number;
+  liked: boolean;
   commentCount: number;
   isMine: boolean;
   // 운영자가 가린 글. 운영자가 아닌 사람에게는 title·content가 이미 서버에서
@@ -60,9 +65,31 @@ export async function createPost(input: { title: string; content: string; catego
   return res.json();
 }
 
+export async function updatePost(
+  id: number,
+  input: { title: string; content: string; category: PostCategory },
+): Promise<CommunityPost> {
+  const res = await fetch(`/api/local/community/posts/${id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 401) throw new Error(LOGIN_REQUIRED);
+  if (!res.ok) throw new Error('게시글을 수정하지 못했습니다.');
+  return res.json();
+}
+
 export async function deletePost(id: number): Promise<void> {
   const res = await fetch(`/api/local/community/posts/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('게시글을 삭제하지 못했습니다.');
+}
+
+// 좋아요를 켜고 끈다. 서버가 바뀐 개수와 지금 상태(눌렀는지)를 돌려준다.
+export async function toggleLike(id: number): Promise<{ likeCount: number; liked: boolean }> {
+  const res = await fetch(`/api/local/community/posts/${id}/like`, { method: 'POST' });
+  if (res.status === 401) throw new Error(LOGIN_REQUIRED);
+  if (!res.ok) throw new Error('좋아요를 처리하지 못했습니다.');
+  return res.json();
 }
 
 export async function fetchComments(postId: number): Promise<CommunityComment[]> {

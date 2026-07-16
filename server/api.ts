@@ -350,6 +350,12 @@ interface CommunityPost {
   authorId: string
   content: string
   createdAt: number
+  // 마지막으로 고친 시각. 고친 적 없으면 없다. 화면에 "(수정됨)"을 붙이는 데만 쓴다.
+  editedAt?: number
+  // 좋아요를 누른 회원번호 목록. 한 사람이 한 번만 누르게 하려면 누가 눌렀는지를
+  // 알아야 한다. authorId와 마찬가지로 회원번호라 화면에는 개수만 내보내고 목록은
+  // 절대 내보내지 않는다.
+  likedBy: string[]
   commentCount: number
   // 운영자가 가린 시각. 지우지 않고 가리는 이유는 두 가지다. 신고가 장난일 수 있어
   // 되돌릴 수 있어야 하고, "왜 내 글 지웠냐"는 항의에 보여줄 원문이 남아야 한다.
@@ -381,7 +387,9 @@ const HIDDEN_NOTICE = '신고로 가려진 글입니다.'
 // 가려진 글의 원문은 아예 응답에 담지 않는다. 화면에서 가리기만 하면 개발자도구나
 // 주소창으로 그대로 볼 수 있어서 가린 게 아니게 된다. 운영자에게만 원문을 보낸다.
 function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
-  const { authorId, hiddenAt, ...rest } = post
+  // likedBy는 회원번호 목록이라 authorId와 마찬가지로 응답에서 빼고, 개수와 "내가
+  // 눌렀는지"만 내보낸다.
+  const { authorId, hiddenAt, likedBy, ...rest } = post
   const hidden = hiddenAt != null && !isAdmin(viewer)
   return {
     ...rest,
@@ -391,6 +399,8 @@ function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
     authorIsAdmin: adminIds.has(authorId),
     isMine: viewer != null && authorId === viewer.id,
     isHidden: hiddenAt != null,
+    likeCount: likedBy.length,
+    liked: viewer != null && likedBy.includes(viewer.id),
   }
 }
 
@@ -436,6 +446,9 @@ function mountCommunity(app: Mountable) {
         authorId: migrateId(p.authorId),
         // 카테고리가 없던 시절 글은 자유게시판으로 본다.
         category: p.category ?? 'free',
+        // 좋아요가 없던 시절 글은 빈 목록으로 시작한다. 여기 담긴 회원번호도 접두어를
+        // 붙여줘야 지금 회원과 대조돼 "내가 눌렀는지"가 맞게 나온다.
+        likedBy: (p.likedBy ?? []).map(migrateId),
       }))
     } catch {
       posts = []
@@ -544,6 +557,7 @@ function mountCommunity(app: Mountable) {
           authorId: user.id,
           content,
           createdAt: Date.now(),
+          likedBy: [],
           commentCount: 0,
         }
         all.push(post)
@@ -586,6 +600,67 @@ function mountCommunity(app: Mountable) {
         await persistPosts()
         await persistComments()
         sendJson(res, 200, { ok: true })
+        return
+      }
+
+      // PUT /posts/:id — 본인 글만 수정. 제목·내용·게시판을 바꿀 수 있다.
+      if (segments.length === 2 && segments[0] === 'posts' && req.method === 'PUT') {
+        const user = await currentUser(req)
+        const id = Number(segments[1])
+        const all = await loadPosts()
+        const post = all.find((p) => p.id === id)
+        if (!post) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        if (!user || post.authorId !== user.id) {
+          sendJson(res, 403, { error: 'not your post' })
+          return
+        }
+        const body = JSON.parse(await readBody(req)) as { title?: string; content?: string; category?: string }
+        const title = body.title?.trim()
+        const content = body.content?.trim()
+        if (!title || !content) {
+          sendJson(res, 400, { error: 'title and content are required' })
+          return
+        }
+        if (title.length > MAX_TITLE_LENGTH || content.length > MAX_CONTENT_LENGTH) {
+          sendJson(res, 400, {
+            error: `title must be <= ${MAX_TITLE_LENGTH} chars and content <= ${MAX_CONTENT_LENGTH} chars`,
+          })
+          return
+        }
+        post.title = title
+        post.content = content
+        // 게시판은 보낸 값이 유효할 때만 옮긴다. 안 보냈으면 원래 게시판을 유지한다.
+        if (POST_CATEGORIES.includes(body.category as PostCategory)) {
+          post.category = body.category as PostCategory
+        }
+        post.editedAt = Date.now()
+        await persistPosts()
+        sendJson(res, 200, toPublicPost(post, user, await loadUsers()))
+        return
+      }
+
+      // POST /posts/:id/like — 좋아요 토글. 이미 눌렀으면 취소된다.
+      if (segments.length === 3 && segments[0] === 'posts' && segments[2] === 'like' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!user?.nickname) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
+        const id = Number(segments[1])
+        const all = await loadPosts()
+        const post = all.find((p) => p.id === id)
+        if (!post) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        const i = post.likedBy.indexOf(user.id)
+        if (i === -1) post.likedBy.push(user.id)
+        else post.likedBy.splice(i, 1)
+        await persistPosts()
+        sendJson(res, 200, { likeCount: post.likedBy.length, liked: i === -1 })
         return
       }
 

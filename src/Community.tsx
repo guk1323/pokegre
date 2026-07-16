@@ -4,6 +4,8 @@ import {
   fetchPost,
   fetchComments,
   createPost,
+  updatePost,
+  toggleLike,
   createComment,
   deletePost,
   reportPost,
@@ -123,6 +125,8 @@ function PostDetail({
   onBack,
   onSubmitComment,
   onDelete,
+  onEdit,
+  onToggleLike,
   onRequestLogin,
 }: {
   post: CommunityPost;
@@ -133,6 +137,8 @@ function PostDetail({
   onBack: () => void;
   onSubmitComment: (content: string) => Promise<void>;
   onDelete: () => void;
+  onEdit: () => void;
+  onToggleLike: () => void;
 }) {
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -159,9 +165,14 @@ function PostDetail({
         <h2 className="text-lg font-bold text-black">{post.title}</h2>
         <div className="flex flex-shrink-0 gap-2">
           {post.isMine ? (
-            <button type="button" onClick={onDelete} className="text-xs text-neutral-400 hover:text-rose-500">
-              삭제
-            </button>
+            <>
+              <button type="button" onClick={onEdit} className="text-xs text-neutral-400 hover:text-black">
+                수정
+              </button>
+              <button type="button" onClick={onDelete} className="text-xs text-neutral-400 hover:text-rose-500">
+                삭제
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -175,8 +186,27 @@ function PostDetail({
       </div>
       <p className="text-xs text-neutral-400 mb-4">
         <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)}
+        {post.editedAt != null && ' · 수정됨'}
       </p>
-      <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-8">{post.content}</p>
+      <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-6">{post.content}</p>
+
+      {/* 좋아요. 비로그인이 누르면 로그인 모달을 띄운다 — 버튼을 숨기면 "왜 못 누르지?"
+          하게 되므로 보여주고 누를 때 안내한다. 누른 상태는 파란 하트로 채워 보여준다. */}
+      <div className="mb-8">
+        <button
+          type="button"
+          onClick={loggedIn ? onToggleLike : onRequestLogin}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+            post.liked
+              ? 'border-[#2a78d6] bg-[#2a78d6]/5 text-[#2a78d6]'
+              : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+          }`}
+        >
+          <span>{post.liked ? '♥' : '♡'}</span>
+          <span>좋아요</span>
+          {post.likeCount > 0 && <span>{post.likeCount}</span>}
+        </button>
+      </div>
 
       <p className="text-xs font-semibold text-neutral-500 mb-2">댓글 {comments.length}개</p>
       {commentsLoading ? (
@@ -237,17 +267,24 @@ function PostDetail({
 const WRITABLE_CATEGORIES: PostCategory[] = ['free', 'question', 'suggestion'];
 
 function PostForm({
+  mode,
   initialCategory,
+  initialTitle = '',
+  initialContent = '',
   onCancel,
   onSubmit,
 }: {
+  // 새 글인지 수정인지. 제목·버튼 문구만 다르고 나머지는 같다.
+  mode: 'write' | 'edit';
   initialCategory: PostCategory;
+  initialTitle?: string;
+  initialContent?: string;
   onCancel: () => void;
   onSubmit: (input: { title: string; content: string; category: PostCategory }) => Promise<void>;
 }) {
   const [category, setCategory] = useState<PostCategory>(initialCategory);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  const [title, setTitle] = useState(initialTitle);
+  const [content, setContent] = useState(initialContent);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -263,7 +300,7 @@ function PostForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <h2 className="text-base font-bold text-black mb-4">글쓰기</h2>
+      <h2 className="text-base font-bold text-black mb-4">{mode === 'edit' ? '글 수정' : '글쓰기'}</h2>
       <div className="space-y-3">
         <div className="flex gap-1.5">
           {WRITABLE_CATEGORIES.map((c) => (
@@ -310,7 +347,7 @@ function PostForm({
   );
 }
 
-type View = 'list' | 'detail' | 'write';
+type View = 'list' | 'detail' | 'write' | 'edit';
 
 // null = 전체 게시판. 특정 카테고리를 고르면 그 게시판만 본다.
 const CATEGORY_TABS: { key: PostCategory | null; label: string }[] = [
@@ -365,6 +402,34 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
     openPost(post.id);
   }
 
+  async function handleUpdatePost(input: { title: string; content: string; category: PostCategory }) {
+    if (!selectedPost) return;
+    const updated = await updatePost(selectedPost.id, input);
+    setSelectedPost(updated);
+    // 목록에도 바뀐 내용을 반영해둔다. 게시판이 바뀌었을 수 있으니 그 게시판으로 옮긴다.
+    setCategory(updated.category);
+    setView('detail');
+    loadPosts(updated.category);
+  }
+
+  async function handleToggleLike() {
+    if (!selectedPost) return;
+    // 눌린 즉시 반응하도록 화면을 먼저 바꾸고, 서버 응답으로 정확한 값을 맞춘다.
+    setSelectedPost((prev) =>
+      prev ? { ...prev, liked: !prev.liked, likeCount: prev.likeCount + (prev.liked ? -1 : 1) } : prev,
+    );
+    try {
+      const { likeCount, liked } = await toggleLike(selectedPost.id);
+      setSelectedPost((prev) => (prev ? { ...prev, likeCount, liked } : prev));
+      setPosts((prev) => prev.map((p) => (p.id === selectedPost.id ? { ...p, likeCount, liked } : p)));
+    } catch {
+      // 실패하면 눌렀던 걸 되돌린다.
+      setSelectedPost((prev) =>
+        prev ? { ...prev, liked: !prev.liked, likeCount: prev.likeCount + (prev.liked ? -1 : 1) } : prev,
+      );
+    }
+  }
+
   async function handleCreateComment(content: string) {
     if (!selectedPost) return;
     const comment = await createComment(selectedPost.id, { content });
@@ -388,7 +453,25 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
   if (view === 'write') {
     // 지금 보던 게시판을 기본값으로. "전체"에서 눌렀으면 자유로 시작한다.
     return (
-      <PostForm initialCategory={category ?? 'free'} onCancel={() => setView('list')} onSubmit={handleCreatePost} />
+      <PostForm
+        mode="write"
+        initialCategory={category ?? 'free'}
+        onCancel={() => setView('list')}
+        onSubmit={handleCreatePost}
+      />
+    );
+  }
+
+  if (view === 'edit' && selectedPost) {
+    return (
+      <PostForm
+        mode="edit"
+        initialCategory={selectedPost.category}
+        initialTitle={selectedPost.title}
+        initialContent={selectedPost.content}
+        onCancel={() => setView('detail')}
+        onSubmit={handleUpdatePost}
+      />
     );
   }
 
@@ -402,6 +485,8 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
         onBack={() => setView('list')}
         onSubmitComment={handleCreateComment}
         onDelete={handleDeletePost}
+        onEdit={() => setView('edit')}
+        onToggleLike={handleToggleLike}
         onRequestLogin={onRequestLogin}
       />
     );

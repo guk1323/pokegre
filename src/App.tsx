@@ -23,6 +23,7 @@ import { CardDetail } from './components/CardDetail';
 import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
 import { PokemonNews } from './components/PokemonNews';
+import { OnboardingBanner } from './components/OnboardingBanner';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
 import { CardScanButton } from './components/CardScanButton';
@@ -404,6 +405,7 @@ function App() {
 
   const homeMain = (
     <>
+      <OnboardingBanner />
       <div className="mb-6">
         <PopularSearches items={popularSearches} asOf={popularAsOf} loading={popularLoading} onSelect={setQuery} />
       </div>
