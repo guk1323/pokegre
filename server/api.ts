@@ -1187,7 +1187,17 @@ interface User {
   //
   // 회원번호는 우리가 저장하는 유일한 로그인 정보다 — 이름/프로필/이메일은 양쪽 다
   // 동의항목에서 요청하지 않아 애초에 넘어오지 않는다.
+  //
+  // 계정의 영구 키다. 즐겨찾기(collections의 키)와 게시글(authorId)이 이 값을 가리키므로
+  // 나중에 로그인 수단을 붙이거나 떼도 이건 절대 바뀌지 않는다. 처음 가입한 수단의
+  // 식별자가 그대로 굳는다.
   id: string
+  // 이 계정으로 들어올 수 있는 로그인 수단들. 보통 하나지만, 본인이 마이페이지에서
+  // 연결하면 ["kakao:123", "naver:abc"]처럼 늘어난다.
+  //
+  // 이메일이나 본인인증 없이 두 번호가 같은 사람인 걸 알 방법은 없다. 그래서 자동으로
+  // 합치지 않고, 로그인한 상태에서 본인이 직접 연결하게 한다 — 그 행위 자체가 증거다.
+  logins: string[]
   nickname: string | null
   createdAt: number
 }
@@ -1206,8 +1216,15 @@ function userId(provider: LoginProvider, providerId: string): string {
 // 때 바꾸면, 프로덕션 볼륨에 손을 안 대도 되고 예전 파일이 남아 있어도 안전하다.
 // (그때는 카카오뿐이었으므로 접두어 없는 번호는 전부 카카오다.)
 function migrateUser(raw: User & { kakaoId?: string }): User {
-  if (raw.id) return raw
-  return { id: userId('kakao', raw.kakaoId!), nickname: raw.nickname, createdAt: raw.createdAt }
+  const id = raw.id ?? userId('kakao', raw.kakaoId!)
+  // logins가 없던 시절 기록은 가입한 수단 하나뿐이다.
+  return { id, logins: raw.logins ?? [id], nickname: raw.nickname, createdAt: raw.createdAt }
+}
+
+// 로그인 수단으로 계정을 찾는다. id가 아니라 logins를 뒤져야 한다 — 네이버를 연결한
+// 계정은 id가 "kakao:..."인데 네이버로도 들어올 수 있어야 하기 때문이다.
+function findUserByLogin(all: User[], loginId: string): User | undefined {
+  return all.find((u) => u.logins.includes(loginId))
 }
 
 function migrateSession(raw: Session & { kakaoId?: string }): Session {
@@ -1355,6 +1372,38 @@ function sessionCookie(req: IncomingMessage, value: string, maxAgeSeconds: numbe
   return `${SESSION_COOKIE}=${value}; HttpOnly; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax${secure}`
 }
 
+// 이미 로그인한 계정에 로그인 수단을 하나 더 붙인다.
+//
+// 실패 사유를 주소로 돌려보내 화면이 안내할 수 있게 한다.
+export async function linkLogin(
+  provider: LoginProvider,
+  providerId: string,
+  linkToUserId: string,
+  currentUserId: string | null,
+): Promise<string> {
+  // state만으로는 부족하다. state가 새어나가면 남이 자기 계정을 사장님 계정에 붙여서
+  // 사장님으로 로그인할 수 있다. 지금 로그인한 사람이 연결을 시작한 그 사람인지
+  // 반드시 다시 확인한다.
+  if (!currentUserId || currentUserId !== linkToUserId) return '/?link=failed'
+
+  const loginId = userId(provider, providerId)
+  const all = await loadUsers()
+
+  const owner = findUserByLogin(all, loginId)
+  if (owner) {
+    // 이미 내 계정에 붙어 있으면 그냥 성공으로 친다(같은 걸 두 번 눌렀을 때).
+    if (owner.id === linkToUserId) return '/?link=ok'
+    // 남의 계정에 붙어 있으면 옮겨오면 안 된다. 그쪽 계정이 로그인 수단을 잃는다.
+    return '/?link=taken'
+  }
+
+  const me = all.find((u) => u.id === linkToUserId)
+  if (!me) return '/?link=failed'
+  me.logins.push(loginId)
+  await persistUsers()
+  return '/?link=ok'
+}
+
 // 카카오든 네이버든 회원번호를 받아낸 다음은 똑같다 — 없으면 만들고, 세션을 발급하고,
 // 쿠키를 심고, 닉네임이 없으면 설정 화면으로 보낸다. 공급자별로 이 흐름을 복사해두면
 // 한쪽만 고쳐서 갈리기 쉬우므로 한 곳에 둔다.
@@ -1364,17 +1413,20 @@ async function signIn(
   provider: LoginProvider,
   providerId: string,
 ): Promise<void> {
-  const id = userId(provider, providerId)
+  const loginId = userId(provider, providerId)
   const all = await loadUsers()
-  let user = all.find((u) => u.id === id)
+  // 연결해둔 계정이 있으면 그리로 들어간다. 없을 때만 새로 만든다.
+  let user = findUserByLogin(all, loginId)
   if (!user) {
-    user = { id, nickname: null, createdAt: Date.now() }
+    user = { id: loginId, logins: [loginId], nickname: null, createdAt: Date.now() }
     all.push(user)
     await persistUsers()
   }
 
   const token = randomUUID()
-  ;(await loadSessions()).push({ token, userId: id, expiresAt: Date.now() + SESSION_TTL_MS })
+  // 세션은 로그인 수단이 아니라 계정을 가리킨다. 카카오로 들어오든 네이버로 들어오든
+  // 같은 계정이면 같은 곳을 본다.
+  ;(await loadSessions()).push({ token, userId: user.id, expiresAt: Date.now() + SESSION_TTL_MS })
   await persistSessions()
 
   // httpOnly라 JS로 못 읽는다(XSS로 세션 탈취 방지).
@@ -1396,7 +1448,9 @@ function mountAuth(
   // 콜백이 돌아올 때만 지워져서, 로그인하다 그만두면 영원히 남는다. 인증도 필요 없는
   // /kakao를 반복 호출해 메모리를 불릴 수 있으므로 만료를 붙인다. 카카오 로그인 화면에
   // 머무는 시간을 감안해도 10분이면 넉넉하다.
-  const pendingStates = new TtlCache<true>(STATE_TTL_MS, MAX_PENDING_STATES)
+  // state는 CSRF 방지용이자, 인증하러 나갔다 돌아오는 동안 "이게 로그인인지 연결인지"를
+  // 기억하는 자리다. 연결이면 어느 계정에 붙일지도 여기 담는다.
+  const pendingStates = new TtlCache<{ linkToUserId?: string }>(STATE_TTL_MS, MAX_PENDING_STATES)
 
   app.use('/api/local/auth', async (req, res) => {
     const origin = publicOrigin(req)
@@ -1414,7 +1468,14 @@ function mountAuth(
           res,
           200,
           user
-            ? { loggedIn: true, nickname: user.nickname, createdAt: user.createdAt, isAdmin: isAdmin(user) }
+            ? {
+                loggedIn: true,
+                nickname: user.nickname,
+                createdAt: user.createdAt,
+                isAdmin: isAdmin(user),
+                // 어느 수단이 연결돼 있는지만 알려준다. 회원번호는 내보내지 않는다.
+                providers: user.logins.map((l) => l.split(':')[0]),
+              }
             : { loggedIn: false },
         )
         return
@@ -1453,6 +1514,35 @@ function mountAuth(
         user.nickname = nickname
         await persistUsers()
         sendJson(res, 200, { nickname })
+        return
+      }
+
+      // POST /unlink — 연결한 로그인 수단을 뗀다
+      if (segments[0] === 'unlink' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
+        const body = JSON.parse((await readBody(req)) || '{}') as { provider?: string }
+        // 마지막 하나는 뗄 수 없다. 떼면 그 계정으로 들어올 방법이 사라져서, 즐겨찾기와
+        // 글이 남아 있는데 주인이 영영 못 들어오는 유령 계정이 된다.
+        if (user.logins.length <= 1) {
+          sendJson(res, 400, { error: 'last_login' })
+          return
+        }
+        const next = user.logins.filter((l) => !l.startsWith(`${body.provider}:`))
+        if (next.length === user.logins.length) {
+          sendJson(res, 400, { error: 'not_linked' })
+          return
+        }
+        if (next.length === 0) {
+          sendJson(res, 400, { error: 'last_login' })
+          return
+        }
+        user.logins = next
+        await persistUsers()
+        sendJson(res, 200, { providers: next.map((l) => l.split(':')[0]) })
         return
       }
 
@@ -1513,10 +1603,12 @@ function mountAuth(
         }
         const naverRedirectUri = `${origin}/api/local/auth/naver/callback`
 
-        // GET /naver — 네이버 인증 페이지로 보낸다
+        // GET /naver — 네이버 인증 페이지로 보낸다. ?link=1이면 로그인이 아니라
+        // 지금 로그인한 계정에 붙이러 가는 것이다.
         if (segments.length === 1) {
           const state = randomUUID()
-          pendingStates.set(state, true)
+          const linkTo = url.searchParams.get('link') ? (await currentUser(req))?.id : undefined
+          pendingStates.set(state, { linkToUserId: linkTo })
           const authUrl = new URL('https://nid.naver.com/oauth2.0/authorize')
           authUrl.searchParams.set('client_id', naverClientId)
           authUrl.searchParams.set('redirect_uri', naverRedirectUri)
@@ -1532,7 +1624,8 @@ function mountAuth(
         if (segments[1] === 'callback') {
           const code = url.searchParams.get('code')
           const state = url.searchParams.get('state')
-          if (!code || !state || !pendingStates.get(state)) {
+          const pending = state ? pendingStates.get(state) : undefined
+          if (!code || !state || !pending) {
             res.statusCode = 302
             res.setHeader('location', '/?login=failed')
             res.end()
@@ -1583,6 +1676,14 @@ function mountAuth(
             return
           }
 
+          if (pending.linkToUserId) {
+            const to = await linkLogin('naver', providerId, pending.linkToUserId, (await currentUser(req))?.id ?? null)
+            res.statusCode = 302
+            res.setHeader('location', to)
+            res.end()
+            return
+          }
+
           await signIn(req, res, 'naver', providerId)
           return
         }
@@ -1594,10 +1695,11 @@ function mountAuth(
         return
       }
 
-      // GET /kakao — 카카오 인증 페이지로 보낸다
+      // GET /kakao — 카카오 인증 페이지로 보낸다. ?link=1이면 연결.
       if (segments[0] === 'kakao' && segments.length === 1) {
         const state = randomUUID()
-        pendingStates.set(state, true)
+        const linkTo = url.searchParams.get('link') ? (await currentUser(req))?.id : undefined
+        pendingStates.set(state, { linkToUserId: linkTo })
         const authUrl = new URL('https://kauth.kakao.com/oauth/authorize')
         authUrl.searchParams.set('client_id', restApiKey)
         authUrl.searchParams.set('redirect_uri', redirectUri)
@@ -1613,8 +1715,9 @@ function mountAuth(
       if (segments[0] === 'kakao' && segments[1] === 'callback') {
         const code = url.searchParams.get('code')
         const state = url.searchParams.get('state')
+        const pending = state ? pendingStates.get(state) : undefined
         // state가 없거나 우리가 발급한 게 아니면 CSRF 시도로 보고 거절한다.
-        if (!code || !state || !pendingStates.get(state)) {
+        if (!code || !state || !pending) {
           res.statusCode = 302
           res.setHeader('location', '/?login=failed')
           res.end()
@@ -1661,6 +1764,14 @@ function mountAuth(
         if (!providerId) {
           res.statusCode = 302
           res.setHeader('location', '/?login=failed')
+          res.end()
+          return
+        }
+
+        if (pending.linkToUserId) {
+          const to = await linkLogin('kakao', providerId, pending.linkToUserId, (await currentUser(req))?.id ?? null)
+          res.statusCode = 302
+          res.setHeader('location', to)
           res.end()
           return
         }

@@ -32,7 +32,7 @@ import { NicknameSetup } from './components/NicknameSetup';
 import { LoginModal } from './components/LoginModal';
 import { MyPage } from './components/MyPage';
 import { ReportInbox } from './components/ReportInbox';
-import { fetchMe, logout, mergeCollections, saveCollections } from './api/auth';
+import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider } from './api/auth';
 
 const INITIAL_TARGET = 16;
 const LOAD_MORE_TARGET = 12;
@@ -88,6 +88,7 @@ function App() {
   // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
   // 안 주므로 아무것도 못 본다.
   const [isAdmin, setIsAdmin] = useState(false);
+  const [providers, setProviders] = useState<LoginProvider[]>([]);
   const [needsNickname, setNeedsNickname] = useState(false);
   // 로그인 모달은 마이페이지·커뮤니티 어디서든 열리므로 App이 들고 있는다.
   const [loginOpen, setLoginOpen] = useState(false);
@@ -136,6 +137,7 @@ function App() {
       setNickname(me.nickname ?? null);
       setCreatedAt(me.createdAt);
       setIsAdmin(me.isAdmin ?? false);
+      setProviders(me.providers ?? []);
       if (me.loggedIn && !me.nickname) setNeedsNickname(true);
       if (!me.loggedIn) return;
 
@@ -150,7 +152,18 @@ function App() {
     });
 
     const params = new URLSearchParams(window.location.search);
-    if (params.has('setNickname') || params.has('login')) {
+
+    // 계정 연결은 인증하러 나갔다 돌아오는 거라, 알려주지 않으면 아무 일도 안 일어난
+    // 것처럼 보인다. 특히 실패했을 땐 이유를 말해줘야 한다.
+    const link = params.get('link');
+    if (link) {
+      setView('mypage');
+      if (link === 'ok') window.alert('계정을 연결했어요. 이제 어느 쪽으로 로그인해도 같은 계정으로 들어옵니다.');
+      else if (link === 'taken') window.alert('이미 다른 계정에 연결된 로그인 수단이에요.');
+      else window.alert('연결하지 못했어요. 다시 시도해주세요.');
+    }
+
+    if (params.has('setNickname') || params.has('login') || params.has('link')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -161,6 +174,7 @@ function App() {
     setNickname(null);
     setCreatedAt(undefined);
     setIsAdmin(false);
+    setProviders([]);
     // 운영자가 로그아웃했는데 신고함이 그대로 열려 있으면 빈 화면만 남는다.
     if (view === 'reports') setView('cards');
   }
@@ -363,6 +377,8 @@ function App() {
       onLogout={handleLogout}
       onRequestLogin={() => setLoginOpen(true)}
       onNicknameChange={setNickname}
+      providers={providers}
+      onProvidersChange={setProviders}
       recentlyViewed={recentlyViewed}
       favorites={favorites}
       selectedId={interestSelectedId}

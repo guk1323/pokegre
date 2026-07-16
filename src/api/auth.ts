@@ -6,7 +6,16 @@ export interface AuthState {
   createdAt?: number;
   // 신고함 메뉴를 보여줄지 정하는 용도. 실제 차단은 서버가 한다.
   isAdmin?: boolean;
+  // 이 계정에 연결된 로그인 수단. 보통 하나지만 본인이 연결하면 늘어난다.
+  providers?: LoginProvider[];
 }
+
+export type LoginProvider = "kakao" | "naver";
+
+export const PROVIDER_LABEL: Record<LoginProvider, string> = {
+  kakao: "카카오",
+  naver: "네이버",
+};
 
 export async function fetchMe(): Promise<AuthState> {
   const res = await fetch('/api/local/auth/me');
@@ -38,7 +47,26 @@ export function startKakaoLogin(): void {
 }
 
 export function startNaverLogin(): void {
-  window.location.href = '/api/local/auth/naver';
+  window.location.href = "/api/local/auth/naver";
+}
+
+// 로그인이 아니라 "지금 로그인한 계정에 이 수단을 붙이러" 간다. 서버가 state에
+// 연결 의도를 담아뒀다가 돌아올 때 처리한다.
+export function startLinkLogin(provider: LoginProvider): void {
+  window.location.href = `/api/local/auth/${provider}?link=1`;
+}
+
+export const UNLINK_LAST = "last_login";
+
+export async function unlinkProvider(provider: LoginProvider): Promise<LoginProvider[]> {
+  const res = await fetch("/api/local/auth/unlink", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ provider }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error === UNLINK_LAST ? UNLINK_LAST : "연결을 해제하지 못했습니다.");
+  return body.providers;
 }
 
 export interface StoredCollections {

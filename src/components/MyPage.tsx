@@ -1,7 +1,89 @@
 import { useState } from 'react';
 import type { SnkrdunkCard } from '../api/snkrdunk';
-import { NICKNAME_TAKEN, setNickname as saveNickname } from '../api/auth';
+import {
+  NICKNAME_TAKEN,
+  PROVIDER_LABEL,
+  UNLINK_LAST,
+  setNickname as saveNickname,
+  startLinkLogin,
+  unlinkProvider,
+  type LoginProvider,
+} from '../api/auth';
 import { CardRow } from './CardRow';
+
+const ALL_PROVIDERS: LoginProvider[] = ['kakao', 'naver'];
+
+// 카카오·네이버는 서로 다른 회원번호를 주고, 이름이나 이메일을 안 받으므로 같은
+// 사람인지 알 방법이 없다. 그래서 자동으로 합치지 않고 여기서 본인이 직접 연결한다.
+// 연결해두면 어느 걸로 들어오든 즐겨찾기와 글이 그대로 따라온다.
+function LinkedAccounts({
+  providers,
+  onChanged,
+}: {
+  providers: LoginProvider[];
+  onChanged: (next: LoginProvider[]) => void;
+}) {
+  const [busy, setBusy] = useState<LoginProvider | null>(null);
+
+  async function handleUnlink(provider: LoginProvider) {
+    if (!window.confirm(`${PROVIDER_LABEL[provider]} 연결을 해제할까요?`)) return;
+    setBusy(provider);
+    try {
+      onChanged(await unlinkProvider(provider));
+    } catch (e) {
+      window.alert(
+        e instanceof Error && e.message === UNLINK_LAST
+          ? '마지막 로그인 수단은 해제할 수 없어요. 해제하면 계정에 들어올 방법이 없어집니다.'
+          : '해제하지 못했습니다.',
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mb-6 rounded-xl border border-neutral-200 p-5">
+      <p className="text-sm font-bold text-black mb-1">로그인 수단</p>
+      <p className="text-xs text-neutral-500 mb-3">
+        연결해두면 어느 쪽으로 로그인해도 같은 계정으로 들어옵니다.
+      </p>
+      <ul className="space-y-2">
+        {ALL_PROVIDERS.map((p) => {
+          const linked = providers.includes(p);
+          return (
+            <li key={p} className="flex items-center justify-between gap-3">
+              <span className="text-sm text-neutral-800">
+                {PROVIDER_LABEL[p]}
+                {linked && <span className="ml-2 text-xs text-neutral-400">연결됨</span>}
+              </span>
+              {linked ? (
+                <button
+                  type="button"
+                  disabled={busy === p || providers.length <= 1}
+                  onClick={() => handleUnlink(p)}
+                  // 마지막 하나는 아예 못 누르게 막는다. 눌러보고 거절당하는 것보다
+                  // 처음부터 못 누르는 게 낫다.
+                  title={providers.length <= 1 ? '마지막 로그인 수단은 해제할 수 없습니다' : undefined}
+                  className="flex-shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50 disabled:opacity-40"
+                >
+                  해제
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startLinkLogin(p)}
+                  className="flex-shrink-0 rounded-lg bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800"
+                >
+                  연결
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 // 가입 당일이 1일차. (지금 - 가입일)을 그냥 나누면 0일차가 나와서 어색하다.
 function daysSince(createdAt: number): number {
@@ -161,6 +243,8 @@ export function MyPage({
   onLogout,
   onRequestLogin,
   onNicknameChange,
+  providers,
+  onProvidersChange,
   recentlyViewed,
   favorites,
   selectedId,
@@ -176,6 +260,8 @@ export function MyPage({
   onLogout: () => void;
   onRequestLogin: () => void;
   onNicknameChange: (nickname: string) => void;
+  providers: LoginProvider[];
+  onProvidersChange: (next: LoginProvider[]) => void;
   recentlyViewed: SnkrdunkCard[];
   favorites: SnkrdunkCard[];
   selectedId: number | null;
@@ -195,6 +281,8 @@ export function MyPage({
         onRequestLogin={onRequestLogin}
         onNicknameChange={onNicknameChange}
       />
+
+      {loggedIn && <LinkedAccounts providers={providers} onChanged={onProvidersChange} />}
 
       <CardRow
         title="최근 본 카드"
