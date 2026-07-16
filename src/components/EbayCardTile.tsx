@@ -1,4 +1,4 @@
-import { formatGradeLabel, type EbayCard } from '../api/ebayPrices';
+import { formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
 import { KrwHint } from './KrwHint';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -12,7 +12,9 @@ export function EbayCardTile({
   selected: boolean;
   onSelect: (id: string) => void;
 }) {
+  // 목록 대표가도 상세와 같은 기준(현재 적정가, 없으면 중앙값)으로 맞춘다.
   const topGrade = card.grades[0];
+  const top = topGrade ? mainPrice(topGrade) : null;
 
   return (
     <button
@@ -29,12 +31,12 @@ export function EbayCardTile({
       </div>
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.name}</p>
       <p className="text-xs text-neutral-400 mb-1 line-clamp-1">{card.setName}</p>
-      {topGrade && (
+      {topGrade && top && (
         <>
           <p className="text-base font-bold text-black">
-            {formatGradeLabel(topGrade.grade)} {usd.format(topGrade.medianPrice)}
+            {formatGradeLabel(topGrade.grade)} {usd.format(top.price)}
           </p>
-          <KrwHint amount={topGrade.medianPrice} currency="usd" />
+          <KrwHint amount={top.price} currency="usd" />
         </>
       )}
     </button>

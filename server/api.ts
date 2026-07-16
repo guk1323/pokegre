@@ -1187,6 +1187,9 @@ interface RawEbayGrade {
   marketTrend?: string | null
   // 이 등급의 마지막 낙찰 날짜(ISO). 표시 값이 얼마나 최신인지 알려준다.
   lastSaleDate?: string | null
+  // PPT가 최근 30일 낙찰을 튀는 값 걸러 가중 계산한 "현재 적정가". 신뢰도(high/medium/low)
+  // 는 최근 거래가 얼마나 있었는지에 따른다.
+  smartMarketPrice?: { price?: number; confidence?: string } | null
 }
 
 interface RawPriceTrackerCard {
@@ -1220,6 +1223,9 @@ interface ShapedEbayCard {
     maxPrice: number
     marketTrend: string | null
     lastSaleDate: string | null
+    // 현재 적정가와 그 신뢰도. 없으면 null(그땐 화면이 중앙값으로 대체한다).
+    smartPrice: number | null
+    confidence: string | null
     // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
     history: { date: string; price: number }[]
   }[]
@@ -1264,6 +1270,8 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
             maxPrice: stat.maxPrice ?? 0,
             marketTrend: stat.marketTrend ?? null,
             lastSaleDate: stat.lastSaleDate ?? null,
+            smartPrice: stat.smartMarketPrice?.price ?? null,
+            confidence: stat.smartMarketPrice?.confidence ?? null,
             history: shapeGradeHistory(history[grade]),
           }))
           .sort((a, b) => b.count - a.count),

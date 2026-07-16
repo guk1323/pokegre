@@ -16,6 +16,10 @@ export interface EbayGradeStat {
   marketTrend: string | null;
   // 이 등급의 마지막 낙찰 날짜(ISO). 표시 값이 얼마나 최신인지 알려준다. 없으면 null.
   lastSaleDate: string | null;
+  // PPT가 최근 30일로 계산한 현재 적정가와 신뢰도. 메인에 이 값을 쓰고, 없으면 중앙값으로
+  // 대체한다.
+  smartPrice: number | null;
+  confidence: string | null;
   // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
   history: EbayGradePoint[];
 }
@@ -90,6 +94,18 @@ export async function searchEbayCards(
     setName: koreanizeEnglishSetName(card.setName),
   }));
   return { cards, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE };
+}
+
+// 신뢰도 표기. PPT의 high/medium/low를 한글로. 그 외 값은 그대로 둔다.
+export const CONFIDENCE_LABEL: Record<string, string> = {
+  high: '높음',
+  medium: '보통',
+  low: '낮음',
+};
+
+// 메인에 쓸 대표가. 스마트 적정가가 있으면 그걸, 없으면 중앙값으로 대체한다.
+export function mainPrice(g: EbayGradeStat): { price: number; isSmart: boolean } {
+  return g.smartPrice != null ? { price: g.smartPrice, isSmart: true } : { price: g.medianPrice, isSmart: false };
 }
 
 // "psa10" -> "PSA 10", "cgc9" -> "CGC 9"
