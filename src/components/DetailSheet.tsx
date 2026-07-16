@@ -18,6 +18,12 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
 
   useEffect(() => {
     if (!open) return;
+    // 시트는 lg 이상에서 CSS(lg:hidden)로 감춰지지만 open은 그대로 true라, 이 effect는
+    // 넓은 화면에서도 실행된다. 그때 body를 잠그면 화면엔 시트가 없는데 목록 스크롤만
+    // 죽는다("PC 전체화면에서 스크롤 안 됨"). 시트가 실제로 뜨는 좁은 화면에서만 잠근다.
+    const narrow = window.matchMedia('(max-width: 1023px)');
+    if (!narrow.matches) return;
+
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     // 뒤로가기(안드로이드 물리 버튼 포함)로 닫히게 한다. 폰에서 X를 찾는 것보다
