@@ -49,6 +49,8 @@ function formatDate(ts: number): string {
 }
 
 function PostList({
+  heading,
+  emptyText,
   posts,
   loading,
   loggedIn,
@@ -56,6 +58,8 @@ function PostList({
   onWrite,
   onRequestLogin,
 }: {
+  heading: string;
+  emptyText: string;
   posts: CommunityPost[];
   loading: boolean;
   loggedIn: boolean;
@@ -66,7 +70,7 @@ function PostList({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-bold text-black">자유게시판</h2>
+        <h2 className="text-base font-bold text-black">{heading}</h2>
         {/* 비로그인이어도 글쓰기 버튼은 보여준다 — 누르면 로그인 모달이 뜨므로,
             버튼을 숨겨서 "왜 글을 못 쓰지?" 하게 만드는 것보다 낫다. */}
         <button
@@ -81,7 +85,7 @@ function PostList({
       {loading ? (
         <p className="text-sm text-neutral-400 py-12 text-center">불러오는 중...</p>
       ) : posts.length === 0 ? (
-        <p className="text-sm text-neutral-400 py-12 text-center">아직 글이 없어요. 첫 글을 남겨보세요!</p>
+        <p className="text-sm text-neutral-400 py-12 text-center">{emptyText}</p>
       ) : (
         <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
           {posts.map((post) => (
@@ -441,6 +445,12 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
       </div>
 
       <PostList
+        heading={category === null ? '전체 게시판' : `${CATEGORY_LABEL[category]}게시판`}
+        emptyText={
+          category === null
+            ? '아직 글이 없어요. 첫 글을 남겨보세요!'
+            : `${CATEGORY_LABEL[category]}게시판에 아직 글이 없어요. 첫 글을 남겨보세요!`
+        }
         posts={posts}
         loading={postsLoading}
         loggedIn={loggedIn}

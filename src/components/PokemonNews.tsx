@@ -2,11 +2,12 @@ import { useState } from 'react';
 import type { KoreanNewsItem } from '../api/koreanNews';
 
 // 한 페이지에 20건이 통째로 깔리면 홈이 뉴스로만 채워져서, 기본은 5건만 보여주고
-// 나머지는 접어둔다.
-const COLLAPSED_COUNT = 5;
+// "더보기"를 누를 때마다 5건씩 늘린다. 한 번에 다 펼치면 목록이 갑자기 길어져서
+// 어디까지 봤는지 놓치기 쉽다.
+const PAGE_SIZE = 5;
 
 export function PokemonNews({ items, loading }: { items: KoreanNewsItem[]; loading: boolean }) {
-  const [expanded, setExpanded] = useState(false);
+  const [shown, setShown] = useState(PAGE_SIZE);
 
   if (loading) {
     return <p className="text-sm text-neutral-400 py-6 text-center">불러오는 중...</p>;
@@ -14,8 +15,9 @@ export function PokemonNews({ items, loading }: { items: KoreanNewsItem[]; loadi
 
   if (items.length === 0) return null;
 
-  const visible = expanded ? items : items.slice(0, COLLAPSED_COUNT);
-  const hiddenCount = items.length - COLLAPSED_COUNT;
+  const visible = items.slice(0, shown);
+  const remaining = items.length - shown;
+  const nextCount = Math.min(PAGE_SIZE, remaining);
 
   return (
     <div className="mb-6">
@@ -36,14 +38,24 @@ export function PokemonNews({ items, loading }: { items: KoreanNewsItem[]; loadi
         ))}
       </ul>
 
-      {hiddenCount > 0 && (
+      {remaining > 0 ? (
         <button
           type="button"
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => setShown((prev) => prev + PAGE_SIZE)}
           className="mt-2 w-full rounded-lg py-2 text-xs font-semibold text-neutral-500 hover:bg-neutral-50"
         >
-          {expanded ? '접기' : `뉴스 ${hiddenCount}건 더보기`}
+          뉴스 {nextCount}건 더보기
         </button>
+      ) : (
+        shown > PAGE_SIZE && (
+          <button
+            type="button"
+            onClick={() => setShown(PAGE_SIZE)}
+            className="mt-2 w-full rounded-lg py-2 text-xs font-semibold text-neutral-500 hover:bg-neutral-50"
+          >
+            접기
+          </button>
+        )
       )}
     </div>
   );

@@ -7,3 +7,21 @@
 body {
   margin: 0;
 }
+
+/* 옆으로 넘기는 카드 줄에 붙인다. 맥/크롬은 스크롤할 때만 스크롤바를 잠깐 보여줘서,
+   가만히 있으면 오른쪽에 카드가 더 있는지 알 수 없다. 얇은 막대를 늘 띄워 "옆으로
+   더 있다"는 걸 눈에 보이게 한다. */
+.scroll-hint {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d4 transparent;
+}
+.scroll-hint::-webkit-scrollbar {
+  height: 6px;
+}
+.scroll-hint::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 9999px;
+}
+.scroll-hint::-webkit-scrollbar-track {
+  background: transparent;
+}

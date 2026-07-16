@@ -40,7 +40,7 @@ export function CardRow({
         // overflow-x-auto는 세로축까지 클리핑으로 승격시켜서, 선택된 카드의
         // ring-offset(타일 바깥 4px)이 위/좌/우에서 잘린다. 여백을 4px 이상 주되
         // 음수 마진으로 상쇄해 제목과의 정렬은 그대로 둔다.
-        <div className="flex gap-3 overflow-x-auto -mx-1 px-1 pt-1 pb-2">
+        <div className="scroll-hint flex gap-3 overflow-x-auto -mx-1 px-1 pt-1 pb-2">
           {items.map((card) => (
             <div key={card.apparelId} className="w-44 flex-shrink-0">
               <CardTile

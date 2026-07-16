@@ -522,8 +522,12 @@ function App() {
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <h1 className="text-xl font-extrabold text-black tracking-tight">pokegre</h1>
+                {/* 좁은 화면에서는 가운뎃점(·)에서 줄이 어중간하게 끊겨 지저분하다.
+                    작은 화면은 두 줄로 깔끔하게 나누고, 넓은 화면에서만 한 줄로 잇는다. */}
                 <p className="text-sm text-neutral-500 mt-1">
-                  일본판·북미판 포켓몬카드 시세 · SNKRDUNK 실거래가와 eBay 등급별 낙찰가
+                  <span className="block sm:inline">일본판·북미판 포켓몬카드 시세</span>
+                  <span className="hidden sm:inline"> · </span>
+                  <span className="block sm:inline">SNKRDUNK 실거래가와 eBay 등급별 낙찰가</span>
                 </p>
               </div>
               <nav className="flex gap-2">

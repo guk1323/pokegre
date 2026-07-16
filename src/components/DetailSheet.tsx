@@ -57,18 +57,24 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
       <div className="relative max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl">
         {/* 손잡이를 눌러도 닫힌다. 회색 바만 두면 눌리는지 알 수 없어서, 위아래 여백까지
             품은 버튼으로 만들어 손가락으로 누를 영역을 넉넉히 준다. sticky로 위에 고정해
-            시트를 스크롤해도 손잡이가 늘 손에 닿는다. */}
-        {/* z-10: sticky만으로는 스크롤되는 콘텐츠(카드 이미지·등급 카드)가 손잡이 위를
+            시트를 스크롤해도 손잡이가 늘 손에 닿는다. 오른쪽 X는 손잡이를 눌러 닫는 걸
+            모르는 사람을 위한 확실한 닫기 표시다.
+            z-10: sticky만으로는 스크롤되는 콘텐츠(카드 이미지·등급 카드)가 손잡이 위를
             지나가 가려진다. 손잡이가 늘 맨 앞에 있어야 한다.
             아래 옅은 경계선은 스크롤된 콘텐츠와 손잡이 영역을 구분해준다. */}
-        <button
-          type="button"
-          aria-label="닫기"
-          onClick={onClose}
-          className="sticky top-0 z-10 -mx-4 flex w-[calc(100%+2rem)] justify-center border-b border-neutral-100 bg-white py-3"
-        >
-          <span className="h-1.5 w-12 rounded-full bg-neutral-300" />
-        </button>
+        <div className="sticky top-0 z-10 -mx-4 flex items-center justify-center border-b border-neutral-100 bg-white py-3">
+          <button type="button" aria-label="닫기" onClick={onClose} className="px-10 py-1">
+            <span className="block h-1.5 w-12 rounded-full bg-neutral-300" />
+          </button>
+          <button
+            type="button"
+            aria-label="닫기"
+            onClick={onClose}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-lg leading-none text-neutral-400 hover:text-black"
+          >
+            ✕
+          </button>
+        </div>
         {children}
       </div>
     </div>
