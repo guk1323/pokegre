@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { scanCard } from '../api/cardScan';
 
-export function CardScanButton({ onResult }: { onResult: (pokemonNameJa: string) => void }) {
+export function CardScanButton({ onResult }: { onResult: (query: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +16,11 @@ export function CardScanButton({ onResult }: { onResult: (pokemonNameJa: string)
     try {
       const result = await scanCard(file);
       if (result.found && result.pokemonNameJa) {
-        onResult(result.pokemonNameJa);
+        // 이름만 넣으면 같은 포켓몬 카드가 수십 종 나온다. Claude가 읽은 카드 번호까지
+        // 붙여 검색하면 딱 그 카드로 좁혀진다(예: "ピカチュウ 133/M-P"). 번호를 못
+        // 읽었으면 이름만으로라도 검색한다.
+        const query = [result.pokemonNameJa, result.cardNumber].filter(Boolean).join(' ');
+        onResult(query);
       } else {
         setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
       }
