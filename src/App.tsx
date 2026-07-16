@@ -579,13 +579,9 @@ function App() {
                     pokegre
                   </button>
                 </h1>
-                {/* 좁은 화면에서는 가운뎃점(·)에서 줄이 어중간하게 끊겨 지저분하다.
-                    작은 화면은 두 줄로 깔끔하게 나누고, 넓은 화면에서만 한 줄로 잇는다. */}
-                <p className="text-sm text-neutral-500 mt-1">
-                  <span className="block sm:inline">일본판·북미판 포켓몬카드 시세</span>
-                  <span className="hidden sm:inline"> · </span>
-                  <span className="block sm:inline">SNKRDUNK 실거래가와 eBay 등급별 낙찰가</span>
-                </p>
+                {/* 헤더는 "여기가 뭐 하는 곳"인지만 짧게 알린다. 소스(스니덩크·이베이)나
+                    시세 읽는 법 같은 상세는 커뮤니티 이용안내 공지가 대신한다. */}
+                <p className="text-sm text-neutral-500 mt-1">일본판·북미판 포켓몬 카드 시세</p>
               </div>
               <nav className="flex gap-2">
                 <button
