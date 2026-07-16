@@ -48,10 +48,18 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
         onClick={onClose}
         className="absolute inset-0 bg-black/40"
       />
-      <div className="relative max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-4 pb-8 shadow-xl">
-        {/* 위에서 잡아내리는 느낌을 주는 손잡이. 실제 드래그는 아니지만 "내리면 닫힘"을
-            암시한다. */}
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-neutral-300" />
+      <div className="relative max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl">
+        {/* 손잡이를 눌러도 닫힌다. 회색 바만 두면 눌리는지 알 수 없어서, 위아래 여백까지
+            품은 버튼으로 만들어 손가락으로 누를 영역을 넉넉히 준다. sticky로 위에 고정해
+            시트를 스크롤해도 손잡이가 늘 손에 닿는다. */}
+        <button
+          type="button"
+          aria-label="닫기"
+          onClick={onClose}
+          className="sticky top-0 -mx-4 flex w-[calc(100%+2rem)] justify-center bg-white py-3"
+        >
+          <span className="h-1.5 w-12 rounded-full bg-neutral-300" />
+        </button>
         {children}
       </div>
     </div>

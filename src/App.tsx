@@ -38,6 +38,14 @@ import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider 
 const INITIAL_TARGET = 16;
 const LOAD_MORE_TARGET = 12;
 
+// 큰 화면(lg)은 오른쪽 2단에 상세를 미리 띄워 빈 칸을 채우려고 검색 직후 첫 카드를
+// 자동 선택한다. 하지만 폰에서는 그 선택이 곧바로 시트를 띄워, 검색만 했는데 상세가
+// 확 올라오는 방해가 된다. 그래서 자동 선택은 큰 화면에서만 한다.
+// (Tailwind의 lg 분기점과 같은 1024px)
+function isWideScreen(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+}
+
 type MainView = 'cards' | 'mypage' | 'community' | 'reports';
 type PriceSource = 'snkrdunk' | 'ebay';
 
@@ -245,7 +253,12 @@ function App() {
           setItems(items);
           setLastPage(lastPage);
           setExhausted(exhausted);
-          setSelectedId((prev) => (items.some((c) => c.apparelId === prev) ? prev : (items[0]?.apparelId ?? null)));
+          // 이미 고른 카드가 새 결과에도 있으면 유지하고, 없으면 큰 화면에서만 첫
+          // 카드를 자동 선택한다. 폰에서는 null로 둬서 사용자가 누를 때까지 시트를
+          // 안 띄운다.
+          setSelectedId((prev) =>
+            items.some((c) => c.apparelId === prev) ? prev : isWideScreen() ? (items[0]?.apparelId ?? null) : null,
+          );
         })
         .catch(() => setError('시세를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'))
         .finally(() => setLoading(false));
@@ -272,7 +285,11 @@ function App() {
         .then((cards) => {
           setEbayItems(cards);
           setEbaySelectedId((prev) =>
-            cards.some((c) => c.tcgPlayerId === prev) ? prev : (cards[0]?.tcgPlayerId ?? null),
+            cards.some((c) => c.tcgPlayerId === prev)
+              ? prev
+              : isWideScreen()
+                ? (cards[0]?.tcgPlayerId ?? null)
+                : null,
           );
         })
         .catch((err: Error) => {
@@ -322,8 +339,12 @@ function App() {
   const boxResults = useMemo(() => items.filter((c) => c.category === 'box'), [items]);
   const cardResults = useMemo(() => items.filter((c) => c.category === 'card'), [items]);
 
+  // items가 바뀔 때 선택을 정리한다. 고른 카드가 사라졌으면 큰 화면에서만 첫 카드로
+  // 옮기고, 폰에서는 null로 둬서 검색만 했는데 시트가 뜨는 걸 막는다.
   useEffect(() => {
-    setSelectedId((prev) => (items.some((c) => c.apparelId === prev) ? prev : (items[0]?.apparelId ?? null)));
+    setSelectedId((prev) =>
+      items.some((c) => c.apparelId === prev) ? prev : isWideScreen() ? (items[0]?.apparelId ?? null) : null,
+    );
   }, [items]);
 
   // 저장은 effect가 아니라 여기서 직접 한다. effect로 걸면 로그인 직후 병합 결과가
