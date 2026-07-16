@@ -32,6 +32,7 @@ import { NicknameSetup } from './components/NicknameSetup';
 import { LoginModal } from './components/LoginModal';
 import { MyPage } from './components/MyPage';
 import { ReportInbox } from './components/ReportInbox';
+import { DetailSheet } from './components/DetailSheet';
 import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider } from './api/auth';
 
 const INITIAL_TARGET = 16;
@@ -40,16 +41,36 @@ const LOAD_MORE_TARGET = 12;
 type MainView = 'cards' | 'mypage' | 'community' | 'reports';
 type PriceSource = 'snkrdunk' | 'ebay';
 
-// 오른쪽 상세보기 패널이 비어 있을 때도 320px 칸을 그대로 차지해서 흰 여백만
-// 남는 걸 막기 위해, 상세 카드가 있을 때만 2단 그리드로 감싸고 없으면 본문이
-// 전체 폭을 그대로 쓰게 한다.
-function DetailLayout({ main, detail }: { main: React.ReactNode; detail: React.ReactNode | null }) {
-  if (!detail) return <div>{main}</div>;
+// 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
+// 시트로 보여준다. 폰에서 상세를 목록 맨 아래에 붙이면 눌러도 화면이 안 바뀌어
+// 반응이 없는 것처럼 느껴진다.
+//
+// 상세가 없을 땐 오른쪽 320px 칸이 흰 여백만 남으므로, 있을 때만 2단으로 감싼다.
+function DetailLayout({
+  main,
+  detail,
+  onCloseDetail,
+}: {
+  main: React.ReactNode;
+  detail: React.ReactNode | null;
+  onCloseDetail?: () => void;
+}) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-      <div className="min-w-0">{main}</div>
-      <div>{detail}</div>
-    </div>
+    <>
+      {detail ? (
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <div className="min-w-0">{main}</div>
+          {/* 오른쪽 2단은 큰 화면에서만. 좁은 화면에서는 아래 시트가 대신한다. */}
+          <div className="hidden lg:block">{detail}</div>
+        </div>
+      ) : (
+        <div>{main}</div>
+      )}
+
+      <DetailSheet open={detail != null} onClose={() => onCloseDetail?.()}>
+        {detail}
+      </DetailSheet>
+    </>
   );
 }
 
@@ -541,6 +562,7 @@ function App() {
             <DetailLayout
               main={myPageMain}
               detail={interestSelectedCard ? <CardDetail card={interestSelectedCard} /> : null}
+              onCloseDetail={() => setInterestSelectedId(null)}
             />
           ) : (
             <>
@@ -622,9 +644,14 @@ function App() {
                 <DetailLayout
                   main={ebayMain}
                   detail={ebaySelectedCard ? <EbayCardDetail card={ebaySelectedCard} /> : null}
+                  onCloseDetail={() => setEbaySelectedId(null)}
                 />
               ) : (
-                <DetailLayout main={searchMain} detail={selectedCard ? <CardDetail card={selectedCard} /> : null} />
+                <DetailLayout
+                  main={searchMain}
+                  detail={selectedCard ? <CardDetail card={selectedCard} /> : null}
+                  onCloseDetail={() => setSelectedId(null)}
+                />
               )}
             </>
           )}
