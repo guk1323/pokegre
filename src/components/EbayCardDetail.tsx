@@ -1,4 +1,5 @@
 import { formatGradeLabel, type EbayCard } from '../api/ebayPrices';
+import { KrwHint, KrwRateNote } from './KrwHint';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -35,12 +36,14 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
                 </p>
               </div>
               <p className="text-lg font-bold text-black">{usd.format(g.medianPrice)}</p>
+              <KrwHint amount={g.medianPrice} currency="usd" />
               <p className="text-[11px] text-neutral-400">
                 범위 {usd.format(g.minPrice)} ~ {usd.format(g.maxPrice)}
               </p>
             </div>
           ))}
         </div>
+        <KrwRateNote />
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { KrwHint } from './KrwHint';
 import {
   fetchConditionPrices,
   fetchPriceHistory,
@@ -90,6 +91,9 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       <div className="rounded-lg bg-neutral-50 p-4 mb-4">
         <p className="text-xs text-neutral-400 mb-1">현재 최저가 (SNKRDUNK)</p>
         <span className="text-2xl font-extrabold text-black">{yen.format(card.price)}</span>
+        {/* 자세히 보는 화면이라 여기서만 기준일을 밝힌다. 목록에서 타일마다 반복하면
+            시끄럽고, 정작 가격을 뜯어보는 건 이 화면이다. */}
+        <KrwHint amount={card.price} currency="jpy" showDate />
       </div>
 
       <div className="mb-4">

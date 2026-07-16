@@ -1,5 +1,6 @@
 import type { SnkrdunkCard } from '../api/snkrdunk';
 import { FavoriteButton } from './FavoriteButton';
+import { KrwHint } from './KrwHint';
 
 const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
 
@@ -36,6 +37,7 @@ export function CardTile({
         {card.favoriteCount !== undefined && ` · 찜 ${card.favoriteCount.toLocaleString()}`}
       </p>
       <p className="text-base font-bold text-black">{yen.format(card.price)}</p>
+      <KrwHint amount={card.price} currency="jpy" />
     </button>
   );
 }

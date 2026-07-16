@@ -155,6 +155,61 @@ function mountSnkrdunkProxy(app: Mountable) {
   })
 }
 
+// 환율은 유럽중앙은행이 평일 하루 한 번 발표하는 값을 Frankfurter가 그대로 넘겨준다.
+// 무료·무키·상업적 이용 허용이고, 긁어오는 게 아니라 정식으로 제공하는 데이터다.
+//
+// 시세는 엔·달러로 보여주고 원화는 옆에 참고로만 붙인다. 원화로 바꿔서 그것만 띄우면
+// 실제로 존재하지 않는 가격이 된다 — 카드사 환율과 해외결제 수수료 때문에 결제액은
+// 어차피 2~5% 어긋난다. 그래서 실시간 환율을 살 이유도 없다. 하루 지난 값이어도
+// 기준일만 밝히면 참고용으로 충분하다.
+const EXCHANGE_ORIGIN = 'https://api.frankfurter.dev/v1'
+// 하루 한 번 바뀌는 값이라 자주 물어볼 이유가 없다. 발표를 놓쳐도 몇 시간 뒤 따라잡는다.
+const EXCHANGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+
+interface ExchangeRates {
+  jpyToKrw: number
+  usdToKrw: number
+  // 환율의 기준 날짜. 오늘이 아니다 — 평일 하루 한 번 발표라 보통 어제 것이고,
+  // 주말이 끼면 사흘 전 것일 수도 있다. 화면에 이 날짜를 같이 보여줘야 사용자가
+  // 언제 기준 숫자인지 알 수 있다.
+  date: string
+}
+
+function mountExchangeRate(app: Mountable) {
+  const cache = new TtlCache<ExchangeRates>(EXCHANGE_CACHE_TTL_MS, 1)
+
+  app.use('/api/local/exchange-rate', async (_req, res) => {
+    const cached = cache.get('latest')
+    if (cached) {
+      sendJson(res, 200, cached)
+      return
+    }
+
+    try {
+      // 달러 기준으로 한 번만 부르고 엔→원은 나눠서 구한다. 따로 부른 값과 소수점
+      // 넷째 자리까지 같은 걸 확인했다.
+      const upstream = await fetch(`${EXCHANGE_ORIGIN}/latest?base=USD&symbols=KRW,JPY`)
+      if (!upstream.ok) {
+        sendJson(res, 502, { error: 'upstream_error' })
+        return
+      }
+      const data = (await upstream.json()) as { date?: string; rates?: { KRW?: number; JPY?: number } }
+      const usdToKrw = data.rates?.KRW
+      const usdToJpy = data.rates?.JPY
+      if (!usdToKrw || !usdToJpy || !data.date) {
+        sendJson(res, 502, { error: 'unexpected_upstream_shape' })
+        return
+      }
+
+      const rates: ExchangeRates = { jpyToKrw: usdToKrw / usdToJpy, usdToKrw, date: data.date }
+      cache.set('latest', rates)
+      sendJson(res, 200, rates)
+    } catch {
+      sendJson(res, 502, { error: 'upstream_fetch_failed' })
+    }
+  })
+}
+
 const KOREAN_NEWS_ORIGIN = 'https://pokemoncard.co.kr'
 const KOREAN_NEWS_CACHE_TTL_MS = 30 * 60 * 1000
 // 페이지 번호의 상한이자 캐시 항목 수 상한. 소식은 "더보기"로 몇 페이지만 넘겨보는
@@ -1355,6 +1410,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountSnkrdunkProxy(app)
   mountSearchTracker(app)
   mountKoreanNews(app)
+  mountExchangeRate(app)
   mountCommunity(app)
   mountEbayPrice(app, env.POKEMON_PRICE_TRACKER_API_KEY ?? '')
   mountCardScan(app, env.ANTHROPIC_API_KEY ?? '')

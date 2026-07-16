@@ -1,4 +1,5 @@
 import { formatGradeLabel, type EbayCard } from '../api/ebayPrices';
+import { KrwHint } from './KrwHint';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -29,9 +30,12 @@ export function EbayCardTile({
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.name}</p>
       <p className="text-xs text-neutral-400 mb-1 line-clamp-1">{card.setName}</p>
       {topGrade && (
-        <p className="text-base font-bold text-black">
-          {formatGradeLabel(topGrade.grade)} {usd.format(topGrade.medianPrice)}
-        </p>
+        <>
+          <p className="text-base font-bold text-black">
+            {formatGradeLabel(topGrade.grade)} {usd.format(topGrade.medianPrice)}
+          </p>
+          <KrwHint amount={topGrade.medianPrice} currency="usd" />
+        </>
       )}
     </button>
   );
