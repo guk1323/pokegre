@@ -1395,7 +1395,15 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
 
       // 원본을 그대로 넘기지 않고 화면용 필드만 추려서 재배포 소지를 없앤다.
       const rawJson = await upstream.json()
-      const body = JSON.stringify({ cards: shapeEbayCards(rawJson) })
+      // shapeEbayCards는 낙찰 없는 카드를 걸러내서, 걸러진 개수만 보면 "더 있는지"를
+      // 오판한다(한 페이지가 꽉 찼는데 필터로 줄면 끝난 줄 안다). 원본 개수를 함께
+      // 실어 보내, 클라이언트가 "원본이 페이지 크기만큼 왔으면 더 있다"고 판단하게 한다.
+      const rawList = Array.isArray((rawJson as { data?: unknown }).data)
+        ? ((rawJson as { data: unknown[] }).data)
+        : (rawJson as { data?: unknown }).data
+          ? [(rawJson as { data: unknown }).data]
+          : []
+      const body = JSON.stringify({ cards: shapeEbayCards(rawJson), rawCount: rawList.length })
       cache.set(cacheKey, body)
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')

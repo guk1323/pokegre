@@ -3,7 +3,7 @@ import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
 import { fetchPopularSearches, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
-import { searchEbayCards, EBAY_RATE_LIMITED, type CardEdition, type EbayCard } from './api/ebayPrices';
+import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
 import { translateSearchQuery, canonicalizeSearchTerm } from './lib/translateQuery';
 import { getLocalSuggestions } from './lib/localSuggestions';
 import {
@@ -112,6 +112,10 @@ function App() {
   const [ebayLoading, setEbayLoading] = useState(false);
   const [ebayError, setEbayError] = useState<string | null>(null);
   const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
+  // "더 보기"용. ebayOffset은 지금까지 요청한 원본 카드 수(페이지 크기의 배수)다.
+  const [ebayOffset, setEbayOffset] = useState(0);
+  const [ebayHasMore, setEbayHasMore] = useState(false);
+  const [ebayLoadingMore, setEbayLoadingMore] = useState(false);
   const [edition, setEdition] = useState<CardEdition>('japanese');
   const [nickname, setNickname] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -286,8 +290,10 @@ function App() {
       setEbayLoading(true);
       setEbayError(null);
       searchEbayCards(trimmed, edition)
-        .then((cards) => {
+        .then(({ cards, hasMore }) => {
           setEbayItems(cards);
+          setEbayOffset(EBAY_PAGE_SIZE);
+          setEbayHasMore(hasMore);
           setEbaySelectedId((prev) =>
             cards.some((c) => c.tcgPlayerId === prev)
               ? prev
@@ -306,6 +312,7 @@ function App() {
           // 보이므로(특히 발매판을 바꿨을 때) 같이 비워준다.
           setEbayItems([]);
           setEbaySelectedId(null);
+          setEbayHasMore(false);
         })
         .finally(() => setEbayLoading(false));
     }, 600);
@@ -338,6 +345,22 @@ function App() {
       })
       .catch(() => setError('추가 결과를 불러오지 못했습니다.'))
       .finally(() => setLoadingMore(false));
+  }
+
+  function loadMoreEbay() {
+    setEbayLoadingMore(true);
+    searchEbayCards(query.trim(), edition, ebayOffset)
+      .then(({ cards, hasMore }) => {
+        // offset 페이지가 겹쳐 같은 카드가 들어오는 일을 막는다.
+        setEbayItems((prev) => {
+          const seen = new Set(prev.map((c) => c.tcgPlayerId));
+          return [...prev, ...cards.filter((c) => !seen.has(c.tcgPlayerId))];
+        });
+        setEbayOffset((prev) => prev + EBAY_PAGE_SIZE);
+        setEbayHasMore(hasMore);
+      })
+      .catch(() => setEbayHasMore(false))
+      .finally(() => setEbayLoadingMore(false));
   }
 
   const boxResults = useMemo(() => items.filter((c) => c.category === 'box'), [items]);
@@ -505,16 +528,29 @@ function App() {
       ) : !ebayLoading && ebayItems.length === 0 ? (
         <p className="text-sm text-neutral-400 py-12 text-center">eBay 낙찰 데이터가 없습니다.</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-          {ebayItems.map((card) => (
-            <EbayCardTile
-              key={card.tcgPlayerId}
-              card={card}
-              selected={card.tcgPlayerId === ebaySelectedId}
-              onSelect={setEbaySelectedId}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+            {ebayItems.map((card) => (
+              <EbayCardTile
+                key={card.tcgPlayerId}
+                card={card}
+                selected={card.tcgPlayerId === ebaySelectedId}
+                onSelect={setEbaySelectedId}
+              />
+            ))}
+          </div>
+
+          {ebayHasMore && (
+            <button
+              type="button"
+              onClick={loadMoreEbay}
+              disabled={ebayLoadingMore}
+              className="mt-4 w-full rounded-lg border border-neutral-300 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            >
+              {ebayLoadingMore ? '더 불러오는 중...' : '결과 더 보기'}
+            </button>
+          )}
+        </>
       )}
     </>
   );
