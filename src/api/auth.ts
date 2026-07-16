@@ -4,6 +4,8 @@ export interface AuthState {
   loggedIn: boolean;
   nickname?: string | null;
   createdAt?: number;
+  // 신고함 메뉴를 보여줄지 정하는 용도. 실제 차단은 서버가 한다.
+  isAdmin?: boolean;
 }
 
 export async function fetchMe(): Promise<AuthState> {

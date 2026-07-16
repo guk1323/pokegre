@@ -31,12 +31,13 @@ import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
 import { LoginModal } from './components/LoginModal';
 import { MyPage } from './components/MyPage';
+import { ReportInbox } from './components/ReportInbox';
 import { fetchMe, logout, mergeCollections, saveCollections } from './api/auth';
 
 const INITIAL_TARGET = 16;
 const LOAD_MORE_TARGET = 12;
 
-type MainView = 'cards' | 'mypage' | 'community';
+type MainView = 'cards' | 'mypage' | 'community' | 'reports';
 type PriceSource = 'snkrdunk' | 'ebay';
 
 // 오른쪽 상세보기 패널이 비어 있을 때도 320px 칸을 그대로 차지해서 흰 여백만
@@ -84,6 +85,9 @@ function App() {
   const [nickname, setNickname] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [createdAt, setCreatedAt] = useState<number | undefined>(undefined);
+  // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
+  // 안 주므로 아무것도 못 본다.
+  const [isAdmin, setIsAdmin] = useState(false);
   const [needsNickname, setNeedsNickname] = useState(false);
   // 로그인 모달은 마이페이지·커뮤니티 어디서든 열리므로 App이 들고 있는다.
   const [loginOpen, setLoginOpen] = useState(false);
@@ -131,6 +135,7 @@ function App() {
       setLoggedIn(me.loggedIn);
       setNickname(me.nickname ?? null);
       setCreatedAt(me.createdAt);
+      setIsAdmin(me.isAdmin ?? false);
       if (me.loggedIn && !me.nickname) setNeedsNickname(true);
       if (!me.loggedIn) return;
 
@@ -155,6 +160,9 @@ function App() {
     setLoggedIn(false);
     setNickname(null);
     setCreatedAt(undefined);
+    setIsAdmin(false);
+    // 운영자가 로그아웃했는데 신고함이 그대로 열려 있으면 빈 화면만 남는다.
+    if (view === 'reports') setView('cards');
   }
 
   useEffect(() => {
@@ -479,6 +487,19 @@ function App() {
                 >
                   커뮤니티
                 </button>
+                {/* 운영자에게만 보인다. 다른 사람 메뉴를 깔끔하게 두려는 것뿐이고,
+                    실제 차단은 서버가 한다 — 주소를 직접 쳐도 목록을 안 준다. */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setView('reports')}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                      view === 'reports' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                    }`}
+                  >
+                    신고함
+                  </button>
+                )}
                 {/* 로그인 버튼을 헤더에 두면 공급자가 늘 때마다(네이버 등) 자리가 모자란다.
                     진입점을 마이페이지 한 곳으로 모으고, 헤더엔 상태만 드러낸다. */}
                 <button
@@ -496,7 +517,9 @@ function App() {
         </header>
 
         <main className="px-4 py-6">
-          {view === 'community' ? (
+          {view === 'reports' ? (
+            <ReportInbox />
+          ) : view === 'community' ? (
             <Community loggedIn={loggedIn} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'mypage' ? (
             <DetailLayout

@@ -22,6 +22,20 @@ async function handleReport(action: () => Promise<void>) {
   }
 }
 
+// 운영자 표시. 등급처럼 다녀서 얻는 게 아니라 권한이라, 이모지 대신 검정 알약으로
+// 확실히 구분한다.
+function AuthorName({ name, isAdmin }: { name: string; isAdmin: boolean }) {
+  if (!isAdmin) return <>{name}</>;
+  return (
+    <>
+      <span className="mr-1 rounded-full bg-neutral-900 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+        운영자
+      </span>
+      {name}
+    </>
+  );
+}
+
 function formatDate(ts: number): string {
   const d = new Date(ts);
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -80,7 +94,7 @@ function PostList({
                     {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
                   </p>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    {post.author} · {formatDate(post.createdAt)}
+                    <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)}
                   </p>
                 </div>
               </button>
@@ -151,7 +165,7 @@ function PostDetail({
         </div>
       </div>
       <p className="text-xs text-neutral-400 mb-4">
-        {post.author} · {formatDate(post.createdAt)}
+        <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)}
       </p>
       <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-8">{post.content}</p>
 
@@ -164,7 +178,7 @@ function PostDetail({
             <li key={c.id} className="rounded-lg bg-neutral-50 p-3">
               <div className="flex items-start justify-between gap-3 mb-1">
                 <p className="text-xs text-neutral-400">
-                  {c.author} · {formatDate(c.createdAt)}
+                  <AuthorName name={c.author} isAdmin={c.authorIsAdmin} /> · {formatDate(c.createdAt)}
                 </p>
                 <button
                   type="button"

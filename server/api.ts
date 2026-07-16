@@ -21,6 +21,20 @@ export interface ApiEnv {
   ANTHROPIC_API_KEY?: string
   KAKAO_REST_API_KEY?: string
   KAKAO_CLIENT_SECRET?: string
+  // 운영자의 카카오 회원번호. 쉼표로 여럿 넣을 수 있다.
+  ADMIN_KAKAO_IDS?: string
+}
+
+// 운영자는 회원 정보에 표시하지 않고 환경변수로 지정한다. 회원 정보에 두면 운영자를
+// 세우려고 서버 안의 파일을 직접 고쳐야 하는데, 그러자고 프로덕션 서버에 들어가는 건
+// 위험하다. 환경변수면 fly secrets로 바꾸면 되고 값이 코드에도 안 남는다.
+//
+// 비어 있으면 아무도 운영자가 아니다 — 실수로 설정을 빠뜨렸을 때 모두가 운영자가
+// 되는 것보다 아무도 아닌 게 낫다.
+let adminKakaoIds: Set<string> = new Set()
+
+function isAdmin(user: User | null): boolean {
+  return user != null && adminKakaoIds.has(user.kakaoId)
 }
 
 // 데이터 파일 위치. 예전엔 __dirname 기준이었는데 두 가지가 문제였다. 이 프로젝트는
@@ -316,6 +330,10 @@ interface CommunityPost {
   content: string
   createdAt: number
   commentCount: number
+  // 운영자가 가린 시각. 지우지 않고 가리는 이유는 두 가지다. 신고가 장난일 수 있어
+  // 되돌릴 수 있어야 하고, "왜 내 글 지웠냐"는 항의에 보여줄 원문이 남아야 한다.
+  // (정보통신망법이 요구하는 것도 삭제가 아니라 임시조치다.)
+  hiddenAt?: number
 }
 
 interface CommunityComment {
@@ -324,6 +342,7 @@ interface CommunityComment {
   authorId: string
   content: string
   createdAt: number
+  hiddenAt?: number
 }
 
 // 탈퇴했거나 닉네임을 아직 안 정한 작성자. 글 자체는 남으므로 이름 자리는 채워야 한다.
@@ -333,23 +352,37 @@ function authorName(authorId: string, all: User[]): string {
   return all.find((u) => u.kakaoId === authorId)?.nickname ?? UNKNOWN_AUTHOR
 }
 
+const HIDDEN_NOTICE = '신고로 가려진 글입니다.'
+
 // authorId(카카오 회원번호)는 내부 식별용이라 응답에서 제거하고, 대신 "내 글인가"만
 // 알려준다. 회원번호가 클라이언트로 새면 사용자 추적에 쓰일 수 있다.
+//
+// 가려진 글의 원문은 아예 응답에 담지 않는다. 화면에서 가리기만 하면 개발자도구나
+// 주소창으로 그대로 볼 수 있어서 가린 게 아니게 된다. 운영자에게만 원문을 보낸다.
 function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
-  const { authorId, ...rest } = post
+  const { authorId, hiddenAt, ...rest } = post
+  const hidden = hiddenAt != null && !isAdmin(viewer)
   return {
     ...rest,
+    title: hidden ? HIDDEN_NOTICE : rest.title,
+    content: hidden ? HIDDEN_NOTICE : rest.content,
     author: authorName(authorId, all),
+    authorIsAdmin: adminKakaoIds.has(authorId),
     isMine: viewer != null && authorId === viewer.kakaoId,
+    isHidden: hiddenAt != null,
   }
 }
 
 function toPublicComment(comment: CommunityComment, viewer: User | null, all: User[]) {
-  const { authorId, ...rest } = comment
+  const { authorId, hiddenAt, ...rest } = comment
+  const hidden = hiddenAt != null && !isAdmin(viewer)
   return {
     ...rest,
+    content: hidden ? HIDDEN_NOTICE : rest.content,
     author: authorName(authorId, all),
+    authorIsAdmin: adminKakaoIds.has(authorId),
     isMine: viewer != null && authorId === viewer.kakaoId,
+    isHidden: hiddenAt != null,
   }
 }
 
@@ -628,6 +661,91 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 201, toPublicComment(comment, user, await loadUsers()))
           return
         }
+      }
+
+      // ── 여기부터 운영자 전용 ────────────────────────────────────────────────
+      // 화면에서 메뉴를 숨기는 건 보안이 아니다. 주소를 직접 치면 그만이라, 막는 건
+      // 여기여야 한다. 아래 셋은 전부 운영자인지 먼저 확인한다.
+
+      // GET /reports — 신고함. 신고당한 글·댓글의 원문을 함께 실어 보낸다.
+      if (segments.length === 1 && segments[0] === 'reports' && req.method === 'GET') {
+        const viewer = await currentUser(req)
+        if (!isAdmin(viewer)) {
+          // 운영자가 아니면 이 경로가 있다는 것 자체를 알려주지 않는다.
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        const [allReports, allPosts, allComments, everyone] = await Promise.all([
+          loadReports(),
+          loadPosts(),
+          loadComments(),
+          loadUsers(),
+        ])
+        const items = [...allReports]
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .map((r) => {
+            const post = allPosts.find((p) => p.id === r.postId)
+            const comment = r.commentId != null ? allComments.find((c) => c.id === r.commentId) : undefined
+            const target = r.targetType === 'comment' ? comment : post
+            return {
+              id: r.id,
+              targetType: r.targetType,
+              postId: r.postId,
+              commentId: r.commentId,
+              reason: r.reason,
+              createdAt: r.createdAt,
+              // 신고 대상이 이미 지워졌을 수 있다.
+              exists: target != null,
+              isHidden: target?.hiddenAt != null,
+              postTitle: post?.title ?? null,
+              author: target ? authorName(target.authorId, everyone) : null,
+              excerpt: target?.content?.slice(0, 200) ?? null,
+            }
+          })
+        sendJson(res, 200, items)
+        return
+      }
+
+      // POST /posts/:id/hide, /posts/:id/unhide
+      if (segments.length === 3 && segments[0] === 'posts' && (segments[2] === 'hide' || segments[2] === 'unhide')) {
+        const viewer = await currentUser(req)
+        if (!isAdmin(viewer)) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        const post = (await loadPosts()).find((p) => p.id === Number(segments[1]))
+        if (!post) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        if (segments[2] === 'hide') post.hiddenAt = Date.now()
+        else delete post.hiddenAt
+        await persistPosts()
+        sendJson(res, 200, toPublicPost(post, viewer, await loadUsers()))
+        return
+      }
+
+      // POST /comments/:id/hide, /comments/:id/unhide
+      if (
+        segments.length === 3 &&
+        segments[0] === 'comments' &&
+        (segments[2] === 'hide' || segments[2] === 'unhide')
+      ) {
+        const viewer = await currentUser(req)
+        if (!isAdmin(viewer)) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        const comment = (await loadComments()).find((c) => c.id === Number(segments[1]))
+        if (!comment) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        if (segments[2] === 'hide') comment.hiddenAt = Date.now()
+        else delete comment.hiddenAt
+        await persistComments()
+        sendJson(res, 200, toPublicComment(comment, viewer, await loadUsers()))
+        return
       }
 
       sendJson(res, 404, { error: 'not found' })
@@ -1208,11 +1326,12 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
       if (segments[0] === 'me') {
         const user = await currentUser(req)
         // kakaoId는 내려주지 않는다 — 회원번호가 클라이언트로 새면 추적에 쓰일 수 있다.
+        // isAdmin은 메뉴를 보여줄지 정하는 용도일 뿐이고, 실제 차단은 서버가 한다.
         sendJson(
           res,
           200,
           user
-            ? { loggedIn: true, nickname: user.nickname, createdAt: user.createdAt }
+            ? { loggedIn: true, nickname: user.nickname, createdAt: user.createdAt, isAdmin: isAdmin(user) }
             : { loggedIn: false },
         )
         return
@@ -1407,6 +1526,12 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
 // 개발(vite)과 프로덕션(Express)이 똑같이 이걸 부른다. 여기 순서가 곧 라우팅
 // 순서이므로 양쪽이 갈리지 않는다 — 이 함수 하나만 유지하면 된다.
 export function mountApi(app: Mountable, env: ApiEnv) {
+  adminKakaoIds = new Set(
+    (env.ADMIN_KAKAO_IDS ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean),
+  )
   mountSnkrdunkProxy(app)
   mountSearchTracker(app)
   mountKoreanNews(app)
