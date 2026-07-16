@@ -1157,6 +1157,26 @@ const USERS_FILE = dataFile('users.json')
 const SESSIONS_FILE = dataFile('sessions.json')
 const COLLECTIONS_FILE = dataFile('collections.json')
 const SESSION_COOKIE = 'pokegre_session'
+// 운영자만 쓸 수 있는 닉네임. 금지가 아니라 예약이다 — 이 단어를 막는 이유가 운영자인
+// 척하는 걸 막으려는 것이므로, 진짜 운영자에게까지 막으면 앞뒤가 안 맞는다.
+//
+// 운영자 배지를 달아놔도 닉네임 자체가 "운영자"면 목록에서 흘려볼 때 구분이 안 된다.
+// 배지를 만든 순간 사칭 통로도 같이 열린 셈이라 함께 막아야 한다.
+const RESERVED_NICKNAMES = ['운영자', '관리자', '운영팀', '관리팀', '공지', 'admin', 'administrator', 'pokegre', '포켓그레']
+
+// 예약어 검사용. 띄어쓰기로 피해가는 걸("운 영 자", "a d m i n") 막으려고 공백을 전부
+// 지우고 대소문자도 맞춘다.
+function normalizeForReserved(nickname: string): string {
+  return nickname.toLowerCase().replace(/\s+/g, '')
+}
+
+// 중복 검사용. 예약어와 달리 공백은 살린다 — "개 발자"와 "개발자"는 다른 이름으로 봐도
+// 되고, 공백까지 지우면 멀쩡한 닉네임끼리 부딪힌다. 대소문자만 맞춰서 "Pokegre"와
+// "pokegre"가 같이 존재하는 것만 막는다.
+function normalizeForDuplicate(nickname: string): string {
+  return nickname.toLowerCase()
+}
+
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const STATE_TTL_MS = 10 * 60 * 1000
 const MAX_PENDING_STATES = 10_000
@@ -1506,8 +1526,15 @@ function mountAuth(
           sendJson(res, 400, { error: 'nickname must be 1-20 chars' })
           return
         }
+        // 예약어는 운영자만. 운영자 배지가 있어도 닉네임이 "운영자"면 목록에서
+        // 구분이 안 되므로, 배지와 이 검사는 한 세트다.
+        if (!isAdmin(user) && RESERVED_NICKNAMES.includes(normalizeForReserved(nickname))) {
+          sendJson(res, 409, { error: 'nickname_reserved' })
+          return
+        }
         const all = await loadUsers()
-        if (all.some((u) => u.nickname === nickname && u.id !== user.id)) {
+        const taken = normalizeForDuplicate(nickname)
+        if (all.some((u) => u.nickname != null && normalizeForDuplicate(u.nickname) === taken && u.id !== user.id)) {
           sendJson(res, 409, { error: 'nickname taken' })
           return
         }

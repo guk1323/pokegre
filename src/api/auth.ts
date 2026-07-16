@@ -28,6 +28,7 @@ export async function logout(): Promise<void> {
 }
 
 export const NICKNAME_TAKEN = 'nickname_taken';
+export const NICKNAME_RESERVED = 'nickname_reserved';
 
 export async function setNickname(nickname: string): Promise<string> {
   const res = await fetch('/api/local/auth/nickname', {
@@ -35,10 +36,22 @@ export async function setNickname(nickname: string): Promise<string> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ nickname }),
   });
-  // 중복 닉네임은 사용자가 고쳐서 재시도할 수 있는 상황이라 별도로 구분한다.
-  if (res.status === 409) throw new Error(NICKNAME_TAKEN);
+  // 사용자가 고쳐서 재시도할 수 있는 상황이라 이유를 구분한다. 둘 다 409지만
+  // "이미 누가 쓴다"와 "쓸 수 없는 이름이다"는 다른 얘기고, 뭉뚱그리면 예약어를
+  // 넣었을 때 있지도 않은 사용자를 탓하게 된다.
+  if (res.status === 409) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error === 'nickname_reserved' ? NICKNAME_RESERVED : NICKNAME_TAKEN);
+  }
   if (!res.ok) throw new Error('닉네임을 저장하지 못했습니다.');
   return (await res.json()).nickname;
+}
+
+export function nicknameErrorMessage(err: unknown): string {
+  const code = err instanceof Error ? err.message : '';
+  if (code === NICKNAME_TAKEN) return '이미 사용 중인 닉네임이에요.';
+  if (code === NICKNAME_RESERVED) return '운영자만 쓸 수 있는 닉네임이에요.';
+  return '닉네임을 저장하지 못했습니다.';
 }
 
 // 인증 페이지로 이동. 서버가 state를 발급하고 리다이렉트한다.

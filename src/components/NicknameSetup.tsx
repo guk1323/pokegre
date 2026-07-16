@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NICKNAME_TAKEN, setNickname } from '../api/auth';
+import { nicknameErrorMessage, setNickname } from '../api/auth';
 
 // 카카오 닉네임을 그대로 쓰지 않고 직접 정하게 한다. 카톡 프로필 이름은 실명인 경우가
 // 많아서 게시판에 그대로 노출되면 곤란하기 때문(애초에 동의항목에서 요청하지도 않는다).
@@ -17,11 +17,7 @@ export function NicknameSetup({ onDone }: { onDone: (nickname: string) => void }
     try {
       onDone(await setNickname(trimmed));
     } catch (err) {
-      setError(
-        (err as Error).message === NICKNAME_TAKEN
-          ? '이미 사용 중인 닉네임이에요. 다른 걸로 해주세요.'
-          : '닉네임을 저장하지 못했습니다.',
-      );
+      setError(nicknameErrorMessage(err));
     } finally {
       setSaving(false);
     }

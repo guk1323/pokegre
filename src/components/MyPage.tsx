@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { SnkrdunkCard } from '../api/snkrdunk';
 import {
-  NICKNAME_TAKEN,
   PROVIDER_LABEL,
   UNLINK_LAST,
+  nicknameErrorMessage,
   setNickname as saveNickname,
   startLinkLogin,
   unlinkProvider,
@@ -126,7 +126,7 @@ function NicknameEditor({
     try {
       onSaved(await saveNickname(next));
     } catch (err) {
-      setError(err instanceof Error && err.message === NICKNAME_TAKEN ? '이미 사용 중인 닉네임이에요.' : '닉네임을 저장하지 못했습니다.');
+      setError(nicknameErrorMessage(err));
     } finally {
       setSaving(false);
     }
