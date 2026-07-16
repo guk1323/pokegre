@@ -1191,7 +1191,12 @@ interface RawPriceTrackerCard {
   cardNumber?: string | null
   imageCdnUrl400?: string
   imageCdnUrl200?: string
-  ebay?: { salesByGrade?: Record<string, RawEbayGrade>; totalSales?: number }
+  ebay?: {
+    salesByGrade?: Record<string, RawEbayGrade>
+    totalSales?: number
+    // 등급별 × 날짜별 낙찰 평균가. { psa10: { "2026-05-05": { average: 99.99 } } }
+    priceHistory?: Record<string, Record<string, { average?: number } | null>>
+  }
 }
 
 interface ShapedEbayCard {
@@ -1209,6 +1214,8 @@ interface ShapedEbayCard {
     minPrice: number
     maxPrice: number
     marketTrend: string | null
+    // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
+    history: { date: string; price: number }[]
   }[]
 }
 
@@ -1220,27 +1227,41 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
   const body = raw as { data?: RawPriceTrackerCard | RawPriceTrackerCard[] }
   const list = Array.isArray(body.data) ? body.data : body.data ? [body.data] : []
 
+  // 한 등급의 날짜별 히스토리(객체)를 그래프용 배열로 편다. 날짜 오름차순 정렬하고,
+  // 평균가가 없는 날은 버린다.
+  function shapeGradeHistory(byDate: Record<string, { average?: number } | null> | undefined) {
+    if (!byDate) return []
+    return Object.entries(byDate)
+      .map(([date, v]) => ({ date, price: v?.average ?? 0 }))
+      .filter((p) => p.price > 0)
+      .sort((a, b) => a.date.localeCompare(b.date))
+  }
+
   return list
     .filter((card) => (card.ebay?.totalSales ?? 0) > 0)
-    .map((card) => ({
-      tcgPlayerId: card.tcgPlayerId ?? '',
-      name: card.name ?? '',
-      setName: card.setName ?? '',
-      cardNumber: card.cardNumber ?? null,
-      imageUrl: card.imageCdnUrl400 ?? card.imageCdnUrl200 ?? '',
-      totalSales: card.ebay?.totalSales ?? 0,
-      grades: Object.entries(card.ebay?.salesByGrade ?? {})
-        .map(([grade, stat]) => ({
-          grade,
-          count: stat.count ?? 0,
-          averagePrice: stat.averagePrice ?? 0,
-          medianPrice: stat.medianPrice ?? 0,
-          minPrice: stat.minPrice ?? 0,
-          maxPrice: stat.maxPrice ?? 0,
-          marketTrend: stat.marketTrend ?? null,
-        }))
-        .sort((a, b) => b.count - a.count),
-    }))
+    .map((card) => {
+      const history = card.ebay?.priceHistory ?? {}
+      return {
+        tcgPlayerId: card.tcgPlayerId ?? '',
+        name: card.name ?? '',
+        setName: card.setName ?? '',
+        cardNumber: card.cardNumber ?? null,
+        imageUrl: card.imageCdnUrl400 ?? card.imageCdnUrl200 ?? '',
+        totalSales: card.ebay?.totalSales ?? 0,
+        grades: Object.entries(card.ebay?.salesByGrade ?? {})
+          .map(([grade, stat]) => ({
+            grade,
+            count: stat.count ?? 0,
+            averagePrice: stat.averagePrice ?? 0,
+            medianPrice: stat.medianPrice ?? 0,
+            minPrice: stat.minPrice ?? 0,
+            maxPrice: stat.maxPrice ?? 0,
+            marketTrend: stat.marketTrend ?? null,
+            history: shapeGradeHistory(history[grade]),
+          }))
+          .sort((a, b) => b.count - a.count),
+      }
+    })
 }
 
 // 이베이 등급별(PSA/CGC/BGS) 실거래가를 PokemonPriceTracker API에서 대신 받아온다.
@@ -1278,7 +1299,13 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
     }
 
     try {
-      const upstream = await fetch(`${PRICE_TRACKER_ORIGIN}/cards${url.search}`, {
+      // 등급별 가격 추이 그래프를 그리려면 히스토리를 함께 받아야 한다. 클라이언트가
+      // 보낸 검색 조건은 그대로 두고 히스토리 옵션만 서버에서 덧붙인다. (캐시 키는
+      // 클라이언트 쿼리 기준이라 그대로 두면 된다.)
+      const upstreamParams = new URLSearchParams(url.search)
+      upstreamParams.set('includeHistory', 'true')
+      upstreamParams.set('days', '180')
+      const upstream = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${upstreamParams.toString()}`, {
         headers: {
           accept: 'application/json',
           authorization: `Bearer ${apiKey}`,

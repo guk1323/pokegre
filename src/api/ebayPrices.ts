@@ -1,6 +1,11 @@
 import { translateSearchQueryToEnglish } from '../lib/translateQueryToEnglish';
 import { koreanizeEnglishCardName, koreanizeEnglishSetName } from '../lib/koreanizeEnglishTitle';
 
+export interface EbayGradePoint {
+  date: string;
+  price: number;
+}
+
 export interface EbayGradeStat {
   grade: string;
   count: number;
@@ -9,6 +14,8 @@ export interface EbayGradeStat {
   minPrice: number;
   maxPrice: number;
   marketTrend: string | null;
+  // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
+  history: EbayGradePoint[];
 }
 
 export interface EbayCard {

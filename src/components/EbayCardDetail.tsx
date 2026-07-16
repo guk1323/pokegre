@@ -1,5 +1,6 @@
 import { formatGradeLabel, type EbayCard } from '../api/ebayPrices';
 import { KrwHint, KrwRateNote } from './KrwHint';
+import { EbayPriceChart } from './EbayPriceChart';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -23,6 +24,10 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
         {card.setName}
         {card.cardNumber ? ` · ${card.cardNumber}` : ''} · 낙찰 {card.totalSales.toLocaleString()}건
       </p>
+
+      {/* 낙찰 기록이 충분한 등급이 있으면 추이 그래프를 먼저 보여준다. 없으면 스스로
+          아무것도 안 그린다. */}
+      <EbayPriceChart grades={card.grades} />
 
       <div>
         <p className="text-xs font-semibold text-neutral-500 mb-2">등급별 이베이 낙찰가</p>
