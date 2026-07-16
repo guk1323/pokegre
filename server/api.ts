@@ -947,6 +947,9 @@ function mountCommunity(app: Mountable) {
 
 const SEARCH_COUNTS_FILE = dataFile('search-counts.json')
 const SNAPSHOT_FILE = dataFile('search-ranking-snapshot.json')
+const VISIT_STATS_FILE = dataFile('visit-stats.json')
+// 방문 통계는 날짜별 숫자만 400일치 남긴다. IP·기기 정보는 저장하지 않는다.
+const VISIT_KEEP_DAYS = 400
 const MAX_TRACKED_TERMS = 500
 // 카드명·팩명 검색어라 이보다 길 일이 없다. 넘으면 집계하지 않고 조용히 무시한다
 // (검색 자체는 클라이언트가 알아서 하므로 사용자에게 보이는 변화는 없다).
@@ -1262,6 +1265,75 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
           .sort((a, b) => b.count - a.count),
       }
     })
+}
+
+// 날짜별 방문 수만 센다(운영자가 홍보 효과를 보려는 용도). IP·기기·회원 정보는 저장하지
+// 않는다. 같은 브라우저가 하루에 한 번만 세도록 집계는 클라이언트의 localStorage로
+// 거르고, 서버는 그저 그날 숫자를 1 올린다.
+function mountVisitStats(app: Mountable) {
+  let visits: Record<string, number> | null = null
+  const allow = rateLimiter(20, 60 * 1000)
+
+  async function load(): Promise<Record<string, number>> {
+    if (visits) return visits
+    try {
+      visits = JSON.parse(await readFile(VISIT_STATS_FILE, 'utf-8'))
+    } catch {
+      visits = {}
+    }
+    return visits!
+  }
+
+  async function persist() {
+    await mkdir(path.dirname(VISIT_STATS_FILE), { recursive: true })
+    await writeFile(VISIT_STATS_FILE, JSON.stringify(visits))
+  }
+
+  function prune() {
+    if (!visits) return
+    const keep = new Set<string>()
+    const now = Date.now()
+    for (let i = 0; i < VISIT_KEEP_DAYS; i++) keep.add(kstDayKey(now - i * DAY_MS))
+    for (const day of Object.keys(visits)) if (!keep.has(day)) delete visits[day]
+  }
+
+  app.use('/api/local/track-visit', async (req, res) => {
+    if (req.method !== 'POST') {
+      res.statusCode = 405
+      res.end()
+      return
+    }
+    // 로그인도 필요 없는 엔드포인트라, 스크립트로 숫자를 부풀리지 못하게 가볍게 막는다.
+    if (!allow(req)) {
+      tooManyRequests(res)
+      return
+    }
+    const all = await load()
+    const today = kstDayKey(Date.now())
+    all[today] = (all[today] ?? 0) + 1
+    prune()
+    await persist()
+    res.statusCode = 204
+    res.end()
+  })
+
+  app.use('/api/local/visit-stats', async (req, res) => {
+    // 운영자만. 아니면 이 경로가 있다는 것 자체를 안 알려준다.
+    const viewer = await currentUser(req)
+    if (!isAdmin(viewer)) {
+      res.statusCode = 404
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: 'not found' }))
+      return
+    }
+    const all = await load()
+    const items = Object.entries(all)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ items, total: items.reduce((s, i) => s + i.count, 0) }))
+  })
 }
 
 // 이베이 등급별(PSA/CGC/BGS) 실거래가를 PokemonPriceTracker API에서 대신 받아온다.
@@ -2155,6 +2227,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   )
   mountSnkrdunkProxy(app)
   mountSearchTracker(app)
+  mountVisitStats(app)
   mountKoreanNews(app)
   mountExchangeRate(app)
   mountCommunity(app)

@@ -26,3 +26,34 @@ export async function fetchPopularSearches(): Promise<PopularSearchResponse> {
   if (!res.ok) throw new Error('인기 검색어를 불러오지 못했습니다.');
   return res.json();
 }
+
+// 같은 브라우저가 하루에 한 번만 방문으로 집계되게 한다. 새로고침·페이지 이동마다
+// 세면 숫자가 부풀려져 홍보 효과를 못 읽는다. 날짜가 바뀌면 다시 한 번 센다.
+export function trackVisit(): void {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = 'pokegre_visit_marked';
+  try {
+    if (localStorage.getItem(key) === today) return;
+    localStorage.setItem(key, today);
+  } catch {
+    // 저장이 막힌 환경(시크릿 등)에서는 매번 세더라도 그냥 진행한다.
+  }
+  fetch('/api/local/track-visit', { method: 'POST' }).catch(() => undefined);
+}
+
+export interface VisitStat {
+  date: string;
+  count: number;
+}
+
+export interface VisitStatsResponse {
+  items: VisitStat[];
+  total: number;
+}
+
+// 운영자만 부를 수 있다. 아니면 서버가 404를 준다.
+export async function fetchVisitStats(): Promise<VisitStatsResponse> {
+  const res = await fetch('/api/local/visit-stats');
+  if (!res.ok) throw new Error('방문 통계를 불러오지 못했습니다.');
+  return res.json();
+}

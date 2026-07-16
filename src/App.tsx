@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
-import { fetchPopularSearches, trackSearch, type PopularSearch } from './api/localStats';
+import { fetchPopularSearches, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, type CardEdition, type EbayCard } from './api/ebayPrices';
@@ -33,6 +33,7 @@ import { NicknameSetup } from './components/NicknameSetup';
 import { LoginModal } from './components/LoginModal';
 import { MyPage } from './components/MyPage';
 import { ReportInbox } from './components/ReportInbox';
+import { VisitStats } from './components/VisitStats';
 import { DetailSheet } from './components/DetailSheet';
 import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider } from './api/auth';
 
@@ -47,7 +48,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'reports';
+type MainView = 'cards' | 'mypage' | 'community' | 'reports' | 'stats';
 type PriceSource = 'snkrdunk' | 'ebay';
 
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
@@ -135,6 +136,8 @@ function App() {
 
   useEffect(() => {
     loadPopularSearches();
+    // 방문 집계. 같은 브라우저는 하루 한 번만 세고, IP·기기 정보는 저장하지 않는다.
+    trackVisit();
   }, []);
 
   // 참조가 바뀔 때마다 현재 시세로 다시 채운다. 마이페이지를 열 때마다 최신 가격이
@@ -205,8 +208,8 @@ function App() {
     setCreatedAt(undefined);
     setIsAdmin(false);
     setProviders([]);
-    // 운영자가 로그아웃했는데 신고함이 그대로 열려 있으면 빈 화면만 남는다.
-    if (view === 'reports') setView('cards');
+    // 운영자가 로그아웃했는데 운영자 전용 화면이 그대로 열려 있으면 빈 화면만 남는다.
+    if (view === 'reports' || view === 'stats') setView('cards');
   }
 
   useEffect(() => {
@@ -564,6 +567,17 @@ function App() {
                     신고함
                   </button>
                 )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setView('stats')}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                      view === 'stats' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                    }`}
+                  >
+                    통계
+                  </button>
+                )}
                 {/* 로그인 버튼을 헤더에 두면 공급자가 늘 때마다(네이버 등) 자리가 모자란다.
                     진입점을 마이페이지 한 곳으로 모으고, 헤더엔 상태만 드러낸다. */}
                 <button
@@ -583,6 +597,8 @@ function App() {
         <main className="px-4 py-6">
           {view === 'reports' ? (
             <ReportInbox />
+          ) : view === 'stats' ? (
+            <VisitStats />
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'mypage' ? (
