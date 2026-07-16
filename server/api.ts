@@ -914,6 +914,11 @@ const MAX_TRACKED_TERMS = 500
 const MAX_TERM_LENGTH = 100
 const SNAPSHOT_INTERVAL_MS = 60 * 60 * 1000
 const RANKING_SIZE = 10
+// 인기 검색어는 최근 며칠 치만 센다. 영원히 누적하면 한번 1등이 계속 1등이라 목록이
+// 굳어버린다. 요즘 많이 찾는 카드가 올라오고 오래된 건 자연히 밀려나게 창을 둔다.
+// 너무 짧으면(당일만) 검색 뜸한 시간대에 목록이 비어 보여서, 며칠은 쌓이게 둔다.
+const POPULAR_WINDOW_DAYS = 3
+const DAY_MS = 24 * 60 * 60 * 1000
 
 // 요청 바디는 전부 메모리에 올라간다. 상한이 없으면 아무나 거대한 요청 하나로 서버를
 // 죽일 수 있다(track-search는 로그인도 필요 없다). 텍스트 JSON은 이 정도면 넉넉하고,
@@ -947,29 +952,73 @@ interface Snapshot {
   ranks: Record<string, number>
 }
 
-// 검색창에 입력된 검색어를 로컬 파일에 누적 집계해서 "인기 검색어" 홈 화면에 쓴다.
+// 검색창에 입력된 검색어를 로컬 파일에 날짜별로 집계해서 "인기 검색어" 홈 화면에 쓴다.
 // 스니커덩크 자체 추천/인기 알고리즘은 기준이 불투명해서, 우리 사이트 안에서
-// 실제로 사용자가 몇 번 검색했는지를 직접 세는 방식으로 대체한다.
+// 실제로 사용자가 최근 며칠간 몇 번 검색했는지를 직접 세는 방식으로 대체한다.
 //
 // 순위 변동(▲▼NEW)을 보여주기 위해 한 시간에 한 번씩 "이전 순위" 스냅샷을 따로
 // 저장해두고, 그 스냅샷과 현재 순위를 비교해 변동폭을 계산한다.
+// 검색어를 "언제" 검색했는지까지 알아야 최근 것만 셀 수 있다. 그래서 날짜별로 칸을
+// 나눠 담는다: { '2026-07-16': { 리자몽: 3, 피카츄: 1 }, ... }. 순위를 낼 때 최근
+// POPULAR_WINDOW_DAYS 칸만 합친다. 하루 경계는 한국 시각 기준으로 맞춘다(UTC로 세면
+// 한국 오전 9시에 날짜가 바뀐다).
+type DayBuckets = Record<string, Record<string, number>>
+
+function kstDayKey(ts: number): string {
+  return new Date(ts + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+function popularWindowKeys(): Set<string> {
+  const keys = new Set<string>()
+  const now = Date.now()
+  for (let i = 0; i < POPULAR_WINDOW_DAYS; i++) keys.add(kstDayKey(now - i * DAY_MS))
+  return keys
+}
+
 function mountSearchTracker(app: Mountable) {
-  let counts: Record<string, number> | null = null
+  let buckets: DayBuckets | null = null
   let snapshot: Snapshot | null | undefined
 
-  async function loadCounts(): Promise<Record<string, number>> {
-    if (counts) return counts
+  async function loadCounts(): Promise<DayBuckets> {
+    if (buckets) return buckets
     try {
-      counts = JSON.parse(await readFile(SEARCH_COUNTS_FILE, 'utf-8'))
+      const raw = JSON.parse(await readFile(SEARCH_COUNTS_FILE, 'utf-8')) as Record<string, unknown>
+      // 옛 형식은 { 검색어: 횟수 } 평면 구조였다(날짜 구분 없이 영원히 누적). 값이 숫자면
+      // 옛 형식으로 보고, 창에서 가장 오래된 날짜 칸에 통째로 넣는다 — 오늘 하루는 예전
+      // 목록이 그대로 보이다가 내일이면 창 밖으로 밀려나 자연스럽게 최근 기준으로 바뀐다.
+      if (Object.values(raw).some((v) => typeof v === 'number')) {
+        const oldestKey = kstDayKey(Date.now() - (POPULAR_WINDOW_DAYS - 1) * DAY_MS)
+        buckets = { [oldestKey]: raw as Record<string, number> }
+      } else {
+        buckets = raw as DayBuckets
+      }
     } catch {
-      counts = {}
+      buckets = {}
     }
-    return counts!
+    return buckets!
+  }
+
+  // 창 밖으로 나간 날짜 칸을 버린다. 안 버리면 파일이 날마다 커진다.
+  function pruneOldDays() {
+    if (!buckets) return
+    const keep = popularWindowKeys()
+    for (const day of Object.keys(buckets)) if (!keep.has(day)) delete buckets[day]
+  }
+
+  // 창 안 날짜들을 검색어별로 합쳐 하나의 순위 집계로 만든다.
+  function aggregate(): Record<string, number> {
+    const keep = popularWindowKeys()
+    const total: Record<string, number> = {}
+    for (const [day, terms] of Object.entries(buckets ?? {})) {
+      if (!keep.has(day)) continue
+      for (const [term, n] of Object.entries(terms)) total[term] = (total[term] ?? 0) + n
+    }
+    return total
   }
 
   async function persistCounts() {
     await mkdir(path.dirname(SEARCH_COUNTS_FILE), { recursive: true })
-    await writeFile(SEARCH_COUNTS_FILE, JSON.stringify(counts))
+    await writeFile(SEARCH_COUNTS_FILE, JSON.stringify(buckets))
   }
 
   async function loadSnapshot(): Promise<Snapshot | null> {
@@ -1008,12 +1057,16 @@ function mountSearchTracker(app: Mountable) {
       // 크기는 안 막아서, 길이를 안 자르면 500개로도 볼륨을 넘길 수 있다. 이 엔드포인트는
       // 로그인도 필요 없다.
       if (term && term.length <= MAX_TERM_LENGTH) {
-        const current = await loadCounts()
-        current[term] = (current[term] ?? 0) + 1
-        if (Object.keys(current).length > MAX_TRACKED_TERMS) {
-          const sorted = Object.entries(current).sort((a, b) => b[1] - a[1])
-          counts = Object.fromEntries(sorted.slice(0, MAX_TRACKED_TERMS))
+        const all = await loadCounts()
+        const today = kstDayKey(Date.now())
+        const bucket = (all[today] ??= {})
+        bucket[term] = (bucket[term] ?? 0) + 1
+        // 하루 칸이 지나치게 커지지 않게 상한을 둔다. 넘으면 그날 덜 검색된 것부터 버린다.
+        if (Object.keys(bucket).length > MAX_TRACKED_TERMS) {
+          const top = Object.entries(bucket).sort((a, b) => b[1] - a[1]).slice(0, MAX_TRACKED_TERMS)
+          all[today] = Object.fromEntries(top)
         }
+        pruneOldDays()
         await persistCounts()
       }
       res.statusCode = 204
@@ -1025,8 +1078,10 @@ function mountSearchTracker(app: Mountable) {
   })
 
   app.use('/api/local/popular-searches', async (_req, res) => {
-    const current = await loadCounts()
-    const ranked = rankTerms(current)
+    await loadCounts()
+    // 조회할 때도 창 밖 날짜를 정리해, 검색이 뜸한 날에도 목록이 최근 기준으로 유지된다.
+    pruneOldDays()
+    const ranked = rankTerms(aggregate())
     const prev = await loadSnapshot()
     const now = Date.now()
 
