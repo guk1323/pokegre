@@ -93,12 +93,18 @@ export function PriceChart({
         <p className="text-xs font-semibold text-neutral-500">
           시세 추이 (실거래{unitLabel ? ` · ${koreanizeGrade(unitLabel)} 기준` : ''})
         </p>
+        {/* 변동률은 "선택한 기간의 첫 거래 대비 마지막 거래"다. 기준을 안 밝히면
+            무엇 대비 몇 %인지 알 수 없어서, 기간 라벨을 붙여 뜻을 분명히 한다.
+            "전체" 기준일 땐 "전체 기준"이 어색해서 "전체 기간"으로 다듬는다. */}
         {geom && (
-          <span
-            className={`text-xs font-semibold ${geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}`}
-          >
-            <span aria-hidden>{geom.changePct >= 0 ? '▲' : '▼'}</span>{' '}
-            {Math.abs(geom.changePct).toFixed(1)}%
+          <span className="text-xs font-semibold text-neutral-400">
+            <span className="mr-1 font-normal">
+              {range === 'all' ? '전체 기간' : `최근 ${RANGE_LABELS[range] ?? ''}`}
+            </span>
+            <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>
+              <span aria-hidden>{geom.changePct >= 0 ? '▲' : '▼'}</span>{' '}
+              {Math.abs(geom.changePct).toFixed(1)}%
+            </span>
           </span>
         )}
       </div>
