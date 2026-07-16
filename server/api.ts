@@ -914,10 +914,12 @@ const MAX_TRACKED_TERMS = 500
 const MAX_TERM_LENGTH = 100
 const SNAPSHOT_INTERVAL_MS = 60 * 60 * 1000
 const RANKING_SIZE = 10
-// 인기 검색어는 최근 며칠 치만 센다. 영원히 누적하면 한번 1등이 계속 1등이라 목록이
-// 굳어버린다. 요즘 많이 찾는 카드가 올라오고 오래된 건 자연히 밀려나게 창을 둔다.
-// 너무 짧으면(당일만) 검색 뜸한 시간대에 목록이 비어 보여서, 며칠은 쌓이게 둔다.
-const POPULAR_WINDOW_DAYS = 3
+// 인기 검색어는 최근 며칠 치로 순위를 매긴다. 영원히 누적하면 한번 1등이 계속 1등이라
+// 목록이 굳어버린다. 요즘 많이 찾는 카드가 올라오고 오래된 건 자연히 밀려난다.
+const POPULAR_RECENT_DAYS = 3
+// 다만 검색이 뜸한 날엔 최근 3일에 검색어가 몇 개 없어 목록이 텅 비어 보인다. 그럴 때
+// 빈 자리를 메우려고 더 긴 기간의 집계도 남겨둔다(순위는 최근 우선, 나머지는 이걸로 채움).
+const POPULAR_KEEP_DAYS = 30
 const DAY_MS = 24 * 60 * 60 * 1000
 
 // 요청 바디는 전부 메모리에 올라간다. 상한이 없으면 아무나 거대한 요청 하나로 서버를
@@ -968,10 +970,11 @@ function kstDayKey(ts: number): string {
   return new Date(ts + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
-function popularWindowKeys(): Set<string> {
+// 최근 `days`일치 날짜 키 집합. 순위용(최근 3일)과 예비 채움용(30일) 양쪽에 쓴다.
+function popularWindowKeys(days: number): Set<string> {
   const keys = new Set<string>()
   const now = Date.now()
-  for (let i = 0; i < POPULAR_WINDOW_DAYS; i++) keys.add(kstDayKey(now - i * DAY_MS))
+  for (let i = 0; i < days; i++) keys.add(kstDayKey(now - i * DAY_MS))
   return keys
 }
 
@@ -987,7 +990,7 @@ function mountSearchTracker(app: Mountable) {
       // 옛 형식으로 보고, 창에서 가장 오래된 날짜 칸에 통째로 넣는다 — 오늘 하루는 예전
       // 목록이 그대로 보이다가 내일이면 창 밖으로 밀려나 자연스럽게 최근 기준으로 바뀐다.
       if (Object.values(raw).some((v) => typeof v === 'number')) {
-        const oldestKey = kstDayKey(Date.now() - (POPULAR_WINDOW_DAYS - 1) * DAY_MS)
+        const oldestKey = kstDayKey(Date.now() - (POPULAR_RECENT_DAYS - 1) * DAY_MS)
         buckets = { [oldestKey]: raw as Record<string, number> }
       } else {
         buckets = raw as DayBuckets
@@ -998,16 +1001,16 @@ function mountSearchTracker(app: Mountable) {
     return buckets!
   }
 
-  // 창 밖으로 나간 날짜 칸을 버린다. 안 버리면 파일이 날마다 커진다.
+  // 예비 채움 기간(30일)보다 오래된 날짜 칸은 버린다. 안 버리면 파일이 날마다 커진다.
   function pruneOldDays() {
     if (!buckets) return
-    const keep = popularWindowKeys()
+    const keep = popularWindowKeys(POPULAR_KEEP_DAYS)
     for (const day of Object.keys(buckets)) if (!keep.has(day)) delete buckets[day]
   }
 
-  // 창 안 날짜들을 검색어별로 합쳐 하나의 순위 집계로 만든다.
-  function aggregate(): Record<string, number> {
-    const keep = popularWindowKeys()
+  // 최근 `days`일 날짜들을 검색어별로 합쳐 하나의 순위 집계로 만든다.
+  function aggregate(days: number): Record<string, number> {
+    const keep = popularWindowKeys(days)
     const total: Record<string, number> = {}
     for (const [day, terms] of Object.entries(buckets ?? {})) {
       if (!keep.has(day)) continue
@@ -1079,9 +1082,22 @@ function mountSearchTracker(app: Mountable) {
 
   app.use('/api/local/popular-searches', async (_req, res) => {
     await loadCounts()
-    // 조회할 때도 창 밖 날짜를 정리해, 검색이 뜸한 날에도 목록이 최근 기준으로 유지된다.
+    // 조회할 때도 오래된 날짜를 정리해 파일이 무한정 커지지 않게 한다.
     pruneOldDays()
-    const ranked = rankTerms(aggregate())
+    // 순위는 최근 3일로 매긴다(살아있는 느낌). 그걸로 10칸이 안 차면 — 검색이 뜸해
+    // 목록이 비어 보일 때 — 더 긴 기간(30일) 인기어로 뒤를 채운다. 최근 것이 늘 위,
+    // 옛 인기어가 빈 자리를 메우는 식이라 목록이 텅 비지 않는다.
+    const ranked = rankTerms(aggregate(POPULAR_RECENT_DAYS))
+    if (ranked.length < RANKING_SIZE) {
+      const shown = new Set(ranked.map((r) => r.term))
+      const fillers = Object.entries(aggregate(POPULAR_KEEP_DAYS))
+        .filter(([term]) => !shown.has(term))
+        .sort((a, b) => b[1] - a[1])
+      for (const [term, count] of fillers) {
+        if (ranked.length >= RANKING_SIZE) break
+        ranked.push({ term, count, rank: ranked.length + 1 })
+      }
+    }
     const prev = await loadSnapshot()
     const now = Date.now()
 

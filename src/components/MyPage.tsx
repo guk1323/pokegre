@@ -317,7 +317,7 @@ export function MyPage({
       <CardRow
         title="즐겨찾기 카드"
         items={favorites}
-        emptyText="카드의 하트를 눌러서 즐겨찾기에 담아보세요."
+        emptyText="카드의 북마크를 눌러서 즐겨찾기에 담아보세요."
         selectedId={selectedId}
         onSelect={onSelect}
         isFavorite={isFavorite}
