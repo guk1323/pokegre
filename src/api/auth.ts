@@ -32,9 +32,13 @@ export async function setNickname(nickname: string): Promise<string> {
   return (await res.json()).nickname;
 }
 
-// 카카오 인증 페이지로 이동. 서버가 state를 발급하고 리다이렉트한다.
+// 인증 페이지로 이동. 서버가 state를 발급하고 리다이렉트한다.
 export function startKakaoLogin(): void {
   window.location.href = '/api/local/auth/kakao';
+}
+
+export function startNaverLogin(): void {
+  window.location.href = '/api/local/auth/naver';
 }
 
 export interface StoredCollections {

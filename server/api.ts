@@ -21,6 +21,8 @@ export interface ApiEnv {
   ANTHROPIC_API_KEY?: string
   KAKAO_REST_API_KEY?: string
   KAKAO_CLIENT_SECRET?: string
+  NAVER_CLIENT_ID?: string
+  NAVER_CLIENT_SECRET?: string
   // 운영자의 카카오 회원번호. 쉼표로 여럿 넣을 수 있다.
   ADMIN_KAKAO_IDS?: string
 }
@@ -31,10 +33,12 @@ export interface ApiEnv {
 //
 // 비어 있으면 아무도 운영자가 아니다 — 실수로 설정을 빠뜨렸을 때 모두가 운영자가
 // 되는 것보다 아무도 아닌 게 낫다.
-let adminKakaoIds: Set<string> = new Set()
+// 접두어를 붙인 형태("kakao:123")로 담는다. 환경변수에는 카카오 회원번호를 그대로
+// 적게 두고(사장님이 넣기 쉬우라고) 여기서 붙인다.
+let adminIds: Set<string> = new Set()
 
 function isAdmin(user: User | null): boolean {
-  return user != null && adminKakaoIds.has(user.kakaoId)
+  return user != null && adminIds.has(user.id)
 }
 
 // 데이터 파일 위치. 예전엔 __dirname 기준이었는데 두 가지가 문제였다. 이 프로젝트는
@@ -349,7 +353,7 @@ interface CommunityComment {
 const UNKNOWN_AUTHOR = '알 수 없음'
 
 function authorName(authorId: string, all: User[]): string {
-  return all.find((u) => u.kakaoId === authorId)?.nickname ?? UNKNOWN_AUTHOR
+  return all.find((u) => u.id === authorId)?.nickname ?? UNKNOWN_AUTHOR
 }
 
 const HIDDEN_NOTICE = '신고로 가려진 글입니다.'
@@ -367,8 +371,8 @@ function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
     title: hidden ? HIDDEN_NOTICE : rest.title,
     content: hidden ? HIDDEN_NOTICE : rest.content,
     author: authorName(authorId, all),
-    authorIsAdmin: adminKakaoIds.has(authorId),
-    isMine: viewer != null && authorId === viewer.kakaoId,
+    authorIsAdmin: adminIds.has(authorId),
+    isMine: viewer != null && authorId === viewer.id,
     isHidden: hiddenAt != null,
   }
 }
@@ -380,8 +384,8 @@ function toPublicComment(comment: CommunityComment, viewer: User | null, all: Us
     ...rest,
     content: hidden ? HIDDEN_NOTICE : rest.content,
     author: authorName(authorId, all),
-    authorIsAdmin: adminKakaoIds.has(authorId),
-    isMine: viewer != null && authorId === viewer.kakaoId,
+    authorIsAdmin: adminIds.has(authorId),
+    isMine: viewer != null && authorId === viewer.id,
     isHidden: hiddenAt != null,
   }
 }
@@ -408,7 +412,12 @@ function mountCommunity(app: Mountable) {
   async function loadPosts(): Promise<CommunityPost[]> {
     if (posts) return posts
     try {
-      posts = JSON.parse(await readFile(POSTS_FILE, 'utf-8'))
+      // authorId도 회원번호라 접두어를 붙인다. 안 그러면 옛 글의 작성자를 못 찾아
+      // 전부 "알 수 없음"이 되고, 본인 글인데도 삭제 버튼이 안 뜬다.
+      posts = (JSON.parse(await readFile(POSTS_FILE, 'utf-8')) as CommunityPost[]).map((p) => ({
+        ...p,
+        authorId: migrateId(p.authorId),
+      }))
     } catch {
       posts = []
     }
@@ -423,7 +432,10 @@ function mountCommunity(app: Mountable) {
   async function loadComments(): Promise<CommunityComment[]> {
     if (comments) return comments
     try {
-      comments = JSON.parse(await readFile(COMMENTS_FILE, 'utf-8'))
+      comments = (JSON.parse(await readFile(COMMENTS_FILE, 'utf-8')) as CommunityComment[]).map((c) => ({
+        ...c,
+        authorId: migrateId(c.authorId),
+      }))
     } catch {
       comments = []
     }
@@ -502,7 +514,7 @@ function mountCommunity(app: Mountable) {
           title,
           // 작성자는 클라이언트가 보낸 값이 아니라 세션에서 가져온다. 아니면
           // 아무나 남의 닉네임을 사칭해 글을 쓸 수 있다.
-          authorId: user.kakaoId,
+          authorId: user.id,
           content,
           createdAt: Date.now(),
           commentCount: 0,
@@ -538,7 +550,7 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 404, { error: 'not found' })
           return
         }
-        if (!user || post.authorId !== user.kakaoId) {
+        if (!user || post.authorId !== user.id) {
           sendJson(res, 403, { error: 'not your post' })
           return
         }
@@ -650,7 +662,7 @@ function mountCommunity(app: Mountable) {
           const comment: CommunityComment = {
             id: Date.now(),
             postId,
-            authorId: user.kakaoId,
+            authorId: user.id,
             content,
             createdAt: Date.now(),
           }
@@ -1163,18 +1175,50 @@ interface Collections {
   recent: CardRef[]
 }
 
+type LoginProvider = 'kakao' | 'naver'
+
 interface User {
-  // 카카오 회원번호. 우리가 저장하는 유일한 카카오 정보다 — 카톡 닉네임/프로필/이메일은
+  // "kakao:4992619297" 처럼 어디서 온 번호인지 앞에 붙여 저장한다.
+  //
+  // 카카오와 네이버는 각자 회원번호를 매기므로 서로 겹칠 수 있다(둘 다 숫자 문자열을
+  // 준다). 번호만 저장하면 겹치는 순간 서로 모르는 두 사람이 한 계정을 쓰게 되어
+  // 남의 즐겨찾기가 보이고 남의 이름으로 글이 써진다. 접두어를 붙이면 구조적으로
+  // 그럴 수가 없다.
+  //
+  // 회원번호는 우리가 저장하는 유일한 로그인 정보다 — 이름/프로필/이메일은 양쪽 다
   // 동의항목에서 요청하지 않아 애초에 넘어오지 않는다.
-  kakaoId: string
+  id: string
   nickname: string | null
   createdAt: number
 }
 
 interface Session {
   token: string
-  kakaoId: string
+  userId: string
   expiresAt: number
+}
+
+function userId(provider: LoginProvider, providerId: string): string {
+  return `${provider}:${providerId}`
+}
+
+// 접두어를 붙이기 전에 저장된 기록을 읽을 때 변환한다. 파일을 직접 고치는 대신 읽을
+// 때 바꾸면, 프로덕션 볼륨에 손을 안 대도 되고 예전 파일이 남아 있어도 안전하다.
+// (그때는 카카오뿐이었으므로 접두어 없는 번호는 전부 카카오다.)
+function migrateUser(raw: User & { kakaoId?: string }): User {
+  if (raw.id) return raw
+  return { id: userId('kakao', raw.kakaoId!), nickname: raw.nickname, createdAt: raw.createdAt }
+}
+
+function migrateSession(raw: Session & { kakaoId?: string }): Session {
+  if (raw.userId) return raw
+  return { token: raw.token, userId: userId('kakao', raw.kakaoId!), expiresAt: raw.expiresAt }
+}
+
+// 접두어 없는 옛 식별자를 카카오로 본다. 회원번호(users/sessions)뿐 아니라
+// collections의 키와 게시글의 authorId에도 옛 번호가 그대로 들어있다.
+function migrateId(raw: string): string {
+  return raw.includes(':') ? raw : userId('kakao', raw)
 }
 
 function parseCookies(header?: string): Record<string, string> {
@@ -1195,7 +1239,7 @@ let sessions: Session[] | null = null
 async function loadUsers(): Promise<User[]> {
   if (users) return users
   try {
-    users = JSON.parse(await readFile(USERS_FILE, 'utf-8'))
+    users = (JSON.parse(await readFile(USERS_FILE, 'utf-8')) as User[]).map(migrateUser)
   } catch {
     users = []
   }
@@ -1210,7 +1254,7 @@ async function persistUsers() {
 async function loadSessions(): Promise<Session[]> {
   if (sessions) return sessions
   try {
-    sessions = JSON.parse(await readFile(SESSIONS_FILE, 'utf-8'))
+    sessions = (JSON.parse(await readFile(SESSIONS_FILE, 'utf-8')) as Session[]).map(migrateSession)
   } catch {
     sessions = []
   }
@@ -1231,7 +1275,10 @@ let collections: Record<string, Collections> | null = null
 async function loadCollections(): Promise<Record<string, Collections>> {
   if (collections) return collections
   try {
-    collections = JSON.parse(await readFile(COLLECTIONS_FILE, 'utf-8'))
+    const raw = JSON.parse(await readFile(COLLECTIONS_FILE, 'utf-8')) as Record<string, Collections>
+    // 키가 회원번호라 여기도 접두어를 붙여야 한다. 안 그러면 로그인은 되는데
+    // 즐겨찾기가 통째로 빈 것처럼 보인다.
+    collections = Object.fromEntries(Object.entries(raw).map(([id, c]) => [migrateId(id), c]))
   } catch {
     collections = {}
   }
@@ -1243,10 +1290,10 @@ async function persistCollections() {
   await writeFile(COLLECTIONS_FILE, JSON.stringify(collections))
 }
 
-async function getCollections(kakaoId: string): Promise<Collections> {
+async function getCollections(id: string): Promise<Collections> {
   const all = await loadCollections()
-  if (!all[kakaoId]) all[kakaoId] = { favorites: [], recent: [] }
-  return all[kakaoId]
+  if (!all[id]) all[id] = { favorites: [], recent: [] }
+  return all[id]
 }
 
 // 클라이언트가 보낸 값을 그대로 믿지 않는다. 카드 참조 외의 필드를 끼워넣거나
@@ -1272,7 +1319,7 @@ async function currentUser(req: import('node:http').IncomingMessage): Promise<Us
   const all = await loadSessions()
   const session = all.find((s) => s.token === token && s.expiresAt > Date.now())
   if (!session) return null
-  return (await loadUsers()).find((u) => u.kakaoId === session.kakaoId) ?? null
+  return (await loadUsers()).find((u) => u.id === session.userId) ?? null
 }
 
 function sendJson(res: import('node:http').ServerResponse, status: number, data: unknown) {
@@ -1308,7 +1355,43 @@ function sessionCookie(req: IncomingMessage, value: string, maxAgeSeconds: numbe
   return `${SESSION_COOKIE}=${value}; HttpOnly; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax${secure}`
 }
 
-function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
+// 카카오든 네이버든 회원번호를 받아낸 다음은 똑같다 — 없으면 만들고, 세션을 발급하고,
+// 쿠키를 심고, 닉네임이 없으면 설정 화면으로 보낸다. 공급자별로 이 흐름을 복사해두면
+// 한쪽만 고쳐서 갈리기 쉬우므로 한 곳에 둔다.
+async function signIn(
+  req: IncomingMessage,
+  res: ServerResponse,
+  provider: LoginProvider,
+  providerId: string,
+): Promise<void> {
+  const id = userId(provider, providerId)
+  const all = await loadUsers()
+  let user = all.find((u) => u.id === id)
+  if (!user) {
+    user = { id, nickname: null, createdAt: Date.now() }
+    all.push(user)
+    await persistUsers()
+  }
+
+  const token = randomUUID()
+  ;(await loadSessions()).push({ token, userId: id, expiresAt: Date.now() + SESSION_TTL_MS })
+  await persistSessions()
+
+  // httpOnly라 JS로 못 읽는다(XSS로 세션 탈취 방지).
+  res.setHeader('set-cookie', sessionCookie(req, token, SESSION_TTL_MS / 1000))
+  res.statusCode = 302
+  // 닉네임이 없으면 최초 로그인 → 설정 화면을 띄우게 한다.
+  res.setHeader('location', user.nickname ? '/' : '/?setNickname=1')
+  res.end()
+}
+
+function mountAuth(
+  app: Mountable,
+  restApiKey: string,
+  clientSecret: string,
+  naverClientId: string,
+  naverClientSecret: string,
+) {
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
   // 콜백이 돌아올 때만 지워져서, 로그인하다 그만두면 영원히 남는다. 인증도 필요 없는
   // /kakao를 반복 호출해 메모리를 불릴 수 있으므로 만료를 붙인다. 카카오 로그인 화면에
@@ -1363,7 +1446,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
           return
         }
         const all = await loadUsers()
-        if (all.some((u) => u.nickname === nickname && u.kakaoId !== user.kakaoId)) {
+        if (all.some((u) => u.nickname === nickname && u.id !== user.id)) {
           sendJson(res, 409, { error: 'nickname taken' })
           return
         }
@@ -1380,7 +1463,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        sendJson(res, 200, await getCollections(user.kakaoId))
+        sendJson(res, 200, await getCollections(user.id))
         return
       }
 
@@ -1393,7 +1476,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
           return
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { favorites?: unknown; recent?: unknown }
-        const store = await getCollections(user.kakaoId)
+        const store = await getCollections(user.id)
         if (body.favorites !== undefined) store.favorites = sanitizeRefs(body.favorites, FAVORITES_LIMIT)
         if (body.recent !== undefined) store.recent = sanitizeRefs(body.recent, RECENT_LIMIT)
         await persistCollections()
@@ -1410,7 +1493,7 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
           return
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { favorites?: unknown; recent?: unknown }
-        const store = await getCollections(user.kakaoId)
+        const store = await getCollections(user.id)
         // 계정 쪽을 앞에 둬서, 기존에 쓰던 순서가 로컬 것 때문에 밀리지 않게 한다.
         store.favorites = sanitizeRefs([...store.favorites, ...(Array.isArray(body.favorites) ? body.favorites : [])], FAVORITES_LIMIT)
         store.recent = sanitizeRefs([...store.recent, ...(Array.isArray(body.recent) ? body.recent : [])], RECENT_LIMIT)
@@ -1419,6 +1502,93 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
         return
       }
 
+      // ── 네이버 ────────────────────────────────────────────────────────────
+      // 카카오와 흐름은 같지만 다른 점이 셋 있다. 토큰을 받을 때 state를 다시 보내야
+      // 하고, 회원번호가 response 안에 한 겹 들어있고, 토큰 요청이 GET이다.
+
+      if (segments[0] === 'naver') {
+        if (!naverClientId || !naverClientSecret) {
+          sendJson(res, 501, { error: 'NAVER_CLIENT_ID / NAVER_CLIENT_SECRET not configured' })
+          return
+        }
+        const naverRedirectUri = `${origin}/api/local/auth/naver/callback`
+
+        // GET /naver — 네이버 인증 페이지로 보낸다
+        if (segments.length === 1) {
+          const state = randomUUID()
+          pendingStates.set(state, true)
+          const authUrl = new URL('https://nid.naver.com/oauth2.0/authorize')
+          authUrl.searchParams.set('client_id', naverClientId)
+          authUrl.searchParams.set('redirect_uri', naverRedirectUri)
+          authUrl.searchParams.set('response_type', 'code')
+          authUrl.searchParams.set('state', state)
+          res.statusCode = 302
+          res.setHeader('location', authUrl.toString())
+          res.end()
+          return
+        }
+
+        // GET /naver/callback — 네이버가 code를 들고 돌아오는 곳
+        if (segments[1] === 'callback') {
+          const code = url.searchParams.get('code')
+          const state = url.searchParams.get('state')
+          if (!code || !state || !pendingStates.get(state)) {
+            res.statusCode = 302
+            res.setHeader('location', '/?login=failed')
+            res.end()
+            return
+          }
+          pendingStates.delete(state)
+
+          const tokenUrl = new URL('https://nid.naver.com/oauth2.0/token')
+          tokenUrl.searchParams.set('grant_type', 'authorization_code')
+          tokenUrl.searchParams.set('client_id', naverClientId)
+          tokenUrl.searchParams.set('client_secret', naverClientSecret)
+          tokenUrl.searchParams.set('code', code)
+          // 카카오와 달리 네이버는 토큰 단계에서도 state를 확인한다.
+          tokenUrl.searchParams.set('state', state)
+
+          const tokenRes = await fetch(tokenUrl)
+          if (!tokenRes.ok) {
+            res.statusCode = 302
+            res.setHeader('location', '/?login=failed')
+            res.end()
+            return
+          }
+          const { access_token } = (await tokenRes.json()) as { access_token?: string }
+          if (!access_token) {
+            res.statusCode = 302
+            res.setHeader('location', '/?login=failed')
+            res.end()
+            return
+          }
+
+          // 제공 정보를 하나도 체크하지 않았으므로 id(회원번호)만 온다. 이름·이메일은
+          // 애초에 넘어오지 않는다.
+          const meRes = await fetch('https://openapi.naver.com/v1/nid/me', {
+            headers: { authorization: `Bearer ${access_token}` },
+          })
+          if (!meRes.ok) {
+            res.statusCode = 302
+            res.setHeader('location', '/?login=failed')
+            res.end()
+            return
+          }
+          // 카카오는 최상위에 id가 있지만 네이버는 response 안에 들어있다.
+          const providerId = String(((await meRes.json()) as { response?: { id?: string } }).response?.id ?? '')
+          if (!providerId) {
+            res.statusCode = 302
+            res.setHeader('location', '/?login=failed')
+            res.end()
+            return
+          }
+
+          await signIn(req, res, 'naver', providerId)
+          return
+        }
+      }
+
+      // ── 카카오 ────────────────────────────────────────────────────────────
       if (!restApiKey || !clientSecret) {
         sendJson(res, 501, { error: 'KAKAO_REST_API_KEY / KAKAO_CLIENT_SECRET not configured' })
         return
@@ -1487,32 +1657,15 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
           res.end()
           return
         }
-        const kakaoId = String(((await meRes.json()) as { id?: number | string }).id ?? '')
-        if (!kakaoId) {
+        const providerId = String(((await meRes.json()) as { id?: number | string }).id ?? '')
+        if (!providerId) {
           res.statusCode = 302
           res.setHeader('location', '/?login=failed')
           res.end()
           return
         }
 
-        const all = await loadUsers()
-        let user = all.find((u) => u.kakaoId === kakaoId)
-        if (!user) {
-          user = { kakaoId, nickname: null, createdAt: Date.now() }
-          all.push(user)
-          await persistUsers()
-        }
-
-        const token = randomUUID()
-        ;(await loadSessions()).push({ token, kakaoId, expiresAt: Date.now() + SESSION_TTL_MS })
-        await persistSessions()
-
-        // httpOnly라 JS로 못 읽는다(XSS로 세션 탈취 방지).
-        res.setHeader('set-cookie', sessionCookie(req, token, SESSION_TTL_MS / 1000))
-        res.statusCode = 302
-        // 닉네임이 없으면 최초 로그인 → 설정 화면을 띄우게 한다.
-        res.setHeader('location', user.nickname ? '/' : '/?setNickname=1')
-        res.end()
+        await signIn(req, res, 'kakao', providerId)
         return
       }
 
@@ -1526,11 +1679,15 @@ function mountAuth(app: Mountable, restApiKey: string, clientSecret: string) {
 // 개발(vite)과 프로덕션(Express)이 똑같이 이걸 부른다. 여기 순서가 곧 라우팅
 // 순서이므로 양쪽이 갈리지 않는다 — 이 함수 하나만 유지하면 된다.
 export function mountApi(app: Mountable, env: ApiEnv) {
-  adminKakaoIds = new Set(
+  adminIds = new Set(
     (env.ADMIN_KAKAO_IDS ?? '')
       .split(',')
       .map((id) => id.trim())
-      .filter(Boolean),
+      .filter(Boolean)
+      // 환경변수엔 카카오 회원번호만 적혀 있으므로 여기서 접두어를 붙여 실제 식별자와
+      // 같은 모양으로 만든다. 안 붙이면 영원히 안 맞아서 운영자가 조용히 사라진다
+      // (둘 다 문자열이라 타입 검사로는 안 잡힌다).
+      .map((kakaoId) => userId('kakao', kakaoId)),
   )
   mountSnkrdunkProxy(app)
   mountSearchTracker(app)
@@ -1539,5 +1696,11 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountCommunity(app)
   mountEbayPrice(app, env.POKEMON_PRICE_TRACKER_API_KEY ?? '')
   mountCardScan(app, env.ANTHROPIC_API_KEY ?? '')
-  mountAuth(app, env.KAKAO_REST_API_KEY ?? '', env.KAKAO_CLIENT_SECRET ?? '')
+  mountAuth(
+    app,
+    env.KAKAO_REST_API_KEY ?? '',
+    env.KAKAO_CLIENT_SECRET ?? '',
+    env.NAVER_CLIENT_ID ?? '',
+    env.NAVER_CLIENT_SECRET ?? '',
+  )
 }
