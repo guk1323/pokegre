@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   fetchReports,
+  resetReportedNickname,
   setCommentHidden,
   setPostHidden,
   type CommunityReport,
@@ -30,6 +31,21 @@ export function ReportInbox() {
   }
 
   useEffect(load, []);
+
+  // 금지어 목록으로 못 막은 닉네임을 실제로 처리하는 자리. 초기화하면 그 사람은
+  // 다음에 들어올 때 닉네임을 다시 정해야 한다.
+  async function resetNickname(report: CommunityReport) {
+    if (!window.confirm(`"${report.author}" 닉네임을 지울까요? 다음 접속 때 새로 정하게 됩니다.`)) return;
+    setBusyId(report.id);
+    try {
+      await resetReportedNickname(report.id);
+      load();
+    } catch {
+      window.alert('초기화하지 못했습니다.');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function toggle(report: CommunityReport) {
     setBusyId(report.id);
@@ -89,18 +105,30 @@ export function ReportInbox() {
                   <p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-800 whitespace-pre-wrap mb-3">
                     {r.excerpt}
                   </p>
-                  <button
-                    type="button"
-                    disabled={busyId === r.id}
-                    onClick={() => toggle(r)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
-                      r.isHidden
-                        ? 'border border-neutral-300 text-neutral-700 hover:bg-neutral-50'
-                        : 'bg-neutral-900 text-white hover:bg-neutral-700'
-                    }`}
-                  >
-                    {r.isHidden ? '되살리기' : '가리기'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={busyId === r.id}
+                      onClick={() => toggle(r)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
+                        r.isHidden
+                          ? 'border border-neutral-300 text-neutral-700 hover:bg-neutral-50'
+                          : 'bg-neutral-900 text-white hover:bg-neutral-700'
+                      }`}
+                    >
+                      {r.isHidden ? '되살리기' : '가리기'}
+                    </button>
+                    {r.author && (
+                      <button
+                        type="button"
+                        disabled={busyId === r.id}
+                        onClick={() => resetNickname(r)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                      >
+                        닉네임 초기화
+                      </button>
+                    )}
+                  </div>
                 </>
               ) : (
                 <p className="text-sm text-neutral-400">신고된 글이 이미 삭제되었습니다.</p>

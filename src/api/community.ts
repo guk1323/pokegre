@@ -122,3 +122,10 @@ export async function setCommentHidden(commentId: number, hidden: boolean): Prom
   const res = await fetch(`/api/local/community/comments/${commentId}/${hidden ? "hide" : "unhide"}`, { method: "POST" });
   if (!res.ok) throw new Error("처리하지 못했습니다.");
 }
+
+// 금지어 목록은 조금만 비틀면 뚫린다. 뚫린 걸 실제로 처리하는 게 이것이다.
+// 초기화된 사람은 다음에 들어올 때 닉네임을 다시 정해야 한다.
+export async function resetReportedNickname(reportId: number): Promise<void> {
+  const res = await fetch(`/api/local/community/reports/${reportId}/reset-nickname`, { method: "POST" });
+  if (!res.ok) throw new Error("닉네임을 초기화하지 못했습니다.");
+}

@@ -29,6 +29,7 @@ export async function logout(): Promise<void> {
 
 export const NICKNAME_TAKEN = 'nickname_taken';
 export const NICKNAME_RESERVED = 'nickname_reserved';
+export const NICKNAME_BANNED = 'nickname_banned';
 
 export async function setNickname(nickname: string): Promise<string> {
   const res = await fetch('/api/local/auth/nickname', {
@@ -41,7 +42,9 @@ export async function setNickname(nickname: string): Promise<string> {
   // 넣었을 때 있지도 않은 사용자를 탓하게 된다.
   if (res.status === 409) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error === 'nickname_reserved' ? NICKNAME_RESERVED : NICKNAME_TAKEN);
+    if (body.error === 'nickname_reserved') throw new Error(NICKNAME_RESERVED);
+    if (body.error === 'nickname_banned') throw new Error(NICKNAME_BANNED);
+    throw new Error(NICKNAME_TAKEN);
   }
   if (!res.ok) throw new Error('닉네임을 저장하지 못했습니다.');
   return (await res.json()).nickname;
@@ -51,6 +54,7 @@ export function nicknameErrorMessage(err: unknown): string {
   const code = err instanceof Error ? err.message : '';
   if (code === NICKNAME_TAKEN) return '이미 사용 중인 닉네임이에요.';
   if (code === NICKNAME_RESERVED) return '운영자만 쓸 수 있는 닉네임이에요.';
+  if (code === NICKNAME_BANNED) return '사용할 수 없는 단어가 들어있어요.';
   return '닉네임을 저장하지 못했습니다.';
 }
 

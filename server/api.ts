@@ -718,6 +718,43 @@ function mountCommunity(app: Mountable) {
         return
       }
 
+      // POST /reports/:id/reset-nickname — 신고된 글의 작성자 닉네임을 지운다.
+      //
+      // 금지어 목록은 조금만 비틀면 뚫린다. 뚫린 걸 실제로 처리하는 건 여기다.
+      // 초기화하면 그 사람은 다음에 들어올 때 닉네임을 다시 정해야 한다.
+      //
+      // 회원번호 대신 신고 id로 대상을 찾는다. 닉네임을 지우려고 회원번호를 화면까지
+      // 내려보내면, 지금껏 안 내보내려고 지킨 게 무너진다.
+      if (segments.length === 3 && segments[0] === 'reports' && segments[2] === 'reset-nickname') {
+        const viewer = await currentUser(req)
+        if (!isAdmin(viewer)) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        const report = (await loadReports()).find((r) => r.id === Number(segments[1]))
+        if (!report) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        const target =
+          report.targetType === 'comment' && report.commentId != null
+            ? (await loadComments()).find((c) => c.id === report.commentId)
+            : (await loadPosts()).find((p) => p.id === report.postId)
+        if (!target) {
+          sendJson(res, 404, { error: 'target gone' })
+          return
+        }
+        const author = (await loadUsers()).find((u) => u.id === target.authorId)
+        if (!author) {
+          sendJson(res, 404, { error: 'author gone' })
+          return
+        }
+        author.nickname = null
+        await persistUsers()
+        sendJson(res, 200, { ok: true })
+        return
+      }
+
       // POST /posts/:id/hide, /posts/:id/unhide
       if (segments.length === 3 && segments[0] === 'posts' && (segments[2] === 'hide' || segments[2] === 'unhide')) {
         const viewer = await currentUser(req)
@@ -1164,10 +1201,48 @@ const SESSION_COOKIE = 'pokegre_session'
 // 배지를 만든 순간 사칭 통로도 같이 열린 셈이라 함께 막아야 한다.
 const RESERVED_NICKNAMES = ['운영자', '관리자', '운영팀', '관리팀', '공지', 'admin', 'administrator', 'pokegre', '포켓그레']
 
-// 예약어 검사용. 띄어쓰기로 피해가는 걸("운 영 자", "a d m i n") 막으려고 공백을 전부
-// 지우고 대소문자도 맞춘다.
+// 대놓고 쓰는 것만 막는 목록. 벽이 아니라 속도방지턱이다 — "시1발", "싀발", "ㅅ1ㅂ"
+// 처럼 조금만 비틀면 얼마든지 빠져나간다. 목록으로 다 막겠다는 건 애초에 이길 수 없는
+// 싸움이라, 뚫린 건 운영자가 신고함에서 닉네임을 초기화해서 처리한다.
+//
+// 일부러 뺀 것들: "보지", "자지"는 한국어 동사 활용형이라("보지 못하다", "자지 않다")
+// 멀쩡한 닉네임을 막는다. "새끼"도 "고양이새끼" 같은 게 걸린다. 걸러내려다 진짜
+// 사용자를 쫓아내는 쪽이 더 손해다. 짧게 두고 필요하면 여기에 추가한다.
+//
+// 부분 일치라 "시발"은 "시발점(始發點)"도 막는다. 닉네임으로 쓸 일이 거의 없어
+// 감수한다.
+const BANNED_WORDS = [
+  '씨발',
+  '시발',
+  '씨팔',
+  '시팔',
+  '씨빨',
+  'ㅅㅂ',
+  '좆',
+  '병신',
+  'ㅂㅅ',
+  'ㅄ',
+  '지랄',
+  '개새끼',
+  '니미',
+  '창녀',
+  '강간',
+  '섹스',
+  '야동',
+  'fuck',
+  'shit',
+  'bitch',
+]
+
+// 예약어·금지어 검사용. 띄어쓰기로 피해가는 걸("운 영 자", "ㅅ ㅂ") 막으려고 공백을
+// 전부 지우고 대소문자도 맞춘다.
 function normalizeForReserved(nickname: string): string {
   return nickname.toLowerCase().replace(/\s+/g, '')
+}
+
+function containsBannedWord(nickname: string): boolean {
+  const normalized = normalizeForReserved(nickname)
+  return BANNED_WORDS.some((w) => normalized.includes(w))
 }
 
 // 중복 검사용. 예약어와 달리 공백은 살린다 — "개 발자"와 "개발자"는 다른 이름으로 봐도
@@ -1524,6 +1599,12 @@ function mountAuth(
         const nickname = body.nickname?.trim()
         if (!nickname || nickname.length > 20) {
           sendJson(res, 400, { error: 'nickname must be 1-20 chars' })
+          return
+        }
+        // 금지어는 운영자에게도 적용한다. 예약어와 달리 "운영자니까 욕은 써도 된다"는
+        // 말이 안 된다.
+        if (containsBannedWord(nickname)) {
+          sendJson(res, 409, { error: 'nickname_banned' })
           return
         }
         // 예약어는 운영자만. 운영자 배지가 있어도 닉네임이 "운영자"면 목록에서
