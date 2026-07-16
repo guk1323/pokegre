@@ -25,6 +25,17 @@ export interface ApiEnv {
   NAVER_CLIENT_SECRET?: string
   // 운영자의 카카오 회원번호. 쉼표로 여럿 넣을 수 있다.
   ADMIN_KAKAO_IDS?: string
+  // 피드백을 받을 카카오 오픈톡 링크. 비어 있으면 화면에 버튼이 안 뜬다.
+  OPENCHAT_URL?: string
+}
+
+// 화면에 공개해도 되는 설정만 담는다. 비밀 키는 절대 넣지 않는다.
+let publicConfig: { openChatUrl: string | null } = { openChatUrl: null }
+
+function mountConfig(app: Mountable) {
+  app.use('/api/local/config', (_req, res) => {
+    sendJson(res, 200, publicConfig)
+  })
 }
 
 // 운영자는 회원 정보에 표시하지 않고 환경변수로 지정한다. 회원 정보에 두면 운영자를
@@ -325,9 +336,15 @@ const MAX_COMMENT_LENGTH = 2_000
 // 작성자 닉네임은 글에 저장하지 않는다. 저장해두면 나중에 닉네임을 바꿔도 옛 글에는
 // 옛 이름이 박힌 채로 남아, 같은 사람이 두 사람처럼 보인다. authorId만 남기고 닉네임은
 // 매번 조회해서 채운다.
+// 게시판 종류. 서버가 값을 정하므로 클라이언트가 아무 문자열이나 보내도 free로 떨어진다.
+type PostCategory = 'free' | 'question' | 'suggestion'
+const POST_CATEGORIES: PostCategory[] = ['free', 'question', 'suggestion']
+
 interface CommunityPost {
   id: number
   title: string
+  // 어느 게시판 글인지. 이 필드가 없던 시절 글은 전부 자유게시판으로 본다.
+  category: PostCategory
   // 작성자 카카오 회원번호. 화면에는 절대 내보내지 않고, 닉네임 조회와 본인 글 여부
   // 판별에만 쓴다.
   authorId: string
@@ -417,6 +434,8 @@ function mountCommunity(app: Mountable) {
       posts = (JSON.parse(await readFile(POSTS_FILE, 'utf-8')) as CommunityPost[]).map((p) => ({
         ...p,
         authorId: migrateId(p.authorId),
+        // 카테고리가 없던 시절 글은 자유게시판으로 본다.
+        category: p.category ?? 'free',
       }))
     } catch {
       posts = []
@@ -478,10 +497,13 @@ function mountCommunity(app: Mountable) {
         const viewer = await currentUser(req)
         const all = await loadPosts()
         const everyone = await loadUsers()
+        // ?category=question 이면 그 게시판만. 없거나 이상한 값이면 전체를 준다.
+        const cat = url.searchParams.get('category')
+        const filtered = POST_CATEGORIES.includes(cat as PostCategory) ? all.filter((p) => p.category === cat) : all
         sendJson(
           res,
           200,
-          [...all].sort((a, b) => b.createdAt - a.createdAt).map((p) => toPublicPost(p, viewer, everyone)),
+          [...filtered].sort((a, b) => b.createdAt - a.createdAt).map((p) => toPublicPost(p, viewer, everyone)),
         )
         return
       }
@@ -493,9 +515,13 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        const body = JSON.parse(await readBody(req)) as { title?: string; content?: string }
+        const body = JSON.parse(await readBody(req)) as { title?: string; content?: string; category?: string }
         const title = body.title?.trim()
         const content = body.content?.trim()
+        // 클라이언트가 보낸 카테고리를 그대로 믿되, 목록에 없는 값이면 자유로 떨어뜨린다.
+        const category: PostCategory = POST_CATEGORIES.includes(body.category as PostCategory)
+          ? (body.category as PostCategory)
+          : 'free'
         if (!title || !content) {
           sendJson(res, 400, { error: 'title and content are required' })
           return
@@ -512,6 +538,7 @@ function mountCommunity(app: Mountable) {
         const post: CommunityPost = {
           id: Date.now(),
           title,
+          category,
           // 작성자는 클라이언트가 보낸 값이 아니라 세션에서 가져온다. 아니면
           // 아무나 남의 닉네임을 사칭해 글을 쓸 수 있다.
           authorId: user.id,
@@ -1898,6 +1925,8 @@ function mountAuth(
 // 개발(vite)과 프로덕션(Express)이 똑같이 이걸 부른다. 여기 순서가 곧 라우팅
 // 순서이므로 양쪽이 갈리지 않는다 — 이 함수 하나만 유지하면 된다.
 export function mountApi(app: Mountable, env: ApiEnv) {
+  publicConfig = { openChatUrl: env.OPENCHAT_URL?.trim() || null }
+  mountConfig(app)
   adminIds = new Set(
     (env.ADMIN_KAKAO_IDS ?? '')
       .split(',')

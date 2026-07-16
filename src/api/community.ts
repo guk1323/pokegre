@@ -1,4 +1,13 @@
+export type PostCategory = "free" | "question" | "suggestion";
+
+export const CATEGORY_LABEL: Record<PostCategory, string> = {
+  free: "자유",
+  question: "질문",
+  suggestion: "건의",
+};
+
 export interface CommunityPost {
+  category: PostCategory;
   id: number;
   title: string;
   author: string;
@@ -26,8 +35,9 @@ export interface CommunityComment {
 
 export const LOGIN_REQUIRED = 'login_required';
 
-export async function fetchPosts(): Promise<CommunityPost[]> {
-  const res = await fetch('/api/local/community/posts');
+export async function fetchPosts(category?: PostCategory): Promise<CommunityPost[]> {
+  const qs = category ? `?category=${category}` : "";
+  const res = await fetch(`/api/local/community/posts${qs}`);
   if (!res.ok) throw new Error('게시글을 불러오지 못했습니다.');
   return res.json();
 }
@@ -39,7 +49,7 @@ export async function fetchPost(id: number): Promise<CommunityPost> {
 }
 
 // 작성자는 서버가 세션에서 가져오므로 보내지 않는다.
-export async function createPost(input: { title: string; content: string }): Promise<CommunityPost> {
+export async function createPost(input: { title: string; content: string; category: PostCategory }): Promise<CommunityPost> {
   const res = await fetch('/api/local/community/posts', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -128,4 +138,15 @@ export async function setCommentHidden(commentId: number, hidden: boolean): Prom
 export async function resetReportedNickname(reportId: number): Promise<void> {
   const res = await fetch(`/api/local/community/reports/${reportId}/reset-nickname`, { method: "POST" });
   if (!res.ok) throw new Error("닉네임을 초기화하지 못했습니다.");
+}
+
+// 화면에 공개해도 되는 서버 설정. 지금은 오픈톡 링크 하나뿐이다.
+export async function fetchAppConfig(): Promise<{ openChatUrl: string | null }> {
+  try {
+    const res = await fetch("/api/local/config");
+    if (!res.ok) return { openChatUrl: null };
+    return await res.json();
+  } catch {
+    return { openChatUrl: null };
+  }
 }

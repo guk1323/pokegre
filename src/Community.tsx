@@ -8,8 +8,11 @@ import {
   deletePost,
   reportPost,
   reportComment,
+  CATEGORY_LABEL,
+  fetchAppConfig,
   type CommunityPost,
   type CommunityComment,
+  type PostCategory,
 } from './api/community';
 
 async function handleReport(action: () => Promise<void>) {
@@ -90,6 +93,8 @@ function PostList({
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-black truncate">
+                    {/* "전체" 탭에서는 게시판이 섞이므로 앞에 말머리를 붙인다. */}
+                    <span className="mr-1 text-xs font-semibold text-neutral-500">[{CATEGORY_LABEL[post.category]}]</span>
                     {post.title}
                     {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
                   </p>
@@ -224,13 +229,19 @@ function PostDetail({
   );
 }
 
+// 글쓰기에서 고를 수 있는 게시판. "전체"는 실제 게시판이 아니라 목록 필터라 뺀다.
+const WRITABLE_CATEGORIES: PostCategory[] = ['free', 'question', 'suggestion'];
+
 function PostForm({
+  initialCategory,
   onCancel,
   onSubmit,
 }: {
+  initialCategory: PostCategory;
   onCancel: () => void;
-  onSubmit: (input: { title: string; content: string }) => Promise<void>;
+  onSubmit: (input: { title: string; content: string; category: PostCategory }) => Promise<void>;
 }) {
+  const [category, setCategory] = useState<PostCategory>(initialCategory);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -240,7 +251,7 @@ function PostForm({
     if (!title.trim() || !content.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({ title: title.trim(), content: content.trim() });
+      await onSubmit({ title: title.trim(), content: content.trim(), category });
     } finally {
       setSubmitting(false);
     }
@@ -250,6 +261,20 @@ function PostForm({
     <form onSubmit={handleSubmit}>
       <h2 className="text-base font-bold text-black mb-4">글쓰기</h2>
       <div className="space-y-3">
+        <div className="flex gap-1.5">
+          {WRITABLE_CATEGORIES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCategory(c)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                category === c ? 'bg-black text-white' : 'border border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              {CATEGORY_LABEL[c]}
+            </button>
+          ))}
+        </div>
         <input
           type="text"
           value={title}
@@ -283,25 +308,40 @@ function PostForm({
 
 type View = 'list' | 'detail' | 'write';
 
+// null = 전체 게시판. 특정 카테고리를 고르면 그 게시판만 본다.
+const CATEGORY_TABS: { key: PostCategory | null; label: string }[] = [
+  { key: null, label: '전체' },
+  { key: 'free', label: '자유' },
+  { key: 'question', label: '질문' },
+  { key: 'suggestion', label: '건의' },
+];
+
 export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onRequestLogin: () => void }) {
   const [view, setView] = useState<View>('list');
+  const [category, setCategory] = useState<PostCategory | null>(null);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<CommunityComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [openChatUrl, setOpenChatUrl] = useState<string | null>(null);
 
-  function loadPosts() {
+  useEffect(() => {
+    fetchAppConfig().then((c) => setOpenChatUrl(c.openChatUrl));
+  }, []);
+
+  function loadPosts(cat: PostCategory | null = category) {
     setPostsLoading(true);
-    fetchPosts()
+    fetchPosts(cat ?? undefined)
       .then(setPosts)
       .catch(() => undefined)
       .finally(() => setPostsLoading(false));
   }
 
   useEffect(() => {
-    loadPosts();
-  }, []);
+    loadPosts(category);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
 
   function openPost(id: number) {
     setView('detail');
@@ -313,10 +353,11 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
       .finally(() => setCommentsLoading(false));
   }
 
-  async function handleCreatePost(input: { title: string; content: string }) {
+  async function handleCreatePost(input: { title: string; content: string; category: PostCategory }) {
     const post = await createPost(input);
     setView('list');
-    loadPosts();
+    // 방금 쓴 글의 게시판으로 옮겨가 바로 보이게 한다.
+    setCategory(post.category);
     openPost(post.id);
   }
 
@@ -341,7 +382,10 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
   }
 
   if (view === 'write') {
-    return <PostForm onCancel={() => setView('list')} onSubmit={handleCreatePost} />;
+    // 지금 보던 게시판을 기본값으로. "전체"에서 눌렀으면 자유로 시작한다.
+    return (
+      <PostForm initialCategory={category ?? 'free'} onCancel={() => setView('list')} onSubmit={handleCreatePost} />
+    );
   }
 
   if (view === 'detail' && selectedPost) {
@@ -360,13 +404,50 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
   }
 
   return (
-    <PostList
-      posts={posts}
-      loading={postsLoading}
-      loggedIn={loggedIn}
-      onOpen={openPost}
-      onWrite={() => setView('write')}
-      onRequestLogin={onRequestLogin}
-    />
+    <div>
+      {/* 오픈톡 링크는 운영자가 .env에 넣었을 때만 뜬다. 실시간으로 묻고 답하기 좋은
+          창구라, 게시판보다 위에 눈에 띄게 둔다. */}
+      {openChatUrl && (
+        <a
+          href={openChatUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-[#03C75A]/30 bg-[#03C75A]/5 px-4 py-3"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-black">오픈채팅으로 문의하기</p>
+            <p className="text-xs text-neutral-500 mt-0.5">피드백·질문·버그 제보를 편하게 남겨주세요.</p>
+          </div>
+          <span className="flex-shrink-0 rounded-lg bg-[#03C75A] px-3 py-1.5 text-xs font-semibold text-white">
+            바로가기
+          </span>
+        </a>
+      )}
+
+      {/* 게시판 탭. 누르면 그 게시판 글만 다시 불러온다. */}
+      <div className="mb-4 flex gap-1.5 overflow-x-auto">
+        {CATEGORY_TABS.map((tab) => (
+          <button
+            key={tab.key ?? 'all'}
+            type="button"
+            onClick={() => setCategory(tab.key)}
+            className={`flex-shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${
+              category === tab.key ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <PostList
+        posts={posts}
+        loading={postsLoading}
+        loggedIn={loggedIn}
+        onOpen={openPost}
+        onWrite={() => setView('write')}
+        onRequestLogin={onRequestLogin}
+      />
+    </div>
   );
 }
