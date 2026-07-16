@@ -352,6 +352,9 @@ interface CommunityPost {
   createdAt: number
   // 마지막으로 고친 시각. 고친 적 없으면 없다. 화면에 "(수정됨)"을 붙이는 데만 쓴다.
   editedAt?: number
+  // 운영자가 공지로 고정한 시각. 고정한 글은 게시판과 무관하게 모든 목록 맨 위에
+  // "공지"로 뜬다. 안 고정했으면 없다.
+  pinnedAt?: number
   // 좋아요를 누른 회원번호 목록. 한 사람이 한 번만 누르게 하려면 누가 눌렀는지를
   // 알아야 한다. authorId와 마찬가지로 회원번호라 화면에는 개수만 내보내고 목록은
   // 절대 내보내지 않는다.
@@ -389,7 +392,7 @@ const HIDDEN_NOTICE = '신고로 가려진 글입니다.'
 function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
   // likedBy는 회원번호 목록이라 authorId와 마찬가지로 응답에서 빼고, 개수와 "내가
   // 눌렀는지"만 내보낸다.
-  const { authorId, hiddenAt, likedBy, ...rest } = post
+  const { authorId, hiddenAt, likedBy, pinnedAt, ...rest } = post
   const hidden = hiddenAt != null && !isAdmin(viewer)
   return {
     ...rest,
@@ -401,6 +404,7 @@ function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
     isHidden: hiddenAt != null,
     likeCount: likedBy.length,
     liked: viewer != null && likedBy.includes(viewer.id),
+    isPinned: pinnedAt != null,
   }
 }
 
@@ -512,11 +516,19 @@ function mountCommunity(app: Mountable) {
         const everyone = await loadUsers()
         // ?category=question 이면 그 게시판만. 없거나 이상한 값이면 전체를 준다.
         const cat = url.searchParams.get('category')
-        const filtered = POST_CATEGORIES.includes(cat as PostCategory) ? all.filter((p) => p.category === cat) : all
+        const inCategory = POST_CATEGORIES.includes(cat as PostCategory)
+          ? all.filter((p) => p.category === cat)
+          : all
+        // 공지(고정 글)는 게시판과 무관하게 늘 맨 위에 보여준다. 그래서 카테고리 필터와
+        // 별개로 전체에서 고정 글을 모아 앞에 붙이고, 나머지는 카테고리 안에서 최신순으로
+        // 잇는다. 이렇게 하면 자유게시판에 쓴 공지도 질문·건의 탭에서 똑같이 보인다.
+        const pinned = all.filter((p) => p.pinnedAt != null).sort((a, b) => b.pinnedAt! - a.pinnedAt!)
+        const pinnedIds = new Set(pinned.map((p) => p.id))
+        const rest = inCategory.filter((p) => !pinnedIds.has(p.id)).sort((a, b) => b.createdAt - a.createdAt)
         sendJson(
           res,
           200,
-          [...filtered].sort((a, b) => b.createdAt - a.createdAt).map((p) => toPublicPost(p, viewer, everyone)),
+          [...pinned, ...rest].map((p) => toPublicPost(p, viewer, everyone)),
         )
         return
       }
@@ -661,6 +673,33 @@ function mountCommunity(app: Mountable) {
         else post.likedBy.splice(i, 1)
         await persistPosts()
         sendJson(res, 200, { likeCount: post.likedBy.length, liked: i === -1 })
+        return
+      }
+
+      // POST /posts/:id/pin | /unpin — 운영자만. 공지로 고정하거나 해제한다.
+      if (
+        segments.length === 3 &&
+        segments[0] === 'posts' &&
+        (segments[2] === 'pin' || segments[2] === 'unpin') &&
+        req.method === 'POST'
+      ) {
+        const viewer = await currentUser(req)
+        if (!isAdmin(viewer)) {
+          // 운영자가 아니면 이 경로가 있다는 것 자체를 알려주지 않는다.
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        const id = Number(segments[1])
+        const all = await loadPosts()
+        const post = all.find((p) => p.id === id)
+        if (!post) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        if (segments[2] === 'pin') post.pinnedAt = Date.now()
+        else delete post.pinnedAt
+        await persistPosts()
+        sendJson(res, 200, toPublicPost(post, viewer, await loadUsers()))
         return
       }
 
@@ -1123,10 +1162,14 @@ function mountSearchTracker(app: Mountable) {
 }
 
 const PRICE_TRACKER_ORIGIN = 'https://www.pokemonpricetracker.com/api/v2'
-const PRICE_TRACKER_CACHE_TTL_MS = 6 * 60 * 60 * 1000
-// 응답은 화면용 필드만 추려서 작지만, TTL이 6시간이라 그만큼 오래 쌓인다.
-// 무료 티어가 하루 100건이라 어차피 이만큼 채울 일도 없다.
-const PRICE_TRACKER_MAX_ENTRIES = 200
+// 무료 티어가 하루 100건(전체 방문자 공용)이라, 캐시 적중률이 곧 eBay가 얼마나 오래
+// 살아있느냐다. TTL을 24시간으로 두면 같은 카드는 하루 한 번만 크레딧을 쓴다. 홍보로
+// 사람이 몰려 다들 같은 인기 카드를 볼 때, 첫 조회 한 번만 크레딧을 쓰고 나머지는
+// 저장된 값을 본다. eBay 낙찰가는 하루 안에 크게 안 흔들려 참고용으로 문제없다.
+const PRICE_TRACKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+// 서로 다른 카드가 그만큼 캐시에 남는다. 인기 카드가 200종을 넘겨 밀려나면 그 카드는
+// 다시 크레딧을 쓰므로, 하루치 인기 카드를 넉넉히 담도록 늘려둔다(shaped JSON이라 작다).
+const PRICE_TRACKER_MAX_ENTRIES = 500
 // 무료 요금제가 하루 100건이다. 한 사람이 시간당 20건이면 정상 사용에는 걸릴 일이
 // 없으면서, 혼자서 하루치를 태우려면 다섯 시간이 걸린다.
 const PRICE_TRACKER_RATE_LIMIT = 20

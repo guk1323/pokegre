@@ -584,7 +584,7 @@ function App() {
           {view === 'reports' ? (
             <ReportInbox />
           ) : view === 'community' ? (
-            <Community loggedIn={loggedIn} onRequestLogin={() => setLoginOpen(true)} />
+            <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'mypage' ? (
             <DetailLayout
               main={myPageMain}

@@ -20,6 +20,8 @@ export interface CommunityPost {
   // 좋아요 개수와, 지금 보는 사람이 눌렀는지. 누가 눌렀는지 목록은 서버가 주지 않는다.
   likeCount: number;
   liked: boolean;
+  // 운영자가 공지로 고정한 글. 모든 게시판 맨 위에 "공지"로 뜬다.
+  isPinned: boolean;
   commentCount: number;
   isMine: boolean;
   // 운영자가 가린 글. 운영자가 아닌 사람에게는 title·content가 이미 서버에서
@@ -89,6 +91,13 @@ export async function toggleLike(id: number): Promise<{ likeCount: number; liked
   const res = await fetch(`/api/local/community/posts/${id}/like`, { method: 'POST' });
   if (res.status === 401) throw new Error(LOGIN_REQUIRED);
   if (!res.ok) throw new Error('좋아요를 처리하지 못했습니다.');
+  return res.json();
+}
+
+// 공지 고정/해제. 운영자만 부를 수 있고, 아니면 서버가 404를 준다.
+export async function setPostPinned(id: number, pinned: boolean): Promise<CommunityPost> {
+  const res = await fetch(`/api/local/community/posts/${id}/${pinned ? 'pin' : 'unpin'}`, { method: 'POST' });
+  if (!res.ok) throw new Error('공지 설정을 변경하지 못했습니다.');
   return res.json();
 }
 

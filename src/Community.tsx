@@ -6,6 +6,7 @@ import {
   createPost,
   updatePost,
   toggleLike,
+  setPostPinned,
   createComment,
   deletePost,
   reportPost,
@@ -99,8 +100,12 @@ function PostList({
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-black truncate">
-                    {/* "전체" 탭에서는 게시판이 섞이므로 앞에 말머리를 붙인다. */}
-                    <span className="mr-1 text-xs font-semibold text-neutral-500">[{CATEGORY_LABEL[post.category]}]</span>
+                    {/* 공지(고정 글)는 게시판 말머리 대신 눈에 띄는 공지 배지를 앞에 단다. */}
+                    {post.isPinned ? (
+                      <span className="mr-1 rounded bg-[#2a78d6] px-1.5 py-0.5 text-[10px] font-bold text-white">공지</span>
+                    ) : (
+                      <span className="mr-1 text-xs font-semibold text-neutral-500">[{CATEGORY_LABEL[post.category]}]</span>
+                    )}
                     {post.title}
                     {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
                   </p>
@@ -122,23 +127,27 @@ function PostDetail({
   comments,
   commentsLoading,
   loggedIn,
+  isAdmin,
   onBack,
   onSubmitComment,
   onDelete,
   onEdit,
   onToggleLike,
+  onTogglePin,
   onRequestLogin,
 }: {
   post: CommunityPost;
   comments: CommunityComment[];
   commentsLoading: boolean;
   loggedIn: boolean;
+  isAdmin: boolean;
   onRequestLogin: () => void;
   onBack: () => void;
   onSubmitComment: (content: string) => Promise<void>;
   onDelete: () => void;
   onEdit: () => void;
   onToggleLike: () => void;
+  onTogglePin: () => void;
 }) {
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -162,8 +171,19 @@ function PostDetail({
       </button>
 
       <div className="flex items-start justify-between gap-3 mb-1">
-        <h2 className="text-lg font-bold text-black">{post.title}</h2>
+        <h2 className="text-lg font-bold text-black">
+          {post.isPinned && (
+            <span className="mr-1.5 align-middle rounded bg-[#2a78d6] px-1.5 py-0.5 text-xs font-bold text-white">공지</span>
+          )}
+          {post.title}
+        </h2>
         <div className="flex flex-shrink-0 gap-2">
+          {/* 운영자는 어느 글이든 공지로 올리거나 내릴 수 있다. */}
+          {isAdmin && (
+            <button type="button" onClick={onTogglePin} className="text-xs text-neutral-400 hover:text-[#2a78d6]">
+              {post.isPinned ? '공지 해제' : '공지 등록'}
+            </button>
+          )}
           {post.isMine ? (
             <>
               <button type="button" onClick={onEdit} className="text-xs text-neutral-400 hover:text-black">
@@ -357,7 +377,15 @@ const CATEGORY_TABS: { key: PostCategory | null; label: string }[] = [
   { key: 'suggestion', label: '건의' },
 ];
 
-export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onRequestLogin: () => void }) {
+export function Community({
+  loggedIn,
+  isAdmin,
+  onRequestLogin,
+}: {
+  loggedIn: boolean;
+  isAdmin: boolean;
+  onRequestLogin: () => void;
+}) {
   const [view, setView] = useState<View>('list');
   const [category, setCategory] = useState<PostCategory | null>(null);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -410,6 +438,18 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
     setCategory(updated.category);
     setView('detail');
     loadPosts(updated.category);
+  }
+
+  async function handleTogglePin() {
+    if (!selectedPost) return;
+    try {
+      const updated = await setPostPinned(selectedPost.id, !selectedPost.isPinned);
+      setSelectedPost(updated);
+      // 목록 순서(공지는 맨 위)가 바뀌므로 다시 불러온다.
+      loadPosts();
+    } catch {
+      window.alert('공지 설정을 변경하지 못했습니다.');
+    }
   }
 
   async function handleToggleLike() {
@@ -482,11 +522,13 @@ export function Community({ loggedIn, onRequestLogin }: { loggedIn: boolean; onR
         comments={comments}
         commentsLoading={commentsLoading}
         loggedIn={loggedIn}
+        isAdmin={isAdmin}
         onBack={() => setView('list')}
         onSubmitComment={handleCreateComment}
         onDelete={handleDeletePost}
         onEdit={() => setView('edit')}
         onToggleLike={handleToggleLike}
+        onTogglePin={handleTogglePin}
         onRequestLogin={onRequestLogin}
       />
     );
