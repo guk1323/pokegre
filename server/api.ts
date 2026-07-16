@@ -1185,6 +1185,8 @@ interface RawEbayGrade {
   minPrice?: number
   maxPrice?: number
   marketTrend?: string | null
+  // 이 등급의 마지막 낙찰 날짜(ISO). 표시 값이 얼마나 최신인지 알려준다.
+  lastSaleDate?: string | null
 }
 
 interface RawPriceTrackerCard {
@@ -1217,6 +1219,7 @@ interface ShapedEbayCard {
     minPrice: number
     maxPrice: number
     marketTrend: string | null
+    lastSaleDate: string | null
     // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
     history: { date: string; price: number }[]
   }[]
@@ -1260,6 +1263,7 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
             minPrice: stat.minPrice ?? 0,
             maxPrice: stat.maxPrice ?? 0,
             marketTrend: stat.marketTrend ?? null,
+            lastSaleDate: stat.lastSaleDate ?? null,
             history: shapeGradeHistory(history[grade]),
           }))
           .sort((a, b) => b.count - a.count),

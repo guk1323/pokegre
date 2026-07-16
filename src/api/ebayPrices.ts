@@ -14,13 +14,18 @@ export interface EbayGradeStat {
   minPrice: number;
   maxPrice: number;
   marketTrend: string | null;
+  // 이 등급의 마지막 낙찰 날짜(ISO). 표시 값이 얼마나 최신인지 알려준다. 없으면 null.
+  lastSaleDate: string | null;
   // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
   history: EbayGradePoint[];
 }
 
 export interface EbayCard {
   tcgPlayerId: string;
+  // 화면 표시용 한글 이름. nameEn은 이베이 검색 링크를 만들 원본 영문 이름이다
+  // (이베이 매물 제목이 영문이라 한글로 검색하면 안 잡힌다).
   name: string;
+  nameEn: string;
   setName: string;
   cardNumber: string | null;
   imageUrl: string;
@@ -79,6 +84,8 @@ export async function searchEbayCards(
   const json = (await res.json()) as { cards?: EbayCard[]; rawCount?: number };
   const cards = (json.cards ?? []).map((card) => ({
     ...card,
+    // 원본 영문 이름은 이베이 검색 링크용으로 남겨두고, 표시용 이름만 한글로 바꾼다.
+    nameEn: card.name,
     name: koreanizeEnglishCardName(card.name),
     setName: koreanizeEnglishSetName(card.setName),
   }));
@@ -90,4 +97,18 @@ export function formatGradeLabel(grade: string): string {
   const match = grade.match(/^([a-z]+)(\d+(?:\.\d+)?)$/i);
   if (!match) return grade.toUpperCase();
   return `${match[1].toUpperCase()} ${match[2]}`;
+}
+
+// 이베이의 "낙찰 완료(Sold)" 목록으로 바로 가는 검색 링크. PPT는 개별 낙찰 건을 주지
+// 않지만, 이베이 자체 페이지에서는 각 낙찰의 날짜·가격·상품 링크가 다 보인다. 등급을
+// 붙여 그 등급 낙찰만 걸러 보여준다(무등급은 등급어 없이). 매물 제목이 영문이라 영문
+// 이름으로 검색한다.
+export function ebaySoldUrl(nameEn: string, cardNumber: string | null, grade: string): string {
+  const gradeTerm = grade === 'ungraded' ? '' : formatGradeLabel(grade);
+  // PPT 이름에 카드 번호가 이미 들어있는 경우가 많아(예: "... -766/742"), 번호를 또
+  // 붙이면 검색어에 중복된다. 이미 있으면 생략한다.
+  const number = cardNumber && !nameEn.includes(cardNumber) ? cardNumber : '';
+  const query = [nameEn, number, gradeTerm].filter(Boolean).join(' ');
+  const params = new URLSearchParams({ _nkw: query, LH_Sold: '1', LH_Complete: '1' });
+  return `https://www.ebay.com/sch/i.html?${params.toString()}`;
 }
