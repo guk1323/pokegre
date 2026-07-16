@@ -562,7 +562,23 @@ function App() {
           <div className="px-4 py-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-xl font-extrabold text-black tracking-tight">pokegre</h1>
+                {/* 로고를 누르면 처음 화면(카드 시세 홈)으로. 검색·선택을 비우고 맨 위로
+                    올린다. 사이트 아무 데서나 "처음으로" 돌아오는 흔한 길이다. */}
+                <h1 className="text-xl font-extrabold text-black tracking-tight">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setView('cards');
+                      setQuery('');
+                      setSelectedId(null);
+                      setEbaySelectedId(null);
+                      window.scrollTo({ top: 0 });
+                    }}
+                    className="hover:opacity-70"
+                  >
+                    pokegre
+                  </button>
+                </h1>
                 {/* 좁은 화면에서는 가운뎃점(·)에서 줄이 어중간하게 끊겨 지저분하다.
                     작은 화면은 두 줄로 깔끔하게 나누고, 넓은 화면에서만 한 줄로 잇는다. */}
                 <p className="text-sm text-neutral-500 mt-1">

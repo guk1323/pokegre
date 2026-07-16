@@ -29,7 +29,7 @@ export function SearchBar({
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
-        placeholder="카드명(한글/일본어) 또는 팩 이름으로 검색... 예: 피카츄, リザードン"
+        placeholder="카드명(한글·영어·일본어) 또는 팩 이름으로 검색... 예: 피카츄, Charizard, リザードン"
         className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-10 pr-4 text-sm text-black placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black"
       />
       {children}
