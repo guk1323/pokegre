@@ -1459,6 +1459,29 @@ function mountTranslationFeedback(app: Mountable) {
       }
       return
     }
+    // DELETE — 운영자가 처리 끝난 신고를 지운다({at}으로 하나) 또는 전체 비우기({all:true}).
+    if (req.method === 'DELETE') {
+      const viewer = await currentUser(req)
+      if (!isAdmin(viewer)) {
+        res.statusCode = 404
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ error: 'not found' }))
+        return
+      }
+      try {
+        const b = JSON.parse(await readBody(req)) as { at?: number; all?: boolean }
+        const all = await load()
+        items = b.all ? [] : all.filter((x) => x.at !== b.at)
+        await mkdir(path.dirname(TRANSLATION_FEEDBACK_FILE), { recursive: true })
+        await writeFile(TRANSLATION_FEEDBACK_FILE, JSON.stringify(items))
+        res.statusCode = 204
+        res.end()
+      } catch {
+        res.statusCode = 400
+        res.end()
+      }
+      return
+    }
     // GET — 운영자만. 아니면 이 경로가 있다는 것 자체를 안 알려준다.
     const viewer = await currentUser(req)
     if (!isAdmin(viewer)) {

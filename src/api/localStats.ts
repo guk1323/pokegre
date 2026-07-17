@@ -83,3 +83,23 @@ export async function fetchTitleFeedback(): Promise<TitleFeedback[]> {
   const data = (await res.json()) as { items?: TitleFeedback[] };
   return data.items ?? [];
 }
+
+// 처리 끝난 신고 하나를 지운다(운영자만).
+export async function deleteTitleFeedback(at: number): Promise<void> {
+  const res = await fetch('/api/local/translation-feedback', {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ at }),
+  });
+  if (!res.ok) throw new Error('삭제하지 못했습니다.');
+}
+
+// 신고 목록을 전부 비운다(운영자만).
+export async function clearTitleFeedback(): Promise<void> {
+  const res = await fetch('/api/local/translation-feedback', {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ all: true }),
+  });
+  if (!res.ok) throw new Error('비우지 못했습니다.');
+}
