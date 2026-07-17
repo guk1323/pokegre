@@ -15,7 +15,7 @@ primary_region = "nrt"
   POKEGRE_DATA_DIR = "/data"
   # 카카오에 넘길 redirect_uri의 기준. 앱 이름이나 도메인이 바뀌면 여기도 바꾸고
   # 카카오 개발자 콘솔에도 같은 주소를 등록해야 한다.
-  PUBLIC_ORIGIN = "https://pokegre.fly.dev"
+  PUBLIC_ORIGIN = "https://pokegre.com"
 
 [http_service]
   internal_port = 3000
