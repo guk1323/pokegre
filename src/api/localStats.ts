@@ -53,6 +53,16 @@ export interface VisitStatsResponse {
   memberCount: number;
 }
 
+// 검색어 번역(한글→일본어/영어)이 틀렸을 때 사용자가 알려주는 신고. 원문과 번역
+// 결과만 보낸다(개인정보 없음). 실패해도 조용히 무시한다(부가 기능).
+export function reportTranslationMiss(original: string, translated: string): void {
+  fetch('/api/local/translation-feedback', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ original, translated }),
+  }).catch(() => undefined);
+}
+
 // 운영자만 부를 수 있다. 아니면 서버가 404를 준다.
 export async function fetchVisitStats(): Promise<VisitStatsResponse> {
   const res = await fetch('/api/local/visit-stats');

@@ -951,6 +951,9 @@ const VISIT_STATS_FILE = dataFile('visit-stats.json')
 const SCAN_FEEDBACK_FILE = dataFile('scan-feedback.json')
 // 스캔 오류 신고는 최근 것 위주로만 남긴다(프롬프트 튜닝 참고용이라 오래된 건 불필요).
 const MAX_SCAN_FEEDBACK = 300
+const TRANSLATION_FEEDBACK_FILE = dataFile('translation-feedback.json')
+// 번역 오류 신고도 사전(translateQuery) 보정 참고용이라 최근 것만 남긴다.
+const MAX_TRANSLATION_FEEDBACK = 300
 // 방문 통계는 날짜별 숫자만 400일치 남긴다. IP·기기 정보는 저장하지 않는다.
 const VISIT_KEEP_DAYS = 400
 const MAX_TRACKED_TERMS = 500
@@ -1389,6 +1392,65 @@ function mountScanFeedback(app: Mountable) {
         if (all.length > MAX_SCAN_FEEDBACK) all.splice(0, all.length - MAX_SCAN_FEEDBACK)
         await mkdir(path.dirname(SCAN_FEEDBACK_FILE), { recursive: true })
         await writeFile(SCAN_FEEDBACK_FILE, JSON.stringify(items))
+        res.statusCode = 204
+        res.end()
+      } catch {
+        res.statusCode = 400
+        res.end()
+      }
+      return
+    }
+    // GET — 운영자만. 아니면 이 경로가 있다는 것 자체를 안 알려준다.
+    const viewer = await currentUser(req)
+    if (!isAdmin(viewer)) {
+      res.statusCode = 404
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: 'not found' }))
+      return
+    }
+    const all = await load()
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ items: [...all].reverse() }))
+  })
+}
+
+// 검색어 번역(한글→일본어/영어)이 틀렸을 때 사용자가 알려주는 창구. 원문과 번역 결과만
+// 남긴다(개인정보 없음). 이 기록으로 사전(translateQuery)에서 자주 틀리는 단어를 보고
+// 매핑을 보태거나 고친다.
+function mountTranslationFeedback(app: Mountable) {
+  let items: { original: string; translated: string; at: number }[] | null = null
+  const allow = rateLimiter(20, 60 * 1000)
+
+  async function load() {
+    if (items) return items
+    try {
+      items = JSON.parse(await readFile(TRANSLATION_FEEDBACK_FILE, 'utf-8'))
+    } catch {
+      items = []
+    }
+    return items!
+  }
+
+  app.use('/api/local/translation-feedback', async (req, res) => {
+    if (req.method === 'POST') {
+      if (!allow(req)) {
+        tooManyRequests(res)
+        return
+      }
+      try {
+        const b = JSON.parse(await readBody(req)) as { original?: string; translated?: string }
+        const original = (b.original ?? '').slice(0, 80)
+        if (!original.trim()) {
+          res.statusCode = 400
+          res.end()
+          return
+        }
+        const all = await load()
+        all.push({ original, translated: (b.translated ?? '').slice(0, 80), at: Date.now() })
+        if (all.length > MAX_TRANSLATION_FEEDBACK) all.splice(0, all.length - MAX_TRANSLATION_FEEDBACK)
+        await mkdir(path.dirname(TRANSLATION_FEEDBACK_FILE), { recursive: true })
+        await writeFile(TRANSLATION_FEEDBACK_FILE, JSON.stringify(items))
         res.statusCode = 204
         res.end()
       } catch {
@@ -2319,6 +2381,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountSearchTracker(app)
   mountVisitStats(app)
   mountScanFeedback(app)
+  mountTranslationFeedback(app)
   mountKoreanNews(app)
   mountExchangeRate(app)
   mountCommunity(app)

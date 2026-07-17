@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
-import { fetchPopularSearches, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
+import { fetchPopularSearches, reportTranslationMiss, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
@@ -92,6 +92,10 @@ function App() {
   // 방금 스캔한 결과. "이 카드 아니에요" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
   const [scannedResult, setScannedResult] = useState<CardScanResult | null>(null);
   const [scanReported, setScanReported] = useState(false);
+  const [translationReported, setTranslationReported] = useState(false);
+  // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
+  // 오타·타이핑 조각이 순위에 끼는 걸 막는 데 쓴다(집계 시점에 최신값을 참조).
+  const searchResultRef = useRef<{ query: string; count: number }>({ query: '', count: 0 });
   const [items, setItems] = useState<SnkrdunkCard[]>([]);
   const [lastPage, setLastPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -263,6 +267,7 @@ function App() {
       fetchMoreUniqueCards(trimmed, 1, new Set(), INITIAL_TARGET)
         .then(({ items, lastPage, exhausted }) => {
           setItems(items);
+          searchResultRef.current = { query: trimmed, count: items.length };
           setLastPage(lastPage);
           setExhausted(exhausted);
           // 이미 고른 카드가 새 결과에도 있으면 유지하고, 없으면 큰 화면에서만 첫
@@ -296,6 +301,7 @@ function App() {
       searchEbayCards(trimmed, edition)
         .then(({ cards, hasMore }) => {
           setEbayItems(cards);
+          searchResultRef.current = { query: trimmed, count: cards.length };
           setEbayOffset(EBAY_PAGE_SIZE);
           setEbayHasMore(hasMore);
           setEbaySelectedId((prev) =>
@@ -331,6 +337,11 @@ function App() {
     if (!trimmed) return;
 
     const timer = setTimeout(() => {
+      // 결과가 실제로 나온 검색어만 집계한다. 오타·존재하지 않는 카드처럼 결과가 0인
+      // 문자열이 인기 검색어를 오염시키는 걸 막는다. 검색(350·600ms)은 1500ms 전에
+      // 끝나므로 이 시점의 ref는 지금 검색어의 결과를 담고 있다.
+      const r = searchResultRef.current;
+      if (r.query !== trimmed || r.count === 0) return;
       trackSearch(canonicalizeSearchTerm(trimmed));
       loadPopularSearches();
     }, 1500);
@@ -670,6 +681,8 @@ function App() {
                         setQuery(v);
                         // 직접 타이핑하면 방금 스캔 맥락은 끝난 것 — 신고 링크를 거둔다.
                         setScannedResult(null);
+                        // 검색어가 바뀌면 번역도 새로 되므로 신고 상태를 초기화한다.
+                        setTranslationReported(false);
                       }}
                       onFocus={() => setSuggestionsOpen(true)}
                       onBlur={() => setSuggestionsOpen(false)}
@@ -693,7 +706,21 @@ function App() {
                 </div>
                 {showTranslationHint && (
                   <p className="text-xs text-neutral-400 mt-2">
-                    '{query.trim()}' → '{translatedQuery}'로 검색했습니다.
+                    '{query.trim()}' → '{translatedQuery}'로 검색했습니다.{' '}
+                    {translationReported ? (
+                      <span className="text-neutral-500">알려주셔서 감사해요!</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          reportTranslationMiss(query.trim(), translatedQuery);
+                          setTranslationReported(true);
+                        }}
+                        className="font-semibold text-[#2a78d6] hover:underline"
+                      >
+                        번역이 이상해요
+                      </button>
+                    )}
                   </p>
                 )}
                 {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}

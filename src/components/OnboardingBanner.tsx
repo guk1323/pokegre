@@ -5,7 +5,7 @@ import { useState } from 'react';
 //
 // 한 번 닫으면 다시 안 뜬다. 닫았다는 사실만 브라우저에 남기고(회원정보와 무관),
 // 안내 문구를 바꿔 다시 보여주고 싶을 때를 위해 버전을 키에 붙인다.
-const DISMISS_KEY = 'pokegre_onboarding_dismissed_v1';
+const DISMISS_KEY = 'pokegre_onboarding_dismissed_v2';
 
 function alreadyDismissed(): boolean {
   try {
@@ -43,7 +43,10 @@ export function OnboardingBanner() {
       <ul className="mt-2 space-y-1.5 text-sm text-neutral-600">
         <li>
           <span className="font-semibold text-neutral-800">카드 이름</span>을 검색하면 일본 실거래가(스니덩크)와 이베이
-          등급별 낙찰가를 한눈에 볼 수 있어요.
+          등급별 낙찰가를 한눈에 볼 수 있어요. 한글·영어·일본어 다 돼요.
+        </li>
+        <li>
+          이름을 모르겠으면 <span className="font-semibold text-neutral-800">📷 카드 사진</span>을 찍어서 검색할 수도 있어요.
         </li>
         <li>
           마음에 드는 카드는 <span className="font-semibold text-neutral-800">북마크</span>로 저장하고,{' '}
