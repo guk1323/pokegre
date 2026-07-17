@@ -6,6 +6,9 @@ export type ProductCategory = 'box' | 'card' | 'other';
 export interface SnkrdunkCard {
   apparelId: number;
   title: string;
+  // 한글화 전 원본(일본어) 제목. 이름 오류 신고에 함께 보내, 운영자 화면에서 최신
+  // 사전으로 다시 변환해 "지금 이름"을 확인하는 데 쓴다.
+  rawTitle?: string;
   imageUrl: string;
   price: number;
   stock: number;
@@ -146,18 +149,19 @@ export async function resolveStoredCards(refs: StoredCardRef[]): Promise<Snkrdun
   const details = await Promise.all(refs.map((ref) => fetchApparelDetail(ref.apparelId).catch(() => null)));
 
   return refs
-    .map((ref, i) => {
+    .map((ref, i): SnkrdunkCard | null => {
       const detail = details[i];
       if (!detail) return null;
       return {
         apparelId: ref.apparelId,
         title: koreanizeTitle(detail.title),
+        rawTitle: detail.title,
         imageUrl: detail.imageUrl,
         price: detail.price,
         stock: detail.stock,
         link: `https://snkrdunk.com/apparels/${ref.apparelId}`,
         category: ref.category,
-      } satisfies SnkrdunkCard;
+      };
     })
     .filter((card): card is SnkrdunkCard => card !== null);
 }
@@ -166,10 +170,11 @@ async function enrichWithCleanImages(cards: SnkrdunkCard[]): Promise<SnkrdunkCar
   const details = await Promise.all(cards.map((card) => fetchApparelDetail(card.apparelId).catch(() => null)));
   return cards.map((card, i) => {
     const detail = details[i];
-    if (!detail) return { ...card, title: koreanizeTitle(card.title) };
+    if (!detail) return { ...card, title: koreanizeTitle(card.title), rawTitle: card.title };
     return {
       ...card,
       title: koreanizeTitle(detail.title || card.title),
+      rawTitle: detail.title || card.title,
       imageUrl: detail.imageUrl || card.imageUrl,
       price: detail.price || card.price,
       stock: detail.stock || card.stock,

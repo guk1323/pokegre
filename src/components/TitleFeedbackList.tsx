@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { clearTitleFeedback, deleteTitleFeedback, fetchTitleFeedback, type TitleFeedback } from '../api/localStats';
+import { koreanizeTitle } from '../lib/koreanizeTitle';
 
 // 운영자만 보는, 카드 이름 한글화 신고 목록. 화면에 보였던 제목과 원본 링크를 함께 보여줘,
 // 링크로 실제 일본어 이름을 확인하고 koreanizeTitle 사전을 보탤 수 있게 한다. 처리 끝난
@@ -70,10 +71,22 @@ export function TitleFeedbackList() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {items.map((item, i) => (
+          {items.map((item, i) => {
+            // 원본이 있으면 최신 사전으로 다시 변환한 "지금 이름"을 보여준다. 신고 당시
+            // 이름과 다르면 고쳐진 것이고, 같으면 아직 그대로다.
+            const now = item.raw ? koreanizeTitle(item.raw) : item.title;
+            const fixed = !!item.raw && now !== item.title;
+            return (
             <li key={`${item.at}-${i}`} className="rounded-xl border border-neutral-200 p-3">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-black break-words">{item.title}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-black break-words">{now}</p>
+                  {fixed ? (
+                    <p className="mt-0.5 text-xs text-neutral-400 break-words line-through">{item.title}</p>
+                  ) : (
+                    item.raw && <p className="mt-0.5 text-[11px] font-semibold text-amber-600">아직 그대로예요</p>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => handleDelete(item.at)}
@@ -97,7 +110,8 @@ export function TitleFeedbackList() {
                 )}
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

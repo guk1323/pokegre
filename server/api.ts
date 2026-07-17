@@ -1419,7 +1419,7 @@ function mountScanFeedback(app: Mountable) {
 // 창구. 화면에 보인 제목과 원본 링크만 남긴다(개인정보 없음). 이 기록으로 koreanizeTitle
 // 사전에서 고칠 단어를 보고 매핑을 보탠다. 원본 링크로 실제 일본어 이름을 확인할 수 있다.
 function mountTranslationFeedback(app: Mountable) {
-  let items: { title: string; link: string; at: number }[] | null = null
+  let items: { title: string; raw: string; link: string; at: number }[] | null = null
   const allow = rateLimiter(20, 60 * 1000)
 
   async function load() {
@@ -1439,7 +1439,7 @@ function mountTranslationFeedback(app: Mountable) {
         return
       }
       try {
-        const b = JSON.parse(await readBody(req)) as { title?: string; link?: string }
+        const b = JSON.parse(await readBody(req)) as { title?: string; raw?: string; link?: string }
         const title = (b.title ?? '').slice(0, 120)
         if (!title.trim()) {
           res.statusCode = 400
@@ -1447,7 +1447,7 @@ function mountTranslationFeedback(app: Mountable) {
           return
         }
         const all = await load()
-        all.push({ title, link: (b.link ?? '').slice(0, 200), at: Date.now() })
+        all.push({ title, raw: (b.raw ?? '').slice(0, 200), link: (b.link ?? '').slice(0, 200), at: Date.now() })
         if (all.length > MAX_TRANSLATION_FEEDBACK) all.splice(0, all.length - MAX_TRANSLATION_FEEDBACK)
         await mkdir(path.dirname(TRANSLATION_FEEDBACK_FILE), { recursive: true })
         await writeFile(TRANSLATION_FEEDBACK_FILE, JSON.stringify(items))

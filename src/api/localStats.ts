@@ -53,13 +53,15 @@ export interface VisitStatsResponse {
   memberCount: number;
 }
 
-// 카드 제목·시리즈명 한글화가 이상할 때 사용자가 알려주는 신고. 화면에 보인 제목과
-// 원본(스니커덩크) 링크만 보낸다(개인정보 없음). 실패해도 조용히 무시한다(부가 기능).
-export function reportCardTitleMiss(title: string, link: string): void {
+// 카드 제목·시리즈명 한글화가 이상할 때 사용자가 알려주는 신고. 화면에 보인 제목,
+// 한글화 전 원본(일본어) 제목, 원본 링크를 보낸다(개인정보 없음). 원본 제목은 운영자
+// 화면에서 최신 사전으로 다시 변환해 "지금 이름"을 보여주는 데 쓴다. 실패해도 조용히
+// 무시한다(부가 기능).
+export function reportCardTitleMiss(title: string, raw: string, link: string): void {
   fetch('/api/local/translation-feedback', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ title, link }),
+    body: JSON.stringify({ title, raw, link }),
   }).catch(() => undefined);
 }
 
@@ -72,6 +74,9 @@ export async function fetchVisitStats(): Promise<VisitStatsResponse> {
 
 export interface TitleFeedback {
   title: string;
+  // 한글화 전 원본(일본어) 제목. 최신 사전으로 다시 변환해 "지금 이름"을 보여준다.
+  // 이 필드가 추가되기 전의 옛 신고엔 없을 수 있다.
+  raw?: string;
   link: string;
   at: number;
 }

@@ -99,7 +99,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
         <button
           type="button"
           onClick={() => {
-            reportCardTitleMiss(card.title, card.link);
+            reportCardTitleMiss(card.title, card.rawTitle ?? card.title, card.link);
             setTitleReported(true);
           }}
           className="mb-4 text-[11px] text-neutral-400 underline hover:text-neutral-600"
