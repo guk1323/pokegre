@@ -36,8 +36,16 @@ export function CardTile({
         매물 {card.stock.toLocaleString()}개
         {card.favoriteCount !== undefined && ` · 찜 ${card.favoriteCount.toLocaleString()}`}
       </p>
-      <p className="text-base font-bold text-black">{yen.format(card.price)}</p>
-      <KrwHint amount={card.price} currency="jpy" />
+      {/* 매물이 없으면 가격이 0/NaN으로 와서 "￥NaN"처럼 깨져 보인다. 그럴 땐 시세를
+          숨기고 안내만 남긴다. */}
+      {Number.isFinite(card.price) && card.price > 0 ? (
+        <>
+          <p className="text-base font-bold text-black">{yen.format(card.price)}</p>
+          <KrwHint amount={card.price} currency="jpy" />
+        </>
+      ) : (
+        <p className="text-sm font-semibold text-neutral-400">시세 없음</p>
+      )}
     </button>
   );
 }
