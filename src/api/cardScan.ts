@@ -4,6 +4,8 @@ export interface CardScanResult {
   // 이베이 양쪽에서 다 찾히는 "공용 열쇠"라, 이걸로 검색하면 어느 소스든 좁혀진다.
   pokemonNameEn?: string;
   cardNumber?: string | null;
+  // 세트 코드(M4 등). 언어와 무관해서 SNKRDUNK 검색의 확실한 열쇠다(번호와 함께).
+  setCode?: string | null;
   // 'japanese' = 일본어/한국어 카드(SNKRDUNK·이베이 일본판), 'english' = 북미판(이베이).
   edition?: 'japanese' | 'english';
 }

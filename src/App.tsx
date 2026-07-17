@@ -669,15 +669,15 @@ function App() {
                       {suggestionsOpen && <SearchSuggestions items={suggestions} onSelect={handleSelectSuggestion} />}
                     </SearchBar>
                   </div>
-                  {/* 스캔 결과(영어 이름+번호)는 SNKRDUNK·이베이 양쪽에서 다 찾힌다. 다만
-                      북미판(영문) 카드는 SNKRDUNK에 없으니 이베이로 보내고, 일본어·한국어
-                      카드는 지금 보던 소스를 그대로 둔다(둘 다 그 카드를 찾음). 이베이에서
-                      찾을 땐 발매판(일본판/북미판)을 스캔이 판단한 대로 맞춰준다. */}
+                  {/* 북미판(영문) 카드는 SNKRDUNK에 없으니 이베이로 보내고, 일본어·한국어
+                      카드는 지금 보던 소스를 유지한다. 소스에 맞는 검색어를 고른다 —
+                      SNKRDUNK는 세트+번호(확실), 이베이는 영어 이름+번호. */}
                   <CardScanButton
-                    onResult={(query, ed) => {
+                    onResult={({ snkrdunk, ebay, edition: ed }) => {
+                      const target = ed === 'english' ? 'ebay' : source;
                       setEdition(ed);
-                      if (ed === 'english') setSource('ebay');
-                      setQuery(query);
+                      setSource(target);
+                      setQuery(target === 'ebay' ? ebay : snkrdunk);
                     }}
                   />
                 </div>

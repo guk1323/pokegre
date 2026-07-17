@@ -4,7 +4,9 @@ import { scanCard } from '../api/cardScan';
 export function CardScanButton({
   onResult,
 }: {
-  onResult: (query: string, edition: 'japanese' | 'english') => void;
+  // 소스별로 다른 검색어를 준다. SNKRDUNK는 언어 무관한 "세트+번호"라 항상 확실하고,
+  // 이베이는 영어 이름이 필요하다. App이 소스에 맞춰 고른다.
+  onResult: (q: { snkrdunk: string; ebay: string; edition: 'japanese' | 'english' }) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -19,16 +21,19 @@ export function CardScanButton({
     setError(null);
     try {
       const result = await scanCard(file);
-      // "영어 이름 + 번호"는 SNKRDUNK(영어→일본카드로 연결)와 이베이(영어 색인) 양쪽에서
-      // 똑같이 그 카드 한 장으로 좁혀지는 공용 열쇠다. 그래서 소스와 무관하게 이걸로 찾는다.
-      // (일본 세트코드는 이베이에서 안 먹혀서 안 쓴다.) 번호를 못 읽었으면 이름만으로 후보를
-      // 좁혀 사용자가 고른다.
-      const query = result.found
-        ? [result.pokemonNameEn, result.cardNumber].filter(Boolean).join(' ')
-        : '';
-      if (query) {
-        // 'english'만 북미판으로 보고, 그 외(japanese·korean·빈값)는 전부 일본판 시장으로.
-        onResult(query, result.edition === 'english' ? 'english' : 'japanese');
+      if (!result.found) {
+        setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
+        return;
+      }
+      // SNKRDUNK: "세트+번호"(예: M4 086/083)는 언어와 무관해 이름 오독에도 안 흔들리고
+      // 그 카드 한 장으로 좁혀진다. 이베이: 영어 색인이라 영어 이름+번호가 필요하다.
+      // 번호를 못 읽었으면 둘 다 영어 이름만으로 후보를 좁혀 사용자가 고른다.
+      const num = result.cardNumber;
+      const snkrdunk = num ? [result.setCode, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
+      const ebay = num ? [result.pokemonNameEn, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
+      if (snkrdunk || ebay) {
+        // 'english'만 북미판으로, 그 외(japanese·korean 등)는 전부 일본판 시장으로.
+        onResult({ snkrdunk, ebay, edition: result.edition === 'english' ? 'english' : 'japanese' });
       } else {
         setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
       }
