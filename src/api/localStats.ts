@@ -53,13 +53,13 @@ export interface VisitStatsResponse {
   memberCount: number;
 }
 
-// 검색어 번역(한글→일본어/영어)이 틀렸을 때 사용자가 알려주는 신고. 원문과 번역
-// 결과만 보낸다(개인정보 없음). 실패해도 조용히 무시한다(부가 기능).
-export function reportTranslationMiss(original: string, translated: string): void {
+// 카드 제목·시리즈명 한글화가 이상할 때 사용자가 알려주는 신고. 화면에 보인 제목과
+// 원본(스니커덩크) 링크만 보낸다(개인정보 없음). 실패해도 조용히 무시한다(부가 기능).
+export function reportCardTitleMiss(title: string, link: string): void {
   fetch('/api/local/translation-feedback', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ original, translated }),
+    body: JSON.stringify({ title, link }),
   }).catch(() => undefined);
 }
 

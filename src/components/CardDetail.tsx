@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { KrwHint } from './KrwHint';
+import { reportCardTitleMiss } from '../api/localStats';
 import {
   fetchConditionPrices,
   fetchPriceHistory,
@@ -24,6 +25,8 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   const [range, setRange] = useState<PriceRange>('all');
   // '' = 아직 등급 목록을 못 받았거나(첫 조회) 등급이 없는 상품(박스)
   const [condition, setCondition] = useState('');
+  // 카드 이름(한글화) 오류 신고를 한 번 누르면 감사 문구로 바꾼다.
+  const [titleReported, setTitleReported] = useState(false);
   // 수량은 항상 1개(1장)로 고정한다. 사용자가 고를 일이 없고("10박스 묶음 시세"를
   // 보고 싶은 사람은 없다), 안 고정하면 박스 시세가 묶음 총액과 섞여 부풀려진다.
   const [variantId, setVariantId] = useState<number | null>(null);
@@ -47,6 +50,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     setRange('all');
     setCondition('');
     setVariantId(null);
+    setTitleReported(false);
   }, [card.apparelId]);
 
   useEffect(() => {
@@ -83,10 +87,26 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       </div>
 
       <h2 className="text-base font-bold text-black mb-1">{card.title}</h2>
-      <p className="text-xs text-neutral-400 mb-4">
+      <p className="text-xs text-neutral-400 mb-1">
         매물 {card.stock.toLocaleString()}개
         {card.favoriteCount !== undefined && ` · 찜 ${card.favoriteCount.toLocaleString()}`}
       </p>
+      {/* 카드 이름 한글화가 이상하면(예: 파미리마토→패밀리마트) 사용자가 알려준다.
+          화면에 보인 제목과 원본 링크만 보내고, 사진·개인정보는 안 보낸다. */}
+      {titleReported ? (
+        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사해요! 이름을 고칠게요.</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            reportCardTitleMiss(card.title, card.link);
+            setTitleReported(true);
+          }}
+          className="mb-4 text-[11px] text-neutral-400 underline hover:text-neutral-600"
+        >
+          카드 이름이 이상한가요?
+        </button>
+      )}
 
       <div className="rounded-lg bg-neutral-50 p-4 mb-4">
         <p className="text-xs text-neutral-400 mb-1">현재 최저가 (SNKRDUNK)</p>
