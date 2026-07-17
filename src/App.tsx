@@ -213,6 +213,39 @@ function App() {
     }
   }, []);
 
+  // 처음 화면(카드 시세 홈)으로. 검색·선택·화면을 비우고 맨 위로 올린다.
+  const goHome = () => {
+    setView('cards');
+    setQuery('');
+    setSelectedId(null);
+    setEbaySelectedId(null);
+    setInterestSelectedId(null);
+    window.scrollTo({ top: 0 });
+  };
+  const goHomeRef = useRef(goHome);
+  goHomeRef.current = goHome;
+
+  // 안드로이드 뒤로가기(제스처·물리 버튼)로 사이트를 통째로 나가버리는 걸 막는다.
+  // 검색 중이거나 홈이 아닌 화면(커뮤니티·마이페이지 등)에 있을 때 뒤로가기를 누르면,
+  // 사이트를 벗어나는 대신 홈으로 돌아오게 한다. 홈에서는 가드가 없어 정상적으로 나간다.
+  // 폰의 카드 상세 시트(DetailSheet)는 자체적으로 뒤로가기를 처리하는데, 시트는 이 가드
+  // 위에 쌓이므로(검색→카드 탭 순서) 뒤로가기 한 번은 시트만 닫고, 그다음이 홈 복귀다.
+  // 시트가 최상단일 때는 history.state.appDeep가 아직 남아 있어 이 핸들러가 넘긴다.
+  const isDeep = view !== 'cards' || query.trim() !== '';
+  useEffect(() => {
+    if (!isDeep) return;
+    const onPop = () => {
+      if (window.history.state?.appDeep) return;
+      goHomeRef.current();
+    };
+    window.history.pushState({ appDeep: true }, '');
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      if (window.history.state?.appDeep) window.history.back();
+    };
+  }, [isDeep]);
+
   async function handleLogout() {
     await logout();
     setLoggedIn(false);
@@ -580,17 +613,7 @@ function App() {
                 {/* 로고를 누르면 처음 화면(카드 시세 홈)으로. 검색·선택을 비우고 맨 위로
                     올린다. 사이트 아무 데서나 "처음으로" 돌아오는 흔한 길이다. */}
                 <h1 className="text-xl font-extrabold text-black tracking-tight">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setView('cards');
-                      setQuery('');
-                      setSelectedId(null);
-                      setEbaySelectedId(null);
-                      window.scrollTo({ top: 0 });
-                    }}
-                    className="hover:opacity-70"
-                  >
+                  <button type="button" onClick={goHome} className="hover:opacity-70">
                     pokegre
                   </button>
                 </h1>
