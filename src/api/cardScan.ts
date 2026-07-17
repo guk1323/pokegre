@@ -36,3 +36,18 @@ export async function scanCard(file: File): Promise<CardScanResult> {
   if (!res.ok) throw new Error('카드 인식에 실패했습니다.');
   return (await res.json()) as CardScanResult;
 }
+
+// 스캔이 틀렸을 때 사용자가 알려주는 신고. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다.
+// 실패해도 조용히 무시한다(부가 기능이라 사용자를 막을 이유가 없다).
+export function reportScanMiss(result: CardScanResult): void {
+  fetch('/api/local/scan-feedback', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: result.pokemonNameEn,
+      number: result.cardNumber,
+      setCode: result.setCode,
+      edition: result.edition,
+    }),
+  }).catch(() => undefined);
+}

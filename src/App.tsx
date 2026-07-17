@@ -27,6 +27,7 @@ import { OnboardingBanner } from './components/OnboardingBanner';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
 import { CardScanButton } from './components/CardScanButton';
+import { reportScanMiss, type CardScanResult } from './api/cardScan';
 import { Community } from './Community';
 import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
@@ -88,6 +89,9 @@ function App() {
   const [view, setView] = useState<MainView>('cards');
   const [source, setSource] = useState<PriceSource>('snkrdunk');
   const [query, setQuery] = useState('');
+  // 방금 스캔한 결과. "이 카드 아니에요" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
+  const [scannedResult, setScannedResult] = useState<CardScanResult | null>(null);
+  const [scanReported, setScanReported] = useState(false);
   const [items, setItems] = useState<SnkrdunkCard[]>([]);
   const [lastPage, setLastPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -662,7 +666,11 @@ function App() {
                   <div className="min-w-0 flex-1">
                     <SearchBar
                       value={query}
-                      onChange={setQuery}
+                      onChange={(v) => {
+                        setQuery(v);
+                        // 직접 타이핑하면 방금 스캔 맥락은 끝난 것 — 신고 링크를 거둔다.
+                        setScannedResult(null);
+                      }}
                       onFocus={() => setSuggestionsOpen(true)}
                       onBlur={() => setSuggestionsOpen(false)}
                     >
@@ -673,17 +681,41 @@ function App() {
                       카드는 지금 보던 소스를 유지한다. 소스에 맞는 검색어를 고른다 —
                       SNKRDUNK는 세트+번호(확실), 이베이는 영어 이름+번호. */}
                   <CardScanButton
-                    onResult={({ snkrdunk, ebay, edition: ed }) => {
+                    onResult={({ snkrdunk, ebay, edition: ed, result }) => {
                       const target = ed === 'english' ? 'ebay' : source;
                       setEdition(ed);
                       setSource(target);
                       setQuery(target === 'ebay' ? ebay : snkrdunk);
+                      setScannedResult(result);
+                      setScanReported(false);
                     }}
                   />
                 </div>
                 {showTranslationHint && (
                   <p className="text-xs text-neutral-400 mt-2">
                     '{query.trim()}' → '{translatedQuery}'로 검색했습니다.
+                  </p>
+                )}
+                {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
+                {scannedResult && (
+                  <p className="text-xs text-neutral-400 mt-2">
+                    {scanReported ? (
+                      '알려주셔서 감사해요! 개선에 참고할게요.'
+                    ) : (
+                      <>
+                        찾는 카드가 아닌가요?{' '}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            reportScanMiss(scannedResult);
+                            setScanReported(true);
+                          }}
+                          className="font-semibold text-[#2a78d6] hover:underline"
+                        >
+                          스캔이 틀렸어요
+                        </button>
+                      </>
+                    )}
                   </p>
                 )}
               </div>

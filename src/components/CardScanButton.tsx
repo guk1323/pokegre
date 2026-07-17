@@ -1,12 +1,17 @@
 import { useRef, useState } from 'react';
-import { scanCard } from '../api/cardScan';
+import { scanCard, type CardScanResult } from '../api/cardScan';
 
 export function CardScanButton({
   onResult,
 }: {
   // 소스별로 다른 검색어를 준다. SNKRDUNK는 언어 무관한 "세트+번호"라 항상 확실하고,
-  // 이베이는 영어 이름이 필요하다. App이 소스에 맞춰 고른다.
-  onResult: (q: { snkrdunk: string; ebay: string; edition: 'japanese' | 'english' }) => void;
+  // 이베이는 영어 이름이 필요하다. App이 소스에 맞춰 고른다. result는 "틀렸어요" 신고용.
+  onResult: (q: {
+    snkrdunk: string;
+    ebay: string;
+    edition: 'japanese' | 'english';
+    result: CardScanResult;
+  }) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -33,7 +38,7 @@ export function CardScanButton({
       const ebay = num ? [result.pokemonNameEn, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
       if (snkrdunk || ebay) {
         // 'english'만 북미판으로, 그 외(japanese·korean 등)는 전부 일본판 시장으로.
-        onResult({ snkrdunk, ebay, edition: result.edition === 'english' ? 'english' : 'japanese' });
+        onResult({ snkrdunk, ebay, edition: result.edition === 'english' ? 'english' : 'japanese', result });
       } else {
         setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
       }

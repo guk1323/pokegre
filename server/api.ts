@@ -948,6 +948,9 @@ function mountCommunity(app: Mountable) {
 const SEARCH_COUNTS_FILE = dataFile('search-counts.json')
 const SNAPSHOT_FILE = dataFile('search-ranking-snapshot.json')
 const VISIT_STATS_FILE = dataFile('visit-stats.json')
+const SCAN_FEEDBACK_FILE = dataFile('scan-feedback.json')
+// 스캔 오류 신고는 최근 것 위주로만 남긴다(프롬프트 튜닝 참고용이라 오래된 건 불필요).
+const MAX_SCAN_FEEDBACK = 300
 // 방문 통계는 날짜별 숫자만 400일치 남긴다. IP·기기 정보는 저장하지 않는다.
 const VISIT_KEEP_DAYS = 400
 const MAX_TRACKED_TERMS = 500
@@ -1345,6 +1348,65 @@ function mountVisitStats(app: Mountable) {
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify({ items, total: items.reduce((s, i) => s + i.count, 0) }))
+  })
+}
+
+// 스캔이 카드를 잘못 읽었을 때 사용자가 "이 카드 아니에요"로 알려주는 창구. 사진은 절대
+// 저장하지 않고, 스캔이 뭐라고 읽었는지(이름·번호·세트·판)만 남긴다. 이 기록으로 어떤
+// 패턴에서 자주 틀리는지 보고 프롬프트를 다듬는다. Claude가 이걸로 재학습하는 건 아니다.
+function mountScanFeedback(app: Mountable) {
+  let items: { name: string; number: string | null; setCode: string | null; edition: string | null; at: number }[] | null = null
+  const allow = rateLimiter(20, 60 * 1000)
+
+  async function load() {
+    if (items) return items
+    try {
+      items = JSON.parse(await readFile(SCAN_FEEDBACK_FILE, 'utf-8'))
+    } catch {
+      items = []
+    }
+    return items!
+  }
+
+  app.use('/api/local/scan-feedback', async (req, res) => {
+    if (req.method === 'POST') {
+      if (!allow(req)) {
+        tooManyRequests(res)
+        return
+      }
+      try {
+        const b = JSON.parse(await readBody(req)) as { name?: string; number?: string; setCode?: string; edition?: string }
+        const all = await load()
+        all.push({
+          name: (b.name ?? '').slice(0, 80),
+          number: b.number?.slice(0, 40) ?? null,
+          setCode: b.setCode?.slice(0, 20) ?? null,
+          edition: b.edition?.slice(0, 20) ?? null,
+          at: Date.now(),
+        })
+        if (all.length > MAX_SCAN_FEEDBACK) all.splice(0, all.length - MAX_SCAN_FEEDBACK)
+        await mkdir(path.dirname(SCAN_FEEDBACK_FILE), { recursive: true })
+        await writeFile(SCAN_FEEDBACK_FILE, JSON.stringify(items))
+        res.statusCode = 204
+        res.end()
+      } catch {
+        res.statusCode = 400
+        res.end()
+      }
+      return
+    }
+    // GET — 운영자만. 아니면 이 경로가 있다는 것 자체를 안 알려준다.
+    const viewer = await currentUser(req)
+    if (!isAdmin(viewer)) {
+      res.statusCode = 404
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: 'not found' }))
+      return
+    }
+    const all = await load()
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ items: [...all].reverse() }))
   })
 }
 
@@ -2254,6 +2316,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountSnkrdunkProxy(app)
   mountSearchTracker(app)
   mountVisitStats(app)
+  mountScanFeedback(app)
   mountKoreanNews(app)
   mountExchangeRate(app)
   mountCommunity(app)
