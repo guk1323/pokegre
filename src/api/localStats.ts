@@ -49,6 +49,8 @@ export interface VisitStat {
 export interface VisitStatsResponse {
   items: VisitStat[];
   total: number;
+  // 가입 회원 수(개수만). 회원번호 등 개인정보는 서버가 내려주지 않는다.
+  memberCount: number;
 }
 
 // 운영자만 부를 수 있다. 아니면 서버가 404를 준다.

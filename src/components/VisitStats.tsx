@@ -13,6 +13,7 @@ function formatDay(iso: string): string {
 export function VisitStats() {
   const [items, setItems] = useState<VisitStat[]>([]);
   const [total, setTotal] = useState(0);
+  const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -21,6 +22,7 @@ export function VisitStats() {
       .then((r) => {
         setItems(r.items);
         setTotal(r.total);
+        setMemberCount(r.memberCount);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -39,7 +41,7 @@ export function VisitStats() {
     <div>
       <h2 className="text-base font-bold text-black mb-4">방문 통계</h2>
 
-      <div className="mb-6 grid grid-cols-2 gap-3">
+      <div className="mb-6 grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-neutral-200 p-4">
           <p className="text-xs text-neutral-500">오늘 방문</p>
           <p className="text-2xl font-bold text-black mt-1">{todayCount.toLocaleString()}</p>
@@ -47,6 +49,10 @@ export function VisitStats() {
         <div className="rounded-xl border border-neutral-200 p-4">
           <p className="text-xs text-neutral-500">전체 누적</p>
           <p className="text-2xl font-bold text-black mt-1">{total.toLocaleString()}</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <p className="text-xs text-neutral-500">가입 회원</p>
+          <p className="text-2xl font-bold text-black mt-1">{memberCount.toLocaleString()}</p>
         </div>
       </div>
 

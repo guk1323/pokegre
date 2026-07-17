@@ -1345,9 +1345,11 @@ function mountVisitStats(app: Mountable) {
     const items = Object.entries(all)
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date))
+    // 가입 회원 수(개수만). 회원번호 등 내용은 절대 안 내보낸다.
+    const memberCount = (await loadUsers()).length
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ items, total: items.reduce((s, i) => s + i.count, 0) }))
+    res.end(JSON.stringify({ items, total: items.reduce((s, i) => s + i.count, 0), memberCount }))
   })
 }
 
