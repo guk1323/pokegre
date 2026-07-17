@@ -35,6 +35,7 @@ import { LoginModal } from './components/LoginModal';
 import { MyPage } from './components/MyPage';
 import { ReportInbox } from './components/ReportInbox';
 import { VisitStats } from './components/VisitStats';
+import { TitleFeedbackList } from './components/TitleFeedbackList';
 import { DetailSheet } from './components/DetailSheet';
 import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider } from './api/auth';
 
@@ -660,7 +661,10 @@ function App() {
           {view === 'reports' ? (
             <ReportInbox />
           ) : view === 'stats' ? (
-            <VisitStats />
+            <div className="space-y-10">
+              <VisitStats />
+              <TitleFeedbackList />
+            </div>
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'mypage' ? (

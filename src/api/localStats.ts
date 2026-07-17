@@ -69,3 +69,17 @@ export async function fetchVisitStats(): Promise<VisitStatsResponse> {
   if (!res.ok) throw new Error('방문 통계를 불러오지 못했습니다.');
   return res.json();
 }
+
+export interface TitleFeedback {
+  title: string;
+  link: string;
+  at: number;
+}
+
+// 카드 이름 한글화 신고 목록. 운영자만 부를 수 있다(아니면 서버가 404).
+export async function fetchTitleFeedback(): Promise<TitleFeedback[]> {
+  const res = await fetch('/api/local/translation-feedback');
+  if (!res.ok) throw new Error('신고 목록을 불러오지 못했습니다.');
+  const data = (await res.json()) as { items?: TitleFeedback[] };
+  return data.items ?? [];
+}
