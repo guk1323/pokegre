@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 
-// 반자동 센터링 측정. 사진을 자동으로 인식하지 않고(빛 반사·원근·보더리스 카드 때문에
-// 자동은 잘 틀린다), 사용자가 카드 바깥 테두리와 안쪽 테두리(그림 프레임)에 네모 두 개를
-// 맞추면 여백 비율을 계산한다. 계산만 하므로 유지보수할 데이터가 없다.
+// 센터링 측정. 카메라로 카드를 찍으면 경계선을 자동 검출해 두 네모(바깥=카드 테두리,
+// 안쪽=일러스트 테두리)를 얹고, 여백 비율을 계산한다. 자동이 빗나가면 네모를 손으로
+// 미세 조정한다. 계산만 하므로 유지보수할 데이터가 없다.
 
 type Rect = { l: number; t: number; r: number; b: number }; // 이미지 대비 0~1 비율
 type Corner = 'tl' | 'tr' | 'bl' | 'br';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-// 두 여백(a,b)의 비율을 [큰쪽, 작은쪽]이 아니라 [앞, 뒤] 순서 그대로 정수 %로.
 function ratio(a: number, b: number): [number, number] | null {
   const s = a + b;
   if (s <= 0.0001) return null;
@@ -24,8 +23,7 @@ function verdict(worst: number): { label: string; color: string } {
   return { label: '한쪽으로 치우침', color: 'text-rose-500' };
 }
 
-// PSA가 공개한 앞면 센터링 허용치(대략). 가장 치우친 쪽 %를 넣으면 센터링만으로 도달
-// 가능한 최고 등급을 알려준다. 실제 등급은 모서리·표면 등도 함께 보므로 참고용이다.
+// PSA가 공개한 앞면 센터링 허용치(대략). 가장 치우친 쪽 %로 도달 가능한 최고 등급.
 function psaCentering(worst: number): string {
   if (worst <= 55) return 'PSA 10 센터링 기준(55/45)까지 충족';
   if (worst <= 60) return 'PSA 9 센터링 기준(60/40)까지 충족';
@@ -35,11 +33,34 @@ function psaCentering(worst: number): string {
   return 'PSA 6 센터링 기준(80/20)에도 못 미침';
 }
 
-// 사진에서 카드의 바깥 테두리를 대략 찾는다. 네 모서리(=대개 배경)의 평균색을 배경으로
-// 보고, 배경과 충분히 다른 픽셀이 많은 열/행의 범위를 카드로 잡는다. 완벽하지 않지만
-// 시작 네모 위치를 잡아주는 용도다(사용자가 이어서 미세 조정). 실패하면 null.
-function detectCardRect(img: HTMLImageElement): Rect | null {
-  const W = 160;
+// 엣지 프로파일에서 바깥→안으로 스캔해 강한 선 최대 2개(바깥 테두리, 안쪽 테두리)의
+// 인덱스를 찾는다. 카드 테두리(배경↔카드)와 일러스트 테두리(테두리↔그림)는 대개 길고
+// 곧은 강한 경계선이라 프로파일에서 뚜렷한 봉우리로 나타난다.
+function scanTwo(P: Float32Array, lo: number, hi: number, fromLo: boolean): number[] {
+  let mx = 0;
+  for (let i = lo; i < hi; i++) if (P[i] > mx) mx = P[i];
+  if (mx <= 0) return [];
+  const T = mx * 0.35;
+  const order: number[] = [];
+  if (fromLo) for (let i = lo; i < hi; i++) order.push(i);
+  else for (let i = hi - 1; i >= lo; i--) order.push(i);
+  const found: number[] = [];
+  for (const i of order) {
+    if (i <= 0 || i >= P.length - 1) continue;
+    if (P[i] >= T && P[i] >= P[i - 1] && P[i] >= P[i + 1]) {
+      if (found.length && Math.abs(i - found[found.length - 1]) < 6) continue; // 붙은 봉우리는 하나로
+      found.push(i);
+      if (found.length >= 2) break;
+    }
+  }
+  return found;
+}
+
+// 카드 바깥 테두리와 안쪽 일러스트 테두리를 함께 검출한다. 세로 경계(좌·우 선)는 열마다
+// 세로 방향 밝기 변화 합으로, 가로 경계(상·하 선)는 행마다 가로 방향 변화 합으로 프로파일을
+// 만든 뒤, 양쪽 바깥에서 안으로 스캔한다. 실패하면 null(수동으로).
+function detectCardEdges(img: HTMLImageElement): { outer: Rect; inner: Rect } | null {
+  const W = 200;
   const H = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * W));
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -47,53 +68,62 @@ function detectCardRect(img: HTMLImageElement): Rect | null {
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   ctx.drawImage(img, 0, 0, W, H);
-  let px: Uint8ClampedArray;
+  let data: Uint8ClampedArray;
   try {
-    px = ctx.getImageData(0, 0, W, H).data;
+    data = ctx.getImageData(0, 0, W, H).data;
   } catch {
     return null;
   }
-  const patch = (x0: number, y0: number) => {
-    let r = 0, g = 0, b = 0, n = 0;
-    for (let y = y0; y < y0 + 5; y++)
-      for (let x = x0; x < x0 + 5; x++) {
-        const i = (y * W + x) * 4;
-        r += px[i]; g += px[i + 1]; b += px[i + 2]; n++;
-      }
-    return [r / n, g / n, b / n];
+  const g = new Float32Array(W * H);
+  for (let i = 0, p = 0; i < g.length; i++, p += 4) g[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
+  const colV = new Float32Array(W); // 세로 경계 강도(좌우 선)
+  for (let x = 1; x < W; x++) {
+    let s = 0;
+    for (let y = 0; y < H; y++) s += Math.abs(g[y * W + x] - g[y * W + x - 1]);
+    colV[x] = s / H;
+  }
+  const rowH = new Float32Array(H); // 가로 경계 강도(상하 선)
+  for (let y = 1; y < H; y++) {
+    let s = 0;
+    for (let x = 0; x < W; x++) s += Math.abs(g[y * W + x] - g[(y - 1) * W + x]);
+    rowH[y] = s / W;
+  }
+  const hw = Math.floor(W * 0.5);
+  const hh = Math.floor(H * 0.5);
+  const L = scanTwo(colV, 0, hw, true); // 왼쪽: [바깥, 안쪽]
+  const R = scanTwo(colV, hw, W, false); // 오른쪽
+  const Tn = scanTwo(rowH, 0, hh, true); // 위
+  const Bn = scanTwo(rowH, hh, H, false); // 아래
+  if (!L.length || !R.length || !Tn.length || !Bn.length) return null;
+  const lo = L[0], ro = R[0], to = Tn[0], bo = Bn[0];
+  if (ro - lo < W * 0.3 || bo - to < H * 0.3) return null; // 카드가 너무 작으면 실패
+  const outer: Rect = { l: lo / W, t: to / H, r: (ro + 1) / W, b: (bo + 1) / H };
+  const ow = outer.r - outer.l;
+  const oh = outer.b - outer.t;
+  const inner: Rect = {
+    l: L[1] != null ? L[1] / W : outer.l + ow * 0.05,
+    t: Tn[1] != null ? Tn[1] / H : outer.t + oh * 0.05,
+    r: R[1] != null ? (R[1] + 1) / W : outer.r - ow * 0.05,
+    b: Bn[1] != null ? (Bn[1] + 1) / H : outer.b - oh * 0.05,
   };
-  const cs = [patch(0, 0), patch(W - 5, 0), patch(0, H - 5), patch(W - 5, H - 5)];
-  const bg = [0, 1, 2].map((k) => (cs[0][k] + cs[1][k] + cs[2][k] + cs[3][k]) / 4);
-  const TH = 48; // 배경과의 색 거리(맨해튼) 임계
-  const col = new Array(W).fill(0);
-  const row = new Array(H).fill(0);
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4;
-      const d = Math.abs(px[i] - bg[0]) + Math.abs(px[i + 1] - bg[1]) + Math.abs(px[i + 2] - bg[2]);
-      if (d > TH) {
-        col[x]++;
-        row[y]++;
-      }
-    }
-  const colTh = H * 0.25;
-  const rowTh = W * 0.25;
-  let l = 0;
-  while (l < W && col[l] < colTh) l++;
-  let r = W - 1;
-  while (r > l && col[r] < colTh) r--;
-  let t = 0;
-  while (t < H && row[t] < rowTh) t++;
-  let b = H - 1;
-  while (b > t && row[b] < rowTh) b--;
-  if (r - l < W * 0.2 || b - t < H * 0.2) return null; // 검출 영역이 너무 작으면 실패
-  return { l: l / W, t: t / H, r: (r + 1) / W, b: (b + 1) / H };
+  // 안쪽이 뒤집히거나 바깥을 벗어나면 안전한 인셋으로 되돌린다.
+  if (!(inner.l < inner.r - 0.02 && inner.t < inner.b - 0.02)) {
+    inner.l = outer.l + ow * 0.05;
+    inner.r = outer.r - ow * 0.05;
+    inner.t = outer.t + oh * 0.05;
+    inner.b = outer.b - oh * 0.05;
+  }
+  inner.l = clamp(inner.l, outer.l, outer.r);
+  inner.r = clamp(inner.r, outer.l, outer.r);
+  inner.t = clamp(inner.t, outer.t, outer.b);
+  inner.b = clamp(inner.b, outer.t, outer.b);
+  return { outer, inner };
 }
 
 export function CenteringTool() {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [outer, setOuter] = useState<Rect>({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
-  const [inner, setInner] = useState<Rect>({ l: 0.2, t: 0.2, r: 0.8, b: 0.8 });
+  const [inner, setInner] = useState<Rect>({ l: 0.14, t: 0.12, r: 0.86, b: 0.88 });
   const [zoom, setZoom] = useState(1);
   const [cameraOn, setCameraOn] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -101,37 +131,39 @@ export function CenteringTool() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const pendingDetect = useRef(false); // 새 이미지 로드 시 자동 검출 1회
 
-  // 자동 인식은 버튼을 눌렀을 때만 시도한다(로드하자마자 자동으로 얹으면, 슬리브·케이스
-  // 테두리를 자신 있게 잡아 오히려 헷갈린다). 실패하거나 빗나가면 수동 드래그가 정답.
-  function redetect() {
-    const img = imgRef.current;
-    if (!img) return;
-    const rect = detectCardRect(img);
-    if (!rect) {
-      window.alert('카드를 자동으로 찾지 못했어요. 슬리브·케이스에서 뺀 카드를 단색 배경에 놓고 찍으면 잘 돼요. 안 되면 네모를 직접 맞춰 주세요.');
-      return;
-    }
-    applyDetected(rect);
+  function applyDetected(res: { outer: Rect; inner: Rect }) {
+    setOuter(res.outer);
+    setInner(res.inner);
   }
 
   function loadFromBlob(blob: Blob) {
+    pendingDetect.current = true;
     setImgUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(blob);
     });
-    setOuter({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
-    setInner({ l: 0.14, t: 0.12, r: 0.86, b: 0.88 });
     setZoom(1);
   }
 
-  // 검출된 카드(바깥)에서 안쪽 네모는 얇은 테두리에 가깝게(약 5%) 시작점만 준다. 카드마다
-  // 테두리 두께가 달라 이건 어디까지나 출발점이고, 실제 안쪽 테두리 선은 사용자가 맞춘다.
-  function applyDetected(rect: Rect) {
-    setOuter(rect);
-    const iw = rect.r - rect.l;
-    const ih = rect.b - rect.t;
-    setInner({ l: rect.l + iw * 0.05, t: rect.t + ih * 0.05, r: rect.r - iw * 0.05, b: rect.b - ih * 0.05 });
+  // 이미지가 로드되면 자동 검출을 돌려 두 네모를 얹는다(자동이 메인). 실패하면 기본값 유지.
+  function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    if (!pendingDetect.current) return;
+    pendingDetect.current = false;
+    const res = detectCardEdges(e.currentTarget);
+    if (res) applyDetected(res);
+  }
+
+  function redetect() {
+    const img = imgRef.current;
+    if (!img) return;
+    const res = detectCardEdges(img);
+    if (!res) {
+      window.alert('카드를 자동으로 찾지 못했어요. 배경과 카드가 뚜렷하게 구분되게(단색 배경, 정면, 초점) 다시 찍어 보세요. 안 되면 네모를 직접 맞춰 주세요.');
+      return;
+    }
+    applyDetected(res);
   }
 
   async function openCamera() {
@@ -140,7 +172,7 @@ export function CenteringTool() {
       streamRef.current = stream;
       setCameraOn(true);
     } catch {
-      window.alert('카메라를 열 수 없어요. 권한을 허용했는지 확인하거나, 앨범에서 사진을 골라 주세요.');
+      window.alert('카메라를 열 수 없어요. 카메라 권한을 허용했는지 확인해 주세요.');
     }
   }
 
@@ -150,31 +182,15 @@ export function CenteringTool() {
     setCameraOn(false);
   }
 
+  // 전체 프레임을 그대로 찍는다(가이드에 꽉 채우지 않아도 됨 → 초점 잡기 편함). 카드 주변에
+  // 배경이 남아도 자동 검출이 카드 경계를 찾는다.
   function capture() {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return;
-    // 화면의 가이드 틀 영역만 잘라 캡처한다. video는 object-contain이라 컨테이너 안에서
-    // 레터박스로 표시되므로, 가이드(컨테이너 좌표)를 실제 영상 픽셀 좌표로 변환한다.
-    const VW = v.videoWidth;
-    const VH = v.videoHeight;
-    const CW = v.clientWidth;
-    const CH = v.clientHeight;
-    const scale = Math.min(CW / VW, CH / VH);
-    const offX = (CW - VW * scale) / 2;
-    const offY = (CH - VH * scale) / 2;
-    const gH = 0.68 * CH;
-    const gW = gH * (2.5 / 3.5);
-    const gX = (CW - gW) / 2;
-    const gY = (CH - gH) / 2;
-    const cl = (val: number, hi: number) => Math.max(0, Math.min(hi, val));
-    const sx = cl((gX - offX) / scale, VW);
-    const sy = cl((gY - offY) / scale, VH);
-    const sw = cl(gW / scale, VW - sx);
-    const sh = cl(gH / scale, VH - sy);
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(sw);
-    canvas.height = Math.round(sh);
-    canvas.getContext('2d')?.drawImage(v, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    canvas.getContext('2d')?.drawImage(v, 0, 0);
     canvas.toBlob(
       (blob) => {
         if (blob) loadFromBlob(blob);
@@ -185,7 +201,6 @@ export function CenteringTool() {
     );
   }
 
-  // 카메라 모달이 뜬 뒤 video에 스트림을 연결한다(요소가 렌더된 다음이라야 함).
   useEffect(() => {
     if (cameraOn && videoRef.current && streamRef.current) {
       videoRef.current.srcObject = streamRef.current;
@@ -193,7 +208,6 @@ export function CenteringTool() {
     }
   }, [cameraOn]);
 
-  // 언마운트 시 카메라를 확실히 끈다(트랙이 켜진 채 남으면 안 된다).
   useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
 
   function move(e: React.PointerEvent) {
@@ -230,7 +244,6 @@ export function CenteringTool() {
         key={rect + p.corner}
         onPointerDown={(e) => {
           dragRef.current = { rect, corner: p.corner };
-          // 포인터 캡처가 있으면 핸들 밖으로 나가도 계속 드래그된다. 실패해도 드래그는 동작.
           try {
             e.currentTarget.setPointerCapture(e.pointerId);
           } catch {
@@ -251,10 +264,11 @@ export function CenteringTool() {
     <div>
       <h2 className="text-base font-bold text-black mb-1">센터링 측정</h2>
       <p className="text-xs text-neutral-400 mb-4">
-        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span> 흰 틀에 맞춰
-        정면·수평으로 찍으세요. <span className="text-[#2a78d6] font-semibold">파란 네모</span>는 카드 바깥
-        테두리에, <span className="text-emerald-600 font-semibold">초록 네모</span>는 안쪽 그림 테두리에 맞추면 여백
-        비율이 나와요. 참고용이에요. (테두리 없는 풀아트 카드는 측정이 어려워요.)
+        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span> 어두운/단색 배경에
+        놓고, <span className="font-semibold text-neutral-700">초점이 잡히는 거리</span>에서 정면·수평으로 찍으세요
+        (틀에 꽉 채울 필요 없어요). 찍으면 <span className="text-[#2a78d6] font-semibold">파란 네모</span>(카드
+        테두리)와 <span className="text-emerald-600 font-semibold">초록 네모</span>(일러스트 테두리)를 자동으로
+        얹어요. 빗나가면 모서리를 잡아 직접 맞추면 돼요. 참고용이에요.
       </p>
 
       {!imgUrl ? (
@@ -263,7 +277,7 @@ export function CenteringTool() {
           onClick={openCamera}
           className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
         >
-          📷 카메라로 촬영 (가이드 틀에 맞춰서)
+          📷 카메라로 촬영
         </button>
       ) : (
         <>
@@ -280,7 +294,7 @@ export function CenteringTool() {
               onClick={redetect}
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-[#2a78d6] hover:bg-neutral-50"
             >
-              자동 인식 시도
+              자동 인식 다시
             </button>
           </div>
           <div className="mb-2 flex items-center gap-2">
@@ -299,13 +313,11 @@ export function CenteringTool() {
             >
               +
             </button>
-            <span className="text-[11px] text-neutral-400">확대하면 작은 카드도 정밀하게 맞출 수 있어요</span>
+            <span className="text-[11px] text-neutral-400">확대해서 선을 정밀하게 맞출 수 있어요</span>
           </div>
-          {/* 확대 시 넘치는 부분은 스크롤(폰은 손가락)로 이동. 네모를 확대하지 않고 stage
-              폭을 키워 이미지·네모가 함께 커지므로 좌표 비율 계산은 그대로 정확하다. */}
           <div className="max-h-[70vh] overflow-auto rounded-xl bg-neutral-100">
             <div ref={wrapRef} className="relative select-none" style={{ width: `${zoom * 100}%` }}>
-              <img ref={imgRef} src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} />
+              <img ref={imgRef} src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} onLoad={onImgLoad} />
               <div
                 className="pointer-events-none absolute border-2 border-[#2a78d6]"
                 style={{ left: `${outer.l * 100}%`, top: `${outer.t * 100}%`, width: `${(outer.r - outer.l) * 100}%`, height: `${(outer.b - outer.t) * 100}%` }}
@@ -340,17 +352,16 @@ export function CenteringTool() {
         </>
       )}
 
-      {/* 가이드 틀이 있는 자체 카메라. 네이티브 카메라엔 틀을 못 얹어서 직접 만든다.
-          전체 프레임을 그대로 찍고(자르지 않음), 사용자는 흰 틀에 카드를 맞춰 정면으로
-          찍으면 된다. 찍은 사진은 위 측정 도구로 그대로 넘어간다. */}
+      {/* 가이드 틀이 있는 자체 카메라. 틀은 "이 안에 카드가 들어오게" 정도의 안내이고,
+          꽉 채우지 않아도 된다(전체 프레임을 찍어 자동 검출이 카드를 찾는다). */}
       {cameraOn && (
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
           <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-contain" />
           <p className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm font-semibold text-white/90">
-            카드를 흰 틀에 꽉 채워 <span className="text-white">정면·수평</span>으로 찍으세요
+            카드가 <span className="text-white">흐리지 않게(초점)</span> 틀 안에 들어오게 찍으세요
           </p>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" style={{ height: '68%', aspectRatio: '2.5 / 3.5' }} />
+            <div className="rounded-lg border-2 border-white/70" style={{ height: '60%', aspectRatio: '2.5 / 3.5' }} />
           </div>
           <div className="absolute inset-x-0 bottom-8 flex items-center justify-center gap-10">
             <button type="button" onClick={closeCamera} className="text-sm font-semibold text-white/90">
