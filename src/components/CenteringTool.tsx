@@ -102,46 +102,37 @@ export function CenteringTool() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  // 새 이미지가 로드되면 한 번 자동 검출을 돌리기 위한 플래그.
-  const pendingDetect = useRef(false);
 
+  // 자동 인식은 버튼을 눌렀을 때만 시도한다(로드하자마자 자동으로 얹으면, 슬리브·케이스
+  // 테두리를 자신 있게 잡아 오히려 헷갈린다). 실패하거나 빗나가면 수동 드래그가 정답.
   function redetect() {
     const img = imgRef.current;
     if (!img) return;
     const rect = detectCardRect(img);
     if (!rect) {
-      window.alert('카드 테두리를 자동으로 찾지 못했어요. 배경과 카드가 뚜렷하게 구분되는 사진이 잘 돼요. 네모를 직접 맞춰 주세요.');
+      window.alert('카드를 자동으로 찾지 못했어요. 슬리브·케이스에서 뺀 카드를 단색 배경에 놓고 찍으면 잘 돼요. 안 되면 네모를 직접 맞춰 주세요.');
       return;
     }
-    setOuter(rect);
-    const iw = rect.r - rect.l;
-    const ih = rect.b - rect.t;
-    setInner({ l: rect.l + iw * 0.12, t: rect.t + ih * 0.1, r: rect.r - iw * 0.12, b: rect.b - ih * 0.1 });
+    applyDetected(rect);
   }
 
   function loadFromBlob(blob: Blob) {
-    pendingDetect.current = true;
     setImgUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(blob);
     });
     setOuter({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
-    setInner({ l: 0.2, t: 0.2, r: 0.8, b: 0.8 });
+    setInner({ l: 0.14, t: 0.12, r: 0.86, b: 0.88 });
     setZoom(1);
   }
 
-  // 이미지가 로드된 뒤 카드 테두리를 자동 검출해 네모의 시작 위치를 잡아준다. 실패하면
-  // 기본값 그대로. 안쪽 네모는 검출된 카드에서 조금 안쪽으로 넣어 시작점만 준다(미세
-  // 조정은 사용자 몫).
-  function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    if (!pendingDetect.current) return;
-    pendingDetect.current = false;
-    const rect = detectCardRect(e.currentTarget);
-    if (!rect) return;
+  // 검출된 카드(바깥)에서 안쪽 네모는 얇은 테두리에 가깝게(약 5%) 시작점만 준다. 카드마다
+  // 테두리 두께가 달라 이건 어디까지나 출발점이고, 실제 안쪽 테두리 선은 사용자가 맞춘다.
+  function applyDetected(rect: Rect) {
     setOuter(rect);
     const iw = rect.r - rect.l;
     const ih = rect.b - rect.t;
-    setInner({ l: rect.l + iw * 0.12, t: rect.t + ih * 0.1, r: rect.r - iw * 0.12, b: rect.b - ih * 0.1 });
+    setInner({ l: rect.l + iw * 0.05, t: rect.t + ih * 0.05, r: rect.r - iw * 0.05, b: rect.b - ih * 0.05 });
   }
 
   async function openCamera() {
@@ -311,7 +302,7 @@ export function CenteringTool() {
               onClick={redetect}
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-[#2a78d6] hover:bg-neutral-50"
             >
-              자동 인식 다시
+              자동 인식 시도
             </button>
           </div>
           <div className="mb-2 flex items-center gap-2">
@@ -336,7 +327,7 @@ export function CenteringTool() {
               폭을 키워 이미지·네모가 함께 커지므로 좌표 비율 계산은 그대로 정확하다. */}
           <div className="max-h-[70vh] overflow-auto rounded-xl bg-neutral-100">
             <div ref={wrapRef} className="relative select-none" style={{ width: `${zoom * 100}%` }}>
-              <img ref={imgRef} src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} onLoad={onImgLoad} />
+              <img ref={imgRef} src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} />
               <div
                 className="pointer-events-none absolute border-2 border-[#2a78d6]"
                 style={{ left: `${outer.l * 100}%`, top: `${outer.t * 100}%`, width: `${(outer.r - outer.l) * 100}%`, height: `${(outer.b - outer.t) * 100}%` }}
