@@ -113,7 +113,34 @@ function firstStrongInBand(P: Float32Array, from: number, to: number, T: number)
   return null;
 }
 
-// 카드 바깥 테두리(밝기 분할)와 안쪽 일러스트 테두리(카드 영역 안 경계선)를 함께 검출.
+// 한 열(col)/행(row)의 평균 RGB.
+function meanColor(data: Uint8ClampedArray, W: number, kind: 'col' | 'row', idx: number, a: number, b: number): [number, number, number] {
+  let r = 0, g = 0, bl = 0, n = 0;
+  for (let k = a; k <= b; k++) {
+    const p = (kind === 'col' ? k * W + idx : idx * W + k) * 4;
+    r += data[p]; g += data[p + 1]; bl += data[p + 2]; n++;
+  }
+  n = Math.max(1, n);
+  return [r / n, g / n, bl / n];
+}
+function cdist(a: [number, number, number], b: [number, number, number]): number {
+  return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+}
+// 테두리 색(edge 바로 안쪽)을 샘플하고 안으로 스캔하며 색이 크게(>55) 바뀌는 첫 지점을
+// 일러스트 테두리로 본다. 경계가 흐려도 테두리·그림 색만 다르면 잡힌다. 코너는 피하려고
+// 가운데 밴드(cross0~cross1)만 샘플한다. 못 찾으면 null.
+function colorTransition(data: Uint8ClampedArray, W: number, kind: 'col' | 'row', fromEdge: number, toDeep: number, cross0: number, cross1: number): number | null {
+  const a = Math.round(fromEdge);
+  const b = Math.round(toDeep);
+  const step = b >= a ? 1 : -1;
+  const border = meanColor(data, W, kind, a, cross0, cross1);
+  for (let i = a; step > 0 ? i <= b : i >= b; i += step) {
+    if (cdist(meanColor(data, W, kind, i, cross0, cross1), border) > 55) return i;
+  }
+  return null;
+}
+
+// 카드 바깥 테두리(밝기 분할)와 안쪽 일러스트 테두리(색 변화 + 경계선)를 함께 검출.
 // 실패하면 null(자동 인식 실패로 처리 → 수동 안내).
 function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null {
   const W = 200;
@@ -161,10 +188,20 @@ function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null 
   for (let y = to; y <= bo; y++) if (rowH[y] > rMax) rMax = rowH[y];
   const cT = cMax * 0.18;
   const rT = rMax * 0.18;
-  const li = firstStrongInBand(colV, lo + owP * 0.02, lo + owP * 0.2, cT);
-  const ri = firstStrongInBand(colV, ro - owP * 0.02, ro - owP * 0.2, cT);
-  const ti = firstStrongInBand(rowH, to + ohP * 0.02, to + ohP * 0.2, rT);
-  const bi = firstStrongInBand(rowH, bo - ohP * 0.02, bo - ohP * 0.2, rT);
+  // 색 변화 기반(테두리 색이 그림과 다르면 경계가 흐려도 잡힘) — 가운데 밴드만 샘플.
+  const my0 = to + Math.round(ohP * 0.25);
+  const my1 = bo - Math.round(ohP * 0.25);
+  const mx0 = lo + Math.round(owP * 0.25);
+  const mx1 = ro - Math.round(owP * 0.25);
+  const liC = colorTransition(data, W, 'col', lo + owP * 0.02, lo + owP * 0.22, my0, my1);
+  const riC = colorTransition(data, W, 'col', ro - owP * 0.02, ro - owP * 0.22, my0, my1);
+  const tiC = colorTransition(data, W, 'row', to + ohP * 0.02, to + ohP * 0.22, mx0, mx1);
+  const biC = colorTransition(data, W, 'row', bo - ohP * 0.02, bo - ohP * 0.22, mx0, mx1);
+  // 경계선 강도 기반(대비 강한 테두리). 색 변화가 못 잡으면 이걸로 대체.
+  const li = liC ?? firstStrongInBand(colV, lo + owP * 0.02, lo + owP * 0.2, cT);
+  const ri = riC ?? firstStrongInBand(colV, ro - owP * 0.02, ro - owP * 0.2, cT);
+  const ti = tiC ?? firstStrongInBand(rowH, to + ohP * 0.02, to + ohP * 0.2, rT);
+  const bi = biC ?? firstStrongInBand(rowH, bo - ohP * 0.02, bo - ohP * 0.2, rT);
   const inner: Rect = {
     l: li != null ? li / W : outer.l + (outer.r - outer.l) * 0.05,
     t: ti != null ? ti / H : outer.t + (outer.b - outer.t) * 0.05,
@@ -465,9 +502,9 @@ export function CenteringTool() {
           {tilt && (
             <div className="pointer-events-none absolute inset-x-0 top-16 flex flex-col items-center">
               {(() => {
-                const lv = Math.abs(tilt.beta) < 6 && Math.abs(tilt.gamma) < 6;
-                const dx = clamp(tilt.gamma * 1.6, -26, 26);
-                const dy = clamp(tilt.beta * 1.6, -26, 26);
+                const lv = Math.abs(tilt.beta) < 3 && Math.abs(tilt.gamma) < 3;
+                const dx = clamp(tilt.gamma * 2.6, -26, 26);
+                const dy = clamp(tilt.beta * 2.6, -26, 26);
                 return (
                   <>
                     <div className={`relative h-16 w-16 rounded-full border-2 ${lv ? 'border-emerald-400' : 'border-white/50'}`}>
