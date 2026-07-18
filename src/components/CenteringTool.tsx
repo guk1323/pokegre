@@ -26,13 +26,12 @@ function verdict(worst: number): { label: string; color: string } {
 }
 
 // 등급회사별 앞면 센터링 허용치. 가장 치우친 쪽(worst) %가 max 이하면 그 등급까지 가능.
-// 좌우·상하 중 나쁜 쪽이 그 회사의 센터링 서브등급이 된다. PSA·BGS·CGC는 공개된 기준,
-// BRG는 등급별 표가 공식 공개돼 있지 않아 안내 수준(10 GEM MINT ≈ 55~60/40)의 참고치다.
-const COMPANY_LADDERS: { name: string; ladder: [number, string][]; fail: string; ref?: boolean }[] = [
+// 좌우·상하 중 나쁜 쪽이 그 회사의 센터링 서브등급이 된다. 세 곳 다 공개된 기준이다.
+// (BRG는 등급별 센터링 기준을 공식 공개하지 않아 넣지 않는다 — 확인되면 추가.)
+const COMPANY_LADDERS: { name: string; ladder: [number, string][]; fail: string }[] = [
   { name: 'PSA', ladder: [[55, '10'], [60, '9'], [65, '8'], [70, '7'], [80, '6']], fail: '6 미만' },
   { name: 'BGS', ladder: [[50, '10'], [55, '9.5'], [60, '8'], [65, '7']], fail: '7 미만' },
   { name: 'CGC', ladder: [[50, '10 P'], [55, '10'], [60, '9.5'], [65, '8.5']], fail: '8.5 미만' },
-  { name: 'BRG', ladder: [[60, '10']], fail: '10 미만', ref: true },
 ];
 function companyGrade(ladder: [number, string][], fail: string, worst: number): string {
   for (const [max, label] of ladder) if (worst <= max) return label;
@@ -40,12 +39,10 @@ function companyGrade(ladder: [number, string][], fail: string, worst: number): 
 }
 
 // 뒷면 센터링 허용치(공개 기준). 뒷면은 어느 회사나 앞면보다 훨씬 관대하다.
-// BRG는 앞면과 마찬가지로 공식 표가 없어 관대한 참고치(75/25 ≈ 10)로만 둔다.
 const COMPANY_BACK: Record<string, { ladder: [number, string][]; fail: string }> = {
   PSA: { ladder: [[75, '10'], [90, '9']], fail: '9 미만' },
   BGS: { ladder: [[55, '10'], [60, '9.5'], [70, '9'], [80, '8'], [90, '7']], fail: '7 미만' },
   CGC: { ladder: [[50, '10 P'], [75, '10'], [90, '9.5']], fail: '9.5 미만' },
-  BRG: { ladder: [[75, '10']], fail: '10 미만' },
 };
 
 // 등급 라벨을 숫자로 바꿔 비교한다("10 P"는 10보다 위, "N 미만"은 최하).
@@ -750,10 +747,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
                   const overall = fg && bg ? (gradeValue(bg) < gradeValue(fg) ? bg : fg) : (fg ?? bg);
                   return (
                     <tr key={c.name} className="border-t border-neutral-100">
-                      <td className="py-1.5 text-left font-semibold text-neutral-700">
-                        {c.name}
-                        {c.ref && <span className="text-neutral-300">*</span>}
-                      </td>
+                      <td className="py-1.5 text-left font-semibold text-neutral-700">{c.name}</td>
                       <td className="py-1.5 font-bold text-black">{fg ?? '-'}</td>
                       <td className="py-1.5 font-bold text-black">{bg ?? '-'}</td>
                       <td className="py-1.5 font-extrabold text-black">{overall ?? '-'}</td>
@@ -765,7 +759,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
           </div>
           <p className="mt-2 text-[10px] text-neutral-400">
             종합은 앞·뒷면 중 낮은 등급이에요(실제 감정 방식). 센터링만 본 값이라 실제 등급은 모서리·표면·스크래치도
-            함께 봅니다. *BRG는 등급별 기준이 공식 공개돼 있지 않아 참고치로만 표시해요.
+            함께 봅니다.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {onSearchByPhoto && (
