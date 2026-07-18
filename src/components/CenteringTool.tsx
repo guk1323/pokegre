@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
-// 센터링 측정. 카메라로 카드를 찍으면 경계선을 자동 검출해 두 네모(바깥=카드 테두리,
-// 안쪽=일러스트 테두리)를 얹고, 여백 비율을 계산한다. 자동이 빗나가면 네모를 손으로
-// 미세 조정한다. 계산만 하므로 유지보수할 데이터가 없다.
+// 센터링 측정. 앞면·뒷면 패널을 나란히 두고(넓은 화면은 2열, 폰은 세로), 각 면을 찍으면
+// 카드 경계를 자동 검출해 두 네모(바깥=카드 테두리, 안쪽=일러스트 테두리)를 얹는다.
+// 두 면 모두 언제든 다시 촬영·드래그 수정이 가능하고, 아래 표에서 회사별 앞/뒤/종합
+// 등급을 함께 본다. 계산만 하므로 유지보수할 데이터가 없다.
 
 type Rect = { l: number; t: number; r: number; b: number }; // 이미지 대비 0~1 비율
 type Corner = 'tl' | 'tr' | 'bl' | 'br';
+type SideKey = 'front' | 'back';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -270,108 +272,76 @@ function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null 
   return { outer, inner };
 }
 
+// 면(앞/뒤) 하나의 측정 상태.
+type SideState = { imgUrl: string | null; outer: Rect; inner: Rect; zoom: number; autoOk: boolean };
+const DEFAULT_OUTER: Rect = { l: 0.2, t: 0.12, r: 0.8, b: 0.88 };
+const DEFAULT_INNER: Rect = { l: 0.26, t: 0.18, r: 0.74, b: 0.82 };
+const initSide = (): SideState => ({ imgUrl: null, outer: DEFAULT_OUTER, inner: DEFAULT_INNER, zoom: 1, autoOk: true });
+const SIDE_LABEL: Record<SideKey, string> = { front: '앞면', back: '뒷면' };
+
 export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
-  const [imgUrl, setImgUrl] = useState<string | null>(null);
-  const [outer, setOuter] = useState<Rect>({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
-  const [inner, setInner] = useState<Rect>({ l: 0.14, t: 0.12, r: 0.86, b: 0.88 });
-  const [zoom, setZoom] = useState(1);
+  const [sides, setSides] = useState<Record<SideKey, SideState>>({ front: initSide(), back: initSide() });
   const [cameraOn, setCameraOn] = useState(false);
   // 기기 기울기(수평계용). 폰을 데스크와 평행하게(수평) 들면 beta·gamma가 0에 가깝다.
   const [tilt, setTilt] = useState<{ beta: number; gamma: number } | null>(null);
-  // 자동 인식 성공 여부. 실패면 가짜 50:50 대신 "직접 맞춰주세요" 안내를 띄운다.
-  const [autoOk, setAutoOk] = useState(true);
-  // 지금 재는 면. 앞면을 확정하면 front에 저장하고 뒷면 측정으로 넘어간다.
-  const [side, setSide] = useState<'front' | 'back'>('front');
-  const [front, setFront] = useState<{ lr: [number, number] | null; tb: [number, number] | null } | null>(null);
-  // "자동 인식 다시"는 같은 사진이면 결과도 같아 아무 변화가 없어 보인다. 눌렀다는 걸
-  // 알 수 있게 잠깐 메시지를 띄운다.
+  // "자동 인식 다시"는 같은 사진이면 결과도 같아 변화가 없어 보인다. 눌렀다는 걸 알 수
+  // 있게 잠깐 메시지를 띄운다.
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 카메라·앨범이 어느 면을 채울지.
+  const targetRef = useRef<SideKey>('front');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const imgRefs = useRef<Record<SideKey, HTMLImageElement | null>>({ front: null, back: null });
+  const wrapRefs = useRef<Record<SideKey, HTMLDivElement | null>>({ front: null, back: null });
+  const dragRef = useRef<{ side: SideKey; rect: 'outer' | 'inner'; corner: Corner } | null>(null);
+  const pendingDetect = useRef<Record<SideKey, boolean>>({ front: false, back: false });
+
+  const patch = (side: SideKey, p: Partial<SideState>) =>
+    setSides((prev) => ({ ...prev, [side]: { ...prev[side], ...p } }));
 
   function showFlash(msg: string) {
     setFlash(msg);
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(null), 2500);
   }
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-  const pendingDetect = useRef(false); // 새 이미지 로드 시 자동 검출 1회
 
-  function applyDetected(res: { outer: Rect; inner: Rect }) {
-    setOuter(res.outer);
-    setInner(res.inner);
-  }
-
-  function loadFromBlob(blob: Blob) {
-    pendingDetect.current = true;
-    setImgUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(blob);
+  function loadFromBlob(side: SideKey, blob: Blob) {
+    pendingDetect.current[side] = true;
+    setSides((prev) => {
+      const old = prev[side].imgUrl;
+      if (old) URL.revokeObjectURL(old);
+      return { ...prev, [side]: { ...prev[side], imgUrl: URL.createObjectURL(blob), zoom: 1 } };
     });
-    setZoom(1);
   }
 
-  // 이미지가 로드되면 자동 검출을 돌려 두 네모를 얹는다(자동이 메인). 실패하면 기본값 유지.
-  function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    if (!pendingDetect.current) return;
-    pendingDetect.current = false;
+  // 이미지가 로드되면 자동 검출을 돌려 두 네모를 얹는다(자동이 메인). 실패하면 중앙
+  // 기본 네모 + 안내를 띄운다(가짜 50:50 방지).
+  function onImgLoad(side: SideKey, e: React.SyntheticEvent<HTMLImageElement>) {
+    if (!pendingDetect.current[side]) return;
+    pendingDetect.current[side] = false;
     const res = detectCard(e.currentTarget);
-    if (res) {
-      applyDetected(res);
-      setAutoOk(true);
-    } else {
-      // 실패 시 가짜 50:50이 뜨지 않게, 네모를 중앙의 카드 모양으로 두고 안내를 띄운다.
-      setOuter({ l: 0.2, t: 0.12, r: 0.8, b: 0.88 });
-      setInner({ l: 0.26, t: 0.18, r: 0.74, b: 0.82 });
-      setAutoOk(false);
-    }
+    if (res) patch(side, { outer: res.outer, inner: res.inner, autoOk: true });
+    else patch(side, { outer: DEFAULT_OUTER, inner: DEFAULT_INNER, autoOk: false });
   }
 
-  function redetect() {
-    const img = imgRef.current;
+  function redetect(side: SideKey) {
+    const img = imgRefs.current[side];
     if (!img) return;
     const res = detectCard(img);
     if (res) {
-      applyDetected(res);
-      setAutoOk(true);
-      showFlash('자동 인식을 다시 했어요 ✓ (같은 사진이면 결과가 같을 수 있어요)');
+      patch(side, { outer: res.outer, inner: res.inner, autoOk: true });
+      showFlash(`${SIDE_LABEL[side]} 자동 인식 완료 ✓ (같은 사진이면 결과가 같을 수 있어요)`);
     } else {
-      setAutoOk(false);
-      showFlash('자동 인식 실패 — 네모를 직접 맞춰 주세요');
+      patch(side, { autoOk: false });
+      showFlash(`${SIDE_LABEL[side]} 자동 인식 실패 — 네모를 직접 맞춰 주세요`);
     }
   }
 
-  // 앞면 결과를 확정하고 뒷면 측정으로 넘어간다.
-  function goBackSide(curLr: [number, number] | null, curTb: [number, number] | null) {
-    setFront({ lr: curLr, tb: curTb });
-    setSide('back');
-    setImgUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    setAutoOk(true);
-    setZoom(1);
-  }
-
-  // 앞·뒷면 전부 초기화.
-  function resetAll() {
-    setFront(null);
-    setSide('front');
-    setImgUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    setAutoOk(true);
-    setZoom(1);
-  }
-
-  async function openCamera() {
-    // iOS 13+는 기울기 센서 권한을 "사용자 제스처 안"(=await 전)에 요청해야 한다. await
-    // 뒤에 하면 제스처가 소진돼 무시된다. 그래서 버튼 핸들러 맨 앞에서 바로 요청한다.
+  async function openCamera(side: SideKey) {
+    targetRef.current = side;
+    // iOS 13+는 기울기 센서 권한을 "사용자 제스처 안"(=await 전)에 요청해야 한다.
     const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
     if (DOE && typeof DOE.requestPermission === 'function') DOE.requestPermission().catch(() => undefined);
     try {
@@ -383,6 +353,11 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
     }
   }
 
+  function pickFile(side: SideKey) {
+    targetRef.current = side;
+    fileRef.current?.click();
+  }
+
   function closeCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -390,8 +365,7 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
     setTilt(null);
   }
 
-  // 전체 프레임을 그대로 찍는다(가이드에 꽉 채우지 않아도 됨 → 초점 잡기 편함). 카드 주변에
-  // 배경이 남아도 자동 검출이 카드 경계를 찾는다.
+  // 전체 프레임을 그대로 찍는다(가이드에 꽉 채우지 않아도 됨 → 초점 잡기 편함).
   function capture() {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return;
@@ -401,7 +375,7 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
     canvas.getContext('2d')?.drawImage(v, 0, 0);
     canvas.toBlob(
       (blob) => {
-        if (blob) loadFromBlob(blob);
+        if (blob) loadFromBlob(targetRef.current, blob);
         closeCamera();
       },
       'image/jpeg',
@@ -418,8 +392,7 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
 
   useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
 
-  // 카메라가 켜져 있는 동안 기울기 센서를 듣는다(수평계). 값이 없으면(권한 거부·미지원)
-  // 수평계는 그냥 안 뜬다.
+  // 카메라가 켜져 있는 동안 기울기 센서를 듣는다(수평계).
   useEffect(() => {
     if (!cameraOn) return;
     const handler = (e: DeviceOrientationEvent) => {
@@ -430,14 +403,50 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
     return () => window.removeEventListener('deviceorientation', handler);
   }, [cameraOn]);
 
-  // 측정 화면(사진+네모+수치)을 이미지로 만들어 내려받는다. 앨범에 저장하거나 거래글·
-  // 커뮤니티에 바로 쓸 수 있다.
-  function saveResult() {
-    const img = imgRef.current;
-    if (!img || !img.naturalWidth) return;
-    const lrS = ratio(inner.l - outer.l, outer.r - inner.r);
-    const tbS = ratio(inner.t - outer.t, outer.b - inner.b);
-    const worstS = Math.max(lrS ? Math.max(lrS[0], lrS[1]) : 50, tbS ? Math.max(tbS[0], tbS[1]) : 50);
+  // 앨범에서 고른 사진도 같은 흐름(자동 검출 → 드래그 조정)으로 태운다.
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (f) loadFromBlob(targetRef.current, f);
+  }
+
+  function move(e: React.PointerEvent) {
+    const d = dragRef.current;
+    if (!d) return;
+    const wrap = wrapRefs.current[d.side];
+    if (!wrap) return;
+    const box = wrap.getBoundingClientRect();
+    const x = clamp((e.clientX - box.left) / box.width, 0, 1);
+    const y = clamp((e.clientY - box.top) / box.height, 0, 1);
+    setSides((prev) => {
+      const st = prev[d.side];
+      const n = { ...(d.rect === 'outer' ? st.outer : st.inner) };
+      if (d.corner.includes('l')) n.l = Math.min(x, n.r - 0.03);
+      if (d.corner.includes('r')) n.r = Math.max(x, n.l + 0.03);
+      if (d.corner.includes('t')) n.t = Math.min(y, n.b - 0.03);
+      if (d.corner.includes('b')) n.b = Math.max(y, n.t + 0.03);
+      return { ...prev, [d.side]: { ...st, [d.rect]: n } };
+    });
+  }
+
+  // 한 면의 측정값(좌우/상하/최악치). 이미지가 없으면 null.
+  function calc(side: SideKey) {
+    const st = sides[side];
+    if (!st.imgUrl) return null;
+    const lr = ratio(st.inner.l - st.outer.l, st.outer.r - st.inner.r);
+    const tb = ratio(st.inner.t - st.outer.t, st.outer.b - st.inner.b);
+    const worst = Math.max(lr ? Math.max(lr[0], lr[1]) : 50, tb ? Math.max(tb[0], tb[1]) : 50);
+    return { lr, tb, worst, v: verdict(worst) };
+  }
+  const fr = calc('front');
+  const bk = calc('back');
+
+  // 측정 화면(사진+네모+수치)을 이미지로 만들어 내려받는다.
+  function saveResult(side: SideKey) {
+    const img = imgRefs.current[side];
+    const st = sides[side];
+    const res = calc(side);
+    if (!img || !img.naturalWidth || !res) return;
     const W0 = Math.min(1200, img.naturalWidth);
     const scale = W0 / img.naturalWidth;
     const H0 = Math.round(img.naturalHeight * scale);
@@ -456,20 +465,22 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
       x.lineWidth = lw;
       x.strokeRect(r.l * W0, r.t * H0, (r.r - r.l) * W0, (r.b - r.t) * H0);
     };
-    drawRect(outer, '#2a78d6');
-    drawRect(inner, '#10b981');
+    drawRect(st.outer, '#2a78d6');
+    drawRect(st.inner, '#10b981');
     x.fillStyle = '#111111';
     x.font = `bold ${Math.round(footer * 0.3)}px sans-serif`;
-    const sideLabel = side === 'front' ? '앞면' : '뒷면';
     x.fillText(
-      `${sideLabel}  좌우 ${lrS ? `${lrS[0]}:${lrS[1]}` : '-'}   상하 ${tbS ? `${tbS[0]}:${tbS[1]}` : '-'}`,
+      `${SIDE_LABEL[side]}  좌우 ${res.lr ? `${res.lr[0]}:${res.lr[1]}` : '-'}   상하 ${res.tb ? `${res.tb[0]}:${res.tb[1]}` : '-'}`,
       Math.round(W0 * 0.04),
       H0 + Math.round(footer * 0.42),
     );
     x.fillStyle = '#666666';
     x.font = `${Math.round(footer * 0.2)}px sans-serif`;
-    const ladders = side === 'front' ? COMPANY_LADDERS.map((cc) => ({ name: cc.name, g: companyGrade(cc.ladder, cc.fail, worstS) })) : COMPANY_LADDERS.map((cc) => ({ name: cc.name, g: companyGrade(COMPANY_BACK[cc.name].ladder, COMPANY_BACK[cc.name].fail, worstS) }));
-    x.fillText(ladders.map((d) => `${d.name} ${d.g}`).join('  ·  '), Math.round(W0 * 0.04), H0 + Math.round(footer * 0.75));
+    const ladders =
+      side === 'front'
+        ? COMPANY_LADDERS.map((cc) => `${cc.name} ${companyGrade(cc.ladder, cc.fail, res.worst)}`)
+        : COMPANY_LADDERS.map((cc) => `${cc.name} ${companyGrade(COMPANY_BACK[cc.name].ladder, COMPANY_BACK[cc.name].fail, res.worst)}`);
+    x.fillText(ladders.join('  ·  '), Math.round(W0 * 0.04), H0 + Math.round(footer * 0.75));
     x.textAlign = 'right';
     x.fillStyle = '#999999';
     x.fillText('pokegre.com', Math.round(W0 * 0.96), H0 + Math.round(footer * 0.75));
@@ -479,42 +490,21 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
       const u = URL.createObjectURL(b);
       const a = document.createElement('a');
       a.href = u;
-      a.download = `pokegre-centering-${side === 'front' ? 'front' : 'back'}.png`;
+      a.download = `pokegre-centering-${side}.png`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(u), 3000);
     }, 'image/png');
   }
 
-  // 앨범에서 고른 사진도 같은 흐름(자동 검출 → 드래그 조정)으로 태운다.
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (f) loadFromBlob(f);
-  }
-
-  function move(e: React.PointerEvent) {
-    const d = dragRef.current;
-    if (!d || !wrapRef.current) return;
-    const box = wrapRef.current.getBoundingClientRect();
-    const x = clamp((e.clientX - box.left) / box.width, 0, 1);
-    const y = clamp((e.clientY - box.top) / box.height, 0, 1);
-    const set = d.rect === 'outer' ? setOuter : setInner;
-    set((prev) => {
-      const n = { ...prev };
-      if (d.corner.includes('l')) n.l = Math.min(x, n.r - 0.03);
-      if (d.corner.includes('r')) n.r = Math.max(x, n.l + 0.03);
-      if (d.corner.includes('t')) n.t = Math.min(y, n.b - 0.03);
-      if (d.corner.includes('b')) n.b = Math.max(y, n.t + 0.03);
-      return n;
+  function resetAll() {
+    setSides((prev) => {
+      if (prev.front.imgUrl) URL.revokeObjectURL(prev.front.imgUrl);
+      if (prev.back.imgUrl) URL.revokeObjectURL(prev.back.imgUrl);
+      return { front: initSide(), back: initSide() };
     });
   }
 
-  const lr = ratio(inner.l - outer.l, outer.r - inner.r);
-  const tb = ratio(inner.t - outer.t, outer.b - inner.b);
-  const worst = Math.max(lr ? Math.max(lr[0], lr[1]) : 50, tb ? Math.max(tb[0], tb[1]) : 50);
-  const v = verdict(worst);
-
-  function handles(rect: 'outer' | 'inner', r: Rect, color: string) {
+  function handles(side: SideKey, rect: 'outer' | 'inner', r: Rect, color: string) {
     const pts: { corner: Corner; x: number; y: number }[] = [
       { corner: 'tl', x: r.l, y: r.t },
       { corner: 'tr', x: r.r, y: r.t },
@@ -523,9 +513,9 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
     ];
     return pts.map((p) => (
       <div
-        key={rect + p.corner}
+        key={side + rect + p.corner}
         onPointerDown={(e) => {
-          dragRef.current = { rect, corner: p.corner };
+          dragRef.current = { side, rect, corner: p.corner };
           try {
             e.currentTarget.setPointerCapture(e.pointerId);
           } catch {
@@ -542,187 +532,203 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
     ));
   }
 
-  return (
-    <div>
-      <div className="mb-1 flex items-center gap-2">
-        <h2 className="text-base font-bold text-black">센터링 측정</h2>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${side === 'front' ? 'bg-neutral-900 text-white' : 'bg-emerald-600 text-white'}`}>
-          {side === 'front' ? '앞면' : '뒷면'}
-        </span>
-        {side === 'back' && front && (
-          <span className="text-[11px] text-neutral-400">
-            앞면 완료: 좌우 {front.lr ? `${front.lr[0]}:${front.lr[1]}` : '-'} · 상하 {front.tb ? `${front.tb[0]}:${front.tb[1]}` : '-'}
+  // 면 하나의 패널(촬영/수정/수치). 넓은 화면에선 앞·뒷면이 나란히 놓인다.
+  function renderPanel(side: SideKey) {
+    const st = sides[side];
+    const res = calc(side);
+    return (
+      <div className="rounded-xl border border-neutral-200 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${side === 'front' ? 'bg-neutral-900 text-white' : 'bg-emerald-600 text-white'}`}>
+            {SIDE_LABEL[side]}
           </span>
-        )}
-      </div>
-      <p className="text-xs text-neutral-400 mb-4">
-        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span>
-        <span className="font-semibold text-neutral-700"> 한 장만</span> 어두운/단색 배경에 놓고(옆에 다른 카드 없이),
-        <span className="font-semibold text-neutral-700"> 초점이 잡히는 거리</span>에서
-        <span className="font-semibold text-neutral-700"> 기울지 않게 똑바로</span> 찍으세요 (틀에 꽉 채울 필요 없어요). 찍으면 <span className="text-[#2a78d6] font-semibold">파란 네모</span>(카드
-        테두리)와 <span className="text-emerald-600 font-semibold">초록 네모</span>(일러스트 테두리)를 자동으로
-        얹어요. 빗나가면 모서리를 잡아 직접 맞추면 돼요. 참고용이에요.
-      </p>
-
-      {!imgUrl ? (
-        <div className="space-y-2">
-          {side === 'back' && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">
-              앞면 완료! 이제 카드를 뒤집어 뒷면을 찍어주세요. 뒷면까지 재면 회사별 종합 등급이 나와요.
-            </div>
+          {res && (
+            <span className={`text-xs font-semibold ${res.v.color}`}>{res.v.label}</span>
           )}
-          <button
-            type="button"
-            onClick={openCamera}
-            className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
-          >
-            📷 {side === 'front' ? '카메라로 촬영 (수평계 지원)' : '뒷면 촬영하기'}
-          </button>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="w-full rounded-xl border border-dashed border-neutral-300 py-4 text-sm text-neutral-500 hover:bg-neutral-50"
-          >
-            앨범에서 사진 올리기
-          </button>
         </div>
-      ) : (
-        <>
-          <div className="mb-3 flex gap-2">
-            <button
-              type="button"
-              onClick={openCamera}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
-              📷 다시 촬영
-            </button>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
-              앨범
-            </button>
-            <button
-              type="button"
-              onClick={redetect}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-[#2a78d6] hover:bg-neutral-50"
-            >
-              자동 인식 다시
-            </button>
-          </div>
-          {flash && <p className="mb-2 text-xs font-semibold text-[#2a78d6]">{flash}</p>}
-          <div className="mb-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setZoom((z) => clamp(z - 0.5, 1, 4))}
-              className="h-8 w-8 rounded-lg border border-neutral-300 text-lg font-bold leading-none text-neutral-700 hover:bg-neutral-50"
-            >
-              −
-            </button>
-            <span className="w-12 text-center text-xs font-semibold text-neutral-600">{Math.round(zoom * 100)}%</span>
-            <button
-              type="button"
-              onClick={() => setZoom((z) => clamp(z + 0.5, 1, 4))}
-              className="h-8 w-8 rounded-lg border border-neutral-300 text-lg font-bold leading-none text-neutral-700 hover:bg-neutral-50"
-            >
-              +
-            </button>
-            <span className="text-[11px] text-neutral-400">확대해서 선을 정밀하게 맞출 수 있어요</span>
-          </div>
-          <div className="max-h-[70vh] overflow-auto rounded-xl bg-neutral-100">
-            <div ref={wrapRef} className="relative select-none" style={{ width: `${zoom * 100}%` }}>
-              <img ref={imgRef} src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} onLoad={onImgLoad} />
-              <div
-                className="pointer-events-none absolute border-2 border-[#2a78d6]"
-                style={{ left: `${outer.l * 100}%`, top: `${outer.t * 100}%`, width: `${(outer.r - outer.l) * 100}%`, height: `${(outer.b - outer.t) * 100}%` }}
-              />
-              <div
-                className="pointer-events-none absolute border-2 border-emerald-500"
-                style={{ left: `${inner.l * 100}%`, top: `${inner.t * 100}%`, width: `${(inner.r - inner.l) * 100}%`, height: `${(inner.b - inner.t) * 100}%` }}
-              />
-              {handles('outer', outer, '#2a78d6')}
-              {handles('inner', inner, '#10b981')}
-            </div>
-          </div>
 
-          {!autoOk && (
-            <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-700">
-              ⚠️ 자동 인식을 못 했어요. 카드 한 장만 어두운 배경에 놓고 다시 찍거나, 네모 모서리를 직접 맞춰 주세요. (아래 숫자는 아직 참고 안 돼요)
-            </div>
-          )}
-          <div className="mt-4 rounded-xl border border-neutral-200 p-4">
-            <p className="mb-2 text-xs font-bold text-neutral-500">{side === 'front' ? '앞면 측정' : '뒷면 측정'}</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-neutral-500">좌우</p>
-                <p className="text-2xl font-bold text-black">{lr ? `${lr[0]} : ${lr[1]}` : '-'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-neutral-500">상하</p>
-                <p className="text-2xl font-bold text-black">{tb ? `${tb[0]} : ${tb[1]}` : '-'}</p>
-              </div>
-            </div>
-            <p className={`mt-3 text-sm font-semibold ${v.color}`}>{v.label}</p>
-            {/* 회사별 센터링 서브등급. 좌우·상하 중 나쁜 쪽으로 판정. 뒷면까지 재면 앞·뒷면
-                중 낮은 등급이 종합이 된다(실제 감정사들 방식). */}
-            <div className="mt-3 grid grid-cols-4 gap-2">
-              {COMPANY_LADDERS.map((c) => {
-                let label: string;
-                if (side === 'front') {
-                  label = companyGrade(c.ladder, c.fail, worst);
-                } else {
-                  const fw = front ? Math.max(front.lr ? Math.max(front.lr[0], front.lr[1]) : 50, front.tb ? Math.max(front.tb[0], front.tb[1]) : 50) : 50;
-                  const fg = companyGrade(c.ladder, c.fail, fw);
-                  const back = COMPANY_BACK[c.name];
-                  const bg = companyGrade(back.ladder, back.fail, worst);
-                  label = gradeValue(bg) < gradeValue(fg) ? bg : fg;
-                }
-                return (
-                  <div key={c.name} className="rounded-lg border border-neutral-200 p-2 text-center">
-                    <p className="text-[11px] font-semibold text-neutral-500">
-                      {c.name}
-                      {c.ref && <span className="text-neutral-300">*</span>}
-                    </p>
-                    <p className="text-lg font-bold text-black">{label}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-[10px] text-neutral-400">
-              {side === 'front'
-                ? '앞면 센터링만 본 참고 등급이에요. 뒷면까지 재면 더 정확해져요.'
-                : '앞면·뒷면을 함께 본 종합 참고 등급이에요(낮은 쪽 기준).'}{' '}
-              *BRG는 등급별 기준이 공식 공개돼 있지 않아 참고치로만 표시해요.
-            </p>
-            <p className="mt-1 text-[11px] text-neutral-400">
-              50 : 50에 가까울수록 중앙에 잘 맞은 카드예요. 센터링만 본 값이라 실제 감정 등급은 모서리·표면·스크래치도
-              함께 봅니다. 참고용이에요.
-            </p>
+        {!st.imgUrl ? (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => openCamera(side)}
+              className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
+            >
+              📷 {SIDE_LABEL[side]} 촬영 (수평계 지원)
+            </button>
+            <button
+              type="button"
+              onClick={() => pickFile(side)}
+              className="w-full rounded-xl border border-dashed border-neutral-300 py-3 text-sm text-neutral-500 hover:bg-neutral-50"
+            >
+              앨범에서 올리기
+            </button>
           </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {side === 'front' && (
+        ) : (
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => goBackSide(lr, tb)}
-                className="rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+                onClick={() => openCamera(side)}
+                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
               >
-                뒷면도 측정하기 →
+                📷 다시
               </button>
+              <button
+                type="button"
+                onClick={() => pickFile(side)}
+                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                앨범
+              </button>
+              <button
+                type="button"
+                onClick={() => redetect(side)}
+                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-[#2a78d6] hover:bg-neutral-50"
+              >
+                자동 인식
+              </button>
+              <button
+                type="button"
+                onClick={() => saveResult(side)}
+                className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                📥 저장
+              </button>
+              <span className="ml-auto inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => patch(side, { zoom: clamp(st.zoom - 0.5, 1, 4) })}
+                  className="h-7 w-7 rounded-lg border border-neutral-300 text-base font-bold leading-none text-neutral-700 hover:bg-neutral-50"
+                >
+                  −
+                </button>
+                <span className="w-10 text-center text-[11px] font-semibold text-neutral-600">{Math.round(st.zoom * 100)}%</span>
+                <button
+                  type="button"
+                  onClick={() => patch(side, { zoom: clamp(st.zoom + 0.5, 1, 4) })}
+                  className="h-7 w-7 rounded-lg border border-neutral-300 text-base font-bold leading-none text-neutral-700 hover:bg-neutral-50"
+                >
+                  +
+                </button>
+              </span>
+            </div>
+            <div className="max-h-[62vh] overflow-auto rounded-xl bg-neutral-100">
+              <div
+                ref={(el) => {
+                  wrapRefs.current[side] = el;
+                }}
+                className="relative select-none"
+                style={{ width: `${st.zoom * 100}%` }}
+              >
+                <img
+                  ref={(el) => {
+                    imgRefs.current[side] = el;
+                  }}
+                  src={st.imgUrl}
+                  alt={`${SIDE_LABEL[side]} 카드`}
+                  className="block w-full"
+                  draggable={false}
+                  onLoad={(e) => onImgLoad(side, e)}
+                />
+                <div
+                  className="pointer-events-none absolute border-2 border-[#2a78d6]"
+                  style={{ left: `${st.outer.l * 100}%`, top: `${st.outer.t * 100}%`, width: `${(st.outer.r - st.outer.l) * 100}%`, height: `${(st.outer.b - st.outer.t) * 100}%` }}
+                />
+                <div
+                  className="pointer-events-none absolute border-2 border-emerald-500"
+                  style={{ left: `${st.inner.l * 100}%`, top: `${st.inner.t * 100}%`, width: `${(st.inner.r - st.inner.l) * 100}%`, height: `${(st.inner.b - st.inner.t) * 100}%` }}
+                />
+                {handles(side, 'outer', st.outer, '#2a78d6')}
+                {handles(side, 'inner', st.inner, '#10b981')}
+              </div>
+            </div>
+            {!st.autoOk && (
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-[11px] font-semibold text-amber-700">
+                ⚠️ 자동 인식을 못 했어요. 어두운 배경에 한 장만 놓고 다시 찍거나, 네모를 직접 맞춰 주세요.
+              </div>
             )}
-            <button
-              type="button"
-              onClick={saveResult}
-              className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
-              📥 결과 이미지 저장
-            </button>
+            {res && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[11px] text-neutral-500">좌우</p>
+                  <p className="text-xl font-bold text-black">{res.lr ? `${res.lr[0]} : ${res.lr[1]}` : '-'}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-neutral-500">상하</p>
+                  <p className="text-xl font-bold text-black">{res.tb ? `${res.tb[0]} : ${res.tb[1]}` : '-'}</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 className="text-base font-bold text-black mb-1">센터링 측정</h2>
+      <p className="text-xs text-neutral-400 mb-4">
+        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내 한 장만</span> 어두운/단색 배경에
+        놓고, <span className="font-semibold text-neutral-700">초점이 잡히는 거리</span>에서
+        <span className="font-semibold text-neutral-700"> 기울지 않게 똑바로</span> 찍으세요.{' '}
+        <span className="text-[#2a78d6] font-semibold">파란 네모</span>(카드 테두리)와{' '}
+        <span className="text-emerald-600 font-semibold">초록 네모</span>(일러스트 테두리)를 자동으로 얹고, 빗나가면
+        모서리를 잡아 직접 맞추면 돼요. 앞·뒷면 모두 재면 회사별 종합 등급이 나와요. 참고용이에요.
+      </p>
+
+      {flash && <p className="mb-2 text-xs font-semibold text-[#2a78d6]">{flash}</p>}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {renderPanel('front')}
+        {renderPanel('back')}
+      </div>
+
+      {(fr || bk) && (
+        <div className="mt-4 rounded-xl border border-neutral-200 p-4">
+          <p className="mb-2 text-xs font-bold text-neutral-500">회사별 센터링 등급 (참고)</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-center text-sm">
+              <thead>
+                <tr className="text-[11px] text-neutral-500">
+                  <th className="py-1 text-left font-semibold">회사</th>
+                  <th className="py-1 font-semibold">앞면</th>
+                  <th className="py-1 font-semibold">뒷면</th>
+                  <th className="py-1 font-semibold">종합</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPANY_LADDERS.map((c) => {
+                  const fg = fr ? companyGrade(c.ladder, c.fail, fr.worst) : null;
+                  const back = COMPANY_BACK[c.name];
+                  const bg = bk ? companyGrade(back.ladder, back.fail, bk.worst) : null;
+                  const overall = fg && bg ? (gradeValue(bg) < gradeValue(fg) ? bg : fg) : (fg ?? bg);
+                  return (
+                    <tr key={c.name} className="border-t border-neutral-100">
+                      <td className="py-1.5 text-left font-semibold text-neutral-700">
+                        {c.name}
+                        {c.ref && <span className="text-neutral-300">*</span>}
+                      </td>
+                      <td className="py-1.5 font-bold text-black">{fg ?? '-'}</td>
+                      <td className="py-1.5 font-bold text-black">{bg ?? '-'}</td>
+                      <td className="py-1.5 font-extrabold text-black">{overall ?? '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-[10px] text-neutral-400">
+            종합은 앞·뒷면 중 낮은 등급이에요(실제 감정 방식). 센터링만 본 값이라 실제 등급은 모서리·표면·스크래치도
+            함께 봅니다. *BRG는 등급별 기준이 공식 공개돼 있지 않아 참고치로만 표시해요.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
             {onGoPrices && (
               <button
                 type="button"
                 onClick={onGoPrices}
-                className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+                className="rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
               >
                 이 카드 시세 보러 가기
               </button>
@@ -735,7 +741,7 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
               처음부터
             </button>
           </div>
-        </>
+        </div>
       )}
 
       <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
@@ -746,10 +752,10 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
           <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-contain" />
           <p className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm font-semibold text-white/90">
-            카드 <span className="text-white">한 장만</span>, <span className="text-white">흐리지 않게(초점)</span>, <span className="text-white">기울지 않게</span> 틀 안에 찍으세요
+            {SIDE_LABEL[targetRef.current]} — 카드 <span className="text-white">한 장만</span>,{' '}
+            <span className="text-white">흐리지 않게(초점)</span>, <span className="text-white">기울지 않게</span> 틀 안에 찍으세요
           </p>
-          {/* 수평계: 폰을 데스크와 평행(수평)하게 들면 점이 가운데로 모이고 초록으로 바뀐다.
-              센서 값이 없으면(권한 거부·미지원) 안 뜬다. */}
+          {/* 수평계: 폰을 데스크와 평행(수평)하게 들면 점이 가운데로 모이고 초록으로 바뀐다. */}
           {tilt && (
             <div className="pointer-events-none absolute inset-x-0 top-16 flex flex-col items-center">
               {(() => {
