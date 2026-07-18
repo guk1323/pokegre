@@ -46,7 +46,7 @@ export function OnboardingBanner() {
           등급별 낙찰가를 한눈에 볼 수 있어요. 한글·영어·일본어 다 돼요.
         </li>
         <li>
-          이름을 모르겠으면 <span className="font-semibold text-neutral-800">📷 카드 사진</span>을 찍어서 검색할 수도 있어요.
+          이름을 모르겠으면 <span className="font-semibold text-neutral-800">📷 카드 사진</span>을 찍거나 앨범에서 골라 검색할 수도 있어요.
         </li>
         <li>
           마음에 드는 카드는 <span className="font-semibold text-neutral-800">북마크</span>로 저장하고,{' '}

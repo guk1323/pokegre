@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
-import { fetchPopularSearches, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
+import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
@@ -95,7 +95,7 @@ function App() {
   const [scanReported, setScanReported] = useState(false);
   // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
   // 오타·타이핑 조각이 순위에 끼는 걸 막는 데 쓴다(집계 시점에 최신값을 참조).
-  const searchResultRef = useRef<{ query: string; count: number }>({ query: '', count: 0 });
+  const searchResultRef = useRef<{ query: string; count: number; source: PriceSource }>({ query: '', count: 0, source: 'snkrdunk' });
   const [items, setItems] = useState<SnkrdunkCard[]>([]);
   const [lastPage, setLastPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -300,7 +300,7 @@ function App() {
       fetchMoreUniqueCards(trimmed, 1, new Set(), INITIAL_TARGET)
         .then(({ items, lastPage, exhausted }) => {
           setItems(items);
-          searchResultRef.current = { query: trimmed, count: items.length };
+          searchResultRef.current = { query: trimmed, count: items.length, source: 'snkrdunk' };
           setLastPage(lastPage);
           setExhausted(exhausted);
           // 이미 고른 카드가 새 결과에도 있으면 유지하고, 없으면 큰 화면에서만 첫
@@ -334,7 +334,7 @@ function App() {
       searchEbayCards(trimmed, edition)
         .then(({ cards, hasMore }) => {
           setEbayItems(cards);
-          searchResultRef.current = { query: trimmed, count: cards.length };
+          searchResultRef.current = { query: trimmed, count: cards.length, source: 'ebay' };
           setEbayOffset(EBAY_PAGE_SIZE);
           setEbayHasMore(hasMore);
           setEbaySelectedId((prev) =>
@@ -376,6 +376,8 @@ function App() {
       const r = searchResultRef.current;
       if (r.query !== trimmed || r.count === 0) return;
       trackSearch(canonicalizeSearchTerm(trimmed));
+      // 어느 소스로 실제 검색이 이뤄졌는지만 센다(개인정보 없음).
+      trackEvent(r.source === 'ebay' ? 'ebay_search' : 'snkrdunk_search');
       loadPopularSearches();
     }, 1500);
 

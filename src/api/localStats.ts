@@ -41,6 +41,30 @@ export function trackVisit(): void {
   fetch('/api/local/track-visit', { method: 'POST' }).catch(() => undefined);
 }
 
+// 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
+export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan';
+export function trackEvent(event: TrackedEvent): void {
+  fetch('/api/local/track-event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ event }),
+  }).catch(() => undefined);
+}
+
+export interface EventCounts {
+  snkrdunk_search?: number;
+  ebay_search?: number;
+  scan?: number;
+}
+
+// 기능별 사용 횟수. 운영자만 부를 수 있다(아니면 서버가 404).
+export async function fetchEventStats(): Promise<EventCounts> {
+  const res = await fetch('/api/local/track-event');
+  if (!res.ok) throw new Error('기능 통계를 불러오지 못했습니다.');
+  const data = (await res.json()) as { counts?: EventCounts };
+  return data.counts ?? {};
+}
+
 export interface VisitStat {
   date: string;
   count: number;

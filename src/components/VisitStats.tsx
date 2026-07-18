@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchVisitStats, type VisitStat } from '../api/localStats';
+import { fetchEventStats, fetchVisitStats, type EventCounts, type VisitStat } from '../api/localStats';
 
 // 화면에 보여줄 최근 일수. 그보다 오래된 날은 합계에만 들어간다.
 const RECENT_DAYS = 30;
@@ -14,6 +14,7 @@ export function VisitStats() {
   const [items, setItems] = useState<VisitStat[]>([]);
   const [total, setTotal] = useState(0);
   const [memberCount, setMemberCount] = useState(0);
+  const [events, setEvents] = useState<EventCounts>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -26,6 +27,8 @@ export function VisitStats() {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
+    // 기능 사용 통계는 별도 — 실패해도 방문 통계는 보이게 둔다.
+    fetchEventStats().then(setEvents).catch(() => undefined);
   }, []);
 
   if (loading) return <p className="text-sm text-neutral-400 py-12 text-center">불러오는 중...</p>;
@@ -82,6 +85,23 @@ export function VisitStats() {
       <p className="mt-4 text-xs text-neutral-400">
         같은 브라우저는 하루 한 번만 집계됩니다. IP·기기·회원 정보는 저장하지 않아요.
       </p>
+
+      <h2 className="text-base font-bold text-black mt-8 mb-1">기능 사용</h2>
+      <p className="text-xs text-neutral-400 mb-4">기능별 사용 횟수만 셉니다. 누가 썼는지·개인정보는 남기지 않아요.</p>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <p className="text-xs text-neutral-500">스니커덩크 검색</p>
+          <p className="text-2xl font-bold text-black mt-1">{(events.snkrdunk_search ?? 0).toLocaleString()}</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <p className="text-xs text-neutral-500">이베이 검색</p>
+          <p className="text-2xl font-bold text-black mt-1">{(events.ebay_search ?? 0).toLocaleString()}</p>
+        </div>
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <p className="text-xs text-neutral-500">사진 검색</p>
+          <p className="text-2xl font-bold text-black mt-1">{(events.scan ?? 0).toLocaleString()}</p>
+        </div>
+      </div>
     </div>
   );
 }

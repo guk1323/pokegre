@@ -954,6 +954,9 @@ const MAX_SCAN_FEEDBACK = 300
 const TRANSLATION_FEEDBACK_FILE = dataFile('translation-feedback.json')
 // 번역 오류 신고도 사전(translateQuery) 보정 참고용이라 최근 것만 남긴다.
 const MAX_TRANSLATION_FEEDBACK = 300
+const EVENT_STATS_FILE = dataFile('event-stats.json')
+// 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
+const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan'])
 // 방문 통계는 날짜별 숫자만 400일치 남긴다. IP·기기 정보는 저장하지 않는다.
 const VISIT_KEEP_DAYS = 400
 const MAX_TRACKED_TERMS = 500
@@ -1412,6 +1415,63 @@ function mountScanFeedback(app: Mountable) {
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify({ items: [...all].reverse() }))
+  })
+}
+
+// 기능별 사용 횟수만 센다(개인정보·누가 썼는지 없음). 홍보 뒤 "사람들이 뭘 많이 쓰나"를
+// 보기 위한 것. 허용된 이벤트 이름만 받아 카운터를 올린다.
+function mountEventStats(app: Mountable) {
+  let counts: Record<string, number> | null = null
+  const allow = rateLimiter(60, 60 * 1000)
+
+  async function load() {
+    if (counts) return counts
+    try {
+      counts = JSON.parse(await readFile(EVENT_STATS_FILE, 'utf-8'))
+    } catch {
+      counts = {}
+    }
+    return counts!
+  }
+
+  app.use('/api/local/track-event', async (req, res) => {
+    if (req.method === 'POST') {
+      if (!allow(req)) {
+        tooManyRequests(res)
+        return
+      }
+      try {
+        const b = JSON.parse(await readBody(req)) as { event?: string }
+        const ev = b.event ?? ''
+        if (!ALLOWED_EVENTS.has(ev)) {
+          res.statusCode = 400
+          res.end()
+          return
+        }
+        const c = await load()
+        c[ev] = (c[ev] ?? 0) + 1
+        await mkdir(path.dirname(EVENT_STATS_FILE), { recursive: true })
+        await writeFile(EVENT_STATS_FILE, JSON.stringify(counts))
+        res.statusCode = 204
+        res.end()
+      } catch {
+        res.statusCode = 400
+        res.end()
+      }
+      return
+    }
+    // GET — 운영자만.
+    const viewer = await currentUser(req)
+    if (!isAdmin(viewer)) {
+      res.statusCode = 404
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: 'not found' }))
+      return
+    }
+    const c = await load()
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ counts: c }))
   })
 }
 
@@ -2405,6 +2465,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountVisitStats(app)
   mountScanFeedback(app)
   mountTranslationFeedback(app)
+  mountEventStats(app)
   mountKoreanNews(app)
   mountExchangeRate(app)
   mountCommunity(app)

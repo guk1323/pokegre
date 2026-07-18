@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { scanCard, type CardScanResult } from '../api/cardScan';
+import { trackEvent } from '../api/localStats';
 
 export function CardScanButton({
   onResult,
@@ -22,6 +23,7 @@ export function CardScanButton({
     e.target.value = '';
     if (!file) return;
 
+    trackEvent('scan');
     setLoading(true);
     setError(null);
     try {
@@ -55,7 +57,7 @@ export function CardScanButton({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        title="카드 촬영으로 검색"
+        title="카드 사진으로 검색 (촬영 또는 앨범)"
         className="flex h-[46px] w-[46px] items-center justify-center rounded-xl border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
       >
         {loading ? (
@@ -72,7 +74,9 @@ export function CardScanButton({
           </svg>
         )}
       </button>
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={handleChange} className="hidden" />
+      {/* capture 속성을 빼면 폰에서 "사진 찍기 / 앨범에서 선택"을 함께 고를 수 있다.
+          카드가 손에 없거나 즉석에서 찍기 어려운 상황을 위해 보관함 선택도 허용한다. */}
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleChange} className="hidden" />
       {error && <p className="mt-1 text-xs text-rose-500">{error}</p>}
     </div>
   );
