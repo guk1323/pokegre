@@ -35,6 +35,61 @@ function psaCentering(worst: number): string {
   return 'PSA 6 센터링 기준(80/20)에도 못 미침';
 }
 
+// 사진에서 카드의 바깥 테두리를 대략 찾는다. 네 모서리(=대개 배경)의 평균색을 배경으로
+// 보고, 배경과 충분히 다른 픽셀이 많은 열/행의 범위를 카드로 잡는다. 완벽하지 않지만
+// 시작 네모 위치를 잡아주는 용도다(사용자가 이어서 미세 조정). 실패하면 null.
+function detectCardRect(img: HTMLImageElement): Rect | null {
+  const W = 160;
+  const H = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * W));
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, W, H);
+  let px: Uint8ClampedArray;
+  try {
+    px = ctx.getImageData(0, 0, W, H).data;
+  } catch {
+    return null;
+  }
+  const patch = (x0: number, y0: number) => {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let y = y0; y < y0 + 5; y++)
+      for (let x = x0; x < x0 + 5; x++) {
+        const i = (y * W + x) * 4;
+        r += px[i]; g += px[i + 1]; b += px[i + 2]; n++;
+      }
+    return [r / n, g / n, b / n];
+  };
+  const cs = [patch(0, 0), patch(W - 5, 0), patch(0, H - 5), patch(W - 5, H - 5)];
+  const bg = [0, 1, 2].map((k) => (cs[0][k] + cs[1][k] + cs[2][k] + cs[3][k]) / 4);
+  const TH = 48; // 배경과의 색 거리(맨해튼) 임계
+  const col = new Array(W).fill(0);
+  const row = new Array(H).fill(0);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const d = Math.abs(px[i] - bg[0]) + Math.abs(px[i + 1] - bg[1]) + Math.abs(px[i + 2] - bg[2]);
+      if (d > TH) {
+        col[x]++;
+        row[y]++;
+      }
+    }
+  const colTh = H * 0.25;
+  const rowTh = W * 0.25;
+  let l = 0;
+  while (l < W && col[l] < colTh) l++;
+  let r = W - 1;
+  while (r > l && col[r] < colTh) r--;
+  let t = 0;
+  while (t < H && row[t] < rowTh) t++;
+  let b = H - 1;
+  while (b > t && row[b] < rowTh) b--;
+  if (r - l < W * 0.2 || b - t < H * 0.2) return null; // 검출 영역이 너무 작으면 실패
+  return { l: l / W, t: t / H, r: (r + 1) / W, b: (b + 1) / H };
+}
+
 export function CenteringTool() {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [outer, setOuter] = useState<Rect>({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
@@ -46,8 +101,26 @@ export function CenteringTool() {
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // 새 이미지가 로드되면 한 번 자동 검출을 돌리기 위한 플래그.
+  const pendingDetect = useRef(false);
+
+  function redetect() {
+    const img = imgRef.current;
+    if (!img) return;
+    const rect = detectCardRect(img);
+    if (!rect) {
+      window.alert('카드 테두리를 자동으로 찾지 못했어요. 배경과 카드가 뚜렷하게 구분되는 사진이 잘 돼요. 네모를 직접 맞춰 주세요.');
+      return;
+    }
+    setOuter(rect);
+    const iw = rect.r - rect.l;
+    const ih = rect.b - rect.t;
+    setInner({ l: rect.l + iw * 0.12, t: rect.t + ih * 0.1, r: rect.r - iw * 0.12, b: rect.b - ih * 0.1 });
+  }
 
   function loadFromBlob(blob: Blob) {
+    pendingDetect.current = true;
     setImgUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return URL.createObjectURL(blob);
@@ -55,6 +128,20 @@ export function CenteringTool() {
     setOuter({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
     setInner({ l: 0.2, t: 0.2, r: 0.8, b: 0.8 });
     setZoom(1);
+  }
+
+  // 이미지가 로드된 뒤 카드 테두리를 자동 검출해 네모의 시작 위치를 잡아준다. 실패하면
+  // 기본값 그대로. 안쪽 네모는 검출된 카드에서 조금 안쪽으로 넣어 시작점만 준다(미세
+  // 조정은 사용자 몫).
+  function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    if (!pendingDetect.current) return;
+    pendingDetect.current = false;
+    const rect = detectCardRect(e.currentTarget);
+    if (!rect) return;
+    setOuter(rect);
+    const iw = rect.r - rect.l;
+    const ih = rect.b - rect.t;
+    setInner({ l: rect.l + iw * 0.12, t: rect.t + ih * 0.1, r: rect.r - iw * 0.12, b: rect.b - ih * 0.1 });
   }
 
   async function openCamera() {
@@ -219,6 +306,13 @@ export function CenteringTool() {
             >
               앨범
             </button>
+            <button
+              type="button"
+              onClick={redetect}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-[#2a78d6] hover:bg-neutral-50"
+            >
+              자동 인식 다시
+            </button>
           </div>
           <div className="mb-2 flex items-center gap-2">
             <button
@@ -242,7 +336,7 @@ export function CenteringTool() {
               폭을 키워 이미지·네모가 함께 커지므로 좌표 비율 계산은 그대로 정확하다. */}
           <div className="max-h-[70vh] overflow-auto rounded-xl bg-neutral-100">
             <div ref={wrapRef} className="relative select-none" style={{ width: `${zoom * 100}%` }}>
-              <img src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} />
+              <img ref={imgRef} src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} onLoad={onImgLoad} />
               <div
                 className="pointer-events-none absolute border-2 border-[#2a78d6]"
                 style={{ left: `${outer.l * 100}%`, top: `${outer.t * 100}%`, width: `${(outer.r - outer.l) * 100}%`, height: `${(outer.b - outer.t) * 100}%` }}
