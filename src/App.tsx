@@ -94,6 +94,11 @@ function App() {
   // 방금 스캔한 결과. "이 카드 아니에요" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
   const [scannedResult, setScannedResult] = useState<CardScanResult | null>(null);
   const [scanReported, setScanReported] = useState(false);
+  // 스캔이 "세트+번호"로 검색했는데 0건이면 카드 이름으로 자동 재검색하기 위한 백업 이름.
+  // 번호를 써서 검색한 경우에만 채운다(번호를 못 읽었으면 이미 이름으로 검색 중).
+  const scanFallbackRef = useRef<string | null>(null);
+  // 백업(이름) 재검색이 실제로 일어났음을 알리는 안내.
+  const [scanFellBack, setScanFellBack] = useState(false);
   // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
   // 오타·타이핑 조각이 순위에 끼는 걸 막는 데 쓴다(집계 시점에 최신값을 참조).
   const searchResultRef = useRef<{ query: string; count: number; source: PriceSource }>({ query: '', count: 0, source: 'snkrdunk' });
@@ -233,6 +238,9 @@ function App() {
     const ebay = num ? [result.pokemonNameEn, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
     const ed: 'japanese' | 'english' = result.edition === 'english' ? 'english' : 'japanese';
     const target = ed === 'english' ? 'ebay' : source;
+    // 번호로 검색하는 경우에만 이름 백업을 둔다. 번호로 0건이면 이름으로 다시 찾는다.
+    scanFallbackRef.current = num && result.pokemonNameEn ? result.pokemonNameEn : null;
+    setScanFellBack(false);
     setEdition(ed);
     setSource(target);
     setQuery(target === 'ebay' ? ebay : snkrdunk);
@@ -326,6 +334,14 @@ function App() {
       setError(null);
       fetchMoreUniqueCards(trimmed, 1, new Set(), INITIAL_TARGET)
         .then(({ items, lastPage, exhausted }) => {
+          // 스캔한 "세트+번호"가 0건이면(코드는 읽었지만 매칭 실패) 이름으로 자동 재검색.
+          const fb = scanFallbackRef.current;
+          if (items.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
+            scanFallbackRef.current = null;
+            setScanFellBack(true);
+            setQuery(fb);
+            return;
+          }
           setItems(items);
           searchResultRef.current = { query: trimmed, count: items.length, source: 'snkrdunk' };
           setLastPage(lastPage);
@@ -360,6 +376,14 @@ function App() {
       setEbayError(null);
       searchEbayCards(trimmed, edition)
         .then(({ cards, hasMore }) => {
+          // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
+          const fb = scanFallbackRef.current;
+          if (cards.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
+            scanFallbackRef.current = null;
+            setScanFellBack(true);
+            setQuery(fb);
+            return;
+          }
           setEbayItems(cards);
           searchResultRef.current = { query: trimmed, count: cards.length, source: 'ebay' };
           setEbayOffset(EBAY_PAGE_SIZE);
@@ -754,8 +778,10 @@ function App() {
                       value={query}
                       onChange={(v) => {
                         setQuery(v);
-                        // 직접 타이핑하면 방금 스캔 맥락은 끝난 것 — 신고 링크를 거둔다.
+                        // 직접 타이핑하면 방금 스캔 맥락은 끝난 것 — 신고 링크·백업을 거둔다.
                         setScannedResult(null);
+                        scanFallbackRef.current = null;
+                        setScanFellBack(false);
                       }}
                       onFocus={() => setSuggestionsOpen(true)}
                       onBlur={() => setSuggestionsOpen(false)}
@@ -766,17 +792,11 @@ function App() {
                   {/* 북미판(영문) 카드는 SNKRDUNK에 없으니 이베이로 보내고, 일본어·한국어
                       카드는 지금 보던 소스를 유지한다. 소스에 맞는 검색어를 고른다 —
                       SNKRDUNK는 세트+번호(확실), 이베이는 영어 이름+번호. */}
-                  <CardScanButton
-                    onResult={({ snkrdunk, ebay, edition: ed, result }) => {
-                      const target = ed === 'english' ? 'ebay' : source;
-                      setEdition(ed);
-                      setSource(target);
-                      setQuery(target === 'ebay' ? ebay : snkrdunk);
-                      setScannedResult(result);
-                      setScanReported(false);
-                    }}
-                  />
+                  <CardScanButton onResult={({ result }) => applyScanResult(result)} />
                 </div>
+                {scanFellBack && (
+                  <p className="text-xs text-neutral-400 mt-2">번호로 못 찾아 카드 이름으로 다시 검색했어요.</p>
+                )}
                 {showTranslationHint && (
                   <p className="text-xs text-neutral-400 mt-2">
                     '{query.trim()}' → '{translatedQuery}'로 검색했습니다.
