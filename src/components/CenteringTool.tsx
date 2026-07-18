@@ -263,7 +263,7 @@ function detectCard(img: HTMLImageElement, opts?: { backSide?: boolean }): { out
   // 3~16%에 있으니 그 범위를 쓴다. 뒷면은 맨 가장자리 얇은 라인을 건너뛰려 3%부터 시작.
   const backSide = !!opts?.backSide;
   const bandLo = backSide ? 0.03 : 0.02;
-  const bandHi = backSide ? 0.16 : 0.22;
+  const bandHi = backSide ? 0.2 : 0.22;
   // 색 변화 기반(색만 다르면 경계가 흐려도 잡힘)과 경계선 강도 기반(밝기 급변). 뒷면은
   // "어두운 파란 테두리 → 밝은 소용돌이"라 밝기 급변이 가장 확실하니 그걸 우선하고,
   // 앞면은 색 변화를 우선한다.
@@ -292,14 +292,21 @@ function detectCard(img: HTMLImageElement, opts?: { backSide?: boolean }): { out
       for (let x = lo; x <= ro; x++) { const p = (y * W + x) * 4; s += data[p + 2] - data[p]; }
       rowBlue[y] = s / Math.max(1, owP + 1);
     }
-    // edge 바로 안쪽(테두리)의 파랑 우세를 기준으로, 그 55% 아래로 떨어지는 첫 지점.
+    // 밴드 안 b−r(파랑 우세) 프로파일에서 "가장 가파르게 떨어지는" 지점을 파란 테두리
+    // 안쪽 경계로 본다. 절대 임계 대신 하강폭을 쓰므로, 아래쪽 소용돌이가 다소 파랗거나
+    // 조명이 달라도 흔들리지 않는다. 그 하강폭의 절반을 넘는 첫(=테두리에 가장 가까운) 지점.
     const blueDrop = (P: Float32Array, fromEdge: number, toDeep: number): number | null => {
       const a = Math.round(fromEdge);
       const b = Math.round(toDeep);
       const step = b >= a ? 1 : -1;
-      const base = P[a];
-      if (base < 25) return null; // 테두리가 충분히 파랗지 않으면(앞면 등) 이 방법 미적용
-      for (let i = a; step > 0 ? i <= b : i >= b; i += step) if (P[i] < base * 0.55) return i;
+      let maxDrop = 0;
+      for (let i = a; step > 0 ? i < b : i > b; i += step) {
+        const d = P[i] - P[i + step];
+        if (d > maxDrop) maxDrop = d;
+      }
+      if (maxDrop < 18) return null; // 유의미한 파랑 하강 없음(앞면·비파랑 테두리)
+      const thr = maxDrop * 0.5;
+      for (let i = a; step > 0 ? i < b : i > b; i += step) if (P[i] - P[i + step] >= thr) return i + step;
       return null;
     };
     li = blueDrop(colBlue, lo + owP * bandLo, lo + owP * bandHi) ?? liE ?? liC;
