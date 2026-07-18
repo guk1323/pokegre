@@ -292,9 +292,12 @@ const DEFAULT_INNER: Rect = { l: 0.26, t: 0.18, r: 0.74, b: 0.82 };
 const initSide = (): SideState => ({ imgUrl: null, outer: DEFAULT_OUTER, inner: DEFAULT_INNER, zoom: 1, autoOk: true });
 const SIDE_LABEL: Record<SideKey, string> = { front: '앞면', back: '뒷면' };
 
-export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
+export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: File) => void | Promise<void> }) {
   const [sides, setSides] = useState<Record<SideKey, SideState>>({ front: initSide(), back: initSide() });
   const [cameraOn, setCameraOn] = useState(false);
+  const [howto, setHowto] = useState(false); // 사용법 펼침 여부
+  const [scanning, setScanning] = useState(false); // 시세 보러 가기(사진 스캔) 진행 중
+  const [scanErr, setScanErr] = useState<string | null>(null);
   // 기기 기울기(수평계용). 폰을 데스크와 평행하게(수평) 들면 beta·gamma가 0에 가깝다.
   const [tilt, setTilt] = useState<{ beta: number; gamma: number } | null>(null);
   // "자동 인식 다시"는 같은 사진이면 결과도 같아 변화가 없어 보인다. 눌렀다는 걸 알 수
@@ -509,6 +512,24 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
     }, 'image/png');
   }
 
+  // 찍어둔 앞면(없으면 뒷면) 사진을 스캔해 시세 화면으로 넘긴다.
+  async function goPrices() {
+    if (!onSearchByPhoto) return;
+    const url = sides.front.imgUrl ?? sides.back.imgUrl;
+    if (!url) return;
+    setScanning(true);
+    setScanErr(null);
+    try {
+      const blob = await (await fetch(url)).blob();
+      const file = new File([blob], 'card.jpg', { type: blob.type || 'image/jpeg' });
+      await onSearchByPhoto(file);
+    } catch (e) {
+      setScanErr(e instanceof Error ? e.message : '카드 인식에 실패했어요.');
+    } finally {
+      setScanning(false);
+    }
+  }
+
   function resetAll() {
     setSides((prev) => {
       if (prev.front.imgUrl) URL.revokeObjectURL(prev.front.imgUrl);
@@ -681,15 +702,25 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
 
   return (
     <div>
-      <h2 className="text-base font-bold text-black mb-1">센터링 측정</h2>
-      <p className="text-xs text-neutral-400 mb-4">
-        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내 한 장만</span> 어두운/단색 배경에
-        놓고, <span className="font-semibold text-neutral-700">초점이 잡히는 거리</span>에서
-        <span className="font-semibold text-neutral-700"> 기울지 않게 똑바로</span> 찍으세요.{' '}
-        <span className="text-[#2a78d6] font-semibold">파란 네모</span>(카드 테두리)와{' '}
-        <span className="text-emerald-600 font-semibold">초록 네모</span>(일러스트 테두리)를 자동으로 얹고, 빗나가면
-        모서리를 잡아 직접 맞추면 돼요. 앞·뒷면 모두 재면 회사별 종합 등급이 나와요. 참고용이에요.
-      </p>
+      <div className="mb-4 flex items-center gap-2">
+        <h2 className="text-base font-bold text-black">센터링 측정</h2>
+        <button
+          type="button"
+          onClick={() => setHowto((v) => !v)}
+          className="rounded-full border border-neutral-300 px-2.5 py-0.5 text-xs font-semibold text-neutral-500 hover:bg-neutral-50"
+        >
+          사용법 {howto ? '▲' : '▾'}
+        </button>
+      </div>
+      {howto && (
+        <div className="mb-4 rounded-xl bg-neutral-50 p-4 text-xs text-neutral-600">
+          <ol className="list-decimal space-y-1.5 pl-4">
+            <li>카드를 슬리브·케이스에서 꺼내 <b>어두운 배경</b>에 한 장만 놓고, 기울지 않게 똑바로 찍어요.</li>
+            <li><span className="font-semibold text-[#2a78d6]">파란 네모</span>(카드 테두리)·<span className="font-semibold text-emerald-600">초록 네모</span>(일러스트 테두리)가 자동으로 얹혀요. 빗나가면 <b>모서리를 잡아 직접 맞추면</b> 돼요.</li>
+            <li><b>앞·뒷면 모두</b> 재면 회사별 종합 등급이 나와요. 참고용이에요.</li>
+          </ol>
+        </div>
+      )}
 
       {flash && <p className="mb-2 text-xs font-semibold text-[#2a78d6]">{flash}</p>}
 
@@ -736,14 +767,16 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
             종합은 앞·뒷면 중 낮은 등급이에요(실제 감정 방식). 센터링만 본 값이라 실제 등급은 모서리·표면·스크래치도
             함께 봅니다. *BRG는 등급별 기준이 공식 공개돼 있지 않아 참고치로만 표시해요.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {onGoPrices && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {onSearchByPhoto && (
               <button
                 type="button"
-                onClick={onGoPrices}
-                className="rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+                onClick={goPrices}
+                disabled={scanning}
+                className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
               >
-                이 카드 시세 보러 가기
+                {scanning && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
+                {scanning ? '카드 인식 중…' : '📈 이 카드 시세 보러 가기'}
               </button>
             )}
             <button
@@ -753,6 +786,7 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
             >
               처음부터
             </button>
+            {scanErr && <span className="text-xs text-rose-500">{scanErr}</span>}
           </div>
         </div>
       )}

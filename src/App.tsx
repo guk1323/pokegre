@@ -27,7 +27,7 @@ import { OnboardingBanner } from './components/OnboardingBanner';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
 import { CardScanButton } from './components/CardScanButton';
-import { reportScanMiss, type CardScanResult } from './api/cardScan';
+import { reportScanMiss, scanCard, type CardScanResult } from './api/cardScan';
 import { Community } from './Community';
 import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
@@ -225,6 +225,32 @@ function App() {
   };
   const goHomeRef = useRef(goHome);
   goHomeRef.current = goHome;
+
+  // 스캔 결과를 검색어·소스·판(일/북미)에 반영한다. 카메라 버튼과 센터링 도구가 공유한다.
+  const applyScanResult = (result: CardScanResult) => {
+    const num = result.cardNumber;
+    const snkrdunk = num ? [result.setCode, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
+    const ebay = num ? [result.pokemonNameEn, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
+    const ed: 'japanese' | 'english' = result.edition === 'english' ? 'english' : 'japanese';
+    const target = ed === 'english' ? 'ebay' : source;
+    setEdition(ed);
+    setSource(target);
+    setQuery(target === 'ebay' ? ebay : snkrdunk);
+    setScannedResult(result);
+    setScanReported(false);
+  };
+
+  // 센터링 도구의 "이 카드 시세 보러 가기": 찍어둔 사진을 그대로 스캔해 시세 화면으로.
+  const searchByPhoto = async (file: File) => {
+    trackEvent('scan');
+    const result = await scanCard(file);
+    if (!result.found || !(result.pokemonNameEn || result.cardNumber)) {
+      throw new Error('카드를 인식하지 못했어요. 앞면이 또렷한 사진으로 다시 해보세요.');
+    }
+    applyScanResult(result);
+    setView('cards');
+    window.scrollTo({ top: 0 });
+  };
 
   // 안드로이드 뒤로가기(제스처·물리 버튼)로 사이트를 통째로 나가버리는 걸 막는다.
   // 검색 중이거나 홈이 아닌 화면(커뮤니티·마이페이지 등)에 있을 때 뒤로가기를 누르면,
@@ -710,8 +736,8 @@ function App() {
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (
-            <div className="max-w-4xl">
-              <CenteringTool onGoPrices={goHome} />
+            <div className="mx-auto max-w-4xl">
+              <CenteringTool onSearchByPhoto={searchByPhoto} />
             </div>
           ) : view === 'mypage' ? (
             <DetailLayout
