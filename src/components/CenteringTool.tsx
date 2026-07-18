@@ -188,10 +188,16 @@ function detectCard(img: HTMLImageElement, opts?: { backSide?: boolean }): { out
   }
   const g = new Float32Array(W * H);
   for (let i = 0, p = 0; i < g.length; i++, p += 4) g[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
-  // ── 바깥: 밝기 분할 + 가운데 카드 덩어리 ──
-  const thr = Math.max(otsu(g), 40); // 배경이 아주 어두워도 임계가 너무 낮아지지 않게
+  // ── 바깥: (밝거나 색이 진한) 카드 픽셀을 배경(무채색 어두움)과 가르고 가운데 덩어리 ──
+  // 밝기만 쓰면 뒷면의 "어두운 파란 테두리"가 어두운 책상과 같이 배경으로 묻혀, 밝은
+  // 소용돌이 안쪽만 카드로 잡힌다. 그래서 밝기 OR 채도(색 진함)로 카드를 판별한다.
+  const thr = Math.max(otsu(g), 40);
   const bright = new Uint8Array(W * H);
-  for (let i = 0; i < g.length; i++) bright[i] = g[i] > thr ? 1 : 0;
+  for (let i = 0, p = 0; i < g.length; i++, p += 4) {
+    const r = data[p], gg = data[p + 1], b = data[p + 2];
+    const sat = Math.max(r, gg, b) - Math.min(r, gg, b); // 무채색이면 0, 진한 색이면 큼
+    bright[i] = g[i] > thr || sat > 45 ? 1 : 0;
+  }
   const box = detectOuter(bright, W, H);
   if (!box) return null;
   let { lo, ro, to, bo } = box;
@@ -216,8 +222,10 @@ function detectCard(img: HTMLImageElement, opts?: { backSide?: boolean }): { out
         if (P[i] > bv) { bv = P[i]; bi = i; }
       return bi;
     };
-    const winX = Math.max(2, Math.round(W * 0.03));
-    const winY = Math.max(2, Math.round(H * 0.03));
+    // 창을 좁게(1.5%) 둔다. 넓으면 뒷면처럼 카드 끝(약한 경계) 대신 안쪽 테두리(강한
+    // 경계)로 당겨 바깥 박스가 카드보다 작아진다. 분할이 이미 근처라 미세 보정이면 충분.
+    const winX = Math.max(2, Math.round(W * 0.015));
+    const winY = Math.max(2, Math.round(H * 0.015));
     lo = snap(colAll, lo, winX);
     ro = snap(colAll, ro, winX);
     to = snap(rowAll, to, winY);
@@ -251,18 +259,26 @@ function detectCard(img: HTMLImageElement, opts?: { backSide?: boolean }): { out
   const my1 = bo - Math.round(ohP * 0.25);
   const mx0 = lo + Math.round(owP * 0.25);
   const mx1 = ro - Math.round(owP * 0.25);
-  // 뒷면은 테두리가 항상 얇으니 좁은 띠(1.5~10%), 앞면은 넓은 띠(2~22%)에서 찾는다.
-  const bandLo = opts?.backSide ? 0.015 : 0.02;
-  const bandHi = opts?.backSide ? 0.1 : 0.22;
+  // 앞면은 얇은 테두리도 있어 넓은 띠(2~22%)를, 뒷면은 파란 테두리 안쪽 경계가 대략
+  // 3~16%에 있으니 그 범위를 쓴다. 뒷면은 맨 가장자리 얇은 라인을 건너뛰려 3%부터 시작.
+  const backSide = !!opts?.backSide;
+  const bandLo = backSide ? 0.03 : 0.02;
+  const bandHi = backSide ? 0.16 : 0.22;
+  // 색 변화 기반(색만 다르면 경계가 흐려도 잡힘)과 경계선 강도 기반(밝기 급변). 뒷면은
+  // "어두운 파란 테두리 → 밝은 소용돌이"라 밝기 급변이 가장 확실하니 그걸 우선하고,
+  // 앞면은 색 변화를 우선한다.
   const liC = colorTransition(data, W, 'col', lo + owP * bandLo, lo + owP * bandHi, my0, my1);
   const riC = colorTransition(data, W, 'col', ro - owP * bandLo, ro - owP * bandHi, my0, my1);
   const tiC = colorTransition(data, W, 'row', to + ohP * bandLo, to + ohP * bandHi, mx0, mx1);
   const biC = colorTransition(data, W, 'row', bo - ohP * bandLo, bo - ohP * bandHi, mx0, mx1);
-  // 경계선 강도 기반(대비 강한 테두리). 색 변화가 못 잡으면 이걸로 대체.
-  const li = liC ?? firstStrongInBand(colV, lo + owP * bandLo, lo + owP * bandHi, cT);
-  const ri = riC ?? firstStrongInBand(colV, ro - owP * bandLo, ro - owP * bandHi, cT);
-  const ti = tiC ?? firstStrongInBand(rowH, to + ohP * bandLo, to + ohP * bandHi, rT);
-  const bi = biC ?? firstStrongInBand(rowH, bo - ohP * bandLo, bo - ohP * bandHi, rT);
+  const liE = firstStrongInBand(colV, lo + owP * bandLo, lo + owP * bandHi, cT);
+  const riE = firstStrongInBand(colV, ro - owP * bandLo, ro - owP * bandHi, cT);
+  const tiE = firstStrongInBand(rowH, to + ohP * bandLo, to + ohP * bandHi, rT);
+  const biE = firstStrongInBand(rowH, bo - ohP * bandLo, bo - ohP * bandHi, rT);
+  const li = backSide ? (liE ?? liC) : (liC ?? liE);
+  const ri = backSide ? (riE ?? riC) : (riC ?? riE);
+  const ti = backSide ? (tiE ?? tiC) : (tiC ?? tiE);
+  const bi = backSide ? (biE ?? biC) : (biC ?? biE);
   const inner: Rect = {
     l: li != null ? li / W : outer.l + (outer.r - outer.l) * 0.05,
     t: ti != null ? ti / H : outer.t + (outer.b - outer.t) * 0.05,
