@@ -275,10 +275,43 @@ function detectCard(img: HTMLImageElement, opts?: { backSide?: boolean }): { out
   const riE = firstStrongInBand(colV, ro - owP * bandLo, ro - owP * bandHi, cT);
   const tiE = firstStrongInBand(rowH, to + ohP * bandLo, to + ohP * bandHi, rT);
   const biE = firstStrongInBand(rowH, bo - ohP * bandLo, bo - ohP * bandHi, rT);
-  const li = backSide ? (liE ?? liC) : (liC ?? liE);
-  const ri = backSide ? (riE ?? riC) : (riC ?? riE);
-  const ti = backSide ? (tiE ?? tiC) : (tiC ?? tiE);
-  const bi = backSide ? (biE ?? biC) : (biC ?? biE);
+  let li: number | null, ri: number | null, ti: number | null, bi: number | null;
+  if (backSide) {
+    // 뒷면 파란 테두리는 "파랑이 진하다"(b−r 큼)는 게 확실한 특징이다. 그 파랑 우세가 뚝
+    // 떨어지는 지점을 안쪽 경계로 본다. 밝기 급변보다 튼튼하다 — 아래쪽 어두운 소용돌이나
+    // 뒤집힌 노란 글자 때문에 밝기 경계가 약해도, 파랑↔비파랑 차이는 뚜렷하기 때문.
+    const colBlue = new Float32Array(W);
+    for (let x = lo; x <= ro; x++) {
+      let s = 0;
+      for (let y = to; y <= bo; y++) { const p = (y * W + x) * 4; s += data[p + 2] - data[p]; }
+      colBlue[x] = s / Math.max(1, ohP + 1);
+    }
+    const rowBlue = new Float32Array(H);
+    for (let y = to; y <= bo; y++) {
+      let s = 0;
+      for (let x = lo; x <= ro; x++) { const p = (y * W + x) * 4; s += data[p + 2] - data[p]; }
+      rowBlue[y] = s / Math.max(1, owP + 1);
+    }
+    // edge 바로 안쪽(테두리)의 파랑 우세를 기준으로, 그 55% 아래로 떨어지는 첫 지점.
+    const blueDrop = (P: Float32Array, fromEdge: number, toDeep: number): number | null => {
+      const a = Math.round(fromEdge);
+      const b = Math.round(toDeep);
+      const step = b >= a ? 1 : -1;
+      const base = P[a];
+      if (base < 25) return null; // 테두리가 충분히 파랗지 않으면(앞면 등) 이 방법 미적용
+      for (let i = a; step > 0 ? i <= b : i >= b; i += step) if (P[i] < base * 0.55) return i;
+      return null;
+    };
+    li = blueDrop(colBlue, lo + owP * bandLo, lo + owP * bandHi) ?? liE ?? liC;
+    ri = blueDrop(colBlue, ro - owP * bandLo, ro - owP * bandHi) ?? riE ?? riC;
+    ti = blueDrop(rowBlue, to + ohP * bandLo, to + ohP * bandHi) ?? tiE ?? tiC;
+    bi = blueDrop(rowBlue, bo - ohP * bandLo, bo - ohP * bandHi) ?? biE ?? biC;
+  } else {
+    li = liC ?? liE;
+    ri = riC ?? riE;
+    ti = tiC ?? tiE;
+    bi = biC ?? biE;
+  }
   const inner: Rect = {
     l: li != null ? li / W : outer.l + (outer.r - outer.l) * 0.05,
     t: ti != null ? ti / H : outer.t + (outer.b - outer.t) * 0.05,
