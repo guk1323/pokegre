@@ -148,23 +148,33 @@ function meanColor(data: Uint8ClampedArray, W: number, kind: 'col' | 'row', idx:
 function cdist(a: [number, number, number], b: [number, number, number]): number {
   return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
 }
-// 테두리 색(edge 바로 안쪽)을 샘플하고 안으로 스캔하며 색이 크게(>55) 바뀌는 첫 지점을
-// 일러스트 테두리로 본다. 경계가 흐려도 테두리·그림 색만 다르면 잡힌다. 코너는 피하려고
-// 가운데 밴드(cross0~cross1)만 샘플한다. 못 찾으면 null.
+// 테두리 색(edge 바로 안쪽)을 샘플하고 안으로 스캔하며 색이 바뀌는 첫 지점을 일러스트
+// 테두리로 본다. 임계값은 고정이 아니라 밴드 안 최대 변화의 55%(최소 30)로 적응시킨다 —
+// 앞면처럼 대비가 크면 크게, 뒷면(파란 테두리↔파란 소용돌이)처럼 미묘하면 낮게 잡힌다.
+// 코너는 피하려고 가운데 밴드(cross0~cross1)만 샘플한다. 못 찾으면 null.
 function colorTransition(data: Uint8ClampedArray, W: number, kind: 'col' | 'row', fromEdge: number, toDeep: number, cross0: number, cross1: number): number | null {
   const a = Math.round(fromEdge);
   const b = Math.round(toDeep);
   const step = b >= a ? 1 : -1;
   const border = meanColor(data, W, kind, a, cross0, cross1);
+  const dists: { i: number; d: number }[] = [];
+  let maxD = 0;
   for (let i = a; step > 0 ? i <= b : i >= b; i += step) {
-    if (cdist(meanColor(data, W, kind, i, cross0, cross1), border) > 55) return i;
+    const d = cdist(meanColor(data, W, kind, i, cross0, cross1), border);
+    dists.push({ i, d });
+    if (d > maxD) maxD = d;
   }
+  if (maxD < 30) return null; // 밴드 안에 의미 있는 색 변화가 없다.
+  const thr = Math.max(30, maxD * 0.55);
+  for (const { i, d } of dists) if (d >= thr) return i;
   return null;
 }
 
 // 카드 바깥 테두리(밝기 분할)와 안쪽 일러스트 테두리(색 변화 + 경계선)를 함께 검출.
+// backSide면 안쪽 검색 띠를 좁게(1.5~10%) 잡는다 — 포켓몬 카드 뒷면은 디자인이 표준이라
+// 테두리가 항상 얇고, 띠를 좁히면 소용돌이 무늬 안쪽을 잘못 잡는 걸 막는다.
 // 실패하면 null(자동 인식 실패로 처리 → 수동 안내).
-function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null {
+function detectCard(img: HTMLImageElement, opts?: { backSide?: boolean }): { outer: Rect; inner: Rect } | null {
   const W = 280;
   const H = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * W));
   const canvas = document.createElement('canvas');
@@ -244,15 +254,18 @@ function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null 
   const my1 = bo - Math.round(ohP * 0.25);
   const mx0 = lo + Math.round(owP * 0.25);
   const mx1 = ro - Math.round(owP * 0.25);
-  const liC = colorTransition(data, W, 'col', lo + owP * 0.02, lo + owP * 0.22, my0, my1);
-  const riC = colorTransition(data, W, 'col', ro - owP * 0.02, ro - owP * 0.22, my0, my1);
-  const tiC = colorTransition(data, W, 'row', to + ohP * 0.02, to + ohP * 0.22, mx0, mx1);
-  const biC = colorTransition(data, W, 'row', bo - ohP * 0.02, bo - ohP * 0.22, mx0, mx1);
+  // 뒷면은 테두리가 항상 얇으니 좁은 띠(1.5~10%), 앞면은 넓은 띠(2~22%)에서 찾는다.
+  const bandLo = opts?.backSide ? 0.015 : 0.02;
+  const bandHi = opts?.backSide ? 0.1 : 0.22;
+  const liC = colorTransition(data, W, 'col', lo + owP * bandLo, lo + owP * bandHi, my0, my1);
+  const riC = colorTransition(data, W, 'col', ro - owP * bandLo, ro - owP * bandHi, my0, my1);
+  const tiC = colorTransition(data, W, 'row', to + ohP * bandLo, to + ohP * bandHi, mx0, mx1);
+  const biC = colorTransition(data, W, 'row', bo - ohP * bandLo, bo - ohP * bandHi, mx0, mx1);
   // 경계선 강도 기반(대비 강한 테두리). 색 변화가 못 잡으면 이걸로 대체.
-  const li = liC ?? firstStrongInBand(colV, lo + owP * 0.02, lo + owP * 0.2, cT);
-  const ri = riC ?? firstStrongInBand(colV, ro - owP * 0.02, ro - owP * 0.2, cT);
-  const ti = tiC ?? firstStrongInBand(rowH, to + ohP * 0.02, to + ohP * 0.2, rT);
-  const bi = biC ?? firstStrongInBand(rowH, bo - ohP * 0.02, bo - ohP * 0.2, rT);
+  const li = liC ?? firstStrongInBand(colV, lo + owP * bandLo, lo + owP * bandHi, cT);
+  const ri = riC ?? firstStrongInBand(colV, ro - owP * bandLo, ro - owP * bandHi, cT);
+  const ti = tiC ?? firstStrongInBand(rowH, to + ohP * bandLo, to + ohP * bandHi, rT);
+  const bi = biC ?? firstStrongInBand(rowH, bo - ohP * bandLo, bo - ohP * bandHi, rT);
   const inner: Rect = {
     l: li != null ? li / W : outer.l + (outer.r - outer.l) * 0.05,
     t: ti != null ? ti / H : outer.t + (outer.b - outer.t) * 0.05,
@@ -321,7 +334,7 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
   function onImgLoad(side: SideKey, e: React.SyntheticEvent<HTMLImageElement>) {
     if (!pendingDetect.current[side]) return;
     pendingDetect.current[side] = false;
-    const res = detectCard(e.currentTarget);
+    const res = detectCard(e.currentTarget, { backSide: side === 'back' });
     if (res) patch(side, { outer: res.outer, inner: res.inner, autoOk: true });
     else patch(side, { outer: DEFAULT_OUTER, inner: DEFAULT_INNER, autoOk: false });
   }
@@ -329,7 +342,7 @@ export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
   function redetect(side: SideKey) {
     const img = imgRefs.current[side];
     if (!img) return;
-    const res = detectCard(img);
+    const res = detectCard(img, { backSide: side === 'back' });
     if (res) {
       patch(side, { outer: res.outer, inner: res.inner, autoOk: true });
       showFlash(`${SIDE_LABEL[side]} 자동 인식 완료 ✓ (같은 사진이면 결과가 같을 수 있어요)`);

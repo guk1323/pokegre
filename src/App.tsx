@@ -624,11 +624,12 @@ function App() {
                     시세 읽는 법 같은 상세는 커뮤니티 이용안내 공지가 대신한다. */}
                 <p className="text-sm text-neutral-500 mt-1">일본판·북미판 포켓몬 카드 시세</p>
               </div>
-              <nav className="flex gap-2">
+              {/* 좁은 화면에서 메뉴 글자가 단어 중간에 꺾이지 않게, 버튼 단위로만 줄바꿈한다. */}
+              <nav className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setView('cards')}
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'cards' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -637,7 +638,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => setView('community')}
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -645,12 +646,13 @@ function App() {
                 </button>
                 {/* 아직 다듬는 중인 기능이라 운영자(본인)에게만 보인다. 완성되면 이 조건을
                     풀어 모두에게 공개한다. 서버 데이터가 없는 순수 클라이언트 도구라 굳이
-                    서버 차단은 필요 없고, 메뉴만 감춰도 일반 방문자는 접근 경로가 없다. */}
-                {isAdmin && (
+                    서버 차단은 필요 없고, 메뉴만 감춰도 일반 방문자는 접근 경로가 없다.
+                    개발 모드에서는 레이아웃 확인을 위해 항상 보이게 한다(배포엔 영향 없음). */}
+                {(isAdmin || import.meta.env.DEV) && (
                   <button
                     type="button"
                     onClick={() => setView('centering')}
-                    className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                       view === 'centering' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                     }`}
                   >
@@ -663,7 +665,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setView('reports')}
-                    className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                       view === 'reports' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                     }`}
                   >
@@ -674,7 +676,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setView('stats')}
-                    className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                       view === 'stats' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                     }`}
                   >
@@ -686,7 +688,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => setView('mypage')}
-                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'mypage' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
