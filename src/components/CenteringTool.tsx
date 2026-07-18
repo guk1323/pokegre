@@ -137,6 +137,8 @@ export function CenteringTool() {
   const [inner, setInner] = useState<Rect>({ l: 0.14, t: 0.12, r: 0.86, b: 0.88 });
   const [zoom, setZoom] = useState(1);
   const [cameraOn, setCameraOn] = useState(false);
+  // 기기 기울기(수평계용). 폰을 데스크와 평행하게(수평) 들면 beta·gamma가 0에 가깝다.
+  const [tilt, setTilt] = useState<{ beta: number; gamma: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -182,6 +184,9 @@ export function CenteringTool() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       streamRef.current = stream;
       setCameraOn(true);
+      // iOS 13+는 기울기 센서에 권한이 필요하다. 버튼 클릭(사용자 제스처) 중에 요청한다.
+      const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
+      if (DOE && typeof DOE.requestPermission === 'function') DOE.requestPermission().catch(() => undefined);
     } catch {
       window.alert('카메라를 열 수 없어요. 카메라 권한을 허용했는지 확인해 주세요.');
     }
@@ -191,6 +196,7 @@ export function CenteringTool() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setCameraOn(false);
+    setTilt(null);
   }
 
   // 전체 프레임을 그대로 찍는다(가이드에 꽉 채우지 않아도 됨 → 초점 잡기 편함). 카드 주변에
@@ -220,6 +226,18 @@ export function CenteringTool() {
   }, [cameraOn]);
 
   useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
+
+  // 카메라가 켜져 있는 동안 기울기 센서를 듣는다(수평계). 값이 없으면(권한 거부·미지원)
+  // 수평계는 그냥 안 뜬다.
+  useEffect(() => {
+    if (!cameraOn) return;
+    const handler = (e: DeviceOrientationEvent) => {
+      if (e.beta == null || e.gamma == null) return;
+      setTilt({ beta: e.beta, gamma: e.gamma });
+    };
+    window.addEventListener('deviceorientation', handler);
+    return () => window.removeEventListener('deviceorientation', handler);
+  }, [cameraOn]);
 
   function move(e: React.PointerEvent) {
     const d = dragRef.current;
@@ -369,10 +387,32 @@ export function CenteringTool() {
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
           <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-contain" />
           <p className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm font-semibold text-white/90">
-            카드가 <span className="text-white">흐리지 않게(초점)</span> 틀 안에 들어오게 찍으세요
+            카드가 <span className="text-white">흐리지 않게(초점)</span> 틀 안에 들어오게, <span className="text-white">기울지 않게</span> 찍으세요
           </p>
+          {/* 수평계: 폰을 데스크와 평행(수평)하게 들면 점이 가운데로 모이고 초록으로 바뀐다.
+              센서 값이 없으면(권한 거부·미지원) 안 뜬다. */}
+          {tilt && (
+            <div className="pointer-events-none absolute inset-x-0 top-16 flex flex-col items-center">
+              {(() => {
+                const lv = Math.abs(tilt.beta) < 6 && Math.abs(tilt.gamma) < 6;
+                const dx = clamp(tilt.gamma * 1.6, -26, 26);
+                const dy = clamp(tilt.beta * 1.6, -26, 26);
+                return (
+                  <>
+                    <div className={`relative h-16 w-16 rounded-full border-2 ${lv ? 'border-emerald-400' : 'border-white/50'}`}>
+                      <div
+                        className={`absolute left-1/2 top-1/2 h-4 w-4 rounded-full ${lv ? 'bg-emerald-400' : 'bg-white/90'}`}
+                        style={{ transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))` }}
+                      />
+                    </div>
+                    <p className={`mt-1 text-xs font-semibold ${lv ? 'text-emerald-400' : 'text-white/80'}`}>{lv ? '수평 맞음 ✓' : '수평 맞추기'}</p>
+                  </>
+                );
+              })()}
+            </div>
+          )}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="rounded-lg border-2 border-white/70" style={{ height: '60%', aspectRatio: '2.5 / 3.5' }} />
+            <div className="rounded-lg border-2 border-white/70" style={{ height: '44%', aspectRatio: '2.5 / 3.5' }} />
           </div>
           <div className="absolute inset-x-0 bottom-8 flex items-center justify-center gap-10">
             <button type="button" onClick={closeCamera} className="text-sm font-semibold text-white/90">
