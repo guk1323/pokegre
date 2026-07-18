@@ -24,6 +24,17 @@ function verdict(worst: number): { label: string; color: string } {
   return { label: '한쪽으로 치우침', color: 'text-rose-500' };
 }
 
+// PSA가 공개한 앞면 센터링 허용치(대략). 가장 치우친 쪽 %를 넣으면 센터링만으로 도달
+// 가능한 최고 등급을 알려준다. 실제 등급은 모서리·표면 등도 함께 보므로 참고용이다.
+function psaCentering(worst: number): string {
+  if (worst <= 55) return 'PSA 10 센터링 기준(55/45)까지 충족';
+  if (worst <= 60) return 'PSA 9 센터링 기준(60/40)까지 충족';
+  if (worst <= 65) return 'PSA 8 센터링 기준(65/35)까지 충족';
+  if (worst <= 70) return 'PSA 7 센터링 기준(70/30)까지 충족';
+  if (worst <= 80) return 'PSA 6 센터링 기준(80/20)까지 충족';
+  return 'PSA 6 센터링 기준(80/20)에도 못 미침';
+}
+
 export function CenteringTool() {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [outer, setOuter] = useState<Rect>({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
@@ -65,10 +76,28 @@ export function CenteringTool() {
   function capture() {
     const v = videoRef.current;
     if (!v || !v.videoWidth) return;
+    // 화면의 가이드 틀 영역만 잘라 캡처한다. video는 object-contain이라 컨테이너 안에서
+    // 레터박스로 표시되므로, 가이드(컨테이너 좌표)를 실제 영상 픽셀 좌표로 변환한다.
+    const VW = v.videoWidth;
+    const VH = v.videoHeight;
+    const CW = v.clientWidth;
+    const CH = v.clientHeight;
+    const scale = Math.min(CW / VW, CH / VH);
+    const offX = (CW - VW * scale) / 2;
+    const offY = (CH - VH * scale) / 2;
+    const gH = 0.68 * CH;
+    const gW = gH * (2.5 / 3.5);
+    const gX = (CW - gW) / 2;
+    const gY = (CH - gH) / 2;
+    const cl = (val: number, hi: number) => Math.max(0, Math.min(hi, val));
+    const sx = cl((gX - offX) / scale, VW);
+    const sy = cl((gY - offY) / scale, VH);
+    const sw = cl(gW / scale, VW - sx);
+    const sh = cl(gH / scale, VH - sy);
     const canvas = document.createElement('canvas');
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
-    canvas.getContext('2d')?.drawImage(v, 0, 0);
+    canvas.width = Math.round(sw);
+    canvas.height = Math.round(sh);
+    canvas.getContext('2d')?.drawImage(v, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(
       (blob) => {
         if (blob) loadFromBlob(blob);
@@ -239,9 +268,10 @@ export function CenteringTool() {
               </div>
             </div>
             <p className={`mt-3 text-sm font-semibold ${v.color}`}>{v.label}</p>
+            <p className="mt-2 text-xs font-semibold text-neutral-700">센터링 참고(이 면 기준): {psaCentering(worst)}</p>
             <p className="mt-1 text-[11px] text-neutral-400">
-              50 : 50에 가까울수록 중앙에 잘 맞은 카드예요. 가장 치우친 쪽을 기준으로 판단했어요. 감정 등급을 보장하는
-              값은 아니고 참고용입니다.
+              50 : 50에 가까울수록 중앙에 잘 맞은 카드예요. 가장 치우친 쪽을 기준으로 판단했어요. 센터링만 본 값이라
+              실제 감정 등급은 모서리·표면·스크래치도 함께 봅니다. 참고용이에요.
             </p>
           </div>
         </>
