@@ -97,7 +97,6 @@ export function CenteringTool() {
   const [zoom, setZoom] = useState(1);
   const [cameraOn, setCameraOn] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -197,12 +196,6 @@ export function CenteringTool() {
   // 언마운트 시 카메라를 확실히 끈다(트랙이 켜진 채 남으면 안 된다).
   useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (f) loadFromBlob(f);
-  }
-
   function move(e: React.PointerEvent) {
     const d = dragRef.current;
     if (!d || !wrapRef.current) return;
@@ -258,28 +251,20 @@ export function CenteringTool() {
     <div>
       <h2 className="text-base font-bold text-black mb-1">센터링 측정</h2>
       <p className="text-xs text-neutral-400 mb-4">
-        카드 정면 사진을 올리고, <span className="text-[#2a78d6] font-semibold">파란 네모</span>는 카드 바깥
+        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span> 흰 틀에 맞춰
+        정면·수평으로 찍으세요. <span className="text-[#2a78d6] font-semibold">파란 네모</span>는 카드 바깥
         테두리에, <span className="text-emerald-600 font-semibold">초록 네모</span>는 안쪽 그림 테두리에 맞추면 여백
-        비율이 나와요. 참고용이며, 사진이 정면·수평일수록 정확해요. (테두리 없는 풀아트 카드는 측정이 어려워요.)
+        비율이 나와요. 참고용이에요. (테두리 없는 풀아트 카드는 측정이 어려워요.)
       </p>
 
       {!imgUrl ? (
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={openCamera}
-            className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
-          >
-            📷 카메라로 촬영 (가이드 틀에 맞춰서)
-          </button>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="w-full rounded-xl border border-dashed border-neutral-300 py-4 text-sm text-neutral-500 hover:bg-neutral-50"
-          >
-            앨범에서 사진 올리기
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={openCamera}
+          className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
+        >
+          📷 카메라로 촬영 (가이드 틀에 맞춰서)
+        </button>
       ) : (
         <>
           <div className="mb-3 flex gap-2">
@@ -288,14 +273,7 @@ export function CenteringTool() {
               onClick={openCamera}
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
             >
-              📷 카메라
-            </button>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
-            >
-              앨범
+              📷 다시 촬영
             </button>
             <button
               type="button"
@@ -361,8 +339,6 @@ export function CenteringTool() {
           </div>
         </>
       )}
-
-      <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
       {/* 가이드 틀이 있는 자체 카메라. 네이티브 카메라엔 틀을 못 얹어서 직접 만든다.
           전체 프레임을 그대로 찍고(자르지 않음), 사용자는 흰 틀에 카드를 맞춰 정면으로
