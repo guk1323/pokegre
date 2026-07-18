@@ -37,6 +37,22 @@ function companyGrade(ladder: [number, string][], fail: string, worst: number): 
   return fail;
 }
 
+// 뒷면 센터링 허용치(공개 기준). 뒷면은 어느 회사나 앞면보다 훨씬 관대하다.
+// BRG는 앞면과 마찬가지로 공식 표가 없어 관대한 참고치(75/25 ≈ 10)로만 둔다.
+const COMPANY_BACK: Record<string, { ladder: [number, string][]; fail: string }> = {
+  PSA: { ladder: [[75, '10'], [90, '9']], fail: '9 미만' },
+  BGS: { ladder: [[55, '10'], [60, '9.5'], [70, '9'], [80, '8'], [90, '7']], fail: '7 미만' },
+  CGC: { ladder: [[50, '10 P'], [75, '10'], [90, '9.5']], fail: '9.5 미만' },
+  BRG: { ladder: [[75, '10']], fail: '10 미만' },
+};
+
+// 등급 라벨을 숫자로 바꿔 비교한다("10 P"는 10보다 위, "N 미만"은 최하).
+function gradeValue(label: string): number {
+  if (label.includes('미만')) return 0;
+  if (label === '10 P') return 10.5;
+  return parseFloat(label) || 0;
+}
+
 // 어두운 배경 위 카드를 밝기로 가르는 오츠(Otsu) 임계값.
 function otsu(g: Float32Array): number {
   const hist = new Array(256).fill(0);
@@ -147,7 +163,7 @@ function colorTransition(data: Uint8ClampedArray, W: number, kind: 'col' | 'row'
 // 카드 바깥 테두리(밝기 분할)와 안쪽 일러스트 테두리(색 변화 + 경계선)를 함께 검출.
 // 실패하면 null(자동 인식 실패로 처리 → 수동 안내).
 function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null {
-  const W = 200;
+  const W = 280;
   const H = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * W));
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -169,7 +185,36 @@ function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null 
   for (let i = 0; i < g.length; i++) bright[i] = g[i] > thr ? 1 : 0;
   const box = detectOuter(bright, W, H);
   if (!box) return null;
-  const { lo, ro, to, bo } = box;
+  let { lo, ro, to, bo } = box;
+  // ── 바깥 스냅 보정: 분할로 잡은 대략의 경계를, 주변(±3%)에서 가장 강한 실제 경계선
+  // 위치로 끌어당긴다. 분할이 그림자·반사로 1~2px 어긋나도 최종 선은 카드 모서리에 붙는다.
+  {
+    const colAll = new Float32Array(W);
+    for (let x = 1; x < W; x++) {
+      let s = 0;
+      for (let y = to; y <= bo; y++) s += Math.abs(g[y * W + x] - g[y * W + x - 1]);
+      colAll[x] = s;
+    }
+    const rowAll = new Float32Array(H);
+    for (let y = 1; y < H; y++) {
+      let s = 0;
+      for (let x = lo; x <= ro; x++) s += Math.abs(g[y * W + x] - g[(y - 1) * W + x]);
+      rowAll[y] = s;
+    }
+    const snap = (P: Float32Array, center: number, win: number) => {
+      let bi = center, bv = -1;
+      for (let i = Math.max(1, center - win); i <= Math.min(P.length - 2, center + win); i++)
+        if (P[i] > bv) { bv = P[i]; bi = i; }
+      return bi;
+    };
+    const winX = Math.max(2, Math.round(W * 0.03));
+    const winY = Math.max(2, Math.round(H * 0.03));
+    lo = snap(colAll, lo, winX);
+    ro = snap(colAll, ro, winX);
+    to = snap(rowAll, to, winY);
+    bo = snap(rowAll, bo, winY);
+    if (ro - lo < W * 0.2 || bo - to < H * 0.2) return null;
+  }
   const outer: Rect = { l: lo / W, t: to / H, r: (ro + 1) / W, b: (bo + 1) / H };
   const owP = ro - lo;
   const ohP = bo - to;
@@ -225,7 +270,7 @@ function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null 
   return { outer, inner };
 }
 
-export function CenteringTool() {
+export function CenteringTool({ onGoPrices }: { onGoPrices?: () => void }) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [outer, setOuter] = useState<Rect>({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
   const [inner, setInner] = useState<Rect>({ l: 0.14, t: 0.12, r: 0.86, b: 0.88 });
@@ -235,6 +280,19 @@ export function CenteringTool() {
   const [tilt, setTilt] = useState<{ beta: number; gamma: number } | null>(null);
   // 자동 인식 성공 여부. 실패면 가짜 50:50 대신 "직접 맞춰주세요" 안내를 띄운다.
   const [autoOk, setAutoOk] = useState(true);
+  // 지금 재는 면. 앞면을 확정하면 front에 저장하고 뒷면 측정으로 넘어간다.
+  const [side, setSide] = useState<'front' | 'back'>('front');
+  const [front, setFront] = useState<{ lr: [number, number] | null; tb: [number, number] | null } | null>(null);
+  // "자동 인식 다시"는 같은 사진이면 결과도 같아 아무 변화가 없어 보인다. 눌렀다는 걸
+  // 알 수 있게 잠깐 메시지를 띄운다.
+  const [flash, setFlash] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showFlash(msg: string) {
+    setFlash(msg);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlash(null), 2500);
+  }
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
@@ -280,9 +338,35 @@ export function CenteringTool() {
     if (res) {
       applyDetected(res);
       setAutoOk(true);
+      showFlash('자동 인식을 다시 했어요 ✓ (같은 사진이면 결과가 같을 수 있어요)');
     } else {
       setAutoOk(false);
+      showFlash('자동 인식 실패 — 네모를 직접 맞춰 주세요');
     }
+  }
+
+  // 앞면 결과를 확정하고 뒷면 측정으로 넘어간다.
+  function goBackSide(curLr: [number, number] | null, curTb: [number, number] | null) {
+    setFront({ lr: curLr, tb: curTb });
+    setSide('back');
+    setImgUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setAutoOk(true);
+    setZoom(1);
+  }
+
+  // 앞·뒷면 전부 초기화.
+  function resetAll() {
+    setFront(null);
+    setSide('front');
+    setImgUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setAutoOk(true);
+    setZoom(1);
   }
 
   async function openCamera() {
@@ -346,6 +430,61 @@ export function CenteringTool() {
     return () => window.removeEventListener('deviceorientation', handler);
   }, [cameraOn]);
 
+  // 측정 화면(사진+네모+수치)을 이미지로 만들어 내려받는다. 앨범에 저장하거나 거래글·
+  // 커뮤니티에 바로 쓸 수 있다.
+  function saveResult() {
+    const img = imgRef.current;
+    if (!img || !img.naturalWidth) return;
+    const lrS = ratio(inner.l - outer.l, outer.r - inner.r);
+    const tbS = ratio(inner.t - outer.t, outer.b - inner.b);
+    const worstS = Math.max(lrS ? Math.max(lrS[0], lrS[1]) : 50, tbS ? Math.max(tbS[0], tbS[1]) : 50);
+    const W0 = Math.min(1200, img.naturalWidth);
+    const scale = W0 / img.naturalWidth;
+    const H0 = Math.round(img.naturalHeight * scale);
+    const footer = Math.max(90, Math.round(W0 * 0.14));
+    const c = document.createElement('canvas');
+    c.width = W0;
+    c.height = H0 + footer;
+    const x = c.getContext('2d');
+    if (!x) return;
+    x.fillStyle = '#ffffff';
+    x.fillRect(0, 0, W0, H0 + footer);
+    x.drawImage(img, 0, 0, W0, H0);
+    const lw = Math.max(3, Math.round(W0 * 0.004));
+    const drawRect = (r: Rect, color: string) => {
+      x.strokeStyle = color;
+      x.lineWidth = lw;
+      x.strokeRect(r.l * W0, r.t * H0, (r.r - r.l) * W0, (r.b - r.t) * H0);
+    };
+    drawRect(outer, '#2a78d6');
+    drawRect(inner, '#10b981');
+    x.fillStyle = '#111111';
+    x.font = `bold ${Math.round(footer * 0.3)}px sans-serif`;
+    const sideLabel = side === 'front' ? '앞면' : '뒷면';
+    x.fillText(
+      `${sideLabel}  좌우 ${lrS ? `${lrS[0]}:${lrS[1]}` : '-'}   상하 ${tbS ? `${tbS[0]}:${tbS[1]}` : '-'}`,
+      Math.round(W0 * 0.04),
+      H0 + Math.round(footer * 0.42),
+    );
+    x.fillStyle = '#666666';
+    x.font = `${Math.round(footer * 0.2)}px sans-serif`;
+    const ladders = side === 'front' ? COMPANY_LADDERS.map((cc) => ({ name: cc.name, g: companyGrade(cc.ladder, cc.fail, worstS) })) : COMPANY_LADDERS.map((cc) => ({ name: cc.name, g: companyGrade(COMPANY_BACK[cc.name].ladder, COMPANY_BACK[cc.name].fail, worstS) }));
+    x.fillText(ladders.map((d) => `${d.name} ${d.g}`).join('  ·  '), Math.round(W0 * 0.04), H0 + Math.round(footer * 0.75));
+    x.textAlign = 'right';
+    x.fillStyle = '#999999';
+    x.fillText('pokegre.com', Math.round(W0 * 0.96), H0 + Math.round(footer * 0.75));
+    x.textAlign = 'left';
+    c.toBlob((b) => {
+      if (!b) return;
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = `pokegre-centering-${side === 'front' ? 'front' : 'back'}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(u), 3000);
+    }, 'image/png');
+  }
+
   // 앨범에서 고른 사진도 같은 흐름(자동 검출 → 드래그 조정)으로 태운다.
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -405,7 +544,17 @@ export function CenteringTool() {
 
   return (
     <div>
-      <h2 className="text-base font-bold text-black mb-1">센터링 측정</h2>
+      <div className="mb-1 flex items-center gap-2">
+        <h2 className="text-base font-bold text-black">센터링 측정</h2>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${side === 'front' ? 'bg-neutral-900 text-white' : 'bg-emerald-600 text-white'}`}>
+          {side === 'front' ? '앞면' : '뒷면'}
+        </span>
+        {side === 'back' && front && (
+          <span className="text-[11px] text-neutral-400">
+            앞면 완료: 좌우 {front.lr ? `${front.lr[0]}:${front.lr[1]}` : '-'} · 상하 {front.tb ? `${front.tb[0]}:${front.tb[1]}` : '-'}
+          </span>
+        )}
+      </div>
       <p className="text-xs text-neutral-400 mb-4">
         카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span>
         <span className="font-semibold text-neutral-700"> 한 장만</span> 어두운/단색 배경에 놓고(옆에 다른 카드 없이),
@@ -417,12 +566,17 @@ export function CenteringTool() {
 
       {!imgUrl ? (
         <div className="space-y-2">
+          {side === 'back' && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">
+              앞면 완료! 이제 카드를 뒤집어 뒷면을 찍어주세요. 뒷면까지 재면 회사별 종합 등급이 나와요.
+            </div>
+          )}
           <button
             type="button"
             onClick={openCamera}
             className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
           >
-            📷 카메라로 촬영 (수평계 지원)
+            📷 {side === 'front' ? '카메라로 촬영 (수평계 지원)' : '뒷면 촬영하기'}
           </button>
           <button
             type="button"
@@ -457,6 +611,7 @@ export function CenteringTool() {
               자동 인식 다시
             </button>
           </div>
+          {flash && <p className="mb-2 text-xs font-semibold text-[#2a78d6]">{flash}</p>}
           <div className="mb-2 flex items-center gap-2">
             <button
               type="button"
@@ -497,6 +652,7 @@ export function CenteringTool() {
             </div>
           )}
           <div className="mt-4 rounded-xl border border-neutral-200 p-4">
+            <p className="mb-2 text-xs font-bold text-neutral-500">{side === 'front' ? '앞면 측정' : '뒷면 측정'}</p>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-neutral-500">좌우</p>
@@ -508,26 +664,76 @@ export function CenteringTool() {
               </div>
             </div>
             <p className={`mt-3 text-sm font-semibold ${v.color}`}>{v.label}</p>
-            {/* 회사별 센터링 서브등급(앞면 기준). 좌우·상하 중 나쁜 쪽으로 판정한다. */}
+            {/* 회사별 센터링 서브등급. 좌우·상하 중 나쁜 쪽으로 판정. 뒷면까지 재면 앞·뒷면
+                중 낮은 등급이 종합이 된다(실제 감정사들 방식). */}
             <div className="mt-3 grid grid-cols-4 gap-2">
-              {COMPANY_LADDERS.map((c) => (
-                <div key={c.name} className="rounded-lg border border-neutral-200 p-2 text-center">
-                  <p className="text-[11px] font-semibold text-neutral-500">
-                    {c.name}
-                    {c.ref && <span className="text-neutral-300">*</span>}
-                  </p>
-                  <p className="text-lg font-bold text-black">{companyGrade(c.ladder, c.fail, worst)}</p>
-                </div>
-              ))}
+              {COMPANY_LADDERS.map((c) => {
+                let label: string;
+                if (side === 'front') {
+                  label = companyGrade(c.ladder, c.fail, worst);
+                } else {
+                  const fw = front ? Math.max(front.lr ? Math.max(front.lr[0], front.lr[1]) : 50, front.tb ? Math.max(front.tb[0], front.tb[1]) : 50) : 50;
+                  const fg = companyGrade(c.ladder, c.fail, fw);
+                  const back = COMPANY_BACK[c.name];
+                  const bg = companyGrade(back.ladder, back.fail, worst);
+                  label = gradeValue(bg) < gradeValue(fg) ? bg : fg;
+                }
+                return (
+                  <div key={c.name} className="rounded-lg border border-neutral-200 p-2 text-center">
+                    <p className="text-[11px] font-semibold text-neutral-500">
+                      {c.name}
+                      {c.ref && <span className="text-neutral-300">*</span>}
+                    </p>
+                    <p className="text-lg font-bold text-black">{label}</p>
+                  </div>
+                );
+              })}
             </div>
             <p className="mt-1 text-[10px] text-neutral-400">
-              앞면 센터링만 본 참고 등급이에요. *BRG는 등급별 기준이 공식 공개돼 있지 않아 안내 기준(10 ≈ 60/40)으로만
-              표시해요.
+              {side === 'front'
+                ? '앞면 센터링만 본 참고 등급이에요. 뒷면까지 재면 더 정확해져요.'
+                : '앞면·뒷면을 함께 본 종합 참고 등급이에요(낮은 쪽 기준).'}{' '}
+              *BRG는 등급별 기준이 공식 공개돼 있지 않아 참고치로만 표시해요.
             </p>
             <p className="mt-1 text-[11px] text-neutral-400">
-              50 : 50에 가까울수록 중앙에 잘 맞은 카드예요. 가장 치우친 쪽을 기준으로 판단했어요. 센터링만 본 값이라
-              실제 감정 등급은 모서리·표면·스크래치도 함께 봅니다. 참고용이에요.
+              50 : 50에 가까울수록 중앙에 잘 맞은 카드예요. 센터링만 본 값이라 실제 감정 등급은 모서리·표면·스크래치도
+              함께 봅니다. 참고용이에요.
             </p>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {side === 'front' && (
+              <button
+                type="button"
+                onClick={() => goBackSide(lr, tb)}
+                className="rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+              >
+                뒷면도 측정하기 →
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={saveResult}
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+            >
+              📥 결과 이미지 저장
+            </button>
+            {onGoPrices && (
+              <button
+                type="button"
+                onClick={onGoPrices}
+                className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                이 카드 시세 보러 가기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={resetAll}
+              className="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-400 hover:bg-neutral-50"
+            >
+              처음부터
+            </button>
           </div>
         </>
       )}

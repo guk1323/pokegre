@@ -709,7 +709,7 @@ function App() {
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (
             <div className="max-w-xl">
-              <CenteringTool />
+              <CenteringTool onGoPrices={goHome} />
             </div>
           ) : view === 'mypage' ? (
             <DetailLayout
