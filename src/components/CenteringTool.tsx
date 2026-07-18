@@ -33,27 +33,26 @@ function psaCentering(worst: number): string {
   return 'PSA 6 센터링 기준(80/20)에도 못 미침';
 }
 
-// 엣지 프로파일에서 바깥→안으로 스캔해 강한 선 최대 2개(바깥 테두리, 안쪽 테두리)의
-// 인덱스를 찾는다. 카드 테두리(배경↔카드)와 일러스트 테두리(테두리↔그림)는 대개 길고
-// 곧은 강한 경계선이라 프로파일에서 뚜렷한 봉우리로 나타난다.
-function scanTwo(P: Float32Array, lo: number, hi: number, fromLo: boolean): number[] {
-  let mx = 0;
-  for (let i = lo; i < hi; i++) if (P[i] > mx) mx = P[i];
-  if (mx <= 0) return [];
-  const T = mx * 0.35;
-  const order: number[] = [];
-  if (fromLo) for (let i = lo; i < hi; i++) order.push(i);
-  else for (let i = hi - 1; i >= lo; i--) order.push(i);
-  const found: number[] = [];
-  for (const i of order) {
-    if (i <= 0 || i >= P.length - 1) continue;
-    if (P[i] >= T && P[i] >= P[i - 1] && P[i] >= P[i + 1]) {
-      if (found.length && Math.abs(i - found[found.length - 1]) < 6) continue; // 붙은 봉우리는 하나로
-      found.push(i);
-      if (found.length >= 2) break;
-    }
+// 바깥→안으로 스캔해 임계값을 넘는 첫 강한 봉우리(=바깥 테두리, 배경↔카드 경계) 인덱스.
+function firstPeak(P: Float32Array, lo: number, hi: number, fromLo: boolean, T: number): number | null {
+  if (fromLo) {
+    for (let i = Math.max(1, lo); i < hi; i++) if (P[i] >= T && P[i] >= P[i - 1] && P[i] >= P[i + 1]) return i;
+  } else {
+    for (let i = Math.min(P.length - 2, hi - 1); i >= lo; i--) if (P[i] >= T && P[i] >= P[i - 1] && P[i] >= P[i + 1]) return i;
   }
-  return found;
+  return null;
+}
+
+// 지정한 띠(a~b) 안에서 가장 강한 선의 인덱스. minVal 미만이면 null(뚜렷한 안쪽 테두리가
+// 없다고 보고 인셋으로 대체). 안쪽 테두리를 바깥 테두리 근처 띠로 한정해 깊은 내부선을 피한다.
+function strongestInBand(P: Float32Array, a: number, b: number, minVal: number): number | null {
+  const lo = Math.max(1, Math.round(a));
+  const hi = Math.min(P.length - 2, Math.round(b));
+  if (lo >= hi) return null;
+  let bi = -1;
+  let bv = 0;
+  for (let i = lo; i <= hi; i++) if (P[i] > bv) { bv = P[i]; bi = i; }
+  return bi >= 0 && bv >= minVal ? bi : null;
 }
 
 // 카드 바깥 테두리와 안쪽 일러스트 테두리를 함께 검출한다. 세로 경계(좌·우 선)는 열마다
@@ -90,28 +89,35 @@ function detectCardEdges(img: HTMLImageElement): { outer: Rect; inner: Rect } | 
   }
   const hw = Math.floor(W * 0.5);
   const hh = Math.floor(H * 0.5);
-  const L = scanTwo(colV, 0, hw, true); // 왼쪽: [바깥, 안쪽]
-  const R = scanTwo(colV, hw, W, false); // 오른쪽
-  const Tn = scanTwo(rowH, 0, hh, true); // 위
-  const Bn = scanTwo(rowH, hh, H, false); // 아래
-  if (!L.length || !R.length || !Tn.length || !Bn.length) return null;
-  const lo = L[0], ro = R[0], to = Tn[0], bo = Bn[0];
+  const colMax = Math.max(...colV);
+  const rowMax = Math.max(...rowH);
+  const lo = firstPeak(colV, 0, hw, true, colMax * 0.35);
+  const ro = firstPeak(colV, hw, W, false, colMax * 0.35);
+  const to = firstPeak(rowH, 0, hh, true, rowMax * 0.35);
+  const bo = firstPeak(rowH, hh, H, false, rowMax * 0.35);
+  if (lo == null || ro == null || to == null || bo == null) return null;
   if (ro - lo < W * 0.3 || bo - to < H * 0.3) return null; // 카드가 너무 작으면 실패
   const outer: Rect = { l: lo / W, t: to / H, r: (ro + 1) / W, b: (bo + 1) / H };
-  const ow = outer.r - outer.l;
-  const oh = outer.b - outer.t;
+  const owP = ro - lo;
+  const ohP = bo - to;
+  // 안쪽 테두리는 바깥에서 가까운 띠(약 1.5~16%) 안의 가장 강한 선으로. 이름줄·본문 같은
+  // 깊은 내부선을 피하고 타이트하게 붙는다. 띠 안에 뚜렷한 선이 없으면 얇은 인셋(5%)으로.
+  const li = strongestInBand(colV, lo + owP * 0.015, lo + owP * 0.16, colMax * 0.2);
+  const ri = strongestInBand(colV, ro - owP * 0.16, ro - owP * 0.015, colMax * 0.2);
+  const ti = strongestInBand(rowH, to + ohP * 0.015, to + ohP * 0.16, rowMax * 0.2);
+  const bi = strongestInBand(rowH, bo - ohP * 0.16, bo - ohP * 0.015, rowMax * 0.2);
   const inner: Rect = {
-    l: L[1] != null ? L[1] / W : outer.l + ow * 0.05,
-    t: Tn[1] != null ? Tn[1] / H : outer.t + oh * 0.05,
-    r: R[1] != null ? (R[1] + 1) / W : outer.r - ow * 0.05,
-    b: Bn[1] != null ? (Bn[1] + 1) / H : outer.b - oh * 0.05,
+    l: li != null ? li / W : outer.l + (outer.r - outer.l) * 0.05,
+    t: ti != null ? ti / H : outer.t + (outer.b - outer.t) * 0.05,
+    r: ri != null ? (ri + 1) / W : outer.r - (outer.r - outer.l) * 0.05,
+    b: bi != null ? (bi + 1) / H : outer.b - (outer.b - outer.t) * 0.05,
   };
   // 안쪽이 뒤집히거나 바깥을 벗어나면 안전한 인셋으로 되돌린다.
   if (!(inner.l < inner.r - 0.02 && inner.t < inner.b - 0.02)) {
-    inner.l = outer.l + ow * 0.05;
-    inner.r = outer.r - ow * 0.05;
-    inner.t = outer.t + oh * 0.05;
-    inner.b = outer.b - oh * 0.05;
+    inner.l = outer.l + (outer.r - outer.l) * 0.05;
+    inner.r = outer.r - (outer.r - outer.l) * 0.05;
+    inner.t = outer.t + (outer.b - outer.t) * 0.05;
+    inner.b = outer.b - (outer.b - outer.t) * 0.05;
   }
   inner.l = clamp(inner.l, outer.l, outer.r);
   inner.r = clamp(inner.r, outer.l, outer.r);
