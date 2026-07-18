@@ -43,16 +43,18 @@ function firstPeak(P: Float32Array, lo: number, hi: number, fromLo: boolean, T: 
   return null;
 }
 
-// 지정한 띠(a~b) 안에서 가장 강한 선의 인덱스. minVal 미만이면 null(뚜렷한 안쪽 테두리가
-// 없다고 보고 인셋으로 대체). 안쪽 테두리를 바깥 테두리 근처 띠로 한정해 깊은 내부선을 피한다.
-function strongestInBand(P: Float32Array, a: number, b: number, minVal: number): number | null {
-  const lo = Math.max(1, Math.round(a));
-  const hi = Math.min(P.length - 2, Math.round(b));
-  if (lo >= hi) return null;
-  let bi = -1;
-  let bv = 0;
-  for (let i = lo; i <= hi; i++) if (P[i] > bv) { bv = P[i]; bi = i; }
-  return bi >= 0 && bv >= minVal ? bi : null;
+// 바깥 테두리(from)에서 안쪽(to)으로 스캔해 처음 만나는 강한 선(=일러스트 테두리)의 인덱스.
+// 깊은 곳의 더 강한 본문·텍스트 선보다, 테두리에 가장 가까운 선을 잡아야 안쪽으로 침범하지
+// 않는다. from>to면 반대 방향(우·하)으로 스캔한다. 못 찾으면 null(인셋으로 대체).
+function firstStrongInBand(P: Float32Array, from: number, to: number, T: number): number | null {
+  const a = Math.round(from);
+  const b = Math.round(to);
+  const step = b >= a ? 1 : -1;
+  for (let i = a; step > 0 ? i <= b : i >= b; i += step) {
+    if (i <= 0 || i >= P.length - 1) continue;
+    if (P[i] >= T && P[i] >= P[i - 1] && P[i] >= P[i + 1]) return i;
+  }
+  return null;
 }
 
 // 카드 바깥 테두리와 안쪽 일러스트 테두리를 함께 검출한다. 세로 경계(좌·우 선)는 열마다
@@ -100,12 +102,15 @@ function detectCardEdges(img: HTMLImageElement): { outer: Rect; inner: Rect } | 
   const outer: Rect = { l: lo / W, t: to / H, r: (ro + 1) / W, b: (bo + 1) / H };
   const owP = ro - lo;
   const ohP = bo - to;
-  // 안쪽 테두리는 바깥에서 가까운 띠(약 1.5~16%) 안의 가장 강한 선으로. 이름줄·본문 같은
-  // 깊은 내부선을 피하고 타이트하게 붙는다. 띠 안에 뚜렷한 선이 없으면 얇은 인셋(5%)으로.
-  const li = strongestInBand(colV, lo + owP * 0.015, lo + owP * 0.16, colMax * 0.2);
-  const ri = strongestInBand(colV, ro - owP * 0.16, ro - owP * 0.015, colMax * 0.2);
-  const ti = strongestInBand(rowH, to + ohP * 0.015, to + ohP * 0.16, rowMax * 0.2);
-  const bi = strongestInBand(rowH, bo - ohP * 0.16, bo - ohP * 0.015, rowMax * 0.2);
+  // 안쪽 테두리는 바깥에서 안으로 스캔해 "가장 가까운 강한 선"으로. 카드 아래쪽 본문처럼
+  // 더 강한 깊은 선이 있어도, 테두리에 가장 가까운 선을 잡아 안쪽 침범을 막는다. 스캔은
+  // 바깥 테두리 바로 안(2%)부터 최대 18%까지. 없으면 얇은 인셋(5%)으로 대체.
+  const cT = colMax * 0.18;
+  const rT = rowMax * 0.18;
+  const li = firstStrongInBand(colV, lo + owP * 0.02, lo + owP * 0.18, cT);
+  const ri = firstStrongInBand(colV, ro - owP * 0.02, ro - owP * 0.18, cT);
+  const ti = firstStrongInBand(rowH, to + ohP * 0.02, to + ohP * 0.18, rT);
+  const bi = firstStrongInBand(rowH, bo - ohP * 0.02, bo - ohP * 0.18, rT);
   const inner: Rect = {
     l: li != null ? li / W : outer.l + (outer.r - outer.l) * 0.05,
     t: ti != null ? ti / H : outer.t + (outer.b - outer.t) * 0.05,
@@ -271,8 +276,8 @@ export function CenteringTool() {
       <h2 className="text-base font-bold text-black mb-1">센터링 측정</h2>
       <p className="text-xs text-neutral-400 mb-4">
         카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span> 어두운/단색 배경에
-        놓고, <span className="font-semibold text-neutral-700">초점이 잡히는 거리</span>에서 정면·수평으로 찍으세요
-        (틀에 꽉 채울 필요 없어요). 찍으면 <span className="text-[#2a78d6] font-semibold">파란 네모</span>(카드
+        놓고, <span className="font-semibold text-neutral-700">초점이 잡히는 거리</span>에서
+        <span className="font-semibold text-neutral-700"> 기울지 않게 똑바로</span> 찍으세요 (틀에 꽉 채울 필요 없어요). 찍으면 <span className="text-[#2a78d6] font-semibold">파란 네모</span>(카드
         테두리)와 <span className="text-emerald-600 font-semibold">초록 네모</span>(일러스트 테두리)를 자동으로
         얹어요. 빗나가면 모서리를 잡아 직접 맞추면 돼요. 참고용이에요.
       </p>
