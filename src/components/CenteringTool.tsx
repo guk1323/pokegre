@@ -33,14 +33,70 @@ function psaCentering(worst: number): string {
   return 'PSA 6 센터링 기준(80/20)에도 못 미침';
 }
 
-// 바깥→안으로 스캔해 임계값을 넘는 첫 강한 봉우리(=바깥 테두리, 배경↔카드 경계) 인덱스.
-function firstPeak(P: Float32Array, lo: number, hi: number, fromLo: boolean, T: number): number | null {
-  if (fromLo) {
-    for (let i = Math.max(1, lo); i < hi; i++) if (P[i] >= T && P[i] >= P[i - 1] && P[i] >= P[i + 1]) return i;
-  } else {
-    for (let i = Math.min(P.length - 2, hi - 1); i >= lo; i--) if (P[i] >= T && P[i] >= P[i - 1] && P[i] >= P[i + 1]) return i;
+// 어두운 배경 위 카드를 밝기로 가르는 오츠(Otsu) 임계값.
+function otsu(g: Float32Array): number {
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < g.length; i++) hist[Math.max(0, Math.min(255, g[i] | 0))]++;
+  const total = g.length;
+  let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, maxVar = -1, thr = 127;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i];
+    if (wB === 0) continue;
+    const wF = total - wB;
+    if (wF === 0) break;
+    sumB += i * hist[i];
+    const mB = sumB / wB;
+    const mF = (sum - sumB) / wF;
+    const v = wB * wF * (mB - mF) * (mB - mF);
+    if (v > maxVar) { maxVar = v; thr = i; }
   }
-  return null;
+  return thr;
+}
+
+// 밝은 픽셀 덩어리(연결요소) 중 "가운데 카드"의 바깥 사각형을 고른다. 카드 비율(~0.72)에
+// 맞고 충분히 큰 덩어리를 찾되, 이미지 가장자리에 닿는 덩어리(=화면에 걸친 옆 카드)는
+// 점수를 크게 깎아 무시한다. 홀로·어두운 배경에 강하다.
+function detectOuter(bright: Uint8Array, W: number, H: number): { lo: number; ro: number; to: number; bo: number } | null {
+  const label = new Int32Array(W * H);
+  const stack: number[] = [];
+  let best: { minx: number; maxx: number; miny: number; maxy: number; score: number } | null = null;
+  let cur = 0;
+  for (let s = 0; s < W * H; s++) {
+    if (!bright[s] || label[s]) continue;
+    cur++;
+    let area = 0, minx = W, maxx = 0, miny = H, maxy = 0, touch = false;
+    stack.length = 0;
+    stack.push(s);
+    label[s] = cur;
+    while (stack.length) {
+      const p = stack.pop() as number;
+      const x = p % W;
+      const y = (p / W) | 0;
+      area++;
+      if (x < minx) minx = x;
+      if (x > maxx) maxx = x;
+      if (y < miny) miny = y;
+      if (y > maxy) maxy = y;
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1) touch = true;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const np = ny * W + nx;
+          if (bright[np] && !label[np]) { label[np] = cur; stack.push(np); }
+        }
+    }
+    const w = maxx - minx + 1;
+    const h = maxy - miny + 1;
+    const ratio = w / h;
+    if (area < W * H * 0.03 || w < W * 0.25 || h < H * 0.25 || ratio < 0.5 || ratio > 0.95) continue;
+    const score = area * (touch ? 0.3 : 1);
+    if (!best || score > best.score) best = { minx, maxx, miny, maxy, score };
+  }
+  if (!best) return null;
+  return { lo: best.minx, ro: best.maxx, to: best.miny, bo: best.maxy };
 }
 
 // 바깥 테두리(from)에서 안쪽(to)으로 스캔해 처음 만나는 강한 선(=일러스트 테두리)의 인덱스.
@@ -57,10 +113,9 @@ function firstStrongInBand(P: Float32Array, from: number, to: number, T: number)
   return null;
 }
 
-// 카드 바깥 테두리와 안쪽 일러스트 테두리를 함께 검출한다. 세로 경계(좌·우 선)는 열마다
-// 세로 방향 밝기 변화 합으로, 가로 경계(상·하 선)는 행마다 가로 방향 변화 합으로 프로파일을
-// 만든 뒤, 양쪽 바깥에서 안으로 스캔한다. 실패하면 null(수동으로).
-function detectCardEdges(img: HTMLImageElement): { outer: Rect; inner: Rect } | null {
+// 카드 바깥 테두리(밝기 분할)와 안쪽 일러스트 테두리(카드 영역 안 경계선)를 함께 검출.
+// 실패하면 null(자동 인식 실패로 처리 → 수동 안내).
+function detectCard(img: HTMLImageElement): { outer: Rect; inner: Rect } | null {
   const W = 200;
   const H = Math.max(1, Math.round((img.naturalHeight / img.naturalWidth) * W));
   const canvas = document.createElement('canvas');
@@ -77,52 +132,45 @@ function detectCardEdges(img: HTMLImageElement): { outer: Rect; inner: Rect } | 
   }
   const g = new Float32Array(W * H);
   for (let i = 0, p = 0; i < g.length; i++, p += 4) g[i] = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
-  const colV = new Float32Array(W); // 세로 경계 강도(좌우 선)
-  for (let x = 1; x < W; x++) {
-    let s = 0;
-    for (let y = 0; y < H; y++) s += Math.abs(g[y * W + x] - g[y * W + x - 1]);
-    colV[x] = s / H;
-  }
-  const rowH = new Float32Array(H); // 가로 경계 강도(상하 선)
-  for (let y = 1; y < H; y++) {
-    let s = 0;
-    for (let x = 0; x < W; x++) s += Math.abs(g[y * W + x] - g[(y - 1) * W + x]);
-    rowH[y] = s / W;
-  }
-  const hw = Math.floor(W * 0.5);
-  const hh = Math.floor(H * 0.5);
-  const colMax = Math.max(...colV);
-  const rowMax = Math.max(...rowH);
-  const lo = firstPeak(colV, 0, hw, true, colMax * 0.35);
-  const ro = firstPeak(colV, hw, W, false, colMax * 0.35);
-  const to = firstPeak(rowH, 0, hh, true, rowMax * 0.35);
-  const bo = firstPeak(rowH, hh, H, false, rowMax * 0.35);
-  if (lo == null || ro == null || to == null || bo == null) return null;
-  if (ro - lo < W * 0.3 || bo - to < H * 0.3) return null; // 카드가 너무 작으면 실패
-  // 검출된 사각형의 가로/세로 비율이 카드(세로 63:88 ≈ 0.72)에서 크게 벗어나면 카드가
-  // 아니라고 보고 버린다(옆에 다른 카드가 걸리거나 배경 선을 잡은 경우). 기울기·원근을
-  // 감안해 범위를 넉넉히 둔다.
-  const rr = (ro - lo) / (bo - to);
-  if (rr < 0.5 || rr > 0.95) return null;
+  // ── 바깥: 밝기 분할 + 가운데 카드 덩어리 ──
+  const thr = Math.max(otsu(g), 40); // 배경이 아주 어두워도 임계가 너무 낮아지지 않게
+  const bright = new Uint8Array(W * H);
+  for (let i = 0; i < g.length; i++) bright[i] = g[i] > thr ? 1 : 0;
+  const box = detectOuter(bright, W, H);
+  if (!box) return null;
+  const { lo, ro, to, bo } = box;
   const outer: Rect = { l: lo / W, t: to / H, r: (ro + 1) / W, b: (bo + 1) / H };
   const owP = ro - lo;
   const ohP = bo - to;
-  // 안쪽 테두리는 바깥에서 안으로 스캔해 "가장 가까운 강한 선"으로. 카드 아래쪽 본문처럼
-  // 더 강한 깊은 선이 있어도, 테두리에 가장 가까운 선을 잡아 안쪽 침범을 막는다. 스캔은
-  // 바깥 테두리 바로 안(2%)부터 최대 18%까지. 없으면 얇은 인셋(5%)으로 대체.
-  const cT = colMax * 0.18;
-  const rT = rowMax * 0.18;
-  const li = firstStrongInBand(colV, lo + owP * 0.02, lo + owP * 0.18, cT);
-  const ri = firstStrongInBand(colV, ro - owP * 0.02, ro - owP * 0.18, cT);
-  const ti = firstStrongInBand(rowH, to + ohP * 0.02, to + ohP * 0.18, rT);
-  const bi = firstStrongInBand(rowH, bo - ohP * 0.02, bo - ohP * 0.18, rT);
+  // ── 안쪽: 카드 영역 안에서만 경계선 프로파일 → 바깥에서 안으로 첫 강한 선 ──
+  const colV = new Float32Array(W);
+  for (let x = lo + 1; x <= ro; x++) {
+    let s = 0;
+    for (let y = to; y <= bo; y++) s += Math.abs(g[y * W + x] - g[y * W + x - 1]);
+    colV[x] = s / Math.max(1, ohP);
+  }
+  const rowH = new Float32Array(H);
+  for (let y = to + 1; y <= bo; y++) {
+    let s = 0;
+    for (let x = lo; x <= ro; x++) s += Math.abs(g[y * W + x] - g[(y - 1) * W + x]);
+    rowH[y] = s / Math.max(1, owP);
+  }
+  let cMax = 0;
+  for (let x = lo; x <= ro; x++) if (colV[x] > cMax) cMax = colV[x];
+  let rMax = 0;
+  for (let y = to; y <= bo; y++) if (rowH[y] > rMax) rMax = rowH[y];
+  const cT = cMax * 0.18;
+  const rT = rMax * 0.18;
+  const li = firstStrongInBand(colV, lo + owP * 0.02, lo + owP * 0.2, cT);
+  const ri = firstStrongInBand(colV, ro - owP * 0.02, ro - owP * 0.2, cT);
+  const ti = firstStrongInBand(rowH, to + ohP * 0.02, to + ohP * 0.2, rT);
+  const bi = firstStrongInBand(rowH, bo - ohP * 0.02, bo - ohP * 0.2, rT);
   const inner: Rect = {
     l: li != null ? li / W : outer.l + (outer.r - outer.l) * 0.05,
     t: ti != null ? ti / H : outer.t + (outer.b - outer.t) * 0.05,
     r: ri != null ? (ri + 1) / W : outer.r - (outer.r - outer.l) * 0.05,
     b: bi != null ? (bi + 1) / H : outer.b - (outer.b - outer.t) * 0.05,
   };
-  // 안쪽이 뒤집히거나 바깥을 벗어나면 안전한 인셋으로 되돌린다.
   if (!(inner.l < inner.r - 0.02 && inner.t < inner.b - 0.02)) {
     inner.l = outer.l + (outer.r - outer.l) * 0.05;
     inner.r = outer.r - (outer.r - outer.l) * 0.05;
@@ -144,6 +192,8 @@ export function CenteringTool() {
   const [cameraOn, setCameraOn] = useState(false);
   // 기기 기울기(수평계용). 폰을 데스크와 평행하게(수평) 들면 beta·gamma가 0에 가깝다.
   const [tilt, setTilt] = useState<{ beta: number; gamma: number } | null>(null);
+  // 자동 인식 성공 여부. 실패면 가짜 50:50 대신 "직접 맞춰주세요" 안내를 띄운다.
+  const [autoOk, setAutoOk] = useState(true);
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -169,19 +219,28 @@ export function CenteringTool() {
   function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     if (!pendingDetect.current) return;
     pendingDetect.current = false;
-    const res = detectCardEdges(e.currentTarget);
-    if (res) applyDetected(res);
+    const res = detectCard(e.currentTarget);
+    if (res) {
+      applyDetected(res);
+      setAutoOk(true);
+    } else {
+      // 실패 시 가짜 50:50이 뜨지 않게, 네모를 중앙의 카드 모양으로 두고 안내를 띄운다.
+      setOuter({ l: 0.2, t: 0.12, r: 0.8, b: 0.88 });
+      setInner({ l: 0.26, t: 0.18, r: 0.74, b: 0.82 });
+      setAutoOk(false);
+    }
   }
 
   function redetect() {
     const img = imgRef.current;
     if (!img) return;
-    const res = detectCardEdges(img);
-    if (!res) {
-      window.alert('카드를 자동으로 찾지 못했어요. 배경과 카드가 뚜렷하게 구분되게(단색 배경, 정면, 초점) 다시 찍어 보세요. 안 되면 네모를 직접 맞춰 주세요.');
-      return;
+    const res = detectCard(img);
+    if (res) {
+      applyDetected(res);
+      setAutoOk(true);
+    } else {
+      setAutoOk(false);
     }
-    applyDetected(res);
   }
 
   async function openCamera() {
@@ -367,6 +426,11 @@ export function CenteringTool() {
             </div>
           </div>
 
+          {!autoOk && (
+            <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-700">
+              ⚠️ 자동 인식을 못 했어요. 카드 한 장만 어두운 배경에 놓고 다시 찍거나, 네모 모서리를 직접 맞춰 주세요. (아래 숫자는 아직 참고 안 돼요)
+            </div>
+          )}
           <div className="mt-4 rounded-xl border border-neutral-200 p-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
