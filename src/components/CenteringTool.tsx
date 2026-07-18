@@ -28,6 +28,7 @@ export function CenteringTool() {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [outer, setOuter] = useState<Rect>({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
   const [inner, setInner] = useState<Rect>({ l: 0.2, t: 0.2, r: 0.8, b: 0.8 });
+  const [zoom, setZoom] = useState(1);
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
@@ -42,6 +43,7 @@ export function CenteringTool() {
     });
     setOuter({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
     setInner({ l: 0.2, t: 0.2, r: 0.8, b: 0.8 });
+    setZoom(1);
   }
 
   function move(e: React.PointerEvent) {
@@ -123,19 +125,40 @@ export function CenteringTool() {
               다른 사진
             </button>
           </div>
-          <div ref={wrapRef} className="relative w-full select-none overflow-hidden rounded-xl bg-neutral-100">
-            <img src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} />
-            {/* 바깥(파랑)·안쪽(초록) 네모 */}
-            <div
-              className="pointer-events-none absolute border-2 border-[#2a78d6]"
-              style={{ left: `${outer.l * 100}%`, top: `${outer.t * 100}%`, width: `${(outer.r - outer.l) * 100}%`, height: `${(outer.b - outer.t) * 100}%` }}
-            />
-            <div
-              className="pointer-events-none absolute border-2 border-emerald-500"
-              style={{ left: `${inner.l * 100}%`, top: `${inner.t * 100}%`, width: `${(inner.r - inner.l) * 100}%`, height: `${(inner.b - inner.t) * 100}%` }}
-            />
-            {handles('outer', outer, '#2a78d6')}
-            {handles('inner', inner, '#10b981')}
+          <div className="mb-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setZoom((z) => clamp(z - 0.5, 1, 4))}
+              className="h-8 w-8 rounded-lg border border-neutral-300 text-lg font-bold leading-none text-neutral-700 hover:bg-neutral-50"
+            >
+              −
+            </button>
+            <span className="w-12 text-center text-xs font-semibold text-neutral-600">{Math.round(zoom * 100)}%</span>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => clamp(z + 0.5, 1, 4))}
+              className="h-8 w-8 rounded-lg border border-neutral-300 text-lg font-bold leading-none text-neutral-700 hover:bg-neutral-50"
+            >
+              +
+            </button>
+            <span className="text-[11px] text-neutral-400">확대하면 작은 카드도 정밀하게 맞출 수 있어요</span>
+          </div>
+          {/* 확대 시 넘치는 부분은 스크롤(폰은 손가락)로 이동. 네모를 확대하지 않고 stage
+              폭을 키워 이미지·네모가 함께 커지므로 좌표 비율 계산은 그대로 정확하다. */}
+          <div className="max-h-[70vh] overflow-auto rounded-xl bg-neutral-100">
+            <div ref={wrapRef} className="relative select-none" style={{ width: `${zoom * 100}%` }}>
+              <img src={imgUrl} alt="측정할 카드" className="block w-full" draggable={false} />
+              <div
+                className="pointer-events-none absolute border-2 border-[#2a78d6]"
+                style={{ left: `${outer.l * 100}%`, top: `${outer.t * 100}%`, width: `${(outer.r - outer.l) * 100}%`, height: `${(outer.b - outer.t) * 100}%` }}
+              />
+              <div
+                className="pointer-events-none absolute border-2 border-emerald-500"
+                style={{ left: `${inner.l * 100}%`, top: `${inner.t * 100}%`, width: `${(inner.r - inner.l) * 100}%`, height: `${(inner.b - inner.t) * 100}%` }}
+              />
+              {handles('outer', outer, '#2a78d6')}
+              {handles('inner', inner, '#10b981')}
+            </div>
           </div>
 
           <div className="mt-4 rounded-xl border border-neutral-200 p-4">
