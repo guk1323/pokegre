@@ -5,7 +5,7 @@ import { useState } from 'react';
 //
 // 한 번 닫으면 다시 안 뜬다. 닫았다는 사실만 브라우저에 남기고(회원정보와 무관),
 // 안내 문구를 바꿔 다시 보여주고 싶을 때를 위해 버전을 키에 붙인다.
-const DISMISS_KEY = 'pokegre_onboarding_dismissed_v2';
+const DISMISS_KEY = 'pokegre_onboarding_dismissed_v3';
 
 function alreadyDismissed(): boolean {
   try {
@@ -39,20 +39,23 @@ export function OnboardingBanner() {
       >
         ✕
       </button>
-      <p className="text-sm font-bold text-black">처음 오셨나요? 👋</p>
+      <p className="text-sm font-bold text-black">처음이신가요?</p>
       <ul className="mt-2 space-y-1.5 text-sm text-neutral-600">
         <li>
           <span className="font-semibold text-neutral-800">카드 이름</span>을 검색하면 일본 실거래가(스니덩크)와 이베이
-          등급별 낙찰가를 한눈에 볼 수 있어요. 한글·영어·일본어 다 돼요.
+          등급별 낙찰가를 한눈에 확인합니다. 한글·영어·일본어 모두 가능합니다.
         </li>
         <li>
-          이름을 모르겠으면 <span className="font-semibold text-neutral-800">📷 카드 사진</span>을 찍거나 앨범에서 골라 검색할 수도 있어요.
+          이름을 몰라도 됩니다. <span className="font-semibold text-neutral-800">📷 카드 사진</span>을 찍거나 앨범에서 골라 검색합니다.
+        </li>
+        <li>
+          <span className="font-semibold text-neutral-800">카드 센터링</span>(중앙 정렬)은 사진으로 바로 측정합니다.
         </li>
         <li>
           마음에 드는 카드는 <span className="font-semibold text-neutral-800">북마크</span>로 저장하고,{' '}
-          <span className="font-semibold text-neutral-800">커뮤니티</span>에서 질문·건의를 남겨보세요.
+          <span className="font-semibold text-neutral-800">커뮤니티</span>에서 질문·건의를 남기면 됩니다.
         </li>
-        <li className="text-xs text-neutral-400">표시되는 시세는 참고용이며 실제 거래가와 다를 수 있어요.</li>
+        <li className="text-xs text-neutral-400">표시되는 시세는 참고용이며 실제 거래가와 다를 수 있습니다.</li>
       </ul>
     </div>
   );
