@@ -23,14 +23,18 @@ function verdict(worst: number): { label: string; color: string } {
   return { label: '한쪽으로 치우침', color: 'text-rose-500' };
 }
 
-// PSA가 공개한 앞면 센터링 허용치(대략). 가장 치우친 쪽 %로 도달 가능한 최고 등급.
-function psaCentering(worst: number): string {
-  if (worst <= 55) return 'PSA 10 센터링 기준(55/45)까지 충족';
-  if (worst <= 60) return 'PSA 9 센터링 기준(60/40)까지 충족';
-  if (worst <= 65) return 'PSA 8 센터링 기준(65/35)까지 충족';
-  if (worst <= 70) return 'PSA 7 센터링 기준(70/30)까지 충족';
-  if (worst <= 80) return 'PSA 6 센터링 기준(80/20)까지 충족';
-  return 'PSA 6 센터링 기준(80/20)에도 못 미침';
+// 등급회사별 앞면 센터링 허용치. 가장 치우친 쪽(worst) %가 max 이하면 그 등급까지 가능.
+// 좌우·상하 중 나쁜 쪽이 그 회사의 센터링 서브등급이 된다. PSA·BGS·CGC는 공개된 기준,
+// BRG는 등급별 표가 공식 공개돼 있지 않아 안내 수준(10 GEM MINT ≈ 55~60/40)의 참고치다.
+const COMPANY_LADDERS: { name: string; ladder: [number, string][]; fail: string; ref?: boolean }[] = [
+  { name: 'PSA', ladder: [[55, '10'], [60, '9'], [65, '8'], [70, '7'], [80, '6']], fail: '6 미만' },
+  { name: 'BGS', ladder: [[50, '10'], [55, '9.5'], [60, '8'], [65, '7']], fail: '7 미만' },
+  { name: 'CGC', ladder: [[50, '10 P'], [55, '10'], [60, '9.5'], [65, '8.5']], fail: '8.5 미만' },
+  { name: 'BRG', ladder: [[60, '10']], fail: '10 미만', ref: true },
+];
+function companyGrade(ladder: [number, string][], fail: string, worst: number): string {
+  for (const [max, label] of ladder) if (worst <= max) return label;
+  return fail;
 }
 
 // 어두운 배경 위 카드를 밝기로 가르는 오츠(Otsu) 임계값.
@@ -232,6 +236,7 @@ export function CenteringTool() {
   // 자동 인식 성공 여부. 실패면 가짜 50:50 대신 "직접 맞춰주세요" 안내를 띄운다.
   const [autoOk, setAutoOk] = useState(true);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -341,6 +346,13 @@ export function CenteringTool() {
     return () => window.removeEventListener('deviceorientation', handler);
   }, [cameraOn]);
 
+  // 앨범에서 고른 사진도 같은 흐름(자동 검출 → 드래그 조정)으로 태운다.
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (f) loadFromBlob(f);
+  }
+
   function move(e: React.PointerEvent) {
     const d = dragRef.current;
     if (!d || !wrapRef.current) return;
@@ -404,13 +416,22 @@ export function CenteringTool() {
       </p>
 
       {!imgUrl ? (
-        <button
-          type="button"
-          onClick={openCamera}
-          className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
-        >
-          📷 카메라로 촬영
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={openCamera}
+            className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
+          >
+            📷 카메라로 촬영 (수평계 지원)
+          </button>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="w-full rounded-xl border border-dashed border-neutral-300 py-4 text-sm text-neutral-500 hover:bg-neutral-50"
+          >
+            앨범에서 사진 올리기
+          </button>
+        </div>
       ) : (
         <>
           <div className="mb-3 flex gap-2">
@@ -420,6 +441,13 @@ export function CenteringTool() {
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
             >
               📷 다시 촬영
+            </button>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+            >
+              앨범
             </button>
             <button
               type="button"
@@ -480,7 +508,22 @@ export function CenteringTool() {
               </div>
             </div>
             <p className={`mt-3 text-sm font-semibold ${v.color}`}>{v.label}</p>
-            <p className="mt-2 text-xs font-semibold text-neutral-700">센터링 참고(이 면 기준): {psaCentering(worst)}</p>
+            {/* 회사별 센터링 서브등급(앞면 기준). 좌우·상하 중 나쁜 쪽으로 판정한다. */}
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {COMPANY_LADDERS.map((c) => (
+                <div key={c.name} className="rounded-lg border border-neutral-200 p-2 text-center">
+                  <p className="text-[11px] font-semibold text-neutral-500">
+                    {c.name}
+                    {c.ref && <span className="text-neutral-300">*</span>}
+                  </p>
+                  <p className="text-lg font-bold text-black">{companyGrade(c.ladder, c.fail, worst)}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1 text-[10px] text-neutral-400">
+              앞면 센터링만 본 참고 등급이에요. *BRG는 등급별 기준이 공식 공개돼 있지 않아 안내 기준(10 ≈ 60/40)으로만
+              표시해요.
+            </p>
             <p className="mt-1 text-[11px] text-neutral-400">
               50 : 50에 가까울수록 중앙에 잘 맞은 카드예요. 가장 치우친 쪽을 기준으로 판단했어요. 센터링만 본 값이라
               실제 감정 등급은 모서리·표면·스크래치도 함께 봅니다. 참고용이에요.
@@ -488,6 +531,8 @@ export function CenteringTool() {
           </div>
         </>
       )}
+
+      <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
       {/* 가이드 틀이 있는 자체 카메라. 틀은 "이 안에 카드가 들어오게" 정도의 안내이고,
           꽉 채우지 않아도 된다(전체 프레임을 찍어 자동 검출이 카드를 찾는다). */}
