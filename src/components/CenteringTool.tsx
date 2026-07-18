@@ -180,13 +180,14 @@ export function CenteringTool() {
   }
 
   async function openCamera() {
+    // iOS 13+는 기울기 센서 권한을 "사용자 제스처 안"(=await 전)에 요청해야 한다. await
+    // 뒤에 하면 제스처가 소진돼 무시된다. 그래서 버튼 핸들러 맨 앞에서 바로 요청한다.
+    const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
+    if (DOE && typeof DOE.requestPermission === 'function') DOE.requestPermission().catch(() => undefined);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       streamRef.current = stream;
       setCameraOn(true);
-      // iOS 13+는 기울기 센서에 권한이 필요하다. 버튼 클릭(사용자 제스처) 중에 요청한다.
-      const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
-      if (DOE && typeof DOE.requestPermission === 'function') DOE.requestPermission().catch(() => undefined);
     } catch {
       window.alert('카메라를 열 수 없어요. 카메라 권한을 허용했는지 확인해 주세요.');
     }
@@ -293,8 +294,9 @@ export function CenteringTool() {
     <div>
       <h2 className="text-base font-bold text-black mb-1">센터링 측정</h2>
       <p className="text-xs text-neutral-400 mb-4">
-        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span> 어두운/단색 배경에
-        놓고, <span className="font-semibold text-neutral-700">초점이 잡히는 거리</span>에서
+        카드를 <span className="font-semibold text-neutral-700">슬리브·케이스에서 꺼내</span>
+        <span className="font-semibold text-neutral-700"> 한 장만</span> 어두운/단색 배경에 놓고(옆에 다른 카드 없이),
+        <span className="font-semibold text-neutral-700"> 초점이 잡히는 거리</span>에서
         <span className="font-semibold text-neutral-700"> 기울지 않게 똑바로</span> 찍으세요 (틀에 꽉 채울 필요 없어요). 찍으면 <span className="text-[#2a78d6] font-semibold">파란 네모</span>(카드
         테두리)와 <span className="text-emerald-600 font-semibold">초록 네모</span>(일러스트 테두리)를 자동으로
         얹어요. 빗나가면 모서리를 잡아 직접 맞추면 돼요. 참고용이에요.
@@ -387,7 +389,7 @@ export function CenteringTool() {
         <div className="fixed inset-0 z-50 flex flex-col bg-black">
           <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-contain" />
           <p className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm font-semibold text-white/90">
-            카드가 <span className="text-white">흐리지 않게(초점)</span> 틀 안에 들어오게, <span className="text-white">기울지 않게</span> 찍으세요
+            카드 <span className="text-white">한 장만</span>, <span className="text-white">흐리지 않게(초점)</span>, <span className="text-white">기울지 않게</span> 틀 안에 찍으세요
           </p>
           {/* 수평계: 폰을 데스크와 평행(수평)하게 들면 점이 가운데로 모이고 초록으로 바뀐다.
               센서 값이 없으면(권한 거부·미지원) 안 뜬다. */}
