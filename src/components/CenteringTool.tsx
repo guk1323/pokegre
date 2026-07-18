@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // 반자동 센터링 측정. 사진을 자동으로 인식하지 않고(빛 반사·원근·보더리스 카드 때문에
 // 자동은 잘 틀린다), 사용자가 카드 바깥 테두리와 안쪽 테두리(그림 프레임)에 네모 두 개를
@@ -29,21 +29,71 @@ export function CenteringTool() {
   const [outer, setOuter] = useState<Rect>({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
   const [inner, setInner] = useState<Rect>({ l: 0.2, t: 0.2, r: 0.8, b: 0.8 });
   const [zoom, setZoom] = useState(1);
+  const [cameraOn, setCameraOn] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<{ rect: 'outer' | 'inner'; corner: Corner } | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
+  function loadFromBlob(blob: Blob) {
     setImgUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(f);
+      return URL.createObjectURL(blob);
     });
     setOuter({ l: 0.06, t: 0.06, r: 0.94, b: 0.94 });
     setInner({ l: 0.2, t: 0.2, r: 0.8, b: 0.8 });
     setZoom(1);
+  }
+
+  async function openCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      streamRef.current = stream;
+      setCameraOn(true);
+    } catch {
+      window.alert('카메라를 열 수 없어요. 권한을 허용했는지 확인하거나, 앨범에서 사진을 골라 주세요.');
+    }
+  }
+
+  function closeCamera() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraOn(false);
+  }
+
+  function capture() {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    canvas.getContext('2d')?.drawImage(v, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) loadFromBlob(blob);
+        closeCamera();
+      },
+      'image/jpeg',
+      0.92,
+    );
+  }
+
+  // 카메라 모달이 뜬 뒤 video에 스트림을 연결한다(요소가 렌더된 다음이라야 함).
+  useEffect(() => {
+    if (cameraOn && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => undefined);
+    }
+  }, [cameraOn]);
+
+  // 언마운트 시 카메라를 확실히 끈다(트랙이 켜진 채 남으면 안 된다).
+  useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (f) loadFromBlob(f);
   }
 
   function move(e: React.PointerEvent) {
@@ -107,22 +157,38 @@ export function CenteringTool() {
       </p>
 
       {!imgUrl ? (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="w-full rounded-xl border border-dashed border-neutral-300 py-16 text-sm text-neutral-500 hover:bg-neutral-50"
-        >
-          카드 사진 올리기 (촬영 또는 앨범)
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={openCamera}
+            className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
+          >
+            📷 카메라로 촬영 (가이드 틀에 맞춰서)
+          </button>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="w-full rounded-xl border border-dashed border-neutral-300 py-4 text-sm text-neutral-500 hover:bg-neutral-50"
+          >
+            앨범에서 사진 올리기
+          </button>
+        </div>
       ) : (
         <>
           <div className="mb-3 flex gap-2">
             <button
               type="button"
+              onClick={openCamera}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+            >
+              📷 카메라
+            </button>
+            <button
+              type="button"
               onClick={() => fileRef.current?.click()}
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
             >
-              다른 사진
+              앨범
             </button>
           </div>
           <div className="mb-2 flex items-center gap-2">
@@ -182,6 +248,33 @@ export function CenteringTool() {
       )}
 
       <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+
+      {/* 가이드 틀이 있는 자체 카메라. 네이티브 카메라엔 틀을 못 얹어서 직접 만든다.
+          전체 프레임을 그대로 찍고(자르지 않음), 사용자는 흰 틀에 카드를 맞춰 정면으로
+          찍으면 된다. 찍은 사진은 위 측정 도구로 그대로 넘어간다. */}
+      {cameraOn && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-contain" />
+          <p className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm font-semibold text-white/90">
+            카드를 흰 틀에 꽉 채워 <span className="text-white">정면·수평</span>으로 찍으세요
+          </p>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" style={{ height: '68%', aspectRatio: '2.5 / 3.5' }} />
+          </div>
+          <div className="absolute inset-x-0 bottom-8 flex items-center justify-center gap-10">
+            <button type="button" onClick={closeCamera} className="text-sm font-semibold text-white/90">
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={capture}
+              aria-label="촬영"
+              className="h-16 w-16 rounded-full border-4 border-white bg-white/30 active:bg-white/50"
+            />
+            <span className="w-8" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
