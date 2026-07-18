@@ -694,21 +694,17 @@ function App() {
                 >
                   커뮤니티
                 </button>
-                {/* 아직 다듬는 중인 기능이라 운영자(본인)에게만 보인다. 완성되면 이 조건을
-                    풀어 모두에게 공개한다. 서버 데이터가 없는 순수 클라이언트 도구라 굳이
-                    서버 차단은 필요 없고, 메뉴만 감춰도 일반 방문자는 접근 경로가 없다.
-                    개발 모드에서는 레이아웃 확인을 위해 항상 보이게 한다(배포엔 영향 없음). */}
-                {(isAdmin || import.meta.env.DEV) && (
-                  <button
-                    type="button"
-                    onClick={() => setView('centering')}
-                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                      view === 'centering' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
-                  >
-                    센터링<span className="ml-1 text-[10px] text-amber-500">베타</span>
-                  </button>
-                )}
+                {/* 베타로 모두에게 공개(2026-07-18). 서버 데이터가 없는 순수 클라이언트
+                    도구라 서버 차단은 필요 없다. "베타" 배지로 다듬는 중임을 알린다. */}
+                <button
+                  type="button"
+                  onClick={() => setView('centering')}
+                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    view === 'centering' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                  }`}
+                >
+                  센터링<span className="ml-1 text-[10px] text-amber-500">베타</span>
+                </button>
                 {/* 운영자에게만 보인다. 다른 사람 메뉴를 깔끔하게 두려는 것뿐이고,
                     실제 차단은 서버가 한다 — 주소를 직접 쳐도 목록을 안 준다. */}
                 {isAdmin && (
