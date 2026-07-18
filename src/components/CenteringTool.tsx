@@ -99,6 +99,11 @@ function detectCardEdges(img: HTMLImageElement): { outer: Rect; inner: Rect } | 
   const bo = firstPeak(rowH, hh, H, false, rowMax * 0.35);
   if (lo == null || ro == null || to == null || bo == null) return null;
   if (ro - lo < W * 0.3 || bo - to < H * 0.3) return null; // 카드가 너무 작으면 실패
+  // 검출된 사각형의 가로/세로 비율이 카드(세로 63:88 ≈ 0.72)에서 크게 벗어나면 카드가
+  // 아니라고 보고 버린다(옆에 다른 카드가 걸리거나 배경 선을 잡은 경우). 기울기·원근을
+  // 감안해 범위를 넉넉히 둔다.
+  const rr = (ro - lo) / (bo - to);
+  if (rr < 0.5 || rr > 0.95) return null;
   const outer: Rect = { l: lo / W, t: to / H, r: (ro + 1) / W, b: (bo + 1) / H };
   const owP = ro - lo;
   const ohP = bo - to;
