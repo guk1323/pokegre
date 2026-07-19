@@ -956,7 +956,11 @@ const TRANSLATION_FEEDBACK_FILE = dataFile('translation-feedback.json')
 const MAX_TRANSLATION_FEEDBACK = 300
 const EVENT_STATS_FILE = dataFile('event-stats.json')
 // 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
-const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan'])
+const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan', 'centering'])
+// 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
+const EVENT_KEEP_DAYS = 60
+// 날짜 구분이 없던 옛 형식의 누적치를 담아두는 칸 이름. 전체 합계에만 들어간다.
+const EVENT_LEGACY_KEY = 'legacy'
 // 방문 통계는 날짜별 숫자만 400일치 남긴다. IP·기기 정보는 저장하지 않는다.
 const VISIT_KEEP_DAYS = 400
 const MAX_TRACKED_TERMS = 500
@@ -1129,6 +1133,25 @@ function mountSearchTracker(app: Mountable) {
       res.statusCode = 400
       res.end()
     }
+  })
+
+  // 날짜별 검색 횟수 합계 — 운영자 통계용. 검색어 목록이 아니라 "그날 검색이 몇 번
+  // 있었나"만 준다(이미 쌓고 있는 날짜별 칸을 합산할 뿐 새로 수집하는 건 없다).
+  app.use('/api/local/search-stats', async (req, res) => {
+    const viewer = await currentUser(req)
+    if (!isAdmin(viewer)) {
+      res.statusCode = 404
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: 'not found' }))
+      return
+    }
+    await loadCounts()
+    const items = Object.entries(buckets ?? {})
+      .map(([date, terms]) => ({ date, count: Object.values(terms).reduce((a, b) => a + b, 0) }))
+      .sort((a, b) => (a.date < b.date ? -1 : 1))
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ items }))
   })
 
   app.use('/api/local/popular-searches', async (_req, res) => {
@@ -1421,17 +1444,37 @@ function mountScanFeedback(app: Mountable) {
 // 기능별 사용 횟수만 센다(개인정보·누가 썼는지 없음). 홍보 뒤 "사람들이 뭘 많이 쓰나"를
 // 보기 위한 것. 허용된 이벤트 이름만 받아 카운터를 올린다.
 function mountEventStats(app: Mountable) {
-  let counts: Record<string, number> | null = null
+  // 날짜별 칸: { "2026-07-19": { scan: 3, ... }, legacy: {...} }. legacy는 날짜 구분이
+  // 없던 옛 형식의 누적치로, 전체 합계에만 들어간다.
+  let buckets: Record<string, Record<string, number>> | null = null
   const allow = rateLimiter(60, 60 * 1000)
 
   async function load() {
-    if (counts) return counts
+    if (buckets) return buckets
     try {
-      counts = JSON.parse(await readFile(EVENT_STATS_FILE, 'utf-8'))
+      const raw = JSON.parse(await readFile(EVENT_STATS_FILE, 'utf-8')) as Record<string, unknown>
+      // 옛 형식은 { 이벤트: 횟수 } 평면 구조. 값이 숫자면 legacy 칸으로 접는다.
+      if (Object.values(raw).some((v) => typeof v === 'number')) {
+        buckets = { [EVENT_LEGACY_KEY]: raw as Record<string, number> }
+      } else {
+        buckets = raw as Record<string, Record<string, number>>
+      }
     } catch {
-      counts = {}
+      buckets = {}
     }
-    return counts!
+    return buckets!
+  }
+
+  // 오래된 날짜 칸은 legacy로 접어 파일이 무한정 크지 않게 한다(합계는 보존).
+  function foldOldDays() {
+    if (!buckets) return
+    const keep = popularWindowKeys(EVENT_KEEP_DAYS)
+    for (const day of Object.keys(buckets)) {
+      if (day === EVENT_LEGACY_KEY || keep.has(day)) continue
+      const legacy = (buckets[EVENT_LEGACY_KEY] ??= {})
+      for (const [ev, n] of Object.entries(buckets[day])) legacy[ev] = (legacy[ev] ?? 0) + n
+      delete buckets[day]
+    }
   }
 
   app.use('/api/local/track-event', async (req, res) => {
@@ -1448,10 +1491,12 @@ function mountEventStats(app: Mountable) {
           res.end()
           return
         }
-        const c = await load()
-        c[ev] = (c[ev] ?? 0) + 1
+        const all = await load()
+        const day = (all[kstDayKey(Date.now())] ??= {})
+        day[ev] = (day[ev] ?? 0) + 1
+        foldOldDays()
         await mkdir(path.dirname(EVENT_STATS_FILE), { recursive: true })
-        await writeFile(EVENT_STATS_FILE, JSON.stringify(counts))
+        await writeFile(EVENT_STATS_FILE, JSON.stringify(buckets))
         res.statusCode = 204
         res.end()
       } catch {
@@ -1460,7 +1505,7 @@ function mountEventStats(app: Mountable) {
       }
       return
     }
-    // GET — 운영자만.
+    // GET — 운영자만. 날짜별 칸을 그대로 주고 합계는 클라이언트가 낸다.
     const viewer = await currentUser(req)
     if (!isAdmin(viewer)) {
       res.statusCode = 404
@@ -1468,10 +1513,10 @@ function mountEventStats(app: Mountable) {
       res.end(JSON.stringify({ error: 'not found' }))
       return
     }
-    const c = await load()
+    const all = await load()
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ counts: c }))
+    res.end(JSON.stringify({ days: all }))
   })
 }
 

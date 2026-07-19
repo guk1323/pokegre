@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { trackEvent } from '../api/localStats';
 
 // 센터링 측정. 앞면·뒷면 패널을 나란히 두고(넓은 화면은 2열, 폰은 세로), 각 면을 찍으면
 // 카드 경계를 자동 검출해 두 네모(바깥=카드 테두리, 안쪽=일러스트 테두리)를 얹는다.
@@ -377,6 +378,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
   }
 
   function loadFromBlob(side: SideKey, blob: Blob) {
+    trackEvent('centering'); // 측정 사진이 들어온 횟수만 센다(사진·개인정보는 안 보냄)
     pendingDetect.current[side] = true;
     setSides((prev) => {
       const old = prev[side].imgUrl;

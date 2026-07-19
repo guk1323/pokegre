@@ -42,7 +42,7 @@ export function trackVisit(): void {
 }
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
-export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan';
+export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering';
 export function trackEvent(event: TrackedEvent): void {
   fetch('/api/local/track-event', {
     method: 'POST',
@@ -55,14 +55,31 @@ export interface EventCounts {
   snkrdunk_search?: number;
   ebay_search?: number;
   scan?: number;
+  centering?: number;
 }
 
-// 기능별 사용 횟수. 운영자만 부를 수 있다(아니면 서버가 404).
-export async function fetchEventStats(): Promise<EventCounts> {
+// 날짜별 기능 사용 칸. "legacy"는 날짜 구분이 없던 옛 누적치(전체 합계에만 포함).
+export type EventDayBuckets = Record<string, EventCounts>;
+
+// 기능별 사용 횟수(날짜별). 운영자만 부를 수 있다(아니면 서버가 404).
+export async function fetchEventStats(): Promise<EventDayBuckets> {
   const res = await fetch('/api/local/track-event');
   if (!res.ok) throw new Error('기능 통계를 불러오지 못했습니다.');
-  const data = (await res.json()) as { counts?: EventCounts };
-  return data.counts ?? {};
+  const data = (await res.json()) as { days?: EventDayBuckets };
+  return data.days ?? {};
+}
+
+export interface SearchDayStat {
+  date: string;
+  count: number;
+}
+
+// 날짜별 검색 횟수 합계(검색어 목록 아님). 운영자만 부를 수 있다(아니면 서버가 404).
+export async function fetchSearchStats(): Promise<SearchDayStat[]> {
+  const res = await fetch('/api/local/search-stats');
+  if (!res.ok) throw new Error('검색 통계를 불러오지 못했습니다.');
+  const data = (await res.json()) as { items?: SearchDayStat[] };
+  return data.items ?? [];
 }
 
 export interface VisitStat {
