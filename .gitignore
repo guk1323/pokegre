@@ -25,5 +25,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# 공지 초안(검토용, 커밋 안 함)
-notice-drafts/
