@@ -747,12 +747,12 @@ function App() {
 
         <main className="px-4 py-6">
           {view === 'reports' ? (
-            <ReportInbox />
-          ) : view === 'stats' ? (
             <div className="space-y-10">
-              <VisitStats />
+              <ReportInbox />
               <TitleFeedbackList />
             </div>
+          ) : view === 'stats' ? (
+            <VisitStats />
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (

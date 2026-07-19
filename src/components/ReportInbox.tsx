@@ -69,9 +69,9 @@ export function ReportInbox() {
 
   return (
     <div>
-      <h2 className="text-base font-bold text-black mb-1">신고함</h2>
+      <h2 className="text-base font-bold text-black mb-1">글 신고</h2>
       <p className="text-xs text-neutral-500 mb-4">
-        가리기는 삭제가 아닙니다. 언제든 되살릴 수 있고 원문도 남습니다.
+        커뮤니티 게시글·댓글 신고예요. 가리기는 삭제가 아닙니다 — 언제든 되살릴 수 있고 원문도 남습니다.
       </p>
 
       {reports.length === 0 ? (
