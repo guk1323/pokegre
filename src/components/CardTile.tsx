@@ -10,12 +10,17 @@ export function CardTile({
   onSelect,
   isFavorite,
   onToggleFavorite,
+  onCompare,
+  inCompare,
 }: {
   card: SnkrdunkCard;
   selected: boolean;
   onSelect: (id: number) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (card: SnkrdunkCard) => void;
+  // 비교 담기(운영자 베타). onCompare가 있을 때만 버튼이 뜬다.
+  onCompare?: (card: SnkrdunkCard) => void;
+  inCompare?: boolean;
 }) {
   return (
     <button
@@ -45,6 +50,30 @@ export function CardTile({
         </>
       ) : (
         <p className="text-sm font-semibold text-neutral-400">시세 없음</p>
+      )}
+      {onCompare && (
+        // 카드 전체가 button이라, 여기선 실제 button 대신 클릭 가로채는 span으로 둔다
+        // (button 중첩 방지). 선택(onSelect)과 겹치지 않게 이벤트 전파를 막는다.
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCompare(card);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              onCompare(card);
+            }
+          }}
+          className={`mt-2 inline-block cursor-pointer rounded-lg border px-2 py-1 text-xs font-semibold ${
+            inCompare ? 'border-[#2a78d6] bg-[#2a78d6] text-white' : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+          }`}
+        >
+          {inCompare ? '비교 담김 ✓' : '⇄ 비교'}
+        </span>
       )}
     </button>
   );

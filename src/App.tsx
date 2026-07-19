@@ -19,6 +19,7 @@ import { resolveStoredCards, type StoredCardRef } from './api/snkrdunk';
 import { SearchBar } from './components/SearchBar';
 import { SearchSuggestions } from './components/SearchSuggestions';
 import { CardTile } from './components/CardTile';
+import { CompareView } from './components/CompareView';
 import { CardDetail } from './components/CardDetail';
 import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
@@ -137,6 +138,19 @@ function App() {
   // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
   // 안 주므로 아무것도 못 본다.
   const [isAdmin, setIsAdmin] = useState(false);
+  // 카드 비교(운영자 베타). 최대 2장을 담아 나란히 본다. 아직 운영자에게만 보인다.
+  const showCompare = isAdmin;
+  const [compareCards, setCompareCards] = useState<SnkrdunkCard[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
+  function toggleCompare(card: SnkrdunkCard) {
+    setCompareCards((prev) => {
+      if (prev.some((c) => c.apparelId === card.apparelId)) return prev.filter((c) => c.apparelId !== card.apparelId);
+      return [...prev, card].slice(-2); // 최대 2장, 오래된 것부터 밀어낸다
+    });
+  }
+  function removeCompare(id: number) {
+    setCompareCards((prev) => prev.filter((c) => c.apparelId !== id));
+  }
   const [providers, setProviders] = useState<LoginProvider[]>([]);
   const [needsNickname, setNeedsNickname] = useState(false);
   // 로그인 모달은 마이페이지·커뮤니티 어디서든 열리므로 App이 들고 있는다.
@@ -595,6 +609,8 @@ function App() {
                     onSelect={handleSelectCard}
                     isFavorite={checkIsFavorite(card.apparelId, favoriteRefs)}
                     onToggleFavorite={handleToggleFavorite}
+                    onCompare={showCompare ? toggleCompare : undefined}
+                    inCompare={compareCards.some((c) => c.apparelId === card.apparelId)}
                   />
                 ))}
               </div>
@@ -894,6 +910,44 @@ function App() {
 
         <Footer />
       </div>
+
+      {/* 카드 비교(운영자 베타) — 담은 카드가 있으면 하단 바, 비교하기 누르면 표. */}
+      {showCompare && compareCards.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center gap-2">
+            <span className="flex-shrink-0 text-xs font-semibold text-neutral-500">비교 {compareCards.length}/2</span>
+            <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
+              {compareCards.map((c) => (
+                <span key={c.apparelId} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-neutral-200 py-1 pl-1 pr-2">
+                  <img src={c.imageUrl} alt="" className="h-7 w-7 rounded object-contain" />
+                  <span className="max-w-[110px] truncate text-xs text-neutral-700">{c.title}</span>
+                  <button type="button" onClick={() => removeCompare(c.apparelId)} className="text-neutral-400 hover:text-black" aria-label="빼기">
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCompareCards([])}
+              className="flex-shrink-0 rounded-lg px-2 py-1.5 text-xs font-semibold text-neutral-400 hover:bg-neutral-50"
+            >
+              비우기
+            </button>
+            <button
+              type="button"
+              disabled={compareCards.length < 2}
+              onClick={() => setCompareOpen(true)}
+              className="flex-shrink-0 rounded-lg bg-black px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
+            >
+              비교하기
+            </button>
+          </div>
+        </div>
+      )}
+      {showCompare && compareOpen && compareCards.length === 2 && (
+        <CompareView cards={compareCards} onClose={() => setCompareOpen(false)} onRemove={removeCompare} />
+      )}
 
       {loginOpen && !loggedIn && <LoginModal onClose={() => setLoginOpen(false)} />}
 
