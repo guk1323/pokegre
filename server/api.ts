@@ -967,12 +967,18 @@ const MAX_TRACKED_TERMS = 500
 // 카드명·팩명 검색어라 이보다 길 일이 없다. 넘으면 집계하지 않고 조용히 무시한다
 // (검색 자체는 클라이언트가 알아서 하므로 사용자에게 보이는 변화는 없다).
 const MAX_TERM_LENGTH = 100
+// 순위 변화(▲▼)를 재는 기준 시점을 얼마나 자주 갱신할지. 집계 창이 한 시간씩
+// 흘러가므로(오래된 한 시간이 빠지고 새 한 시간이 들어온다) 1시간 전과 견줘도
+// 순위가 실제로 움직인다.
 const SNAPSHOT_INTERVAL_MS = 60 * 60 * 1000
 const RANKING_SIZE = 10
-// 인기 검색어는 최근 며칠 치로 순위를 매긴다. 영원히 누적하면 한번 1등이 계속 1등이라
-// 목록이 굳어버린다. 요즘 많이 찾는 카드가 올라오고 오래된 건 자연히 밀려난다.
+// 인기 검색어는 "지금부터 거꾸로 24시간"으로 순위를 매긴다. 달력 하루로 끊으면 자정에
+// 하루치가 통째로 빠져 순위가 갑자기 뒤집히고 그 사이엔 거의 안 움직인다. 창을 한
+// 시간씩 밀면 오래된 한 시간이 빠지고 새 한 시간이 들어와 하루 종일 조금씩 흐른다.
+const POPULAR_WINDOW_HOURS = 24
+// 옛 평면 형식(날짜 구분 없는 누적)을 옮겨 담을 때 쓰는 기준일 수.
 const POPULAR_RECENT_DAYS = 3
-// 다만 검색이 뜸한 날엔 최근 3일에 검색어가 몇 개 없어 목록이 텅 비어 보인다. 그럴 때
+// 검색이 뜸하면 24시간 안에 검색어가 몇 개 없어 목록이 텅 비어 보인다. 그럴 때
 // 빈 자리를 메우려고 더 긴 기간의 집계도 남겨둔다(순위는 최근 우선, 나머지는 이걸로 채움).
 const POPULAR_KEEP_DAYS = 30
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -1025,7 +1031,29 @@ function kstDayKey(ts: number): string {
   return new Date(ts + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
-// 최근 `days`일치 날짜 키 집합. 순위용(최근 3일)과 예비 채움용(30일) 양쪽에 쓴다.
+// 검색은 시간 단위 칸에 담는다: '2026-07-20T14'. 날짜 단위로 담으면 자정에 하루치가
+// 통째로 사라져서 순위가 갑자기 뒤집히고, 그 사이엔 거의 안 움직인다. 시간 단위로
+// 담아 "최근 24시간"만 합치면 한 시간마다 가장 오래된 한 시간이 빠지고 새 한 시간이
+// 들어와, 순위가 하루 종일 조금씩 흐른다.
+function kstHourKey(ts: number): string {
+  return new Date(ts + 9 * 60 * 60 * 1000).toISOString().slice(0, 13)
+}
+
+// 칸 키에서 날짜 부분만. 시간 칸('2026-07-20T14')과 옛 날짜 칸('2026-07-20') 둘 다
+// 앞 10글자가 날짜라 그대로 쓸 수 있다.
+function dayOfKey(key: string): string {
+  return key.slice(0, 10)
+}
+
+// 최근 `hours`시간치 시간 키 집합. 순위 집계에 쓴다.
+function recentHourKeys(hours: number): Set<string> {
+  const keys = new Set<string>()
+  const now = Date.now()
+  for (let i = 0; i < hours; i++) keys.add(kstHourKey(now - i * 60 * 60 * 1000))
+  return keys
+}
+
+// 최근 `days`일치 날짜 집합. 오래된 칸 정리와 예비 채움용(30일)에 쓴다.
 function popularWindowKeys(days: number): Set<string> {
   const keys = new Set<string>()
   const now = Date.now()
@@ -1056,19 +1084,33 @@ function mountSearchTracker(app: Mountable) {
     return buckets!
   }
 
-  // 예비 채움 기간(30일)보다 오래된 날짜 칸은 버린다. 안 버리면 파일이 날마다 커진다.
+  // 예비 채움 기간(30일)보다 오래된 칸은 버린다. 안 버리면 파일이 날마다 커진다.
+  // 시간 칸이든 옛 날짜 칸이든 날짜 부분으로 판단한다.
   function pruneOldDays() {
     if (!buckets) return
     const keep = popularWindowKeys(POPULAR_KEEP_DAYS)
-    for (const day of Object.keys(buckets)) if (!keep.has(day)) delete buckets[day]
+    for (const key of Object.keys(buckets)) if (!keep.has(dayOfKey(key))) delete buckets[key]
   }
 
-  // 최근 `days`일 날짜들을 검색어별로 합쳐 하나의 순위 집계로 만든다.
-  function aggregate(days: number): Record<string, number> {
+  // 순위용 집계: 지금부터 거꾸로 `hours`시간. 한 시간이 지나면 가장 오래된 한 시간이
+  // 자연히 빠져서 순위가 계속 조금씩 움직인다.
+  function aggregateHours(hours: number): Record<string, number> {
+    const keep = recentHourKeys(hours)
+    const total: Record<string, number> = {}
+    for (const [key, terms] of Object.entries(buckets ?? {})) {
+      if (!keep.has(key)) continue
+      for (const [term, n] of Object.entries(terms)) total[term] = (total[term] ?? 0) + n
+    }
+    return total
+  }
+
+  // 예비 채움용 집계: 최근 `days`일. 검색이 뜸해 24시간 안에 10칸이 안 찰 때 쓴다.
+  // 시간 칸과 옛 날짜 칸을 모두 날짜 기준으로 합친다.
+  function aggregateDays(days: number): Record<string, number> {
     const keep = popularWindowKeys(days)
     const total: Record<string, number> = {}
-    for (const [day, terms] of Object.entries(buckets ?? {})) {
-      if (!keep.has(day)) continue
+    for (const [key, terms] of Object.entries(buckets ?? {})) {
+      if (!keep.has(dayOfKey(key))) continue
       for (const [term, n] of Object.entries(terms)) total[term] = (total[term] ?? 0) + n
     }
     return total
@@ -1122,13 +1164,13 @@ function mountSearchTracker(app: Mountable) {
       // 로그인도 필요 없다.
       if (term && term.length <= MAX_TERM_LENGTH) {
         const all = await loadCounts()
-        const today = kstDayKey(Date.now())
-        const bucket = (all[today] ??= {})
+        const hour = kstHourKey(Date.now())
+        const bucket = (all[hour] ??= {})
         bucket[term] = (bucket[term] ?? 0) + 1
-        // 하루 칸이 지나치게 커지지 않게 상한을 둔다. 넘으면 그날 덜 검색된 것부터 버린다.
+        // 한 칸이 지나치게 커지지 않게 상한을 둔다. 넘으면 그 시간에 덜 검색된 것부터 버린다.
         if (Object.keys(bucket).length > MAX_TRACKED_TERMS) {
           const top = Object.entries(bucket).sort((a, b) => b[1] - a[1]).slice(0, MAX_TRACKED_TERMS)
-          all[today] = Object.fromEntries(top)
+          all[hour] = Object.fromEntries(top)
         }
         pruneOldDays()
         await persistCounts()
@@ -1152,8 +1194,14 @@ function mountSearchTracker(app: Mountable) {
       return
     }
     await loadCounts()
-    const items = Object.entries(buckets ?? {})
-      .map(([date, terms]) => ({ date, count: Object.values(terms).reduce((a, b) => a + b, 0) }))
+    // 칸은 시간 단위라 날짜별로 다시 묶어서 합친다(옛 날짜 칸도 그대로 섞여 들어온다).
+    const byDate: Record<string, number> = {}
+    for (const [key, terms] of Object.entries(buckets ?? {})) {
+      const sum = Object.values(terms).reduce((a, b) => a + b, 0)
+      byDate[dayOfKey(key)] = (byDate[dayOfKey(key)] ?? 0) + sum
+    }
+    const items = Object.entries(byDate)
+      .map(([date, count]) => ({ date, count }))
       .sort((a, b) => (a.date < b.date ? -1 : 1))
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
@@ -1167,10 +1215,10 @@ function mountSearchTracker(app: Mountable) {
     // 순위는 최근 3일로 매긴다(살아있는 느낌). 그걸로 10칸이 안 차면 — 검색이 뜸해
     // 목록이 비어 보일 때 — 더 긴 기간(30일) 인기어로 뒤를 채운다. 최근 것이 늘 위,
     // 옛 인기어가 빈 자리를 메우는 식이라 목록이 텅 비지 않는다.
-    const ranked = rankTerms(aggregate(POPULAR_RECENT_DAYS))
+    const ranked = rankTerms(aggregateHours(POPULAR_WINDOW_HOURS))
     if (ranked.length < RANKING_SIZE) {
       const shown = new Set(ranked.map((r) => r.term))
-      const fillers = Object.entries(aggregate(POPULAR_KEEP_DAYS))
+      const fillers = Object.entries(aggregateDays(POPULAR_KEEP_DAYS))
         .filter(([term]) => !shown.has(term))
         .sort((a, b) => b[1] - a[1])
       for (const [term, count] of fillers) {
@@ -1200,6 +1248,7 @@ function mountSearchTracker(app: Mountable) {
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify({ asOf: now, items }))
   })
+
 }
 
 const PRICE_TRACKER_ORIGIN = 'https://www.pokemonpricetracker.com/api/v2'
