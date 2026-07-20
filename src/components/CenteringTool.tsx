@@ -719,6 +719,9 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
                   className="block w-full"
                   draggable={false}
                   onLoad={(e) => onImgLoad(side, e)}
+                  // 네모를 드래그할 때 크롬이 이미지 일부를 안 지우고 지나가 흰 줄이 남는
+                  // 리페인트 버그가 있다. 이미지를 별도 합성 레이어로 올려 깨끗이 다시 그리게 한다.
+                  style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
                 />
                 <div
                   className="pointer-events-none absolute border-2 border-[#2a78d6]"
