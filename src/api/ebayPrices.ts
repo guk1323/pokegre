@@ -69,7 +69,7 @@ export async function searchEbayCards(
 
   // PokemonPriceTracker의 search는 일본판 DB도 영문 카드명으로 색인돼 있어서,
   // 두 발매판 모두 한글→영문 번역을 태워 보낸다.
-  const translated = translateSearchQueryToEnglish(trimmed);
+  const translated = translateSearchQueryToEnglish(trimmed, edition);
   const params = new URLSearchParams({
     language: edition,
     search: translated,
