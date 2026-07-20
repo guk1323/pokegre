@@ -20,6 +20,7 @@ import { SearchBar } from './components/SearchBar';
 import { SearchSuggestions } from './components/SearchSuggestions';
 import { CardTile } from './components/CardTile';
 import { CompareView } from './components/CompareView';
+import { EbayCompareView } from './components/EbayCompareView';
 import { CardDetail } from './components/CardDetail';
 import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
@@ -151,6 +152,19 @@ function App() {
   function removeCompare(id: number) {
     setCompareCards((prev) => prev.filter((c) => c.apparelId !== id));
   }
+  // 이베이 카드 비교(운영자 베타). SNKRDUNK와 별개 트레이 — 소스가 다르면 비교 의미가 없다.
+  const [compareEbay, setCompareEbay] = useState<EbayCard[]>([]);
+  function toggleCompareEbay(card: EbayCard) {
+    setCompareEbay((prev) => {
+      if (prev.some((c) => c.tcgPlayerId === card.tcgPlayerId)) return prev.filter((c) => c.tcgPlayerId !== card.tcgPlayerId);
+      return [...prev, card].slice(-2);
+    });
+  }
+  function removeCompareEbay(id: string) {
+    setCompareEbay((prev) => prev.filter((c) => c.tcgPlayerId !== id));
+  }
+  // 소스(스니덩크↔이베이)를 바꾸면 열려 있던 비교 표는 닫는다(소스별 표가 달라서).
+  useEffect(() => setCompareOpen(false), [source]);
   const [providers, setProviders] = useState<LoginProvider[]>([]);
   const [needsNickname, setNeedsNickname] = useState(false);
   // 로그인 모달은 마이페이지·커뮤니티 어디서든 열리므로 App이 들고 있는다.
@@ -653,6 +667,8 @@ function App() {
                 card={card}
                 selected={card.tcgPlayerId === ebaySelectedId}
                 onSelect={setEbaySelectedId}
+                onCompare={showCompare ? toggleCompareEbay : undefined}
+                inCompare={compareEbay.some((c) => c.tcgPlayerId === card.tcgPlayerId)}
               />
             ))}
           </div>
@@ -911,8 +927,9 @@ function App() {
         <Footer />
       </div>
 
-      {/* 카드 비교(운영자 베타) — 담은 카드가 있으면 하단 바, 비교하기 누르면 표. */}
-      {showCompare && compareCards.length > 0 && (
+      {/* 카드 비교(운영자 베타) — 담은 카드가 있으면 하단 바, 비교하기 누르면 표.
+          소스(스니덩크/이베이)별로 트레이가 따로 있고, 지금 보는 소스의 것만 띄운다. */}
+      {showCompare && source === 'snkrdunk' && compareCards.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-2">
             <span className="flex-shrink-0 text-xs font-semibold text-neutral-500">비교 {compareCards.length}/2</span>
@@ -945,8 +962,44 @@ function App() {
           </div>
         </div>
       )}
-      {showCompare && compareOpen && compareCards.length === 2 && (
+      {showCompare && source === 'ebay' && compareEbay.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center gap-2">
+            <span className="flex-shrink-0 text-xs font-semibold text-neutral-500">비교 {compareEbay.length}/2</span>
+            <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
+              {compareEbay.map((c) => (
+                <span key={c.tcgPlayerId} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-neutral-200 py-1 pl-1 pr-2">
+                  {c.imageUrl && <img src={c.imageUrl} alt="" className="h-7 w-7 rounded object-contain" />}
+                  <span className="max-w-[110px] truncate text-xs text-neutral-700">{c.name}</span>
+                  <button type="button" onClick={() => removeCompareEbay(c.tcgPlayerId)} className="text-neutral-400 hover:text-black" aria-label="빼기">
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCompareEbay([])}
+              className="flex-shrink-0 rounded-lg px-2 py-1.5 text-xs font-semibold text-neutral-400 hover:bg-neutral-50"
+            >
+              비우기
+            </button>
+            <button
+              type="button"
+              disabled={compareEbay.length < 2}
+              onClick={() => setCompareOpen(true)}
+              className="flex-shrink-0 rounded-lg bg-black px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
+            >
+              비교하기
+            </button>
+          </div>
+        </div>
+      )}
+      {showCompare && compareOpen && source === 'snkrdunk' && compareCards.length === 2 && (
         <CompareView cards={compareCards} onClose={() => setCompareOpen(false)} onRemove={removeCompare} />
+      )}
+      {showCompare && compareOpen && source === 'ebay' && compareEbay.length === 2 && (
+        <EbayCompareView cards={compareEbay} onClose={() => setCompareOpen(false)} onRemove={removeCompareEbay} />
       )}
 
       {loginOpen && !loggedIn && <LoginModal onClose={() => setLoginOpen(false)} />}

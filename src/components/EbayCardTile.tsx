@@ -7,10 +7,15 @@ export function EbayCardTile({
   card,
   selected,
   onSelect,
+  onCompare,
+  inCompare,
 }: {
   card: EbayCard;
   selected: boolean;
   onSelect: (id: string) => void;
+  // 비교 담기(운영자 베타). onCompare가 있을 때만 버튼이 뜬다.
+  onCompare?: (card: EbayCard) => void;
+  inCompare?: boolean;
 }) {
   // 목록 대표가도 상세와 같은 기준(현재 적정가, 없으면 중앙값)으로 맞춘다.
   const topGrade = card.grades[0];
@@ -38,6 +43,28 @@ export function EbayCardTile({
           </p>
           <KrwHint amount={top.price} currency="usd" />
         </>
+      )}
+      {onCompare && (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCompare(card);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              onCompare(card);
+            }
+          }}
+          className={`mt-2 inline-block cursor-pointer rounded-lg border px-2 py-1 text-xs font-semibold ${
+            inCompare ? 'border-[#2a78d6] bg-[#2a78d6] text-white' : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+          }`}
+        >
+          {inCompare ? '비교 담김 ✓' : '⇄ 비교'}
+        </span>
       )}
     </button>
   );
