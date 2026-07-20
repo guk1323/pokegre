@@ -139,8 +139,8 @@ function App() {
   // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
   // 안 주므로 아무것도 못 본다.
   const [isAdmin, setIsAdmin] = useState(false);
-  // 카드 비교(운영자 베타). 최대 2장을 담아 나란히 본다. 아직 운영자에게만 보인다.
-  const showCompare = isAdmin;
+  // 카드 비교. 최대 2장을 담아 나란히 본다. 베타로 모두에게 공개(2026-07-20).
+  const showCompare = true;
   const [compareCards, setCompareCards] = useState<SnkrdunkCard[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   function toggleCompare(card: SnkrdunkCard) {
