@@ -11,7 +11,32 @@ export interface PopularSearchResponse {
   items: PopularSearch[];
 }
 
+// 개발·테스트용 집계 제외 스위치. 주소 뒤에 ?notrack=1 을 붙여 한 번 들어오면 그
+// 브라우저는 이후 방문·검색·기능 사용이 집계되지 않는다(?notrack=0 이면 다시 켜진다).
+// 운영자 계정은 서버가 이미 걸러내지만, 로그인 없이 확인할 때는 그 방법이 안 통한다.
+// 어차피 숫자에서 자기를 빼는 것뿐이라 남이 켜도 문제될 게 없다.
+const NOTRACK_KEY = 'pokegre_notrack';
+
+if (typeof window !== 'undefined') {
+  const flag = new URLSearchParams(window.location.search).get('notrack');
+  try {
+    if (flag === '1') localStorage.setItem(NOTRACK_KEY, '1');
+    else if (flag === '0') localStorage.removeItem(NOTRACK_KEY);
+  } catch {
+    // 저장이 막힌 환경(시크릿 등)에서는 그냥 집계된다.
+  }
+}
+
+function trackingOff(): boolean {
+  try {
+    return localStorage.getItem(NOTRACK_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function trackSearch(query: string): void {
+  if (trackingOff()) return;
   const term = query.trim();
   if (!term) return;
   fetch('/api/local/track-search', {
@@ -30,6 +55,7 @@ export async function fetchPopularSearches(): Promise<PopularSearchResponse> {
 // 같은 브라우저가 하루에 한 번만 방문으로 집계되게 한다. 새로고침·페이지 이동마다
 // 세면 숫자가 부풀려져 홍보 효과를 못 읽는다. 날짜가 바뀌면 다시 한 번 센다.
 export function trackVisit(): void {
+  if (trackingOff()) return;
   const today = new Date().toISOString().slice(0, 10);
   const key = 'pokegre_visit_marked';
   try {
@@ -44,6 +70,7 @@ export function trackVisit(): void {
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
 export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering';
 export function trackEvent(event: TrackedEvent): void {
+  if (trackingOff()) return;
   fetch('/api/local/track-event', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
