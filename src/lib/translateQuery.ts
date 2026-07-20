@@ -21,10 +21,35 @@ const sortedPokemonKo = (pokemonNames as PokemonName[])
   .filter((entry) => entry.ko && entry.ja)
   .sort((a, b) => b.ko.length - a.ko.length);
 
-const sortedPackKo = [
+// 팩 이름은 사전에 "스칼렛&바이올렛 : 흑염의 지배자"처럼 시리즈 접두사까지 붙어 있지만,
+// 사람들은 "흑염의 지배자"만 친다. ':' 뒤 뒷부분도 따로 등록해 둘 다 걸리게 한다.
+function withShortPackNames(entries: { ko: string; ja: string }[]): { ko: string; ja: string }[] {
+  const out = [...entries];
+  const seen = new Set(entries.map((e) => e.ko));
+  for (const e of entries) {
+    const tail = e.ko.split(/\s*:\s*/).pop()?.trim();
+    // 너무 짧은 꼬리(예: "ex")는 아무 검색어에나 걸려서 제외한다.
+    if (tail && tail.length >= 3 && tail !== e.ko && !seen.has(tail)) {
+      seen.add(tail);
+      out.push({ ko: tail, ja: e.ja });
+    }
+  }
+  return out;
+}
+
+const sortedPackKo = withShortPackNames([
   ...(packNames as PackName[]).filter((entry) => entry.ko && entry.ja).map((entry) => ({ ko: entry.ko, ja: entry.ja })),
   ...MANUAL_PACK_OVERRIDES.map(([ja, ko]) => ({ ko, ja })),
-].sort((a, b) => b.ko.length - a.ko.length);
+]).sort((a, b) => b.ko.length - a.ko.length);
+
+// "샤이니트레저 ex"로 등록돼 있어도 "샤이니 트레저ex"라고 치는 사람이 더 많다. 글자
+// 사이 공백을 무시하고 맞추도록, 이름의 각 글자 사이에 \s* 를 끼운 정규식을 만든다.
+function spaceInsensitivePattern(name: string): RegExp {
+  const body = [...name.replace(/\s+/g, '')].map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
+  return new RegExp(body, 'g');
+}
+
+const packPatterns = sortedPackKo.map((e) => ({ re: spaceInsensitivePattern(e.ko), ja: e.ja }));
 
 // koreanizeTitle의 STRUCTURAL_TERMS(일본어→한글)를 뒤집어서 재사용한다. "메가"처럼
 // 카드명 접두사로 자주 붙는 말은 검색어 번역에서도 빠지면 안 되기 때문.
@@ -43,14 +68,18 @@ export function translateSearchQuery(query: string): string {
   if (!trimmed) return trimmed;
 
   let result = trimmed;
+  // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. "샤이니"·"포켓몬" 같은 짧은 일반어를
+  // 먼저 바꾸면 "샤이니트레저 ex"·"포켓몬카드 151" 같은 팩 이름이 조각나 안 걸린다.
+  for (const { re, ja } of packPatterns) {
+    re.lastIndex = 0;
+    if (re.test(result)) {
+      re.lastIndex = 0;
+      result = result.replace(re, ja);
+    }
+  }
   for (const [ko, ja] of sortedStructuralKo) {
     if (result.includes(ko)) {
       result = result.split(ko).join(ja);
-    }
-  }
-  for (const entry of sortedPackKo) {
-    if (result.includes(entry.ko)) {
-      result = result.split(entry.ko).join(entry.ja);
     }
   }
   for (const entry of sortedPokemonKo) {
