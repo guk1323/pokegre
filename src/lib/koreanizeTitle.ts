@@ -74,7 +74,7 @@ export const STRUCTURAL_TERMS: [string, string][] = [
   ['闇、そして光へ', '어둠, 그리고 빛으로'],
   ['初版', '초판'],
   ['再販', '재발매'],
-  ['仕様', '사양'],
+  // (仕様는 "사양"으로 옮기면 어색해서 STRUCTURAL 대신 아래에서 한쪽 방향으로만 지운다.)
   // 프로모 카드의 출처로 자주 등장하는 잡지 이름. 촉음(ッ) 생략 규칙 때문에 그냥
   // 두면 "코로코로코미쿠"처럼 어색하게 나온다.
   ['コロコロコミック', '코로코로 코믹'],
@@ -417,6 +417,10 @@ export function koreanizeTitle(title: string): string {
   // 거기서 빈 문자열을 키로 쓰면 모든 문자 사이에 값이 끼어드는 버그가 생기므로 STRUCTURAL_TERMS에
   // 넣지 않고 여기서 한쪽 방향으로만 지운다.
   result = result.split('(皮卡丘)').join('');
+
+  // 仕様(사양/버전 표기)는 카드명에서 "사양"으로 옮기면 어색해 그냥 지운다. STRUCTURAL에
+  // 빈 값으로 넣으면 translateQuery 역변환이 깨지므로 여기서 한쪽 방향으로만 제거한다.
+  result = result.split('仕様').join('');
 
   return kanaToHangul(result);
 }
