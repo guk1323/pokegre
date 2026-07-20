@@ -1,11 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { fetchPriceHistory, type PricePoint, type SnkrdunkCard } from '../api/snkrdunk';
+import { fetchConditionPrices, fetchPriceHistory, RAW_GRADE_DESCRIPTION, type ConditionGroup, type PricePoint, type SnkrdunkCard } from '../api/snkrdunk';
 import { KrwHint } from './KrwHint';
 
 const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
 
 function hasPrice(card: SnkrdunkCard): boolean {
   return Number.isFinite(card.price) && card.price > 0;
+}
+
+// 두 카드 중 더 싼 쪽을 초록으로 표시하기 위한 최저가.
+function cheapestPrice(cards: SnkrdunkCard[]): number | null {
+  const prices = cards.filter(hasPrice).map((c) => c.price);
+  return prices.length ? Math.min(...prices) : null;
 }
 
 // 전체 기간 시세 변동률(첫 실거래가 대비 마지막). 상세 화면 차트와 같은 계산.
@@ -17,10 +23,13 @@ function trendPct(points: PricePoint[]): number | null {
   return ((last - first) / first) * 100;
 }
 
-// 두 카드 중 더 싼 쪽을 초록으로 표시하기 위한 최저가.
-function cheapestPrice(cards: SnkrdunkCard[]): number | null {
-  const prices = cards.filter(hasPrice).map((c) => c.price);
-  return prices.length ? Math.min(...prices) : null;
+// 상태·등급별 매물이 있는 것만 뽑아 {코드, 이름, 최저가}로 평탄화(그룹 순서 유지).
+function condList(groups: ConditionGroup[]): { code: string; text: string; price: number }[] {
+  const out: { code: string; text: string; price: number }[] = [];
+  // 원본 등급표기(A/B/C/D)는 뜻이 안 통하니, 있으면 한글 설명(거의 미사용 등)으로. PSA·BGS
+  // 같은 등급은 그대로 둔다(RAW_GRADE_DESCRIPTION에 없음).
+  for (const g of groups) for (const c of g.chips) if (c.hasListing && c.usedMinPrice) out.push({ code: c.filterConditionId, text: RAW_GRADE_DESCRIPTION[c.filterConditionId] ?? c.text, price: c.usedMinPrice });
+  return out;
 }
 
 function Row({ label, cards, render }: { label: string; cards: SnkrdunkCard[]; render: (c: SnkrdunkCard) => ReactNode }) {
@@ -36,7 +45,7 @@ function Row({ label, cards, render }: { label: string; cards: SnkrdunkCard[]; r
   );
 }
 
-// 운영자 전용(베타) 카드 비교. 담아둔 2장을 나란히 놓고 최저가·원화·매물·찜을 표로 본다.
+// 운영자 전용(베타) 카드 비교. 담아둔 2장을 나란히 놓고 최저가·시세추이·상태별 가격을 본다.
 export function CompareView({
   cards,
   onClose,
@@ -48,23 +57,27 @@ export function CompareView({
 }) {
   const cheapest = cheapestPrice(cards);
 
-  // 카드별 전체 기간 시세 추이(%)를 각각 한 번씩 불러온다. 스니덩크라 무료·캐시.
+  // 카드별 시세 추이(%)와 상태·등급별 가격을 각각 한 번씩 불러온다. 스니덩크라 무료·캐시.
   const [trends, setTrends] = useState<Record<number, number | null>>({});
-  const [trendLoading, setTrendLoading] = useState(true);
+  const [conds, setConds] = useState<Record<number, { code: string; text: string; price: number }[]>>({});
+  const [loading, setLoading] = useState(true);
   const ids = cards.map((c) => c.apparelId).join(',');
   useEffect(() => {
     let cancelled = false;
-    setTrendLoading(true);
+    setLoading(true);
     Promise.all(
-      cards.map((c) =>
-        fetchPriceHistory(c.apparelId, 'all')
-          .then((h) => [c.apparelId, h && h.points.length ? trendPct(h.points) : null] as const)
-          .catch(() => [c.apparelId, null] as const),
-      ),
-    ).then((entries) => {
+      cards.map(async (c) => {
+        const [hist, groups] = await Promise.all([
+          fetchPriceHistory(c.apparelId, 'all').catch(() => null),
+          fetchConditionPrices(c.apparelId).catch(() => [] as ConditionGroup[]),
+        ]);
+        return { id: c.apparelId, trend: hist && hist.points.length ? trendPct(hist.points) : null, cond: condList(groups) };
+      }),
+    ).then((rows) => {
       if (cancelled) return;
-      setTrends(Object.fromEntries(entries));
-      setTrendLoading(false);
+      setTrends(Object.fromEntries(rows.map((r) => [r.id, r.trend])));
+      setConds(Object.fromEntries(rows.map((r) => [r.id, r.cond])));
+      setLoading(false);
     });
     return () => {
       cancelled = true;
@@ -72,14 +85,10 @@ export function CompareView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
 
-  // 가격 차이(둘 다 시세가 있을 때). 비싼 쪽이 싼 쪽의 몇 배인지 + 차액.
-  const priced = cards.filter(hasPrice);
-  let gap: { ratio: number; diff: number } | null = null;
-  if (cards.length === 2 && priced.length === 2) {
-    const hi = Math.max(cards[0].price, cards[1].price);
-    const lo = Math.min(cards[0].price, cards[1].price);
-    gap = { ratio: lo ? hi / lo : 0, diff: hi - lo };
-  }
+  // 두 카드에 등장하는 상태·등급을 (그룹 순서대로) 합쳐 정렬한다.
+  const orderedConds: { code: string; text: string }[] = [];
+  const seen = new Set<string>();
+  for (const c of cards) for (const x of conds[c.apparelId] ?? []) if (!seen.has(x.code)) { seen.add(x.code); orderedConds.push({ code: x.code, text: x.text }); }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
@@ -112,6 +121,14 @@ export function CompareView({
                     </button>
                   </div>
                   <p className="mt-2 line-clamp-2 text-xs font-semibold text-black">{c.title}</p>
+                  <a
+                    href={c.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-block text-[11px] font-semibold text-[#2a78d6] hover:underline"
+                  >
+                    스니덩크에서 보기 ↗
+                  </a>
                 </td>
               ))}
             </tr>
@@ -134,7 +151,7 @@ export function CompareView({
               label="시세 추이"
               cards={cards}
               render={(c) => {
-                if (trendLoading) return <span className="text-neutral-300">…</span>;
+                if (loading) return <span className="text-neutral-300">…</span>;
                 const t = trends[c.apparelId];
                 if (t == null) return <span className="text-neutral-400">-</span>;
                 const up = t >= 0;
@@ -147,19 +164,38 @@ export function CompareView({
               }}
             />
             <Row label="매물" cards={cards} render={(c) => <span className="text-neutral-700">{c.stock.toLocaleString()}개</span>} />
-            <Row
-              label="찜"
-              cards={cards}
-              render={(c) => <span className="text-neutral-700">{c.favoriteCount !== undefined ? c.favoriteCount.toLocaleString() : '-'}</span>}
-            />
+
+            {/* 상태·등급별 최저가 */}
+            <tr className="border-t border-neutral-200">
+              <th colSpan={cards.length + 1} className="pt-4 pb-1 text-left text-xs font-bold text-neutral-500">
+                상태·등급별 최저가
+              </th>
+            </tr>
+            {loading ? (
+              <tr>
+                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-300">불러오는 중…</td>
+              </tr>
+            ) : orderedConds.length === 0 ? (
+              <tr>
+                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-400">상태·등급별 매물 정보가 없어요.</td>
+              </tr>
+            ) : (
+              orderedConds.map(({ code, text }) => (
+                <tr key={code} className="border-t border-neutral-50">
+                  <th className="py-2 pr-3 text-left align-middle text-xs font-medium text-neutral-500 whitespace-nowrap">{text}</th>
+                  {cards.map((c) => {
+                    const found = (conds[c.apparelId] ?? []).find((x) => x.code === code);
+                    return (
+                      <td key={c.apparelId} className="py-2 px-2 text-center align-middle">
+                        {found ? <span className="font-semibold text-black">{yen.format(found.price)}</span> : <span className="text-neutral-300">-</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-
-        {gap && (
-          <p className="mt-3 rounded-lg bg-neutral-50 p-3 text-xs text-neutral-700">
-            💰 가격 차이 — 비싼 쪽이 약 <b className="text-black">{gap.ratio.toFixed(1)}배</b>, 차액 <b className="text-black">{yen.format(gap.diff)}</b>
-          </p>
-        )}
 
         <p className="mt-3 text-[11px] text-neutral-400">
           최저가가 더 싼 쪽을 초록으로, 시세 추이는 오름 ▲빨강 / 내림 ▼초록으로 표시했어요. 참고용이며 실제 거래가와 다를 수 있어요.
