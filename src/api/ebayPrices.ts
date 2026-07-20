@@ -110,9 +110,11 @@ export function mainPrice(g: EbayGradeStat): { price: number; isSmart: boolean }
 
 // "psa10" -> "PSA 10", "cgc9" -> "CGC 9"
 export function formatGradeLabel(grade: string): string {
-  const match = grade.match(/^([a-z]+)(\d+(?:\.\d+)?)$/i);
+  // PPT는 소수점 등급을 "cgc9.5"로도, "cgc9_5"로도 보낸다. 밑줄도 소수점으로 받아
+  // 화면에 "CGC9_5" 같은 원본 값이 그대로 새어 나가지 않게 한다.
+  const match = grade.match(/^([a-z]+)(\d+(?:[._]\d+)?)$/i);
   if (!match) return grade.toUpperCase();
-  return `${match[1].toUpperCase()} ${match[2]}`;
+  return `${match[1].toUpperCase()} ${match[2].replace('_', '.')}`;
 }
 
 // 이베이의 "낙찰 완료(Sold)" 목록으로 바로 가는 검색 링크. PPT는 개별 낙찰 건을 주지

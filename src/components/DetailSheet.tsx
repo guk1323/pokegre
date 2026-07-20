@@ -54,7 +54,7 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
         onClick={onClose}
         className="absolute inset-0 bg-black/40"
       />
-      <div className="relative max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl">
+      <div className="relative max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl">
         {/* 손잡이를 눌러 닫는다(배경 어두운 곳 탭·뒤로가기로도 닫힘). 회색 바만 두면
             눌리는지 알 수 없어서, 위아래 여백까지 품은 버튼으로 만들어 손가락으로 누를
             영역을 넉넉히 준다. sticky로 위에 고정해 시트를 스크롤해도 손잡이가 늘 손에

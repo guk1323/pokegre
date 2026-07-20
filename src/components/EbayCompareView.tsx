@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
+import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
 import { KrwHint } from './KrwHint';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -13,8 +13,12 @@ function gradeOrder(cards: EbayCard[]): string[] {
   return out;
 }
 
+function statOf(card: EbayCard, grade: string): EbayGradeStat | null {
+  return card.grades.find((x) => x.grade === grade) ?? null;
+}
+
 function priceOf(card: EbayCard, grade: string): number | null {
-  const g = card.grades.find((x) => x.grade === grade);
+  const g = statOf(card, grade);
   return g ? mainPrice(g).price : null;
 }
 
@@ -46,7 +50,7 @@ export function EbayCompareView({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={onClose}>
       <div
-        className="max-h-[90vh] w-full overflow-auto rounded-t-2xl bg-white p-5 sm:max-w-2xl sm:rounded-2xl"
+        className="max-h-[90dvh] w-full overflow-auto rounded-t-2xl bg-white p-5 sm:max-w-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -110,13 +114,22 @@ export function EbayCompareView({
                   <tr key={grade} className="border-t border-neutral-50">
                     <th className="py-2 pr-3 text-left align-middle text-xs font-medium text-neutral-500 whitespace-nowrap">{formatGradeLabel(grade)}</th>
                     {cards.map((c) => {
+                      const g = statOf(c, grade);
                       const p = priceOf(c, grade);
+                      // 낙찰이 몇 건 안 되는 등급은 한 건만 튀어도 값이 크게 흔들린다.
+                      // 상세 화면과 똑같이 신뢰도·건수를 같이 보여줘, 비교표에서 그 값이
+                      // 확정된 시세처럼 읽히지 않게 한다.
+                      const conf = g?.confidence ? (CONFIDENCE_LABEL[g.confidence] ?? g.confidence) : null;
                       return (
                         <td key={c.tcgPlayerId} className="py-2 px-2 text-center align-middle">
-                          {p != null ? (
+                          {p != null && g ? (
                             <>
                               <span className={`font-semibold ${cheapest !== null && p === cheapest ? 'text-emerald-600' : 'text-black'}`}>{usd.format(p)}</span>
                               <KrwHint amount={p} currency="usd" />
+                              <span className={`block text-[10px] ${g.confidence === 'low' ? 'text-amber-600' : 'text-neutral-400'}`}>
+                                {conf ? `신뢰도 ${conf} · ` : ''}
+                                {g.count}건
+                              </span>
                             </>
                           ) : (
                             <span className="text-neutral-300">-</span>
@@ -132,7 +145,8 @@ export function EbayCompareView({
         </table>
 
         <p className="mt-3 text-[11px] text-neutral-400">
-          같은 등급에서 더 싼 쪽을 초록으로 표시했어요. 이베이 낙찰가는 현재 적정가(없으면 중앙값) 기준이며 참고용이에요.
+          같은 등급에서 더 싼 쪽을 초록으로 표시했어요. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 낙찰이 적어 값이
+          불확실하니 참고만 하세요. 이베이 낙찰가는 현재 적정가(없으면 중앙값) 기준이며 참고용이에요.
         </p>
       </div>
     </div>
