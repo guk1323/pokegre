@@ -27,11 +27,15 @@ function trendPct(points: PricePoint[]): number | null {
 function condList(groups: ConditionGroup[]): { code: string; text: string; price: number }[] {
   const out: { code: string; text: string; price: number }[] = [];
   // 원본 등급표기(A/B/C/D)는 뜻이 안 통하니, 있으면 한글 설명(거의 미사용 등)으로. PSA·BGS
-  // 같은 등급은 그대로 두되, "PSA8以下"의 以下(이하)·以上(이상) 한자는 한글로 바꾼다.
+  // 같은 등급은 그대로 두되, "PSA8以下"의 以下(이하)·以上(이상)·"他鑑定品"(기타 감정) 같은
+  // 한자 표기는 한글로 바꾼다.
   for (const g of groups)
     for (const c of g.chips)
       if (c.hasListing && c.usedMinPrice) {
-        const label = (RAW_GRADE_DESCRIPTION[c.filterConditionId] ?? c.text).replace(/以下/g, ' 이하').replace(/以上/g, ' 이상');
+        const label = (RAW_GRADE_DESCRIPTION[c.filterConditionId] ?? c.text)
+          .replace(/他鑑定品/g, '기타 감정')
+          .replace(/以下/g, ' 이하')
+          .replace(/以上/g, ' 이상');
         out.push({ code: c.filterConditionId, text: label, price: c.usedMinPrice });
       }
   return out;
