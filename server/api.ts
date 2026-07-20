@@ -1108,6 +1108,12 @@ function mountSearchTracker(app: Mountable) {
       res.end()
       return
     }
+    // 운영자(본인) 검색은 인기 검색어·검색 통계 집계에서 뺀다.
+    if (isAdmin(await currentUser(req))) {
+      res.statusCode = 204
+      res.end()
+      return
+    }
     try {
       const body = JSON.parse(await readBody(req)) as { query?: string }
       const term = body.query?.trim()
@@ -1352,6 +1358,12 @@ function mountVisitStats(app: Mountable) {
       tooManyRequests(res)
       return
     }
+    // 운영자(본인) 방문은 집계에서 뺀다 — 테스트로 숫자가 부풀지 않게.
+    if (isAdmin(await currentUser(req))) {
+      res.statusCode = 204
+      res.end()
+      return
+    }
     const all = await load()
     const today = kstDayKey(Date.now())
     all[today] = (all[today] ?? 0) + 1
@@ -1481,6 +1493,12 @@ function mountEventStats(app: Mountable) {
     if (req.method === 'POST') {
       if (!allow(req)) {
         tooManyRequests(res)
+        return
+      }
+      // 운영자(본인) 사용은 기능 통계에서 뺀다.
+      if (isAdmin(await currentUser(req))) {
+        res.statusCode = 204
+        res.end()
         return
       }
       try {
