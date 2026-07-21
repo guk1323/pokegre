@@ -117,8 +117,9 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
   }
 
   // ── 작가 목록 ──────────────────────────────────────────────────────────────
+  // 목록은 카드 그리드라 상세(max-w-4xl)보다 넓게 잡아 큰 화면에서 4열이 답답하지 않게.
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <h2 className="text-lg font-bold text-black">작가별 카드</h2>
       <p className="mt-1 mb-4 text-xs text-neutral-400">
         일러스트레이터로 카드를 모아 봐요. 카드 아트는 일본판도 같은 작가예요. (해외 카드 DB 기준)
@@ -129,7 +130,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
       ) : index.length === 0 ? (
         <p className="py-16 text-center text-sm text-neutral-400">작가 데이터를 준비 중이에요.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {index.map((a) => (
             <button
               key={a.slug}
