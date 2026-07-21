@@ -956,7 +956,7 @@ const TRANSLATION_FEEDBACK_FILE = dataFile('translation-feedback.json')
 const MAX_TRANSLATION_FEEDBACK = 300
 const EVENT_STATS_FILE = dataFile('event-stats.json')
 // 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
-const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan', 'centering'])
+const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist'])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
 // 날짜 구분이 없던 옛 형식의 누적치를 담아두는 칸 이름. 전체 합계에만 들어간다.

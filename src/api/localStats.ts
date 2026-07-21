@@ -68,7 +68,7 @@ export function trackVisit(): void {
 }
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
-export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering';
+export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist';
 export function trackEvent(event: TrackedEvent): void {
   if (trackingOff()) return;
   fetch('/api/local/track-event', {
@@ -83,6 +83,7 @@ export interface EventCounts {
   ebay_search?: number;
   scan?: number;
   centering?: number;
+  artist?: number;
 }
 
 // 날짜별 기능 사용 칸. "legacy"는 날짜 구분이 없던 옛 누적치(전체 합계에만 포함).

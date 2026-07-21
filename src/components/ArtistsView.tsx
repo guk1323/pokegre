@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { trackEvent } from '../api/localStats';
 
 // 작가별 카드 모음. 스니커덩크엔 일러스트레이터 정보가 없어서, 작가 정보가 있는 해외
 // 카드 DB(pokemontcg.io)에서 미리 긁어 public/artists/에 저장해둔 데이터를 읽는다.
@@ -27,10 +28,15 @@ interface ArtistFile {
   cards: ArtistCard[];
 }
 
+// 한 화면에 이만큼만 먼저 보여주고 "더 보기"로 늘린다. 작가 한 명이 카드 수백 장이라
+// 처음부터 다 걸면 이미지 로딩으로 버벅인다.
+const PAGE = 60;
+
 export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void }) {
   const [index, setIndex] = useState<ArtistIndexEntry[] | null>(null);
   const [selected, setSelected] = useState<ArtistIndexEntry | null>(null);
   const [cards, setCards] = useState<ArtistCard[] | null>(null);
+  const [shown, setShown] = useState(PAGE);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -43,7 +49,9 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
   function openArtist(a: ArtistIndexEntry) {
     setSelected(a);
     setCards(null);
+    setShown(PAGE);
     setLoading(true);
+    trackEvent('artist');
     fetch(`/artists/${a.slug}.json`)
       .then((r) => r.json())
       .then((d: ArtistFile) => setCards(d.cards))
@@ -53,6 +61,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
 
   // ── 작가 한 명의 카드 그리드 ────────────────────────────────────────────────
   if (selected) {
+    const visible = (cards ?? []).slice(0, shown);
     return (
       <div className="mx-auto max-w-4xl">
         <button
@@ -63,8 +72,8 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
           ← 작가 목록
         </button>
         <div className="mb-1 flex items-baseline gap-2">
-          <h2 className="text-lg font-bold text-black">{selected.ko}</h2>
-          <span className="text-xs text-neutral-400">{selected.en}</span>
+          <h2 className="text-lg font-bold text-black">{selected.en}</h2>
+          <span className="text-xs text-neutral-400">{selected.ko}</span>
         </div>
         <p className="mb-4 text-xs text-neutral-400">
           {selected.count.toLocaleString()}종 · 카드를 누르면 그 카드 시세를 검색해요.
@@ -73,22 +82,35 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
         {loading ? (
           <p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {(cards ?? []).map((c, i) => (
-              <button
-                key={`${c.name}-${c.number}-${i}`}
-                type="button"
-                onClick={() => onPickCard(c.name)}
-                className="text-left"
-              >
-                <div className="aspect-[5/7] overflow-hidden rounded-lg bg-neutral-100">
-                  <img src={c.img} alt={c.name} loading="lazy" className="h-full w-full object-cover" />
-                </div>
-                <p className="mt-1.5 line-clamp-1 text-xs font-semibold text-black">{c.name}</p>
-                <p className="line-clamp-1 text-[11px] text-neutral-400">{c.set}</p>
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {visible.map((c, i) => (
+                <button
+                  key={`${c.name}-${c.number}-${i}`}
+                  type="button"
+                  onClick={() => onPickCard(c.name)}
+                  className="text-left"
+                >
+                  <div className="aspect-[5/7] overflow-hidden rounded-lg bg-neutral-100">
+                    <img src={c.img} alt={c.name} loading="lazy" className="h-full w-full object-cover" />
+                  </div>
+                  <p className="mt-1.5 line-clamp-1 text-xs font-semibold text-black">{c.name}</p>
+                  <p className="line-clamp-1 text-[11px] text-neutral-400">{c.set}</p>
+                </button>
+              ))}
+            </div>
+            {cards && shown < cards.length && (
+              <div className="mt-6 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShown((n) => n + PAGE)}
+                  className="rounded-full border border-neutral-300 px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+                >
+                  더 보기 ({cards.length - shown}장)
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -115,10 +137,11 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
               onClick={() => openArtist(a)}
               className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 text-left hover:shadow-md"
             >
-              <img src={a.cover} alt={a.ko} loading="lazy" className="h-16 w-12 flex-shrink-0 rounded object-contain" />
+              <img src={a.cover} alt={a.en} loading="lazy" className="h-16 w-12 flex-shrink-0 rounded object-cover" />
               <div className="min-w-0">
-                <p className="line-clamp-1 text-sm font-bold text-black">{a.ko}</p>
-                {a.note && <p className="line-clamp-2 text-[11px] text-neutral-500">{a.note}</p>}
+                <p className="line-clamp-1 text-sm font-bold text-black">{a.en}</p>
+                <p className="line-clamp-1 text-[11px] text-neutral-500">{a.ko}</p>
+                {a.note && <p className="mt-0.5 line-clamp-2 text-[11px] text-neutral-400">{a.note}</p>}
                 <p className="mt-0.5 text-[11px] text-neutral-400">{a.count.toLocaleString()}종</p>
               </div>
             </button>

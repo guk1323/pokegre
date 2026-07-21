@@ -26,11 +26,12 @@ function dayKey(offset: number): string {
 }
 
 // 기능 사용 표에 보여줄 항목과 순서.
-const EVENT_ROWS: { key: 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering'; label: string }[] = [
+const EVENT_ROWS: { key: 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist'; label: string }[] = [
   { key: 'snkrdunk_search', label: '스니커덩크 검색' },
   { key: 'ebay_search', label: '이베이 검색' },
   { key: 'scan', label: '사진 검색' },
   { key: 'centering', label: '센터링 측정' },
+  { key: 'artist', label: '작가별 조회' },
 ];
 
 // 가로 막대 목록(방문·검색 공용).
