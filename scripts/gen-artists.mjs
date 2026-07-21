@@ -58,14 +58,23 @@ const KO = {
   'Tika Matsuno': '마츠노 티카',
 }
 
-// 유명 소개문(있으면 목록에 한 줄).
+// 유명 소개문(있으면 목록에 한 줄). 한 줄에 들어가게 짧게. 확실한 작가만.
 const NOTE = {
-  'Mitsuhiro Arita': '초판 리자몽·기라 카드로 유명한 레전드',
+  'Mitsuhiro Arita': '초판 리자몽을 그린 레전드',
   'Ken Sugimori': '포켓몬 디자인 총괄',
-  'Atsuko Nishida': '피카츄를 디자인한 일러스트레이터',
-  '5ban Graphics': 'EX·기계 카드 CG 명가',
-  'Yuka Morii': '점토로 빚어 찍은 카드',
-  'Kagemaru Himeno': 'e카드~DP 시대 대표 일러스트',
+  'Atsuko Nishida': '피카츄를 디자인한 작가',
+  'Naoki Saito': '릴리에·마리 등 고가 카드 일러스트',
+  kawayoo: '유화 같은 질감의 디지털 화풍',
+  '5ban Graphics': '기계·강철 카드 CG 명가',
+  'Yuka Morii': '점토로 빚어 찍는 작가',
+  'Kagemaru Himeno': 'e카드·DP 시대 대표 작가',
+  'Hitoshi Ariga': '포켓몬 만화가 출신',
+  'Masakazu Fukuda': '초창기부터 활동한 베테랑',
+  'Midori Harada': '아름다운 풍경 일러스트',
+  'Toyste Beach': '해외 출신 일러스트레이터',
+  PLANETA: 'CG 일러스트 스튜디오',
+  'PLANETA Mochizuki': 'CG 스튜디오 PLANETA',
+  'PLANETA Tsuji': 'CG 스튜디오 PLANETA',
 }
 
 function slugify(en) {

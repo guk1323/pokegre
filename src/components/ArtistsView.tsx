@@ -142,7 +142,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
               <div className="min-w-0 flex-1">
                 <p className="line-clamp-1 text-sm font-bold text-black">{a.en}</p>
                 {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-xs text-neutral-500">{a.ko}</p>}
-                {a.note && <p className="mt-0.5 line-clamp-2 text-[11px] text-neutral-400">{a.note}</p>}
+                {a.note && <p className="mt-0.5 line-clamp-1 text-[11px] text-neutral-400">{a.note}</p>}
               </div>
               <span className="flex-shrink-0 self-start rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">
                 {a.count.toLocaleString()}종
