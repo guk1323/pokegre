@@ -39,6 +39,7 @@ import { ReportInbox } from './components/ReportInbox';
 import { VisitStats } from './components/VisitStats';
 import { TitleFeedbackList } from './components/TitleFeedbackList';
 import { CenteringTool } from './components/CenteringTool';
+import { ArtistsView } from './components/ArtistsView';
 import { DetailSheet } from './components/DetailSheet';
 import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider } from './api/auth';
 
@@ -53,7 +54,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'reports' | 'stats';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats';
 type PriceSource = 'snkrdunk' | 'ebay';
 
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
@@ -762,6 +763,15 @@ function App() {
                 >
                   센터링<span className="ml-1 text-[10px] text-amber-500">베타</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setView('artists')}
+                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    view === 'artists' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                  }`}
+                >
+                  작가별
+                </button>
                 {/* 운영자에게만 보인다. 다른 사람 메뉴를 깔끔하게 두려는 것뿐이고,
                     실제 차단은 서버가 한다 — 주소를 직접 쳐도 목록을 안 준다. */}
                 {isAdmin && (
@@ -816,6 +826,14 @@ function App() {
             <div className="mx-auto max-w-4xl">
               <CenteringTool onSearchByPhoto={searchByPhoto} />
             </div>
+          ) : view === 'artists' ? (
+            <ArtistsView
+              onPickCard={(name) => {
+                setSource('snkrdunk');
+                setQuery(name);
+                setView('cards');
+              }}
+            />
           ) : view === 'mypage' ? (
             <DetailLayout
               main={myPageMain}
