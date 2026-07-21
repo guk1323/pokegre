@@ -129,15 +129,23 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
       ) : index.length === 0 ? (
         <p className="py-16 text-center text-sm text-neutral-400">작가 데이터를 준비 중이에요.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {index.map((a) => (
-            <button key={a.slug} type="button" onClick={() => openArtist(a)} className="text-left">
-              <div className="aspect-[5/7] overflow-hidden rounded-lg bg-neutral-100">
-                <img src={a.cover} alt={a.en} loading="lazy" className="h-full w-full object-cover" />
+            <button
+              key={a.slug}
+              type="button"
+              onClick={() => openArtist(a)}
+              className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 text-left hover:shadow-md"
+            >
+              <img src={a.cover} alt={a.en} loading="lazy" className="h-[84px] w-[60px] flex-shrink-0 rounded object-cover" />
+              <div className="min-w-0 flex-1">
+                <p className="line-clamp-1 text-sm font-bold text-black">{a.en}</p>
+                {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-xs text-neutral-500">{a.ko}</p>}
+                {a.note && <p className="mt-0.5 line-clamp-2 text-[11px] text-neutral-400">{a.note}</p>}
               </div>
-              <p className="mt-1.5 line-clamp-1 text-sm font-bold text-black">{a.en}</p>
-              {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-[11px] text-neutral-500">{a.ko}</p>}
-              <p className="text-[11px] text-neutral-400">{a.count.toLocaleString()}종</p>
+              <span className="flex-shrink-0 self-start rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">
+                {a.count.toLocaleString()}종
+              </span>
             </button>
           ))}
         </div>
