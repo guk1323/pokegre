@@ -14,6 +14,16 @@ const TOP_N = 80 // 유명·다작 순 상위 몇 명까지 넣을지
 const MIN_CARDS = 12 // 이보다 적으면(일회성 참여) 목록에서 뺀다
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// pokemontcg.io API 키(선택). .env에 POKEMONTCG_API_KEY=... 를 넣고
+//   node --env-file-if-exists=.env scripts/gen-artists.mjs
+// 로 실행하면 하루 한도가 20,000회로 늘고 훨씬 빨라진다. 없으면 키 없이(느리게) 돈다.
+const API_KEY = process.env.POKEMONTCG_API_KEY || ''
+const HEADERS = API_KEY ? { 'User-Agent': 'pokegre', 'X-Api-Key': API_KEY } : { 'User-Agent': 'pokegre' }
+// 키가 있으면 한도가 넉넉하니 대기를 확 줄인다.
+const PAGE_GAP = API_KEY ? 400 : 6500
+const ARTIST_GAP = API_KEY ? 400 : 7000
+console.log(API_KEY ? 'API 키 사용 — 빠른 모드' : 'API 키 없음 — 느린 모드(레이트 리밋 대비)')
+
 // 자신 있는 일본 작가만 한글 병기. 나머지는 원문만 보여준다(어설픈 음역보다 낫다).
 const KO = {
   'Mitsuhiro Arita': '아리타 미츠히로',
@@ -65,7 +75,7 @@ function slugify(en) {
 async function fetchJson(url, tries = 6) {
   for (let i = 0; i < tries; i++) {
     try {
-      const r = await fetch(url, { headers: { 'User-Agent': 'pokegre' } })
+      const r = await fetch(url, { headers: HEADERS })
       const j = await r.json()
       if (Array.isArray(j.data)) return j
     } catch {
@@ -90,7 +100,7 @@ async function collectArtists() {
     process.stderr.write(`1단계 page ${page} · 누적 작가 ${Object.keys(count).length}\n`)
     if (j.data.length < 250) break
     page++
-    await sleep(6500)
+    await sleep(PAGE_GAP)
   }
   return count
 }
@@ -107,7 +117,7 @@ async function fetchArtistCards(en) {
       if (img) cards.push({ name: c.name, number: c.number ?? '', set: c.set?.name ?? '', img })
     }
     if (j.data.length < 250) break
-    await sleep(8000)
+    await sleep(PAGE_GAP)
   }
   return cards
 }
@@ -127,7 +137,7 @@ async function main() {
     const cards = await fetchArtistCards(en)
     if (cards.length === 0) {
       console.log('0장 — 건너뜀')
-      await sleep(7000)
+      await sleep(ARTIST_GAP)
       continue
     }
     const slug = slugify(en)
@@ -136,7 +146,7 @@ async function main() {
     await writeFile(path.join(OUT, `${slug}.json`), JSON.stringify({ en, ko, note, cards }))
     index.push({ slug, ko, en, note, count: cards.length, cover: cards[0].img })
     console.log(`${cards.length}장`)
-    await sleep(7000)
+    await sleep(ARTIST_GAP)
   }
   index.sort((a, b) => b.count - a.count)
   await writeFile(path.join(OUT, 'index.json'), JSON.stringify(index))
