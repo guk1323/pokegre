@@ -73,7 +73,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
         </button>
         <div className="mb-1 flex items-baseline gap-2">
           <h2 className="text-lg font-bold text-black">{selected.en}</h2>
-          <span className="text-xs text-neutral-400">{selected.ko}</span>
+          {selected.ko && selected.ko !== selected.en && <span className="text-xs text-neutral-400">{selected.ko}</span>}
         </div>
         <p className="mb-4 text-xs text-neutral-400">
           {selected.count.toLocaleString()}종 · 카드를 누르면 그 카드 시세를 검색해요.
@@ -140,7 +140,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
               <img src={a.cover} alt={a.en} loading="lazy" className="h-16 w-12 flex-shrink-0 rounded object-cover" />
               <div className="min-w-0">
                 <p className="line-clamp-1 text-sm font-bold text-black">{a.en}</p>
-                <p className="line-clamp-1 text-[11px] text-neutral-500">{a.ko}</p>
+                {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-[11px] text-neutral-500">{a.ko}</p>}
                 {a.note && <p className="mt-0.5 line-clamp-2 text-[11px] text-neutral-400">{a.note}</p>}
                 <p className="mt-0.5 text-[11px] text-neutral-400">{a.count.toLocaleString()}종</p>
               </div>

@@ -743,14 +743,16 @@ function App() {
                 >
                   카드 시세
                 </button>
+                {/* 카드 → 그 카드 그린 사람 → 카드 상태(센터링) 순으로 정보 흐름을 두고,
+                    소통(커뮤니티)을 뒤에 둔다. */}
                 <button
                   type="button"
-                  onClick={() => setView('community')}
+                  onClick={() => setView('artists')}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                    view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                    view === 'artists' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
-                  커뮤니티
+                  일러스트레이터
                 </button>
                 {/* 베타로 모두에게 공개(2026-07-18). 서버 데이터가 없는 순수 클라이언트
                     도구라 서버 차단은 필요 없다. "베타" 배지로 다듬는 중임을 알린다. */}
@@ -765,12 +767,12 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setView('artists')}
+                  onClick={() => setView('community')}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                    view === 'artists' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                    view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
-                  작가별
+                  커뮤니티
                 </button>
                 {/* 운영자에게만 보인다. 다른 사람 메뉴를 깔끔하게 두려는 것뿐이고,
                     실제 차단은 서버가 한다 — 주소를 직접 쳐도 목록을 안 준다. */}
