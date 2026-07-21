@@ -327,6 +327,19 @@ function App() {
       .finally(() => setNewsLoading(false));
   }, []);
 
+  // 카드 공유 링크(/c/<id>?n=<이름>)로 들어오면, 담아둔 카드 이름으로 검색해 그 카드를
+  // 바로 보여준다. 서버가 이미 미리보기(제목·시세·이미지)를 심어 보냈고, 여기서는
+  // 사람이 실제로 그 카드를 찾을 수 있게 검색만 태워 준다.
+  useEffect(() => {
+    if (!/^\/c\/\d+/.test(window.location.pathname)) return;
+    const n = new URLSearchParams(window.location.search).get('n');
+    if (n) {
+      setSource('snkrdunk');
+      setQuery(n);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) {
@@ -552,6 +565,18 @@ function App() {
   const interestSelectedCard =
     [...recentlyViewed, ...favorites].find((c) => c.apparelId === interestSelectedId) ?? null;
   const ebaySelectedCard = ebayItems.find((c) => c.tcgPlayerId === ebaySelectedId) ?? null;
+
+  // 상세를 열면 주소창을 그 카드의 공유 링크(/c/<id>?n=<이름>)로 바꾼다. replaceState라
+  // 히스토리 스택은 안 건드려서 기존 뒤로가기 처리와 충돌하지 않는다. 이걸로 사용자가
+  // 주소를 복사해 붙이면 카드 이름·시세 미리보기가 뜨는 링크가 된다.
+  useEffect(() => {
+    if (selectedCard) {
+      const slug = encodeURIComponent(selectedCard.title.slice(0, 80));
+      window.history.replaceState(window.history.state, '', `/c/${selectedCard.apparelId}?n=${slug}`);
+    } else if (window.location.pathname.startsWith('/c/')) {
+      window.history.replaceState(window.history.state, '', '/');
+    }
+  }, [selectedCard]);
 
   const translatedQuery = useMemo(() => translateSearchQuery(query), [query]);
   const showTranslationHint = source === 'snkrdunk' && translatedQuery && translatedQuery !== query.trim();
