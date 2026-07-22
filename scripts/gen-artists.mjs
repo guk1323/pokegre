@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const OUT = path.resolve(process.cwd(), 'public/artists')
-const MIN_CARDS = 5 // 이보다 적으면(대개 한 번 참여한 게스트) 목록에서 뺀다
+const MIN_CARDS = 1 // 있는 데이터는 다 넣는다(카드 1장짜리 게스트까지). 검색으로 찾으면 됨.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const API_KEY = process.env.POKEMONTCG_API_KEY || ''
@@ -100,10 +100,13 @@ async function fetchArtistCards(en) {
   const cards = []
   for (let page = 1; page <= 2; page++) {
     const j = await fetchJson(
-      `https://api.pokemontcg.io/v2/cards?pageSize=250&page=${page}&orderBy=-set.releaseDate&q=${q}&select=name,number,images,set`,
+      `https://api.pokemontcg.io/v2/cards?pageSize=250&page=${page}&orderBy=-set.releaseDate&q=${q}&select=name,number,images,set,artist`,
     )
     if (!j || j.data.length === 0) break
     for (const c of j.data) {
+      // artist:"nagano" 검색이 "Tsuyoshi Nagano"처럼 그 단어가 든 작가까지 잡아 오므로,
+      // 작가명이 정확히 일치하는 카드만 남긴다(남의 카드 섞임 방지).
+      if ((c.artist || '').trim() !== en) continue
       const img = c.images?.small
       if (img) cards.push({ name: c.name, number: c.number ?? '', set: c.set?.name ?? '', img })
     }

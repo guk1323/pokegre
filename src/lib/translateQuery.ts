@@ -77,14 +77,17 @@ export function translateSearchQuery(query: string): string {
       result = result.replace(re, ja);
     }
   }
-  for (const [ko, ja] of sortedStructuralKo) {
-    if (result.includes(ko)) {
-      result = result.split(ko).join(ja);
-    }
-  }
+  // 포켓몬 이름 사전을 구조 단어보다 먼저 돌린다. 반대로 하면 "이상해씨"의 "이상",
+  // "단데기"의 "단"처럼 이름 속 조각이 먼저 한자로 바뀌어 이름 매칭이 깨진다
+  // (실제로 "이상해씨→以上해씨"가 되던 버그).
   for (const entry of sortedPokemonKo) {
     if (result.includes(entry.ko)) {
       result = result.split(entry.ko).join(entry.ja);
+    }
+  }
+  for (const [ko, ja] of sortedStructuralKo) {
+    if (result.includes(ko)) {
+      result = result.split(ko).join(ja);
     }
   }
   return result;

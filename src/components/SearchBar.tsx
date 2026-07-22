@@ -30,8 +30,23 @@ export function SearchBar({
         onFocus={onFocus}
         onBlur={onBlur}
         placeholder="카드명(한글·영어·일본어) 또는 팩 이름으로 검색... 예: 피카츄, Charizard, リザードン"
-        className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-10 pr-4 text-sm text-black placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black"
+        className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-10 pr-10 text-sm text-black placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black"
       />
+      {/* 검색어가 있을 때만 오른쪽 끝에 지우기(X). onMouseDown로 blur를 막아 눌러도
+          자동완성이 먼저 닫혀 클릭이 씹히는 일이 없게 한다. */}
+      {value && (
+        <button
+          type="button"
+          aria-label="검색어 지우기"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onChange('')}
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
       {children}
     </div>
   );

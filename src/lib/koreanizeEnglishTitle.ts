@@ -31,10 +31,49 @@ const STRUCTURAL_EN_TO_KO: [string, string][] = [
   ['Radiant ', '찬란한 '], // かがやく/輝く의 영문판. koreanizeTitle과 같은 표기로 맞춘다.
 ];
 
+// 트레이너·인물 서포트 카드 이름(영어 → 한글). 포켓몬이 아니라 pokemonNames 사전에 없어
+// 그동안 영문으로 남았다. 한글은 공식 한국 포켓몬 표기(koreanizeTitle의 일본어쪽과 동일).
+// ⚠️ "N"·"Red"처럼 짧은 이름이 다른 단어 안에 끼지 않도록, 카드명 "전체"가 정확히
+// 일치할 때만 바꾼다(부분 치환 안 함).
+const TRAINER_EN_TO_KO: Record<string, string> = {
+  Serena: '세레나',
+  Cynthia: '시로나',
+  Marnie: '마리',
+  Lillie: '릴리에',
+  Sabrina: '나츠메',
+  Iono: '난자모',
+  Nemona: '네모',
+  Arven: '페퍼',
+  Penny: '보탄',
+  Clavell: '청목',
+  Bianca: '벨',
+  Cheren: '체렌',
+  Hop: '호프',
+  Leon: '단델',
+  Sonia: '소니아',
+  Nessa: '무희',
+  Piers: '네즈',
+  Roxie: '보미카',
+  Rosa: '명희',
+  Grusha: '블래리',
+  Acerola: '아세로라',
+  Wally: '민진',
+  Lance: '목호',
+  Blaine: '강연',
+  Misty: '이슬',
+  Ash: '지우',
+  "Professor's Research": '박사의 연구',
+  "Boss's Orders": '보스의 지령',
+};
+
 // PokemonPriceTracker는 일본판 DB도 TCGPlayer 영문 표기로 내려준다("Charizard ex").
 // SNKRDUNK 쪽 koreanizeTitle이 일본어 전용이라 여기엔 못 쓰므로, 영문 카드명을
 // 한글 포켓몬 이름으로 치환하는 별도 경로를 둔다.
 export function koreanizeEnglishCardName(name: string): string {
+  // 트레이너·인물 카드는 이름 전체가 일치할 때만 통째로 바꾼다(부분 치환 사고 방지).
+  const trainer = TRAINER_EN_TO_KO[name.trim()];
+  if (trainer) return trainer;
+
   let result = name;
 
   for (const [en, ko] of STRUCTURAL_EN_TO_KO) {

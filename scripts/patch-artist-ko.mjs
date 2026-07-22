@@ -241,6 +241,113 @@ const KO = {
   DemizuPosuka: '데미즈 포스카',
   'Felicia Chen': '펠리시아 첸',
   kamonabe: '카모나베',
+  'Tsuyoshi Nagano': '츠요시 나가노',
+  // 3차: 396명으로 넓히며 새로 들어온 일본 사람 이름들
+  'Emi Miwa': '에미 미와',
+  'Hiroyuki Yamamoto': '히로유키 야마모토',
+  'Hiroaki Ito': '히로아키 이토',
+  'Mana Ibe': '마나 이베',
+  'Emi Yoshida': '에미 요시다',
+  'Hideyuki Nakajima': '히데유키 나카지마',
+  'Yuichi Sawayama': '유이치 사와야마',
+  'Shinji Higuchi': '신지 히구치',
+  'Tomomi Kaneko': '토모미 카네코',
+  'Natsumi Miyanose': '나츠미 미야노세',
+  'Yoko Hishida': '요코 히시다',
+  'Keisuke Azuma': '케이스케 아즈마',
+  'Tomoko Wakai': '토모코 와카이',
+  'Hideki Kazama': '히데키 카자마',
+  'Maiko Fujiwara': '마이코 후지와라',
+  'Misaki Hashimoto': '미사키 하시모토',
+  'Fumie Kittaka': '후미에 킷타카',
+  'Yusuke Kozaki': '유스케 코자키',
+  'Souchirou Gunjima': '소이치로 군지마',
+  'Mikiko Takeda': '미키코 타케다',
+  'Daisuke Iwamoto': '다이스케 이와모토',
+  'Kunihiko Yuyama': '쿠니히코 유야마',
+  'Nobuyuki Fujimoto': '노부유키 후지모토',
+  'Reiko Tanoue': '레이코 타노우에',
+  'Asuka Iwashita': '아스카 이와시타',
+  'Aimi Tomita': '아이미 토미타',
+  'Kouji Tajima': '코우지 타지마',
+  'Sachi Matoba': '사치 마토바',
+  'Mikio Menjo': '미키오 멘조',
+  'Arai Kiriko': '아라이 키리코',
+  'Kanami Ogata': '카나미 오가타',
+  'Koji Nakata': '코지 나카타',
+  'Raita Kazama': '라이타 카자마',
+  'Keiko Moritsugu': '케이코 모리츠구',
+  'Gakuji Nomoto': '가쿠지 노모토',
+  'Jumpei Akasaka': '준페이 아카사카',
+  'Tomohiro Kitakaze': '토모히로 키타카제',
+  'Etsuya Hattori': '에츠야 핫토리',
+  'Yasuki Watanabe': '야스키 와타나베',
+  'Yusuke Shimada': '유스케 시마다',
+  'Sakiko Maeda': '사키코 마에다',
+  'Junsei Kuninobu': '준세이 쿠니노부',
+  'Noriko Uono': '노리코 우오노',
+  'Nabana Kensaku': '나바나 켄사쿠',
+  'Yuka Tanaka': '유카 타나카',
+  'Nabatame Kazutaka': '나바타메 카즈타카',
+  'Tomoki Sone': '토모키 소네',
+  'Satoshi Ito': '사토시 이토',
+  'Benimaru Itoh': '베니마루 이토',
+  'Kamome Shirahama': '카모메 시라하마',
+  'Haruko Ichikawa': '하루코 이치카와',
+  'Mika Pikazo': '미카 피카조',
+  'Hizuki Misono': '히즈키 미소노',
+  'Heisuke Kitazawa': '헤이스케 키타자와',
+  'Akino Fukuji': '아키노 후쿠지',
+  'Kazuhisa Uragami': '카즈히사 우라가미',
+  'Kazumasa Yasukunio': '카즈마사 야스쿠니오',
+  'Terada Tera': '테라다 테라',
+  'YASHIRO Nanaco': '야시로 나나코',
+  'Yoshimoto Yoshimon': '요시모토 요시몬',
+  'Hoshino KURO': '호시노 쿠로',
+  'Mori Yuu': '모리 유우',
+  'Mori You': '모리 유',
+  'okayamatakatoshi': '오카야마 타카토시',
+  kanahei: '카나헤이',
+  Takabon: '타카본',
+  Masa: '마사',
+  Minato: '미나토',
+  CHORISO: '초리소',
+  HACCAN: '핫칸',
+  hanabushi: '하나부시',
+  KYUPIYAMA: '큐피야마',
+  'Imakuni?': '이마쿠니?',
+  // 4차: 남은 것 중 읽을 수 있는 핸들·서양 사람 이름
+  nagano: '나가노',
+  'James Turner': '제임스 터너',
+  'Christopher Rush': '크리스토퍼 러시',
+  'Craig Turvey': '크레이그 터비',
+  'Aliya Chen': '알리야 첸',
+  'Miranda Branley': '미란다 브랜리',
+  'Yosuke Da Silva': '요스케 다 실바',
+  'Natsuko Shoji été': '나츠코 쇼지',
+  'HICO KIM': '히코 킴',
+  'Huang Tzu En': '황쯔언',
+  'Dr.Ooyama': '오오야마 박사',
+  mele: '메레',
+  Apios: '아피오스',
+  imoniii: '이모니',
+  Izucch: '이즛치',
+  'Q-rais': '큐라이스',
+  booota: '보오타',
+  'Avec Yoko': '아베크 요코',
+}
+
+// 확실한 유명 작가만 짧은 소개. 나머지는 지어내지 않고 활동시기(배지)로 둔다.
+const NOTE = {
+  'Kunihiko Yuyama': '포켓몬 애니메이션 감독',
+  'James Turner': '게임프리크 소속 디자이너',
+  'Kamome Shirahama': '「마법사의 신부」·「마녀의 아틀리에」 만화가',
+  'Haruko Ichikawa': '「보석의 나라」 만화가',
+  'Mika Pikazo': '화려한 색감의 인기 일러스트레이터',
+  'Yusuke Kozaki': '「노 모어 히어로즈」·파이어엠블렘 캐릭터 디자이너',
+  'Imakuni?': '포켓몬 카드·노래로 유명한 캐릭터',
+  kanahei: '「피스케&우사기」 인기 캐릭터 작가',
+  'Christopher Rush': '매직 더 개더링 초판 일러스트레이터',
 }
 
 const files = (await readdir(OUT)).filter(
@@ -251,13 +358,27 @@ for (const f of files) {
   const fp = path.join(OUT, f)
   const d = JSON.parse(await readFile(fp, 'utf8'))
   const ko = KO[d.en]
+  const note = NOTE[d.en]
+  let changed = false
   if (ko && d.ko !== ko) {
     d.ko = ko
+    changed = true
+  }
+  if (note && d.note !== note) {
+    d.note = note
+    changed = true
+  }
+  if (changed) {
     await writeFile(fp, JSON.stringify(d))
     patched++
   }
 }
 const idx = JSON.parse(await readFile(path.join(OUT, 'index.json'), 'utf8'))
-for (const a of idx) if (KO[a.en]) a.ko = KO[a.en]
+for (const a of idx) {
+  if (KO[a.en]) a.ko = KO[a.en]
+  if (NOTE[a.en]) a.note = NOTE[a.en]
+}
 await writeFile(path.join(OUT, 'index.json'), JSON.stringify(idx))
-console.log(`파일 ${patched}개 갱신 · index 한글 있는 작가: ${idx.filter((a) => a.ko).length}/${idx.length}명`)
+console.log(
+  `파일 ${patched}개 갱신 · 한글: ${idx.filter((a) => a.ko).length}/${idx.length}명 · 소개: ${idx.filter((a) => a.note).length}명`,
+)

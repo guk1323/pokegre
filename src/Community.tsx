@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSubScreen } from './lib/useSubScreen';
 import {
   fetchPosts,
   fetchPost,
@@ -415,7 +416,8 @@ export function Community({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
-  function openPost(id: number) {
+  // 글 하나를 화면에 띄우되 방문기록은 건드리지 않는다(복원·뒤로가기용).
+  function showPost(id: number) {
     setView('detail');
     setCommentsLoading(true);
     fetchPost(id).then(setSelectedPost);
@@ -425,12 +427,33 @@ export function Community({
       .finally(() => setCommentsLoading(false));
   }
 
+  // 글보기·글쓰기를 방문기록 한 칸으로: 뒤로가기가 정확히 직전 화면(목록/글)으로 간다.
+  const sub = useSubScreen<{ v: 'detail' | 'write' | 'edit'; id?: number }>('post', (data) => {
+    if (!data) {
+      setView('list');
+      return;
+    }
+    if (data.v === 'write') {
+      setView('write');
+      return;
+    }
+    // detail·edit 복원은 글을 다시 불러와 글보기로 (수정 화면은 소유권 확인이 필요해
+    // 기록 복원으로는 열지 않는다 — 글에서 다시 수정을 누르면 된다).
+    if (data.id != null) showPost(data.id);
+  });
+
+  function openPost(id: number) {
+    showPost(id);
+    sub.push({ v: 'detail', id });
+  }
+
   async function handleCreatePost(input: { title: string; content: string; category: PostCategory }) {
     const post = await createPost(input);
-    setView('list');
-    // 방금 쓴 글의 게시판으로 옮겨가 바로 보이게 한다.
+    // 방금 쓴 글의 게시판으로 옮겨가 바로 보이게 한다. 글쓰기 칸을 글보기로 바꿔치기해서
+    // (replace) 뒤로가기가 빈 글쓰기 화면이 아니라 목록으로 가게 한다.
     setCategory(post.category);
-    openPost(post.id);
+    showPost(post.id);
+    sub.replace({ v: 'detail', id: post.id });
   }
 
   async function handleUpdatePost(input: { title: string; content: string; category: PostCategory }) {
@@ -439,8 +462,9 @@ export function Community({
     setSelectedPost(updated);
     // 목록에도 바뀐 내용을 반영해둔다. 게시판이 바뀌었을 수 있으니 그 게시판으로 옮긴다.
     setCategory(updated.category);
-    setView('detail');
     loadPosts(updated.category);
+    // 수정 칸을 되돌리면(기록 한 칸 뒤로) 글보기가 복원되면서 수정된 내용을 다시 불러온다.
+    sub.back();
   }
 
   async function handleTogglePin() {
@@ -486,8 +510,8 @@ export function Community({
     if (!window.confirm('이 글을 삭제할까요? 댓글도 함께 삭제됩니다.')) return;
     try {
       await deletePost(selectedPost.id);
-      setView('list');
       loadPosts();
+      sub.back();
     } catch {
       window.alert('삭제하지 못했습니다.');
     }
@@ -499,7 +523,7 @@ export function Community({
       <PostForm
         mode="write"
         initialCategory={category ?? 'free'}
-        onCancel={() => setView('list')}
+        onCancel={() => sub.back()}
         onSubmit={handleCreatePost}
       />
     );
@@ -512,7 +536,7 @@ export function Community({
         initialCategory={selectedPost.category}
         initialTitle={selectedPost.title}
         initialContent={selectedPost.content}
-        onCancel={() => setView('detail')}
+        onCancel={() => sub.back()}
         onSubmit={handleUpdatePost}
       />
     );
@@ -526,10 +550,10 @@ export function Community({
         commentsLoading={commentsLoading}
         loggedIn={loggedIn}
         isAdmin={isAdmin}
-        onBack={() => setView('list')}
+        onBack={() => sub.back()}
         onSubmitComment={handleCreateComment}
         onDelete={handleDeletePost}
-        onEdit={() => setView('edit')}
+        onEdit={() => { setView('edit'); sub.push({ v: 'edit', id: selectedPost.id }); }}
         onToggleLike={handleToggleLike}
         onTogglePin={handleTogglePin}
         onRequestLogin={onRequestLogin}
@@ -585,7 +609,7 @@ export function Community({
         loading={postsLoading}
         loggedIn={loggedIn}
         onOpen={openPost}
-        onWrite={() => setView('write')}
+        onWrite={() => { setView('write'); sub.push({ v: 'write' }); }}
         onRequestLogin={onRequestLogin}
       />
     </div>

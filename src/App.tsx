@@ -38,6 +38,7 @@ import { LoginModal } from './components/LoginModal';
 import { MyPage } from './components/MyPage';
 import { ReportInbox } from './components/ReportInbox';
 import { VisitStats } from './components/VisitStats';
+import { SetsView } from './components/SetsView';
 import { TitleFeedbackList } from './components/TitleFeedbackList';
 import { CenteringTool } from './components/CenteringTool';
 import { ArtistsView } from './components/ArtistsView';
@@ -55,7 +56,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets';
 type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
@@ -249,17 +250,32 @@ function App() {
     }
   }, []);
 
+  // 화면 이동은 여기로 모은다. 상태를 바꾸고 방문기록(history)에 새 항목을 쌓아,
+  // 뒤로가기가 한 단계씩 직전 화면으로 가게 한다(탭 이동·일러스트레이터에서 카드 열기 등).
+  // 아무것도 안 바뀌면 중복 항목을 안 쌓는다.
+  const navigate = (next: { view?: MainView; query?: string; source?: PriceSource; edition?: CardEdition }) => {
+    const snap = {
+      view: next.view ?? view,
+      query: next.query ?? query,
+      source: next.source ?? source,
+      edition: next.edition ?? edition,
+    };
+    const same = snap.view === view && snap.query === query && snap.source === source && snap.edition === edition;
+    if (next.view !== undefined) setView(snap.view);
+    if (next.query !== undefined) setQuery(snap.query);
+    if (next.source !== undefined) setSource(snap.source);
+    if (next.edition !== undefined) setEdition(snap.edition);
+    if (!same) window.history.pushState({ nav: snap }, '');
+  };
+
   // 처음 화면(카드 시세 홈)으로. 검색·선택·화면을 비우고 맨 위로 올린다.
   const goHome = () => {
-    setView('cards');
-    setQuery('');
     setSelectedId(null);
     setEbaySelectedId(null);
     setInterestSelectedId(null);
+    navigate({ view: 'cards', query: '' });
     window.scrollTo({ top: 0 });
   };
-  const goHomeRef = useRef(goHome);
-  goHomeRef.current = goHome;
 
   // 스캔 결과를 검색어·소스·판(일/북미)에 반영한다. 카메라 버튼과 센터링 도구가 공유한다.
   const applyScanResult = (result: CardScanResult) => {
@@ -290,26 +306,35 @@ function App() {
     window.scrollTo({ top: 0 });
   };
 
-  // 안드로이드 뒤로가기(제스처·물리 버튼)로 사이트를 통째로 나가버리는 걸 막는다.
-  // 검색 중이거나 홈이 아닌 화면(커뮤니티·마이페이지 등)에 있을 때 뒤로가기를 누르면,
-  // 사이트를 벗어나는 대신 홈으로 돌아오게 한다. 홈에서는 가드가 없어 정상적으로 나간다.
-  // 폰의 카드 상세 시트(DetailSheet)는 자체적으로 뒤로가기를 처리하는데, 시트는 이 가드
-  // 위에 쌓이므로(검색→카드 탭 순서) 뒤로가기 한 번은 시트만 닫고, 그다음이 홈 복귀다.
-  // 시트가 최상단일 때는 history.state.appDeep가 아직 남아 있어 이 핸들러가 넘긴다.
-  const isDeep = view !== 'cards' || query.trim() !== '';
+  // 뒤로가기: navigate()가 방문기록에 실어둔 화면 상태(nav)로 한 단계씩 복원한다.
+  // 카드 상세 시트(DetailSheet)는 자체적으로 뒤로가기를 처리하므로(sheet 표식) 넘긴다.
   useEffect(() => {
-    if (!isDeep) return;
-    const onPop = () => {
-      if (window.history.state?.appDeep) return;
-      goHomeRef.current();
+    const onPop = (e: PopStateEvent) => {
+      const st = e.state as {
+        sheet?: boolean
+        nav?: { view: MainView; query: string; source: PriceSource; edition: CardEdition }
+      } | null;
+      if (st?.sheet) return;
+      const nav = st?.nav;
+      if (!nav) return;
+      setView(nav.view);
+      setQuery(nav.query);
+      setSource(nav.source);
+      setEdition(nav.edition);
+      setSelectedId(null);
+      setEbaySelectedId(null);
+      setInterestSelectedId(null);
     };
-    window.history.pushState({ appDeep: true }, '');
     window.addEventListener('popstate', onPop);
-    return () => {
-      window.removeEventListener('popstate', onPop);
-      if (window.history.state?.appDeep) window.history.back();
-    };
-  }, [isDeep]);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // 지금 화면 상태를 현재 방문기록 항목에 계속 반영해 둔다. 검색어 타이핑은 새 항목을
+  // 쌓지 않고(navigate가 아니므로) 이 항목만 갱신 → 카드 상세를 열었다 뒤로가기로 닫아도
+  // 검색어가 남는다. sheet 등 다른 표식은 보존한다.
+  useEffect(() => {
+    window.history.replaceState({ ...window.history.state, nav: { view, query, source, edition } }, '');
+  }, [view, query, source, edition]);
 
   async function handleLogout() {
     await logout();
@@ -319,7 +344,7 @@ function App() {
     setIsAdmin(false);
     setProviders([]);
     // 운영자가 로그아웃했는데 운영자 전용 화면이 그대로 열려 있으면 빈 화면만 남는다.
-    if (view === 'reports' || view === 'stats') setView('cards');
+    if (view === 'reports' || view === 'stats' || view === 'sets') setView('cards');
   }
 
   useEffect(() => {
@@ -574,13 +599,16 @@ function App() {
   // 히스토리 스택은 안 건드려서 기존 뒤로가기 처리와 충돌하지 않는다. 이걸로 사용자가
   // 주소를 복사해 붙이면 카드 이름·시세 미리보기가 뜨는 링크가 된다.
   useEffect(() => {
-    if (selectedCard) {
+    // /c/ 공유 주소는 "카드 시세 화면에서 스니덩크 카드를 실제로 보고 있을 때"만 쓴다.
+    // 다른 탭(커뮤니티 등)이나 이베이·TCGplayer로 넘어가면 주소를 /로 되돌린다(안 그러면
+    // 화면이 바뀌어도 이전 카드 주소가 계속 남는다).
+    if (view === 'cards' && source === 'snkrdunk' && selectedCard) {
       const slug = encodeURIComponent(selectedCard.title.slice(0, 80));
       window.history.replaceState(window.history.state, '', `/c/${selectedCard.apparelId}?n=${slug}`);
     } else if (window.location.pathname.startsWith('/c/')) {
       window.history.replaceState(window.history.state, '', '/');
     }
-  }, [selectedCard]);
+  }, [selectedCard, view, source]);
 
   const translatedQuery = useMemo(() => translateSearchQuery(query), [query]);
   const showTranslationHint = source === 'snkrdunk' && translatedQuery && translatedQuery !== query.trim();
@@ -739,13 +767,13 @@ function App() {
                 </h1>
                 {/* 헤더는 "여기가 뭐 하는 곳"인지만 짧게 알린다. 소스(스니덩크·이베이)나
                     시세 읽는 법 같은 상세는 커뮤니티 이용안내 공지가 대신한다. */}
-                <p className="text-sm text-neutral-500 mt-1">일본판·북미판 포켓몬 카드 시세</p>
+                <p className="text-sm text-neutral-500 mt-1">포켓몬 카드의 모든 것</p>
               </div>
               {/* 좁은 화면에서 메뉴 글자가 단어 중간에 꺾이지 않게, 버튼 단위로만 줄바꿈한다. */}
               <nav className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setView('cards')}
+                  onClick={() => navigate({ view: 'cards' })}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'cards' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
@@ -756,7 +784,7 @@ function App() {
                     소통(커뮤니티)을 뒤에 둔다. */}
                 <button
                   type="button"
-                  onClick={() => setView('artists')}
+                  onClick={() => navigate({ view: 'artists' })}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'artists' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
@@ -767,7 +795,7 @@ function App() {
                     도구라 서버 차단은 필요 없다. "베타" 배지로 다듬는 중임을 알린다. */}
                 <button
                   type="button"
-                  onClick={() => setView('centering')}
+                  onClick={() => navigate({ view: 'centering' })}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'centering' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
@@ -776,7 +804,7 @@ function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setView('community')}
+                  onClick={() => navigate({ view: 'community' })}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
@@ -788,7 +816,7 @@ function App() {
                 {isAdmin && (
                   <button
                     type="button"
-                    onClick={() => setView('reports')}
+                    onClick={() => navigate({ view: 'reports' })}
                     className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                       view === 'reports' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                     }`}
@@ -799,7 +827,7 @@ function App() {
                 {isAdmin && (
                   <button
                     type="button"
-                    onClick={() => setView('stats')}
+                    onClick={() => navigate({ view: 'stats' })}
                     className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                       view === 'stats' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                     }`}
@@ -807,11 +835,22 @@ function App() {
                     통계
                   </button>
                 )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => navigate({ view: 'sets' })}
+                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                      view === 'sets' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                    }`}
+                  >
+                    세트
+                  </button>
+                )}
                 {/* 로그인 버튼을 헤더에 두면 공급자가 늘 때마다(네이버 등) 자리가 모자란다.
                     진입점을 마이페이지 한 곳으로 모으고, 헤더엔 상태만 드러낸다. */}
                 <button
                   type="button"
-                  onClick={() => setView('mypage')}
+                  onClick={() => navigate({ view: 'mypage' })}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
                     view === 'mypage' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
@@ -831,6 +870,8 @@ function App() {
             </div>
           ) : view === 'stats' ? (
             <VisitStats />
+          ) : view === 'sets' ? (
+            <SetsView onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })} />
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (
@@ -839,11 +880,7 @@ function App() {
             </div>
           ) : view === 'artists' ? (
             <ArtistsView
-              onPickCard={(name) => {
-                setSource('snkrdunk');
-                setQuery(name);
-                setView('cards');
-              }}
+              onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
             />
           ) : view === 'mypage' ? (
             <DetailLayout

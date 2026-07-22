@@ -1,4 +1,5 @@
 import express from 'express'
+import compression from 'compression'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { mountApi } from './api.ts'
@@ -7,6 +8,9 @@ import { mountApi } from './api.ts'
 // 배포에서는 이 프로세스가 둘 다 맡는다 — 같은 mountApi를 부르므로 라우팅은 개발과
 // 동일하고, 빌드된 정적 파일은 여기서 직접 서빙한다.
 const app = express()
+// gzip 압축. 작가 JSON(50KB대)·index.json·번들이 5~8배 줄어 로딩이 크게 빨라진다.
+// 모든 라우트보다 먼저 둬야 정적 파일·API 응답까지 압축된다.
+app.use(compression())
 const PORT = Number(process.env.PORT ?? 3000)
 const DIST = path.resolve(process.cwd(), 'dist')
 
@@ -61,7 +65,7 @@ function buildCardHtml(id: string, name: string | null, card: { image: string; p
   const url = `https://pokegre.com/c/${id}`
 
   let html = TEMPLATE
-  html = html.replace('<title>포켓몬 카드 시세 | pokegre — 일본판·북미판 실거래가</title>', `<title>${esc(title)}</title>`)
+  html = html.replace('<title>포켓몬 카드 시세 · 센터링 · 일러스트 | pokegre — 일본판·북미판</title>', `<title>${esc(title)}</title>`)
   // og:title·twitter:title은 같은 content라 한 번에 바꾼다.
   html = html.split('content="포켓몬 카드 시세 | pokegre"').join(`content="${esc(title)}"`)
   html = html.replace(/(<meta\s+property="og:description"\s+content=")[^"]*(")/, `$1${esc(desc)}$2`)
