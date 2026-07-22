@@ -360,6 +360,9 @@ interface CommunityPost {
   // 절대 내보내지 않는다.
   likedBy: string[]
   commentCount: number
+  // 글을 열어 본 횟수. 상세를 GET할 때마다 1씩 오른다(운영자 조회는 빼서 부풀지 않게).
+  // 없던 시절 글은 0으로 본다.
+  viewCount?: number
   // 운영자가 가린 시각. 지우지 않고 가리는 이유는 두 가지다. 신고가 장난일 수 있어
   // 되돌릴 수 있어야 하고, "왜 내 글 지웠냐"는 항의에 보여줄 원문이 남아야 한다.
   // (정보통신망법이 요구하는 것도 삭제가 아니라 임시조치다.)
@@ -588,6 +591,13 @@ function mountCommunity(app: Mountable) {
         if (!post) {
           sendJson(res, 404, { error: 'not found' })
           return
+        }
+        // 운영자·집계 제외(notrack) 조회는 빼서 조회수가 부풀지 않게 한다.
+        // 그 외에는 열 때마다 1씩 올린다.
+        const notrack = url.searchParams.get('notrack') === '1'
+        if (!isAdmin(viewer) && !notrack) {
+          post.viewCount = (post.viewCount ?? 0) + 1
+          await persistPosts()
         }
         sendJson(res, 200, toPublicPost(post, viewer, await loadUsers()))
         return
@@ -955,8 +965,13 @@ const TRANSLATION_FEEDBACK_FILE = dataFile('translation-feedback.json')
 // 번역 오류 신고도 사전(translateQuery) 보정 참고용이라 최근 것만 남긴다.
 const MAX_TRANSLATION_FEEDBACK = 300
 const EVENT_STATS_FILE = dataFile('event-stats.json')
+// 작가별 조회 횟수(누적). "작가별 조회" 이벤트에 딸려 온 작가 이름으로 센다.
+const ARTIST_STATS_FILE = dataFile('artist-stats.json')
+// 클라이언트가 아무 이름이나 보내 맵을 부풀리지 못하게, 서로 다른 작가 이름은 이만큼까지만
+// 새로 받는다(실제 작가는 80명 안팎이라 넉넉하다). 넘으면 이미 있는 이름만 카운트한다.
+const MAX_ARTIST_KEYS = 300
 // 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
-const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist'])
+const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer'])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
 // 날짜 구분이 없던 옛 형식의 누적치를 담아두는 칸 이름. 전체 합계에만 들어간다.
@@ -1286,6 +1301,15 @@ interface RawPriceTrackerCard {
   cardNumber?: string | null
   imageCdnUrl400?: string
   imageCdnUrl200?: string
+  tcgPlayerUrl?: string
+  // TCGplayer(미국 마켓) 시세. market=실거래 기반 시세, low=현재 최저가, sellers=판매자 수.
+  prices?: {
+    market?: number
+    low?: number
+    sellers?: number
+    primaryPrinting?: string
+    lastUpdated?: string
+  }
   ebay?: {
     salesByGrade?: Record<string, RawEbayGrade>
     totalSales?: number
@@ -1301,6 +1325,15 @@ interface ShapedEbayCard {
   cardNumber: string | null
   imageUrl: string
   totalSales: number
+  // TCGplayer 미국 마켓 시세(미감정 카드). 없으면 null.
+  tcgplayer: {
+    market: number
+    low: number
+    sellers: number
+    printing: string | null
+    lastUpdated: string | null
+    url: string
+  } | null
   grades: {
     grade: string
     count: number
@@ -1322,7 +1355,10 @@ interface ShapedEbayCard {
 // 히스토리, smartMarketPrice 등)까지 들어 있다. 원본을 그대로 프록시로 흘리면 이
 // 엔드포인트가 사실상 그들의 API를 재중계(재배포)하는 꼴이라 약관 위반 소지가 있다.
 // 그래서 화면에 실제로 쓰는 필드만 추려서 내려준다("제품 내 표시"에만 해당하도록).
-function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
+// have='ebay'이면 낙찰 기록이 있는 카드만, 'tcgplayer'면 TCGplayer 마켓가가 있는 카드만
+// 남긴다. 소스별로 목록이 달라야 하고(이베이엔 낙찰 카드, TCGplayer엔 시세 있는 카드),
+// 캐시도 have별로 나뉜다.
+function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): ShapedEbayCard[] {
   const body = raw as { data?: RawPriceTrackerCard | RawPriceTrackerCard[] }
   const list = Array.isArray(body.data) ? body.data : body.data ? [body.data] : []
 
@@ -1337,9 +1373,24 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
   }
 
   return list
-    .filter((card) => (card.ebay?.totalSales ?? 0) > 0)
+    .filter((card) =>
+      have === 'tcgplayer' ? (card.prices?.market ?? 0) > 0 : (card.ebay?.totalSales ?? 0) > 0,
+    )
     .map((card) => {
       const history = card.ebay?.priceHistory ?? {}
+      // TCGplayer 시세: 마켓가가 있을 때만 담는다(없으면 화면에서 아예 안 보인다).
+      const p = card.prices
+      const tcgplayer =
+        p && (p.market ?? 0) > 0
+          ? {
+              market: p.market ?? 0,
+              low: p.low ?? 0,
+              sellers: p.sellers ?? 0,
+              printing: p.primaryPrinting ?? null,
+              lastUpdated: p.lastUpdated ?? null,
+              url: card.tcgPlayerUrl ?? '',
+            }
+          : null
       return {
         tcgPlayerId: card.tcgPlayerId ?? '',
         name: card.name ?? '',
@@ -1347,6 +1398,7 @@ function shapeEbayCards(raw: unknown): ShapedEbayCard[] {
         cardNumber: card.cardNumber ?? null,
         imageUrl: card.imageCdnUrl400 ?? card.imageCdnUrl200 ?? '',
         totalSales: card.ebay?.totalSales ?? 0,
+        tcgplayer,
         grades: Object.entries(card.ebay?.salesByGrade ?? {})
           .map(([grade, stat]) => ({
             grade,
@@ -1508,7 +1560,19 @@ function mountEventStats(app: Mountable) {
   // 날짜별 칸: { "2026-07-19": { scan: 3, ... }, legacy: {...} }. legacy는 날짜 구분이
   // 없던 옛 형식의 누적치로, 전체 합계에만 들어간다.
   let buckets: Record<string, Record<string, number>> | null = null
+  // 작가별 조회 누적: { "Mitsuhiro Arita": 12, ... }
+  let artists: Record<string, number> | null = null
   const allow = rateLimiter(60, 60 * 1000)
+
+  async function loadArtists() {
+    if (artists) return artists
+    try {
+      artists = JSON.parse(await readFile(ARTIST_STATS_FILE, 'utf-8')) as Record<string, number>
+    } catch {
+      artists = {}
+    }
+    return artists!
+  }
 
   async function load() {
     if (buckets) return buckets
@@ -1551,7 +1615,7 @@ function mountEventStats(app: Mountable) {
         return
       }
       try {
-        const b = JSON.parse(await readBody(req)) as { event?: string }
+        const b = JSON.parse(await readBody(req)) as { event?: string; label?: string }
         const ev = b.event ?? ''
         if (!ALLOWED_EVENTS.has(ev)) {
           res.statusCode = 400
@@ -1564,6 +1628,15 @@ function mountEventStats(app: Mountable) {
         foldOldDays()
         await mkdir(path.dirname(EVENT_STATS_FILE), { recursive: true })
         await writeFile(EVENT_STATS_FILE, JSON.stringify(buckets))
+        // 작가별 조회는 어떤 작가를 봤는지도 따로 센다(라벨이 있을 때만).
+        const label = typeof b.label === 'string' ? b.label.trim().slice(0, 80) : ''
+        if (ev === 'artist' && label) {
+          const tally = await loadArtists()
+          if (label in tally || Object.keys(tally).length < MAX_ARTIST_KEYS) {
+            tally[label] = (tally[label] ?? 0) + 1
+            await writeFile(ARTIST_STATS_FILE, JSON.stringify(tally))
+          }
+        }
         res.statusCode = 204
         res.end()
       } catch {
@@ -1581,9 +1654,15 @@ function mountEventStats(app: Mountable) {
       return
     }
     const all = await load()
+    const tally = await loadArtists()
+    // 작가별 조회 순위: 많이 본 순으로 상위 50명.
+    const artistRanking = Object.entries(tally)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 50)
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ days: all }))
+    res.end(JSON.stringify({ days: all, artists: artistRanking }))
   })
 }
 
@@ -1708,6 +1787,8 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       // 보낸 검색 조건은 그대로 두고 히스토리 옵션만 서버에서 덧붙인다. (캐시 키는
       // 클라이언트 쿼리 기준이라 그대로 두면 된다.)
       const upstreamParams = new URLSearchParams(url.search)
+      // have는 우리 서버에서만 쓰는(소스 필터) 값이라 PPT엔 보내지 않는다(보내면 400).
+      upstreamParams.delete('have')
       upstreamParams.set('includeHistory', 'true')
       upstreamParams.set('days', '180')
       const upstream = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${upstreamParams.toString()}`, {
@@ -1736,7 +1817,9 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
         : (rawJson as { data?: unknown }).data
           ? [(rawJson as { data: unknown }).data]
           : []
-      const body = JSON.stringify({ cards: shapeEbayCards(rawJson), rawCount: rawList.length })
+      // have=tcgplayer면 TCGplayer 시세 있는 카드만 추린다(기본은 이베이 낙찰 카드).
+      const have = url.searchParams.get('have') === 'tcgplayer' ? 'tcgplayer' : 'ebay'
+      const body = JSON.stringify({ cards: shapeEbayCards(rawJson, have), rawCount: rawList.length })
       cache.set(cacheKey, body)
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')

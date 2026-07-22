@@ -35,6 +35,12 @@ function trackingOff(): boolean {
   }
 }
 
+// 이 브라우저가 집계 제외(notrack) 상태인지. 방문·검색·기능 외에 글 조회수처럼
+// 서버에서 올리는 숫자도 빼려면, 요청 때 이 값을 서버에 알려줘야 한다.
+export function isTrackingOff(): boolean {
+  return trackingOff();
+}
+
 export function trackSearch(query: string): void {
   if (trackingOff()) return;
   const term = query.trim();
@@ -68,13 +74,14 @@ export function trackVisit(): void {
 }
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
-export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist';
-export function trackEvent(event: TrackedEvent): void {
+export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist' | 'tcgplayer';
+// label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
+export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;
   fetch('/api/local/track-event', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ event }),
+    body: JSON.stringify(label ? { event, label } : { event }),
   }).catch(() => undefined);
 }
 
@@ -84,17 +91,24 @@ export interface EventCounts {
   scan?: number;
   centering?: number;
   artist?: number;
+  tcgplayer?: number;
 }
 
 // 날짜별 기능 사용 칸. "legacy"는 날짜 구분이 없던 옛 누적치(전체 합계에만 포함).
 export type EventDayBuckets = Record<string, EventCounts>;
 
-// 기능별 사용 횟수(날짜별). 운영자만 부를 수 있다(아니면 서버가 404).
-export async function fetchEventStats(): Promise<EventDayBuckets> {
+// 작가별 조회 순위 한 줄(많이 본 순).
+export interface ArtistStat {
+  name: string;
+  count: number;
+}
+
+// 기능별 사용 횟수(날짜별) + 작가별 조회 순위. 운영자만 부를 수 있다(아니면 서버가 404).
+export async function fetchEventStats(): Promise<{ days: EventDayBuckets; artists: ArtistStat[] }> {
   const res = await fetch('/api/local/track-event');
   if (!res.ok) throw new Error('기능 통계를 불러오지 못했습니다.');
-  const data = (await res.json()) as { days?: EventDayBuckets };
-  return data.days ?? {};
+  const data = (await res.json()) as { days?: EventDayBuckets; artists?: ArtistStat[] };
+  return { days: data.days ?? {}, artists: data.artists ?? [] };
 }
 
 export interface SearchDayStat {

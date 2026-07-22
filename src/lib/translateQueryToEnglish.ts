@@ -19,7 +19,10 @@ const sortedPokemonKoEn = (pokemonNames as PokemonName[])
   .filter((entry) => entry.ko && entry.en)
   .sort((a, b) => b.ko.length - a.ko.length);
 
-const STRUCTURAL_EN_TERMS: [string, string][] = [['메가', 'Mega ']];
+const STRUCTURAL_EN_TERMS: [string, string][] = [
+  ['메가', 'Mega '],
+  ['찬란한', 'Radiant '], // "찬란한 리자몽"으로 검색하면 Radiant Charizard가 잡히게.
+];
 
 // 북미판(english) 전용. 한글(일본판) 팩 이름 → 영문판 세트명. 일본판과 영문판은
 // 발매 단위가 1:1로 안 맞아서(일본판 두 팩이 영문판 한 세트로 묶이고, 수록 카드도

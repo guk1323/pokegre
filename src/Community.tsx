@@ -110,7 +110,8 @@ function PostList({
                     {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
                   </p>
                   <p className="text-xs text-neutral-400 mt-0.5">
-                    <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)}
+                    <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)} · 조회{' '}
+                    {(post.viewCount ?? 0).toLocaleString()}
                   </p>
                 </div>
               </button>
@@ -207,6 +208,8 @@ function PostDetail({
       <p className="text-xs text-neutral-400 mb-4">
         <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)}
         {post.editedAt != null && ' · 수정됨'}
+        {' · 조회 '}
+        {(post.viewCount ?? 0).toLocaleString()}
       </p>
       <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-6">{post.content}</p>
 

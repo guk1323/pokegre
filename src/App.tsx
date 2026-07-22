@@ -28,6 +28,7 @@ import { PokemonNews } from './components/PokemonNews';
 import { OnboardingBanner } from './components/OnboardingBanner';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
+import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
 import { CardScanButton } from './components/CardScanButton';
 import { reportScanMiss, scanCard, type CardScanResult } from './api/cardScan';
 import { Community } from './Community';
@@ -55,7 +56,7 @@ function isWideScreen(): boolean {
 }
 
 type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats';
-type PriceSource = 'snkrdunk' | 'ebay';
+type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
 // 시트로 보여준다. 폰에서 상세를 목록 맨 아래에 붙이면 눌러도 화면이 안 바뀌어
@@ -404,7 +405,9 @@ function App() {
 
   // 이베이 쪽은 검색당 크레딧이 소모돼서 스니덩크(350ms)보다 디바운스를 여유 있게 뒀다.
   useEffect(() => {
-    if (source !== 'ebay') return;
+    if (source !== 'ebay' && source !== 'tcgplayer') return;
+    // 이베이·TCGplayer는 같은 PPT 데이터를 쓰되, 서버가 소스별로 카드를 추려 준다.
+    const market = source === 'tcgplayer' ? 'tcgplayer' : 'ebay';
 
     const trimmed = query.trim();
     if (!trimmed) {
@@ -416,7 +419,7 @@ function App() {
     const timer = setTimeout(() => {
       setEbayLoading(true);
       setEbayError(null);
-      searchEbayCards(trimmed, edition)
+      searchEbayCards(trimmed, edition, 0, market)
         .then(({ cards, hasMore }) => {
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
           const fb = scanFallbackRef.current;
@@ -427,7 +430,7 @@ function App() {
             return;
           }
           setEbayItems(cards);
-          searchResultRef.current = { query: trimmed, count: cards.length, source: 'ebay' };
+          searchResultRef.current = { query: trimmed, count: cards.length, source };
           setEbayOffset(EBAY_PAGE_SIZE);
           setEbayHasMore(hasMore);
           setEbaySelectedId((prev) =>
@@ -441,8 +444,8 @@ function App() {
         .catch((err: Error) => {
           setEbayError(
             err.message === EBAY_RATE_LIMITED
-              ? 'eBay 시세 조회 한도를 초과했어요. 잠시 후 다시 시도해주세요.'
-              : 'eBay 시세를 불러오지 못했습니다.',
+              ? '시세 조회 한도를 초과했어요. 잠시 후 다시 시도해주세요.'
+              : '시세를 불러오지 못했습니다.',
           );
           // 이전 검색 결과가 남아 있으면 에러 문구 아래에 엉뚱한 카드가 계속
           // 보이므로(특히 발매판을 바꿨을 때) 같이 비워준다.
@@ -470,7 +473,7 @@ function App() {
       if (r.query !== trimmed || r.count === 0) return;
       trackSearch(canonicalizeSearchTerm(trimmed));
       // 어느 소스로 실제 검색이 이뤄졌는지만 센다(개인정보 없음).
-      trackEvent(r.source === 'ebay' ? 'ebay_search' : 'snkrdunk_search');
+      trackEvent(r.source === 'ebay' ? 'ebay_search' : r.source === 'tcgplayer' ? 'tcgplayer' : 'snkrdunk_search');
       loadPopularSearches();
     }, 1500);
 
@@ -492,7 +495,7 @@ function App() {
 
   function loadMoreEbay() {
     setEbayLoadingMore(true);
-    searchEbayCards(query.trim(), edition, ebayOffset)
+    searchEbayCards(query.trim(), edition, ebayOffset, source === 'tcgplayer' ? 'tcgplayer' : 'ebay')
       .then(({ cards, hasMore }) => {
         // offset 페이지가 겹쳐 같은 카드가 들어오는 일을 막는다.
         setEbayItems((prev) => {
@@ -672,18 +675,23 @@ function App() {
     </>
   );
 
+  const isTcg = source === 'tcgplayer';
   const ebayMain = (
     <>
       {!ebayError && (
         <p className="text-sm text-neutral-500 mb-3">
-          {ebayLoading ? '검색 중...' : `eBay 등급 데이터 ${ebayItems.length}종 표시`}
+          {ebayLoading
+            ? '검색 중...'
+            : `${isTcg ? 'TCGplayer 시세' : 'eBay 등급 데이터'} ${ebayItems.length}종 표시`}
         </p>
       )}
 
       {ebayError ? (
         <p className="text-sm text-rose-500 py-12 text-center">{ebayError}</p>
       ) : !ebayLoading && ebayItems.length === 0 ? (
-        <p className="text-sm text-neutral-400 py-12 text-center">eBay 낙찰 데이터가 없습니다.</p>
+        <p className="text-sm text-neutral-400 py-12 text-center">
+          {isTcg ? 'TCGplayer 시세가 없습니다.' : 'eBay 낙찰 데이터가 없습니다.'}
+        </p>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -691,9 +699,10 @@ function App() {
               <EbayCardTile
                 key={card.tcgPlayerId}
                 card={card}
+                variant={isTcg ? 'tcgplayer' : 'ebay'}
                 selected={card.tcgPlayerId === ebaySelectedId}
                 onSelect={setEbaySelectedId}
-                onCompare={showCompare ? toggleCompareEbay : undefined}
+                onCompare={!isTcg && showCompare ? toggleCompareEbay : undefined}
                 inCompare={compareEbay.some((c) => c.tcgPlayerId === card.tcgPlayerId)}
               />
             ))}
@@ -919,11 +928,21 @@ function App() {
                   >
                     eBay
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setSource('tcgplayer')}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      source === 'tcgplayer' ? 'bg-black text-white' : 'text-neutral-600'
+                    }`}
+                  >
+                    TCGplayer
+                  </button>
                 </div>
 
-                {/* 발매판 선택은 eBay일 때만 노출한다. SNKRDUNK는 일본 마켓이라
-                    북미판 카탈로그가 사실상 없어서(영문 프로모 몇 종뿐) 고를 게 없다. */}
-                {source === 'ebay' && (
+                {/* 발매판 선택은 eBay·TCGplayer일 때 노출한다(둘 다 PPT라 두 판 다 있다).
+                    SNKRDUNK는 일본 마켓이라 북미판 카탈로그가 사실상 없어(영문 프로모 몇
+                    종뿐) 고를 게 없다. */}
+                {(source === 'ebay' || source === 'tcgplayer') && (
                   <div className="inline-flex rounded-full border border-neutral-300 p-1">
                     <button
                       type="button"
@@ -952,10 +971,18 @@ function App() {
                   설정이라, 홈 화면까지 바꾸지는 않는다. */}
               {isHome ? (
                 <DetailLayout main={homeMain} detail={null} />
-              ) : source === 'ebay' ? (
+              ) : source === 'ebay' || source === 'tcgplayer' ? (
                 <DetailLayout
                   main={ebayMain}
-                  detail={ebaySelectedCard ? <EbayCardDetail card={ebaySelectedCard} /> : null}
+                  detail={
+                    ebaySelectedCard ? (
+                      source === 'tcgplayer' ? (
+                        <TcgPlayerCardDetail card={ebaySelectedCard} />
+                      ) : (
+                        <EbayCardDetail card={ebaySelectedCard} />
+                      )
+                    ) : null
+                  }
                   onCloseDetail={() => setEbaySelectedId(null)}
                 />
               ) : (

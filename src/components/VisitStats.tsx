@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   fetchEventStats,
-  fetchSearchStats,
   fetchVisitStats,
+  type ArtistStat,
   type EventDayBuckets,
-  type SearchDayStat,
   type VisitStat,
 } from '../api/localStats';
 
 // 화면에 보여줄 최근 일수. 그보다 오래된 날은 합계에만 들어간다.
 const RECENT_DAYS = 30;
-const SEARCH_RECENT_DAYS = 14;
 
 function formatDay(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
@@ -26,12 +24,13 @@ function dayKey(offset: number): string {
 }
 
 // 기능 사용 표에 보여줄 항목과 순서.
-const EVENT_ROWS: { key: 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist'; label: string }[] = [
+const EVENT_ROWS: { key: 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist' | 'tcgplayer'; label: string }[] = [
   { key: 'snkrdunk_search', label: '스니커덩크 검색' },
   { key: 'ebay_search', label: '이베이 검색' },
   { key: 'scan', label: '사진 검색' },
   { key: 'centering', label: '센터링 측정' },
   { key: 'artist', label: '작가별 조회' },
+  { key: 'tcgplayer', label: 'TCGplayer 조회' },
 ];
 
 // 가로 막대 목록(방문·검색 공용).
@@ -58,7 +57,7 @@ export function VisitStats() {
   const [total, setTotal] = useState(0);
   const [memberCount, setMemberCount] = useState(0);
   const [events, setEvents] = useState<EventDayBuckets>({});
-  const [searchDays, setSearchDays] = useState<SearchDayStat[]>([]);
+  const [artists, setArtists] = useState<ArtistStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -71,9 +70,13 @@ export function VisitStats() {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-    // 기능·검색 통계는 별도 — 실패해도 방문 통계는 보이게 둔다.
-    fetchEventStats().then(setEvents).catch(() => undefined);
-    fetchSearchStats().then(setSearchDays).catch(() => undefined);
+    // 기능 통계는 별도 — 실패해도 방문 통계는 보이게 둔다.
+    fetchEventStats()
+      .then((r) => {
+        setEvents(r.days);
+        setArtists(r.artists);
+      })
+      .catch(() => undefined);
   }, []);
 
   if (loading) return <p className="text-sm text-neutral-400 py-12 text-center">불러오는 중...</p>;
@@ -98,11 +101,8 @@ export function VisitStats() {
     }
   }
 
-  // ── 검색 ──
-  const searchRecent = searchDays.slice(-SEARCH_RECENT_DAYS).reverse();
-  const searchMax = Math.max(1, ...searchRecent.map((d) => d.count));
-  const searchToday = searchDays.find((d) => d.date === today)?.count ?? 0;
-  const searchWeek = searchDays.filter((d) => week.has(d.date)).reduce((a, b) => a + b.count, 0);
+  // ── 작가별 조회 순위 ──
+  const artistMax = Math.max(1, ...artists.map((a) => a.count));
 
   return (
     <div>
@@ -139,26 +139,6 @@ export function VisitStats() {
         같은 브라우저는 하루 한 번만 집계됩니다. IP·기기·회원 정보는 저장하지 않아요.
       </p>
 
-      <h2 className="text-base font-bold text-black mt-8 mb-1">검색</h2>
-      <p className="text-xs text-neutral-400 mb-4">날짜별 검색 횟수예요(어떤 검색어가 많았는지는 홈의 인기 검색어에서).</p>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-xs">
-        <div className="rounded-xl border border-neutral-200 p-4">
-          <p className="text-xs text-neutral-500">오늘 검색</p>
-          <p className="text-2xl font-bold text-black mt-1">{searchToday.toLocaleString()}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-200 p-4">
-          <p className="text-xs text-neutral-500">최근 7일</p>
-          <p className="text-2xl font-bold text-black mt-1">{searchWeek.toLocaleString()}</p>
-        </div>
-      </div>
-      {searchRecent.length === 0 ? (
-        <p className="text-sm text-neutral-400 py-6 text-center rounded-xl border border-dashed border-neutral-200">
-          아직 검색 기록이 없어요.
-        </p>
-      ) : (
-        <BarList items={searchRecent} max={searchMax} />
-      )}
-
       <h2 className="text-base font-bold text-black mt-8 mb-1">기능 사용</h2>
       <p className="text-xs text-neutral-400 mb-4">기능별 사용 횟수만 셉니다. 누가 썼는지·개인정보는 남기지 않아요.</p>
       <div className="overflow-x-auto rounded-xl border border-neutral-200">
@@ -186,6 +166,29 @@ export function VisitStats() {
       <p className="mt-2 text-[11px] text-neutral-400">
         전체에는 날짜별 집계를 시작하기 전의 누적치도 포함돼요.
       </p>
+
+      <h2 className="text-base font-bold text-black mt-8 mb-1">작가별 조회 순위</h2>
+      <p className="text-xs text-neutral-400 mb-4">일러스트레이터를 눌러 카드 목록을 연 횟수예요. 많이 본 순.</p>
+      {artists.length === 0 ? (
+        <p className="text-sm text-neutral-400 py-6 text-center rounded-xl border border-dashed border-neutral-200">
+          아직 작가 조회 기록이 없어요.
+        </p>
+      ) : (
+        <ol className="space-y-1.5">
+          {artists.map((a, i) => (
+            <li key={a.name} className="flex items-center gap-2">
+              <span className="w-6 flex-shrink-0 text-right text-xs font-semibold text-neutral-400">{i + 1}</span>
+              <span className="w-40 flex-shrink-0 truncate text-xs text-neutral-700">{a.name}</span>
+              <div className="h-5 flex-1 rounded bg-neutral-100">
+                <div className="h-5 rounded bg-[#2a78d6]" style={{ width: `${Math.max(2, (a.count / artistMax) * 100)}%` }} />
+              </div>
+              <span className="w-10 flex-shrink-0 text-right text-xs font-semibold text-neutral-700">
+                {a.count.toLocaleString()}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }

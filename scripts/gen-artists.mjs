@@ -3,28 +3,24 @@
 // "이 작가가 그린 카드들"을 모은다. 카드 아트는 일본판도 같은 작가라, 클릭하면 우리
 // 사이트에서 그 카드 이름으로 검색해 시세를 볼 수 있다.
 //
-// 1단계: 전체 카드를 훑어 작가명과 빈도를 모은다(작가 목록 API가 없어서 직접 집계).
-// 2단계: 카드 많은 순(=유명·다작 순) 상위 TOP_N 작가의 카드를 받아 파일로 저장.
-// API 키 없이 쓰면 레이트 리밋이 빡세서 실패하면 길게 쉬고 재시도한다. 일회성 스크립트다.
-import { mkdir, writeFile } from 'node:fs/promises'
+// 작가 명단·카드 수·활동 연도는 먼저 scripts/scan-artists.mjs가 전체 카드를 끝까지
+// 훑어 _counts.json / _eras.json 에 저장해 둔 걸 읽는다(예전엔 여기서 직접 훑다가 중간에
+// 멈춰 뒤쪽 작가를 놓쳤다). 이 스크립트는 그 명단에서 카드가 MIN_CARDS장 이상인 작가만
+// 골라, 각자의 카드 목록을 받아 파일로 저장한다.
+import { mkdir, writeFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const OUT = path.resolve(process.cwd(), 'public/artists')
-const TOP_N = 80 // 유명·다작 순 상위 몇 명까지 넣을지
-const MIN_CARDS = 12 // 이보다 적으면(일회성 참여) 목록에서 뺀다
+const MIN_CARDS = 5 // 이보다 적으면(대개 한 번 참여한 게스트) 목록에서 뺀다
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-// pokemontcg.io API 키(선택). .env에 POKEMONTCG_API_KEY=... 를 넣고
-//   node --env-file-if-exists=.env scripts/gen-artists.mjs
-// 로 실행하면 하루 한도가 20,000회로 늘고 훨씬 빨라진다. 없으면 키 없이(느리게) 돈다.
 const API_KEY = process.env.POKEMONTCG_API_KEY || ''
 const HEADERS = API_KEY ? { 'User-Agent': 'pokegre', 'X-Api-Key': API_KEY } : { 'User-Agent': 'pokegre' }
-// 키가 있으면 한도가 넉넉하니 대기를 확 줄인다.
-const PAGE_GAP = API_KEY ? 400 : 6500
-const ARTIST_GAP = API_KEY ? 400 : 7000
+const GAP = API_KEY ? 350 : 7000
 console.log(API_KEY ? 'API 키 사용 — 빠른 모드' : 'API 키 없음 — 느린 모드(레이트 리밋 대비)')
 
-// 자신 있는 일본 작가만 한글 병기. 나머지는 원문만 보여준다(어설픈 음역보다 낫다).
+// 자신 있는 일본 작가만 한글 병기(성-이름 순). 나머지는 원문만. 한글 읽는 법은 카드를
+// 다시 안 긁고도 나중에 index/파일에 덧입힐 수 있어서, 여기선 확실한 것만 둔다.
 const KO = {
   'Mitsuhiro Arita': '아리타 미츠히로',
   'Ken Sugimori': '스기모리 켄',
@@ -36,10 +32,9 @@ const KO = {
   'Hitoshi Ariga': '아리가 히토시',
   'Saya Tsuruta': '츠루타 사야',
   'Yuka Morii': '모리이 유카',
-  'Souichirou Gunjima': '군지마 소이치로',
+  'Shinji Kanda': '칸다 신지',
   'Akira Egawa': '에가와 아키라',
   'Ryota Murayama': '무라야마 료타',
-  'Shinji Kanda': '칸다 신지',
   'Tomokazu Komiya': '코미야 토모카즈',
   'Aya Kusube': '쿠스베 아야',
   'Midori Harada': '하라다 미도리',
@@ -51,14 +46,13 @@ const KO = {
   'Naoki Ohashi': '오하시 나오키',
   'Kouki Saitou': '사이토 코우키',
   'Motofumi Fujiwara': '후지와라 모토후미',
-  'Sanryu': '산류',
   'Kyoko Umemoto': '우메모토 쿄코',
   'Ryuta Fuse': '후세 류타',
   'Yuu Nishida': '니시다 유우',
   'Tika Matsuno': '마츠노 티카',
 }
 
-// 유명 소개문(있으면 목록에 한 줄). 한 줄에 들어가게 짧게. 확실한 작가만.
+// 유명 소개문(있으면 프로필에 한 줄). 짧게, 확실한 작가만.
 const NOTE = {
   'Mitsuhiro Arita': '초판 리자몽을 그린 레전드',
   'Ken Sugimori': '포켓몬 디자인 총괄',
@@ -81,85 +75,78 @@ function slugify(en) {
   return en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-async function fetchJson(url, tries = 6) {
+function eraStr(e) {
+  if (!e || !e.min) return ''
+  return e.min === e.max ? `${e.min}` : `${e.min}~${e.max}`
+}
+
+async function fetchJson(url, tries = 8) {
   for (let i = 0; i < tries; i++) {
     try {
       const r = await fetch(url, { headers: HEADERS })
       const j = await r.json()
       if (Array.isArray(j.data)) return j
     } catch {
-      // 재시도
+      /* 재시도 */
     }
-    await sleep(11000 + i * 6000)
+    await sleep(4000 + i * 4000)
   }
   return null
 }
 
-// 1단계: 전체 카드를 훑어 작가 빈도 집계
-async function collectArtists() {
-  const count = {}
-  let page = 1
-  for (;;) {
-    const j = await fetchJson(`https://api.pokemontcg.io/v2/cards?pageSize=250&page=${page}&select=artist`)
-    if (!j || j.data.length === 0) break
-    for (const c of j.data) {
-      const a = (c.artist || '').trim()
-      if (a) count[a] = (count[a] || 0) + 1
-    }
-    process.stderr.write(`1단계 page ${page} · 누적 작가 ${Object.keys(count).length}\n`)
-    if (j.data.length < 250) break
-    page++
-    await sleep(PAGE_GAP)
-  }
-  return count
-}
-
-// 2단계: 한 작가의 카드(최대 500장)
+// 한 작가의 카드(최대 500장). 최신 발매 순으로 받는다.
 async function fetchArtistCards(en) {
   const q = encodeURIComponent(`artist:"${en}"`)
   const cards = []
   for (let page = 1; page <= 2; page++) {
-    const j = await fetchJson(`https://api.pokemontcg.io/v2/cards?pageSize=250&page=${page}&orderBy=-set.releaseDate&q=${q}&select=name,number,images,set`)
+    const j = await fetchJson(
+      `https://api.pokemontcg.io/v2/cards?pageSize=250&page=${page}&orderBy=-set.releaseDate&q=${q}&select=name,number,images,set`,
+    )
     if (!j || j.data.length === 0) break
     for (const c of j.data) {
       const img = c.images?.small
       if (img) cards.push({ name: c.name, number: c.number ?? '', set: c.set?.name ?? '', img })
     }
     if (j.data.length < 250) break
-    await sleep(PAGE_GAP)
+    await sleep(GAP)
   }
   return cards
 }
 
 async function main() {
   await mkdir(OUT, { recursive: true })
-  const count = await collectArtists()
-  const ranked = Object.entries(count)
+  const counts = JSON.parse(await readFile(path.join(OUT, '_counts.json'), 'utf8'))
+  const eras = JSON.parse(await readFile(path.join(OUT, '_eras.json'), 'utf8'))
+  const ranked = Object.entries(counts)
     .filter(([, n]) => n >= MIN_CARDS)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, TOP_N)
-  console.log(`\n작가 후보 ${ranked.length}명 (카드 ${MIN_CARDS}장 이상, 상위 ${TOP_N}). 2단계 시작…`)
+  console.log(`작가 ${ranked.length}명(카드 ${MIN_CARDS}장 이상). 카드 목록 받는 중…`)
 
   const index = []
+  let done = 0
   for (const [en] of ranked) {
-    process.stdout.write(`  ${en} ... `)
     const cards = await fetchArtistCards(en)
+    done++
     if (cards.length === 0) {
-      console.log('0장 — 건너뜀')
-      await sleep(ARTIST_GAP)
+      console.log(`  (${done}/${ranked.length}) ${en} — 0장, 건너뜀`)
+      await sleep(GAP)
       continue
     }
     const slug = slugify(en)
     const ko = KO[en] ?? ''
     const note = NOTE[en] ?? ''
-    await writeFile(path.join(OUT, `${slug}.json`), JSON.stringify({ en, ko, note, cards }))
-    index.push({ slug, ko, en, note, count: cards.length, cover: cards[0].img })
-    console.log(`${cards.length}장`)
-    await sleep(ARTIST_GAP)
+    const era = eraStr(eras[en])
+    // 카드 수는 전체 스캔에서 센 실제 총량을 쓴다(카드 목록은 최대 500장까지만 담지만,
+    // "카드 N종"은 실제 수가 정확하다). 혹시 스캔에 없으면 받은 개수로 대체.
+    const total = counts[en] ?? cards.length
+    await writeFile(path.join(OUT, `${slug}.json`), JSON.stringify({ en, ko, note, era, count: total, cards }))
+    index.push({ slug, ko, en, note, era, count: total, cover: cards[0].img })
+    if (done % 20 === 0) console.log(`  (${done}/${ranked.length}) …`)
+    await sleep(GAP)
   }
   index.sort((a, b) => b.count - a.count)
   await writeFile(path.join(OUT, 'index.json'), JSON.stringify(index))
-  console.log(`\n완료 — 작가 ${index.length}명`)
+  console.log(`\n완료 — 작가 ${index.length}명 저장`)
 }
 
 main()

@@ -26,7 +26,10 @@ const packKoByCode = new Map(
 
 // 포켓몬 이름 앞에 붙는 수식어. "ex"/"V"/"VMAX"/"GX" 같은 접미사는 한국 공식 표기에서도
 // 영문 그대로 쓰기 때문에 건드리지 않는다.
-const STRUCTURAL_EN_TO_KO: [string, string][] = [['Mega ', '메가']];
+const STRUCTURAL_EN_TO_KO: [string, string][] = [
+  ['Mega ', '메가'],
+  ['Radiant ', '찬란한 '], // かがやく/輝く의 영문판. koreanizeTitle과 같은 표기로 맞춘다.
+];
 
 // PokemonPriceTracker는 일본판 DB도 TCGPlayer 영문 표기로 내려준다("Charizard ex").
 // SNKRDUNK 쪽 koreanizeTitle이 일본어 전용이라 여기엔 못 쓰므로, 영문 카드명을

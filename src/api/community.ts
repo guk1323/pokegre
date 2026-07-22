@@ -1,3 +1,5 @@
+import { isTrackingOff } from './localStats';
+
 export type PostCategory = "free" | "question" | "suggestion";
 
 export const CATEGORY_LABEL: Record<PostCategory, string> = {
@@ -23,6 +25,8 @@ export interface CommunityPost {
   // 운영자가 공지로 고정한 글. 모든 게시판 맨 위에 "공지"로 뜬다.
   isPinned: boolean;
   commentCount: number;
+  // 글을 열어 본 횟수. 없던 시절 글은 서버가 0으로 준다.
+  viewCount?: number;
   isMine: boolean;
   // 운영자가 가린 글. 운영자가 아닌 사람에게는 title·content가 이미 서버에서
   // 안내 문구로 바뀌어 오므로, 이 값은 표시를 다르게 할 때만 쓴다.
@@ -50,7 +54,9 @@ export async function fetchPosts(category?: PostCategory): Promise<CommunityPost
 }
 
 export async function fetchPost(id: number): Promise<CommunityPost> {
-  const res = await fetch(`/api/local/community/posts/${id}`);
+  // 집계 제외 브라우저(운영자·테스트)는 조회수를 올리지 않도록 서버에 알린다.
+  const qs = isTrackingOff() ? '?notrack=1' : '';
+  const res = await fetch(`/api/local/community/posts/${id}${qs}`);
   if (!res.ok) throw new Error('게시글을 찾을 수 없습니다.');
   return res.json();
 }

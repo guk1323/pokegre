@@ -24,6 +24,16 @@ export interface EbayGradeStat {
   history: EbayGradePoint[];
 }
 
+// TCGplayer(미국 마켓) 시세. 미감정(로우) 카드 기준. 값이 있을 때만 서버가 담아준다.
+export interface TcgPlayerPrice {
+  market: number;
+  low: number;
+  sellers: number;
+  printing: string | null;
+  lastUpdated: string | null;
+  url: string;
+}
+
 export interface EbayCard {
   tcgPlayerId: string;
   // 화면 표시용 한글 이름. nameEn은 이베이 검색 링크를 만들 원본 영문 이름이다
@@ -34,6 +44,8 @@ export interface EbayCard {
   cardNumber: string | null;
   imageUrl: string;
   totalSales: number;
+  // 값이 있는 카드에만 붙는다(없으면 null → 화면에서 자동으로 숨김).
+  tcgplayer: TcgPlayerPrice | null;
   grades: EbayGradeStat[];
 }
 
@@ -59,10 +71,15 @@ export interface EbaySearchResult {
 
 // 서버 프록시(shapeEbayCards)가 원본 PokemonPriceTracker 응답을 재배포하지 않도록
 // 화면용 필드만 추려 { cards, rawCount } 형태로 내려준다. offset으로 다음 페이지를 잇는다.
+// 같은 PPT 데이터에서 어느 시세를 볼지. 'ebay'는 낙찰 기록이 있는 카드, 'tcgplayer'는
+// TCGplayer 마켓가가 있는 카드만 서버가 추려 준다(have 파라미터).
+export type PriceMarket = 'ebay' | 'tcgplayer';
+
 export async function searchEbayCards(
   query: string,
   edition: CardEdition = 'japanese',
   offset = 0,
+  market: PriceMarket = 'ebay',
 ): Promise<EbaySearchResult> {
   const trimmed = query.trim();
   if (!trimmed) return { cards: [], hasMore: false };
@@ -77,6 +94,7 @@ export async function searchEbayCards(
     limit: String(EBAY_PAGE_SIZE),
     offset: String(offset),
   });
+  if (market === 'tcgplayer') params.set('have', 'tcgplayer');
 
   const res = await fetch(`/api/local/card-prices?${params.toString()}`);
   // 일일 크레딧 초과(429)는 호출부가 "일시적 오류"와 구분해 안내하도록 별도 에러로 던진다.

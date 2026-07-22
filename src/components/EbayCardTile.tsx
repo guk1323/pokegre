@@ -9,6 +9,7 @@ export function EbayCardTile({
   onSelect,
   onCompare,
   inCompare,
+  variant = 'ebay',
 }: {
   card: EbayCard;
   selected: boolean;
@@ -16,10 +17,13 @@ export function EbayCardTile({
   // 비교 담기(운영자 베타). onCompare가 있을 때만 버튼이 뜬다.
   onCompare?: (card: EbayCard) => void;
   inCompare?: boolean;
+  // 'ebay'면 등급별 대표가, 'tcgplayer'면 TCGplayer 마켓가를 대표가로 보여준다.
+  variant?: 'ebay' | 'tcgplayer';
 }) {
   // 목록 대표가도 상세와 같은 기준(현재 적정가, 없으면 중앙값)으로 맞춘다.
   const topGrade = card.grades[0];
   const top = topGrade ? mainPrice(topGrade) : null;
+  const tcg = card.tcgplayer;
 
   return (
     <button
@@ -36,14 +40,22 @@ export function EbayCardTile({
       </div>
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.name}</p>
       <p className="text-xs text-neutral-400 mb-1 line-clamp-1">{card.setName}</p>
-      {topGrade && top && (
-        <>
-          <p className="text-base font-bold text-black">
-            {formatGradeLabel(topGrade.grade)} {usd.format(top.price)}
-          </p>
-          <KrwHint amount={top.price} currency="usd" />
-        </>
-      )}
+      {variant === 'tcgplayer'
+        ? tcg && (
+            <>
+              <p className="text-base font-bold text-black">{usd.format(tcg.market)}</p>
+              <KrwHint amount={tcg.market} currency="usd" />
+            </>
+          )
+        : topGrade &&
+          top && (
+            <>
+              <p className="text-base font-bold text-black">
+                {formatGradeLabel(topGrade.grade)} {usd.format(top.price)}
+              </p>
+              <KrwHint amount={top.price} currency="usd" />
+            </>
+          )}
       {onCompare && (
         <span
           role="button"
