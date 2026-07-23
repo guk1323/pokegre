@@ -2,9 +2,11 @@
 
 포켓몬 카드 시세·세트·센터링·일러스트 사이트. React+TS+Vite 프론트 / Node·Express 서버(`server/api.ts`의 `mountApi`, Node 24로 .ts 직접 실행). Fly.io 배포(app `pokegre`, 도쿄). 사용자는 비개발자 — 쉬운 한국어로, 짧게.
 
-## ⚠️ 최우선 규칙 — 지시받으면 "보유한 기능·API에 맞춰" 일할 것
+## ⚠️ 최우선 규칙
 
-**어떤 작업을 지시받든, 시작 전에 아래 "보유 API·결제 항목" 표를 먼저 보고 그 자원을 활용해 계획·수행할 것.** 맨땅에서 시작하거나, 이미 결제·발급된 도구를 잊고 헤매지 말 것. (사용자가 이 점을 반복 지적함 — 매번 까먹는 게 가장 큰 불만.)
+**① 추측 금지 — 사실은 검증하고 말할 것.** API 기능·요금제·데이터 범위 같은 사실을 **마케팅 문구나 기억으로 넘겨짚지 말고**, 실제 **문서·API 응답·코드**로 확인한 뒤 답한다. 확인 못 하면 "미확인"이라고 명시(넘겨짚어서 틀린 적 반복됨 — 예: PPT 팝수를 "PSA 위주"라 잘못 말함, 실제론 GemRate 다회사). 검증 소스: PPT 문서 https://www.pokemonpricetracker.com/docs (JS 로딩이라 **브라우저 preview로 열어야** 읽힘), 각 API 직접 호출, 리포 코드.
+
+**② 보유한 기능·API에 맞춰 일할 것.** 어떤 작업을 지시받든, 시작 전에 아래 "보유 API·결제 항목" 표를 먼저 보고 그 자원을 활용해 계획·수행. 맨땅에서 시작하거나 이미 결제·발급된 도구를 잊고 헤매지 말 것.
 
 - 예: "세트 이미지 채워줘" → 무료 pokemontcg 키·유료 PPT(이미지 포함)를 **먼저 떠올려** 그걸로 함.
 - 예: "시세 관련" → PPT(유료) 기능을 최대한 활용.
@@ -20,6 +22,17 @@
 | `KAKAO_REST_API_KEY` / `KAKAO_CLIENT_SECRET` | 카카오 로그인 | 무료 | server/api.ts | |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 | 무료 | server/api.ts | |
 | `OPENCHAT_URL` | 커뮤니티 오픈채팅 링크 | — | server/api.ts | |
+
+## 📡 PPT 상세 (문서 직접 검증, 2026-07)
+
+문서: https://www.pokemonpricetracker.com/docs (브라우저 preview로 열어야 읽힘). **아래는 추측 아니라 문서/API로 확인한 것:**
+- **시세 마켓**: TCGplayer(미국) + eBay 등급 낙찰 + **Cardmarket(EUR, Pro/Business)**.
+- **등급 시세(PSA·CGC·BGS·SGC)**: 모든 유료 티어(우리 $10 포함). eBay 낙찰 기반.
+- **팝수(Population)**: **GemRate 기반 → PSA·CGC·BGS·SGC 등 여러 회사** (PSA 전용 아님!). **Business($99) 전용**, `/population` 엔드포인트(파라미터 `tcgPlayerId`), 카드당 2크레딧. 우리 $10 키는 403.
+- **요금제**: Free 100/일 · **API $10 = 20,000/일** · Business $99 = 200,000/일 · Enterprise $300 = 100만/일. (per-minute: 60/500/1000)
+- **크레딧 규칙**: `limit`(기본 50)에 과금 — 단건은 `limit=1`이나 `tcgPlayerId`로. history/ebay/cardmarket 각 +1/카드. **`page` 없음**(limit만, 최대 250).
+- 이미지: `imageCdnUrl` 200/400/800(tcgplayer-cdn).
+- Scrydex와 비교: 팝수까지 PPT가 다회사로 커버하므로, 우리(포켓몬 전용)엔 Scrydex 고유 이점은 사진인식(이미 Claude로 있음)·멀티게임(불필요)뿐 → **갈 이유 없음**.
 
 ## 💰 요금제 · 월 비용 (사용자 확인, 2026-07 기준)
 
