@@ -34,6 +34,25 @@
 **월 고정비 합계 ≈ $13~14 (약 ₩1.8~1.9만) + 도메인 연 약 ₩2만.**
 ※ 정확한 청구액·잔액은 각 대시보드에서 사용자가 확인(에이전트는 결제 화면·잔액 접근 안 함).
 
+## 🗺️ 이미 구현된 기능 · 데이터 흐름 (⚠️ "없다/안 쓴다" 단정 전에 여기부터 확인)
+
+**어떤 기능을 "추가하자/없다/안 쓴다"고 말하기 전에, 이 지도와 실제 코드부터 확인할 것.** (이미 있는 걸 잊고 새로 만들자 하거나 "안 쓴다"고 잘못 말한 적 있음 — 사용자 반복 지적.)
+
+**화면(App.tsx의 view):** `cards`(시세) · `artists`(일러스트레이터) · `centering`(센터링) · `community` · `mypage` · `sets`(운영자) · `reports`/`stats`(운영자)
+
+**소스 → 기능 매핑 (핵심 — 자주 까먹음):**
+| 데이터 소스 | 앱에서 이미 하는 것 |
+|---|---|
+| **PPT** | **eBay 등급별 시세·시세추이 차트·총 낙찰건수(EbayCardDetail/EbayPriceChart/EbayCompareView)** + **TCGplayer 마켓가(TcgPlayerCardDetail)** + 카드 이미지. 등급회사 PSA·BGS·CGC·SGC·TAG 다 받음. → **등급 시세 기능은 이미 있음!** |
+| **SNKRDUNK** | 일본판 실거래가·거래이력(CardTile/CardDetail/PriceChart) |
+| **TCGdex** | 세트/카드 DB(public/sets/*.json → SetsView), 일러스트레이터(ArtistsView) |
+| **pokemontcg.io** | 세트 카드 이미지 보강 |
+| **Anthropic** | 사진→카드 인식(CardScanButton/cardScan.ts) |
+| **Kakao/Naver** | 로그인 → 커뮤니티/마이페이지(즐겨찾기·최근본·계정연동) |
+| 부가 | 한국 뉴스(PokemonNews), 인기검색어·자동완성, 환율(KrwHint), 공유버튼 |
+
+**아직 안 쓰는(=보강 여지) PPT 데이터:** 등급별 판매 "개수"·거래 속도(salesVelocity)는 받는데 화면엔 덜 씀.
+
 ## 자주 잊는 함정 (오늘까지 배운 것)
 
 - **세트별 카드 이미지**는 `public/sets/*.json`에 **빌드 시점에 박혀 있다**(런타임에 API 안 부름). 각 카드 `{n, name, img}`. 빈칸(img="") 채우려면 **pokemontcg.io(무료 키) 또는 PPT**로 받아 `--write`. 소스 매칭은 **번호+카드이름 둘 다 일치할 때만**(엉뚱한 이미지 방지 — 사용자 최우선 원칙: "틀린 것보다 빈칸").
