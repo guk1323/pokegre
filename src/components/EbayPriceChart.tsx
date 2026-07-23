@@ -14,7 +14,7 @@ function compactDate(iso: string): string {
   return `${String(d.getFullYear()).slice(2)}.${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-export function EbayPriceChart({ grades }: { grades: EbayGradeStat[] }) {
+export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }: { grades: EbayGradeStat[]; title?: string }) {
   // 그래프를 그리려면 점이 최소 2개는 있어야 한다. 낙찰이 뜸한 등급은 히스토리가 짧아
   // 선이 안 그려지므로, 그릴 수 있는 등급만 선택지에 올린다.
   const chartable = useMemo(() => grades.filter((g) => g.history.length >= 2), [grades]);
@@ -61,7 +61,7 @@ export function EbayPriceChart({ grades }: { grades: EbayGradeStat[] }) {
   return (
     <div className="mb-4">
       <div className="flex items-baseline justify-between mb-2">
-        <p className="text-xs font-semibold text-neutral-500">이베이 낙찰가 추이</p>
+        <p className="text-xs font-semibold text-neutral-500">{title}</p>
         <span className="text-xs font-semibold text-neutral-400">
           <span className="mr-1 font-normal">최근 6개월</span>
           <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>

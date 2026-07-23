@@ -32,6 +32,8 @@ export interface TcgPlayerPrice {
   printing: string | null;
   lastUpdated: string | null;
   url: string;
+  // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열(옛 캐시 응답 대비 옵션).
+  history?: EbayGradePoint[];
 }
 
 export interface EbayCard {

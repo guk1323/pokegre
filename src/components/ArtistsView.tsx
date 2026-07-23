@@ -35,13 +35,12 @@ interface ArtistFile {
 // 처음부터 다 걸면 이미지 로딩으로 버벅인다.
 const PAGE = 60;
 
-// 카드 원본 이미지는 pokemontcg.io의 큰 PNG(장당 ~150KB)라, 그리드에 수십 장·목록에
-// 수백 장 깔면 로딩이 느리다. 무료 이미지 CDN(wsrv.nl)으로 필요한 크기의 WebP 썸네일로
-// 받아 10~25배 줄인다(표지 ~6KB, 카드 ~14KB). w는 표시 크기의 약 2배(레티나 대비).
+// 카드 원본 이미지는 pokemontcg.io의 큰 PNG(장당 ~150KB)라, 그리드·목록에 수백 장 깔면
+// 느리다. 우리(도쿄) 서버의 이미지 프록시로 WebP 축소본을 받아 10~25배 줄이고(표지 ~6KB,
+// 카드 ~14KB), 서버가 캐시해 유럽 CDN 지연도 없앤다. w는 표시 크기의 약 2배(레티나 대비).
 function thumb(url: string, w: number): string {
   if (!url) return url;
-  const bare = url.replace(/^https?:\/\//, '');
-  return `https://images.weserv.nl/?url=${encodeURIComponent(bare)}&w=${w}&output=webp&q=72`;
+  return `/api/img?u=${encodeURIComponent(url)}&w=${w}`;
 }
 
 // 일러스트레이터 화면 공용 검색 입력(🔍 + 지우기 X). 작가 찾기·작가 카드 안 검색 둘 다 씀.

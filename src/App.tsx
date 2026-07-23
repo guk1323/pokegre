@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
 import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
@@ -31,17 +31,17 @@ import { EbayCardDetail } from './components/EbayCardDetail';
 import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
 import { CardScanButton } from './components/CardScanButton';
 import { reportScanMiss, scanCard, type CardScanResult } from './api/cardScan';
-import { Community } from './Community';
+const Community = lazy(() => import('./Community').then((m) => ({ default: m.Community })));
 import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
 import { LoginModal } from './components/LoginModal';
-import { MyPage } from './components/MyPage';
-import { ReportInbox } from './components/ReportInbox';
-import { VisitStats } from './components/VisitStats';
-import { SetsView } from './components/SetsView';
-import { TitleFeedbackList } from './components/TitleFeedbackList';
-import { CenteringTool } from './components/CenteringTool';
-import { ArtistsView } from './components/ArtistsView';
+const MyPage = lazy(() => import('./components/MyPage').then((m) => ({ default: m.MyPage })));
+const ReportInbox = lazy(() => import('./components/ReportInbox').then((m) => ({ default: m.ReportInbox })));
+const VisitStats = lazy(() => import('./components/VisitStats').then((m) => ({ default: m.VisitStats })));
+const SetsView = lazy(() => import('./components/SetsView').then((m) => ({ default: m.SetsView })));
+const TitleFeedbackList = lazy(() => import('./components/TitleFeedbackList').then((m) => ({ default: m.TitleFeedbackList })));
+const CenteringTool = lazy(() => import('./components/CenteringTool').then((m) => ({ default: m.CenteringTool })));
+const ArtistsView = lazy(() => import('./components/ArtistsView').then((m) => ({ default: m.ArtistsView })));
 import { DetailSheet } from './components/DetailSheet';
 import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider } from './api/auth';
 
@@ -863,6 +863,9 @@ function App() {
         </header>
 
         <main className="px-4 py-6">
+          {/* 부화면(커뮤니티·센터링·작가·세트 등)은 눌렀을 때 내려받는다(lazy).
+              첫 화면(카드 시세)이 그만큼 가벼워진다. */}
+          <Suspense fallback={<p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>}>
           {view === 'reports' ? (
             <div className="space-y-10">
               <ReportInbox />
@@ -1031,6 +1034,7 @@ function App() {
               )}
             </>
           )}
+        </Suspense>
         </main>
 
         <Footer />

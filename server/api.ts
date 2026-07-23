@@ -184,6 +184,103 @@ function mountSnkrdunkProxy(app: Mountable) {
   })
 }
 
+// 카드·세트·작가 썸네일을 우리(도쿄) 서버가 직접 캐시해 쏜다. 예전엔 클라이언트가
+// 유럽 CDN(wsrv.nl)을 매번 직접 불러 장당 0.4초씩 걸렸는데, 그걸 이 프록시로 바꿔
+// ① 처음 한 번만 wsrv로 축소본을 받아 ② 서버 메모리에 캐시하고 ③ 이후엔 도쿄에서
+// 바로 쏜다. 브라우저에도 장기 캐시를 걸어(아래 Cache-Control), 재방문 땐 서버도 안
+// 거치고 즉시 뜬다. wsrv가 리사이즈를 대신 해줘서 서버에 이미지 라이브러리가 필요 없다.
+//
+// 오픈 프록시로 아무 URL이나 대신 받아주면 남이 우리를 대역폭 중계로 악용할 수 있어,
+// 우리가 실제로 쓰는 이미지 호스트만 화이트리스트로 허용한다.
+const IMG_ALLOWED_HOSTS = new Set([
+  'cdn.snkrdunk.com',
+  'assets.tcgdex.net',
+  'images.tcgdex.net',
+  'limitlesstcg.nyc3.cdn.digitaloceanspaces.com',
+  's3.limitlesstcg.com',
+  'den-cards.pokellector.com',
+  'tcgplayer-cdn.tcgplayer.com',
+  'images.pokemontcg.io',
+  'images.scrydex.com',
+])
+// 썸네일은 장당 수 KB라, 800장이면 최대 수십 MB 정도다(512MB 램에 안전한 상한).
+const IMG_CACHE_MAX = 800
+const IMG_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+function mountImageProxy(app: Mountable) {
+  const cache = new TtlCache<{ body: Buffer; contentType: string }>(IMG_CACHE_TTL_MS, IMG_CACHE_MAX)
+  // 같은 이미지를 동시에 여러 명이 처음 요청하면 wsrv를 여러 번 부르지 않게 진행 중인
+  // 요청을 공유한다(중복 방지).
+  const inflight = new Map<string, Promise<{ body: Buffer; contentType: string } | null>>()
+
+  async function fetchThumb(url: string, w: number): Promise<{ body: Buffer; contentType: string } | null> {
+    const bare = url.replace(/^https?:\/\//, '')
+    const wsrv = `https://images.weserv.nl/?url=${encodeURIComponent(bare)}&w=${w}&output=webp&q=72`
+    try {
+      const r = await fetch(wsrv, { headers: { 'user-agent': 'pokegre-img/0.1' } })
+      if (!r.ok) return null
+      const buf = Buffer.from(await r.arrayBuffer())
+      return { body: buf, contentType: r.headers.get('content-type') ?? 'image/webp' }
+    } catch {
+      return null
+    }
+  }
+
+  app.use('/api/img', async (req, res) => {
+    const url = new URL(req.url ?? '', 'http://localhost')
+    const u = url.searchParams.get('u') ?? ''
+    const w = Math.min(1024, Math.max(16, parseInt(url.searchParams.get('w') ?? '256', 10) || 256))
+    // 호스트 검증: 허용 목록 밖이면 거절(오픈 프록시 악용 차단).
+    let target: URL
+    try {
+      target = new URL(u)
+    } catch {
+      res.statusCode = 400
+      res.end('bad url')
+      return
+    }
+    if (target.protocol !== 'https:' || !IMG_ALLOWED_HOSTS.has(target.hostname)) {
+      res.statusCode = 403
+      res.end('host not allowed')
+      return
+    }
+
+    const key = `${w}|${u}`
+    const serve = (hit: { body: Buffer; contentType: string }) => {
+      res.statusCode = 200
+      res.setHeader('content-type', hit.contentType)
+      // 브라우저·중간 캐시가 1주일 보관. immutable이라 그 안엔 재검증도 안 한다.
+      res.setHeader('cache-control', 'public, max-age=604800, immutable')
+      res.end(hit.body)
+    }
+
+    const cached = cache.get(key)
+    if (cached) {
+      serve(cached)
+      return
+    }
+
+    let job = inflight.get(key)
+    if (!job) {
+      job = fetchThumb(u, w).then((r) => {
+        if (r) cache.set(key, r)
+        inflight.delete(key)
+        return r
+      })
+      inflight.set(key, job)
+    }
+    const result = await job
+    if (!result) {
+      // wsrv 실패: 원본으로 리다이렉트해 화면이 비지 않게 한다.
+      res.statusCode = 302
+      res.setHeader('location', u)
+      res.end()
+      return
+    }
+    serve(result)
+  })
+}
+
 // 환율은 유럽중앙은행이 평일 하루 한 번 발표하는 값을 Frankfurter가 그대로 넘겨준다.
 // 무료·무키·상업적 이용 허용이고, 긁어오는 게 아니라 정식으로 제공하는 데이터다.
 //
@@ -1277,7 +1374,9 @@ const PRICE_TRACKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const PRICE_TRACKER_MAX_ENTRIES = 500
 // 무료 요금제가 하루 100건이다. 한 사람이 시간당 20건이면 정상 사용에는 걸릴 일이
 // 없으면서, 혼자서 하루치를 태우려면 다섯 시간이 걸린다.
-const PRICE_TRACKER_RATE_LIMIT = 20
+// 유료 플랜(하루 20,000크레딧) 기준. 무료 시절(하루 100건)엔 20/시간으로 묶어뒀지만,
+// 이제 캐시 미스가 시간당 300건이어도 하루 한도의 절반도 안 쓴다.
+const PRICE_TRACKER_RATE_LIMIT = 300
 const PRICE_TRACKER_RATE_WINDOW_MS = 60 * 60 * 1000
 
 interface RawEbayGrade {
@@ -1316,6 +1415,11 @@ interface RawPriceTrackerCard {
     // 등급별 × 날짜별 낙찰 평균가. { psa10: { "2026-05-05": { average: 99.99 } } }
     priceHistory?: Record<string, Record<string, { average?: number } | null>>
   }
+  // TCGplayer(미감정) 시세의 날짜별 추이. 유료 플랜에서 includeHistory로 온다.
+  // 컨디션(Near Mint 등)별로 나뉘어 온다.
+  priceHistory?: {
+    conditions?: Record<string, { history?: { date?: string; market?: number }[] }>
+  }
 }
 
 interface ShapedEbayCard {
@@ -1333,6 +1437,8 @@ interface ShapedEbayCard {
     printing: string | null
     lastUpdated: string | null
     url: string
+    // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
+    history: { date: string; price: number }[]
   } | null
   grades: {
     grade: string
@@ -1378,6 +1484,19 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
     )
     .map((card) => {
       const history = card.ebay?.priceHistory ?? {}
+      // TCGplayer 날짜별 추이: 컨디션별로 오는데 화면 시세가 미감정(Near Mint) 기준이라
+      // Near Mint를 우선하고, 없으면 점이 제일 많은 컨디션을 쓴다.
+      const conditions = card.priceHistory?.conditions ?? {}
+      const conditionKey =
+        'Near Mint' in conditions
+          ? 'Near Mint'
+          : Object.keys(conditions).sort(
+              (a, b) => (conditions[b].history?.length ?? 0) - (conditions[a].history?.length ?? 0),
+            )[0]
+      const tcgHistory = (conditionKey ? conditions[conditionKey]?.history ?? [] : [])
+        .map((h) => ({ date: h.date ?? '', price: h.market ?? 0 }))
+        .filter((h) => h.date && h.price > 0)
+        .sort((a, b) => a.date.localeCompare(b.date))
       // TCGplayer 시세: 마켓가가 있을 때만 담는다(없으면 화면에서 아예 안 보인다).
       const p = card.prices
       const tcgplayer =
@@ -1389,6 +1508,7 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
               printing: p.primaryPrinting ?? null,
               lastUpdated: p.lastUpdated ?? null,
               url: card.tcgPlayerUrl ?? '',
+              history: tcgHistory,
             }
           : null
       return {
@@ -1790,7 +1910,11 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       // have는 우리 서버에서만 쓰는(소스 필터) 값이라 PPT엔 보내지 않는다(보내면 400).
       upstreamParams.delete('have')
       upstreamParams.set('includeHistory', 'true')
+      // 이베이 날짜별 낙찰 히스토리는 includeEbay를 켜야 온다(등급별 그래프의 재료).
+      upstreamParams.set('includeEbay', 'true')
       upstreamParams.set('days', '180')
+      // 히스토리 점 수 상한 — 응답 크기와 그래프 해상도의 균형(180일에 60점 = 3일 간격).
+      upstreamParams.set('maxDataPoints', '60')
       const upstream = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${upstreamParams.toString()}`, {
         headers: {
           accept: 'application/json',
@@ -2656,6 +2780,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
       .map((kakaoId) => userId('kakao', kakaoId)),
   )
   mountSnkrdunkProxy(app)
+  mountImageProxy(app)
   mountSearchTracker(app)
   mountVisitStats(app)
   mountScanFeedback(app)

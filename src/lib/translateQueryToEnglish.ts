@@ -19,6 +19,11 @@ const sortedPokemonKoEn = (pokemonNames as PokemonName[])
   .filter((entry) => entry.ko && entry.en)
   .sort((a, b) => b.ko.length - a.ko.length);
 
+// 포켓몬 이름(한글) 집합. 팩 이름이 하필 포켓몬 이름과 똑같은 경우(WCS23="피카츄",
+// 월드챔피언 프로모)를 팩 매칭에서 걸러내는 데 쓴다. 그런 팩은 검색 의도가 십중팔구
+// "그 포켓몬 카드"라, 팩 코드로 보내면 엉뚱한 결과가 나온다.
+const pokemonKoSet = new Set(sortedPokemonKoEn.map((e) => e.ko));
+
 const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['메가', 'Mega '],
   ['찬란한', 'Radiant '], // "찬란한 리자몽"으로 검색하면 Radiant Charizard가 잡히게.
@@ -76,6 +81,7 @@ function spaceInsensitivePattern(name: string): RegExp {
 }
 
 const packEnPatterns = [...PACK_KO_EN]
+  .filter(([ko]) => !pokemonKoSet.has(ko))
   .sort((a, b) => b[0].length - a[0].length)
   .map(([ko, en]) => ({ re: spaceInsensitivePattern(ko), en }));
 
@@ -91,6 +97,8 @@ const packJpPatterns = (packNames as PackName[])
     if (tail && tail.length >= 3 && tail !== entry.ko) names.push(tail);
     return names.map((ko) => ({ ko, en: entry.code }));
   })
+  // 이름이 통째로 포켓몬 이름인 팩(예: WCS23="피카츄")은 뺀다 — 포켓몬 검색을 가로챈다.
+  .filter(({ ko }) => !pokemonKoSet.has(ko))
   .sort((a, b) => b.ko.length - a.ko.length)
   .map(({ ko, en }) => ({ re: spaceInsensitivePattern(ko), en }));
 
@@ -100,6 +108,11 @@ const packJpPatterns = (packNames as PackName[])
 export function translateSearchQueryToEnglish(query: string, edition: 'japanese' | 'english' = 'japanese'): string {
   const trimmed = query.trim();
   if (!trimmed) return trimmed;
+
+  // 검색어가 포켓몬 이름과 정확히 같으면 팩 매칭을 건너뛰고 바로 그 포켓몬으로 보낸다.
+  // (팩 이름과 같은 이름이어도 포켓몬 카드 검색이 우선이다.)
+  const exact = sortedPokemonKoEn.find((e) => e.ko === trimmed);
+  if (exact) return exact.en;
 
   let result = trimmed;
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. 짧은 일반어를 먼저 바꾸면 팩 이름이

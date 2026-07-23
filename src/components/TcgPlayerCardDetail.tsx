@@ -1,5 +1,8 @@
-import type { EbayCard } from '../api/ebayPrices';
+import { useEffect, useState } from 'react';
+import type { EbayCard, EbayGradeStat } from '../api/ebayPrices';
 import { KrwHint, KrwRateNote } from './KrwHint';
+import { EbayPriceChart } from './EbayPriceChart';
+import { reportCardTitleMiss } from '../api/localStats';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -15,6 +18,30 @@ function shortDate(iso: string | null): string | null {
 export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
   const t = card.tcgplayer;
   const updated = shortDate(t?.lastUpdated ?? null);
+  // 카드 이름 한글화가 이상하면 사용자가 알려준다(스니덩크 상세와 같은 방식).
+  const [titleReported, setTitleReported] = useState(false);
+  useEffect(() => setTitleReported(false), [card.tcgPlayerId]);
+  // 시세 추이 그래프. 이베이 차트 컴포넌트를 재사용한다 — 등급 하나("RAW"=미감정)짜리
+  // 목록으로 감싸면 등급 선택칩 하나 + 추이선이 그려진다.
+  const history = t?.history ?? [];
+  const chartGrades: EbayGradeStat[] =
+    history.length >= 2
+      ? [
+          {
+            grade: 'raw',
+            count: 0,
+            averagePrice: 0,
+            medianPrice: 0,
+            minPrice: 0,
+            maxPrice: 0,
+            marketTrend: null,
+            lastSaleDate: null,
+            smartPrice: null,
+            confidence: null,
+            history,
+          },
+        ]
+      : [];
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
@@ -22,10 +49,24 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
       </div>
 
       <h2 className="text-base font-bold text-black mb-1">{card.name}</h2>
-      <p className="text-xs text-neutral-400 mb-4">
+      <p className="text-xs text-neutral-400 mb-1">
         {card.setName}
         {card.cardNumber ? ` · ${card.cardNumber}` : ''}
       </p>
+      {titleReported ? (
+        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사해요! 이름을 고칠게요.</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            reportCardTitleMiss(card.name, card.nameEn, `https://www.tcgplayer.com/product/${card.tcgPlayerId}`);
+            setTitleReported(true);
+          }}
+          className="mb-4 text-[11px] text-neutral-400 underline hover:text-neutral-600"
+        >
+          카드 이름이 이상한가요?
+        </button>
+      )}
 
       {t ? (
         <a
@@ -56,6 +97,12 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
         </a>
       ) : (
         <p className="text-sm text-neutral-400 py-8 text-center">TCGplayer 시세가 없어요.</p>
+      )}
+
+      {chartGrades.length > 0 && (
+        <div className="mt-3">
+          <EbayPriceChart grades={chartGrades} title="마켓 시세 추이" />
+        </div>
       )}
 
       <p className="mt-2 text-[11px] leading-snug text-neutral-400">

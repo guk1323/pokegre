@@ -34,6 +34,8 @@ export function EbayCardTile({
       }`}
     >
       <div className="h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
+        {/* TCGplayer 이미지는 원본이 이미 400px로 작아서 축소(wsrv)를 거치지 않는다.
+            거치면 wsrv가 tcgplayer CDN을 못 불러와 이미지가 깨진다. */}
         {card.imageUrl && (
           <img src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" loading="lazy" />
         )}

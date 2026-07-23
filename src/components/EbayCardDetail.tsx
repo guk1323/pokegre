@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
 import { KrwHint, KrwRateNote } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
+import { reportCardTitleMiss } from '../api/localStats';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -12,6 +14,10 @@ function shortDate(iso: string | null): string | null {
 }
 
 export function EbayCardDetail({ card }: { card: EbayCard }) {
+  // 카드 이름 한글화가 이상하면 사용자가 알려준다(스니덩크 상세와 같은 방식).
+  // 다른 카드를 열면 버튼이 되살아나도록 카드가 바뀔 때 초기화한다.
+  const [titleReported, setTitleReported] = useState(false);
+  useEffect(() => setTitleReported(false), [card.tcgPlayerId]);
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
@@ -21,10 +27,24 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
       </div>
 
       <h2 className="text-base font-bold text-black mb-1">{card.name}</h2>
-      <p className="text-xs text-neutral-400 mb-4">
+      <p className="text-xs text-neutral-400 mb-1">
         {card.setName}
         {card.cardNumber ? ` · ${card.cardNumber}` : ''} · 낙찰 {card.totalSales.toLocaleString()}건
       </p>
+      {titleReported ? (
+        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사해요! 이름을 고칠게요.</p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            reportCardTitleMiss(card.name, card.nameEn, `https://www.tcgplayer.com/product/${card.tcgPlayerId}`);
+            setTitleReported(true);
+          }}
+          className="mb-4 text-[11px] text-neutral-400 underline hover:text-neutral-600"
+        >
+          카드 이름이 이상한가요?
+        </button>
+      )}
 
       {/* 낙찰 기록이 충분한 등급이 있으면 추이 그래프를 먼저 보여준다. 없으면 스스로
           아무것도 안 그린다. */}

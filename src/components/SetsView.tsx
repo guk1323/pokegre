@@ -38,8 +38,7 @@ const cardImg = (base: string) =>
   !base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/low.webp`;
 // 목록 썸네일은 64px인데 원본(로고 127KB·박스 59KB)을 그대로 받으면 느리다.
 // 무료 CDN(wsrv.nl)으로 필요한 크기의 WebP로 줄여 받는다(~5KB). w는 표시의 2배(레티나).
-const thumb = (url: string, w: number) =>
-  url ? `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//, ''))}&w=${w}&output=webp&q=72` : '';
+const thumb = (url: string, w: number) => (url ? `/api/img?u=${encodeURIComponent(url)}&w=${w}` : '');
 // 일본판은 일본어 변환 후, TCGdex에 영어로 섞여 오는 이름(옛 세트의 Koffing 등)까지
 // 영어 변환기로 한 번 더 잡는다. 북미판은 영어 변환만.
 const koName = (ed: 'ja' | 'en', name: string) =>
