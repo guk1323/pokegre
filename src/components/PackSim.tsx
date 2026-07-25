@@ -3,7 +3,16 @@ import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox, type ExchangeRates } from '../api/exchangeRate';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 import { koreanizeTitle } from '../lib/koreanizeTitle';
-import { rankOf, type PackCard } from '../lib/packDraw';
+import { rankOf, type MirrorFlag, type PackCard } from '../lib/packDraw';
+
+// 화면에서 다루는 카드: 서버 응답 순서(i)를 기억한다 — 앨범 골라담기가 인덱스 기준이라
+// (미러와 일반판이 같은 번호일 수 있어 번호로는 구분이 안 된다).
+type UiCard = PackCard & { i: number };
+const M_LABEL: Record<MirrorFlag, { t: string; cls: string }> = {
+  master: { t: '마스터볼 미러', cls: 'text-amber-600 font-bold' },
+  poke: { t: '몬스터볼 미러', cls: 'text-neutral-500' },
+  rev: { t: '리버스', cls: 'text-neutral-500' },
+};
 import {
   DAILY_BUDGET,
   livePacks,
@@ -20,7 +29,7 @@ import {
 // 앨범에 모은다. 개봉·GP 계산은 전부 서버가 한다(화면에서 하면 얼마든지 조작 가능).
 // 확률은 커뮤니티 실측 집계(공식 발표는 없음)라 재미용 근사치다.
 
-type AlbumCard = { s: string; n: string; r: string; c: number; g?: 1 };
+type AlbumCard = { s: string; n: string; r: string; c: number; g?: 1; m?: MirrorFlag };
 type ShareState = { shared: boolean; msg: string };
 type SimState = {
   balance: number;
@@ -101,7 +110,8 @@ export function PackSim({
   const [tab, setTab] = useState<'open' | 'stash' | 'album' | 'rates'>('open');
   const [sim, setSim] = useState<SimState | null>(null);
   const [slug, setSlug] = useState(LIVE_TODAY[0].slug);
-  const [pack, setPack] = useState<PackCard[] | null>(null);
+  const [pack, setPack] = useState<UiCard[] | null>(null);
+  const [boxInfo, setBoxInfo] = useState<number | null>(null); // 박스 개봉이면 팩 수
   const [god, setGod] = useState(false);
   const [revealed, setRevealed] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -122,7 +132,7 @@ export function PackSim({
   const [delPick, setDelPick] = useState<Set<string>>(new Set());
   const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
-  const [keep, setKeep] = useState<Set<string>>(new Set());
+  const [keep, setKeep] = useState<Set<number>>(new Set());
   const [keptMsg, setKeptMsg] = useState('');
   // 앨범에 넣기와 자랑하기는 서로 독립 — 넣었다고 자랑 기회가 사라지면 안 된다.
   const [keptDone, setKeptDone] = useState(false);
@@ -238,10 +248,12 @@ export function PackSim({
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
       if (d.god) trackEvent('packsim_godpack', cfg.label);
       // 등급 낮은 카드가 앞, 제일 좋은 카드가 맨 뒤로 오게 정렬해 마지막 한 장에서 터지게 한다.
-      const sorted = [...d.cards].sort((a, b) => rankOf(a.r) - rankOf(b.r));
+      const withI: UiCard[] = d.cards.map((c, i) => ({ ...c, i }));
+      const sorted = [...withI].sort((a, b) => rankOf(a.r) - rankOf(b.r));
       setPack(sorted);
-      // 일러레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
-      setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.n)));
+      setBoxInfo(null);
+      // 아트레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
+      setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.i)));
       setKeptMsg('');
       setKeptDone(false);
       setShare({ shared: false, msg: '' });
@@ -256,6 +268,54 @@ export function PackSim({
     }
   }
 
+  // 박스 개봉: 일본판은 보장 봉입, 북미판은 독립시행. 결과는 전 카드 그리드로 한 번에.
+  async function openBox(slug2: string) {
+    const target = packBySlug.get(slug2);
+    if (!sim || !target?.boxPacks) return;
+    setErr('');
+    setBusy(true);
+    setPack(null);
+    setSlug(slug2);
+    trackEvent('packsim', `${target.label} 박스`);
+    try {
+      const r = await fetch('/api/local/auth/packsim/box', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: slug2, spend }),
+      });
+      const d = (await r.json()) as {
+        packs?: { cards: PackCard[]; god: boolean }[];
+        god?: boolean;
+        godCount?: number;
+        boxPacks?: number;
+        balance?: number;
+        error?: string;
+      };
+      if (!r.ok || !d.packs) {
+        setErr(d.error === 'not enough' ? 'GP가 부족합니다.' : '박스를 열지 못했습니다.');
+        return;
+      }
+      if (d.godCount) trackEvent('packsim_godpack', `${target.label} 박스`);
+      let k = 0;
+      const flat: UiCard[] = d.packs.flatMap((p) => p.cards.map((c) => ({ ...c, i: k++ })));
+      const sorted = [...flat].sort((a, b) => rankOf(a.r) - rankOf(b.r));
+      setPack(sorted);
+      setRevealed(sorted.length); // 박스는 장수가 많아 스택 없이 바로 전체 그리드
+      setBoxInfo(d.boxPacks ?? d.packs.length);
+      setGod(!!d.god);
+      setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5 || c.m === 'master').map((c) => c.i)));
+      setKeptMsg('');
+      setKeptDone(false);
+      setShare({ shared: false, msg: '' });
+      setShareOpen(false);
+      setShareText('');
+      setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, opened: (s2.opened ?? 0) + (d.boxPacks ?? 0) } : s2));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function keepCards() {
     setBusy(true);
     try {
@@ -263,7 +323,7 @@ export function PackSim({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ns: [...keep] }),
+        body: JSON.stringify({ idxs: [...keep] }),
       });
       const d = (await r.json()) as { kept?: number; album?: AlbumCard[] };
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
@@ -311,8 +371,8 @@ export function PackSim({
     setBusy(true);
     try {
       const items = [...delPick].map((k) => {
-        const [s2, n] = k.split('|');
-        return { s: s2, n };
+        const [s2, n, m] = k.split('|');
+        return { s: s2, n, m };
       });
       const r = await fetch('/api/local/auth/packsim/album/remove', {
         method: 'POST',
@@ -374,7 +434,12 @@ export function PackSim({
     return { query: `${koName(jp, rawName)} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
   };
 
-  const usdOf = (a: AlbumCard) => value?.prices[a.s]?.[a.n.replace(/^0+/, '') || '0'] ?? 0;
+    const usdOf = (a: AlbumCard) => {
+    const base = a.n.replace(/^0+/, '') || '0';
+    const vk = a.m === 'master' ? '~m' : a.m === 'poke' ? '~p' : a.m === 'rev' ? '~r' : '';
+    const map = value?.prices[a.s];
+    return (vk ? map?.[base + vk] : undefined) ?? map?.[base] ?? 0;
+  };
   const koName = (jp: boolean, name: string) =>
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
   const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
@@ -527,6 +592,19 @@ export function PackSim({
                           >
                             보관함에 담기 · {gp(s2.price)}
                           </button>
+                          {(s2.boxPacks ?? 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openBox(s2.slug);
+                              }}
+                              disabled={busy || !sim || (spend && sim.balance < s2.price * (s2.boxPacks ?? 0))}
+                              className="w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-40"
+                            >
+                              박스 개봉({s2.boxPacks}팩) · {gp(s2.price * (s2.boxPacks ?? 0))}
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <p className="mt-2 py-1.5">
@@ -561,6 +639,11 @@ export function PackSim({
           </p>
           {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
 
+          {boxInfo && pack && (
+            <p className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
+              박스 개봉 결과 — {boxInfo}팩 · {pack.length}장{cfg.jp ? ' (박스 보장 봉입 적용)' : ' (북미판은 보장 없음)'}
+            </p>
+          )}
           {god && (
             <div className="mt-4 animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-3 text-center text-base font-black text-black">
               ✨ 갓팩! 전부 AR 이상입니다 ✨
@@ -676,7 +759,7 @@ export function PackSim({
               </p>
               {!keptDone && (
                 <>
-                  <button type="button" onClick={() => setKeep(new Set(pack!.map((c) => c.n)))} className="text-xs text-neutral-500 underline">
+                  <button type="button" onClick={() => setKeep(new Set(pack!.map((c) => c.i)))} className="text-xs text-neutral-500 underline">
                     전부 선택
                   </button>
                   <button type="button" onClick={() => setKeep(new Set())} className="text-xs text-neutral-500 underline">
@@ -762,12 +845,12 @@ export function PackSim({
                   onFlip={revealNext}
                   name={koName(cfg.jp, c.name)}
                   picking={allDone && !keptDone}
-                  picked={keep.has(c.n)}
+                  picked={keep.has(c.i)}
                   onPick={() =>
                     setKeep((prev) => {
                       const next = new Set(prev);
-                      if (next.has(c.n)) next.delete(c.n);
-                      else next.add(c.n);
+                      if (next.has(c.i)) next.delete(c.i);
+                      else next.add(c.i);
                       return next;
                     })
                   }
@@ -865,7 +948,7 @@ export function PackSim({
                         <span className="text-xs text-neutral-500">카드를 눌러 고르세요 ({delPick.size}종)</span>
                         <button
                           type="button"
-                          onClick={() => setDelPick(new Set(sim.album.map((a) => `${a.s}|${a.n}`)))}
+                          onClick={() => setDelPick(new Set(sim.album.map((a) => `${a.s}|${a.n}|${a.m ?? ''}`)))}
                           className="text-xs text-neutral-500 underline"
                         >
                           전체 선택
@@ -913,11 +996,11 @@ export function PackSim({
                     const card = setCards[a.s]?.find((c) => c.n === a.n);
                     const name = card ? koName(!!cfgA?.jp, card.name) : '';
                     const meta = RARITY[a.r] ?? RARITY.Common;
-                    const dk = `${a.s}|${a.n}`;
+                    const dk = `${a.s}|${a.n}|${a.m ?? ''}`;
                     const picked = delPick.has(dk);
                     return (
                       <div
-                        key={`${a.s}-${a.n}`}
+                        key={`${a.s}-${a.n}-${a.m ?? ''}`}
                         onClick={
                           delMode
                             ? () =>
@@ -948,6 +1031,7 @@ export function PackSim({
                           {meta.ko}
                           {a.g ? ' ✨' : ''}
                         </p>
+                        {a.m && <p className={`text-[10px] ${M_LABEL[a.m].cls}`}>{M_LABEL[a.m].t}</p>}
                         {usdOf(a) > 0 && (
                           <p className="text-[10px] font-semibold text-emerald-700">
                             {rates ? formatKrwApprox(usdOf(a) * rates.usdToKrw) : `$${usdOf(a)}`}
@@ -1184,6 +1268,7 @@ function CardSlot({
       )}
       <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{flipped ? name : ' '}</p>
       <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>{flipped ? meta.ko : ' '}</p>
+      {flipped && card.m && <p className={`text-[10px] ${M_LABEL[card.m].cls}`}>{M_LABEL[card.m].t}</p>}
     </div>
   );
 }

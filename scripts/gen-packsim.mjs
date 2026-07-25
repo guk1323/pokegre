@@ -52,9 +52,12 @@ async function genSet(code) {
   const cards = []
   for (const [, hover, body] of html.matchAll(/<tr data-hover="([^"]+)">(.*?)<\/tr>/gs)) {
     const td = [...body.matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => strip(m[1]))
-    const [, n, cardName, , rarity] = td
+    const [, n, cardName, typeCol, rarity] = td
     if (!n || !cardName) continue
-    const r = RARITY_MAP[rarity]
+    // limitless 일본판 목록은 ACE SPEC의 레어도 칸을 비워 둔다(트레이너스류만 해당).
+    // 일반 확장팩에서 빈 레어도 + Item/Tool/Stadium/Supporter = ACE 스펙이다.
+    const isAceBlank = rarity === '' && /(Item|Tool|Stadium|Supporter)/.test(typeCol ?? '')
+    const r = isAceBlank ? 'ACE SPEC Rare' : RARITY_MAP[rarity]
     // 레어도를 모르는 카드는 넣지 않는다 — 뽑기 확률 계산이 어긋난다.
     if (!r) continue
     cards.push({ n: String(n).padStart(3, '0'), name: cardName, img: hover.replace('_XS.png', '_SM.png'), r })

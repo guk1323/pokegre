@@ -16,7 +16,7 @@ import {
   packBySlug,
   PPT_SET_NAMES,
 } from '../src/lib/packSets.ts'
-import { drawPack, usableCards, type PackCard } from '../src/lib/packDraw.ts'
+import { drawBox, drawPack, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -2492,6 +2492,7 @@ interface AlbumCard {
   r: string // 레어도
   c: number // 모은 장수
   g?: 1 // 갓팩에서 나온 적 있음
+  m?: MirrorFlag // 반짝이 변형판(마스터볼·몬스터볼 미러, 리버스 홀로)
 }
 interface PackSimStore {
   balance: number
@@ -2503,9 +2504,10 @@ interface PackSimStore {
   album: AlbumCard[]
   // 사서 아직 안 연 팩(슬러그→개수). "모아뒀다가 나중에 깐다"용 보관함.
   packs?: Record<string, number>
-  // 방금 연 팩. 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지 못하도록
-  // 서버가 마지막 팩을 기억했다가 그 안의 번호만 받아준다. shared는 같은 팩 중복 자랑 방지.
-  last?: { slug: string; ns: string[]; god: boolean; shared?: boolean; kept?: boolean }
+  // 방금 연 팩(박스면 전체 카드). 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지
+  // 못하도록 서버가 마지막 결과를 기억했다가 그 안의 카드만 받아준다(idx 기준 — 미러와
+  // 일반판이 같은 번호일 수 있어 번호로는 구분이 안 된다). shared/kept는 중복 방지.
+  last?: { slug: string; cards: { n: string; r?: string; m?: MirrorFlag }[]; god: boolean; shared?: boolean; kept?: boolean }
   // 자랑 보상을 마지막으로 받은 날(KST). 하루 1번만 준다.
   lastShareDay?: string
 }
@@ -2662,12 +2664,16 @@ async function getSetPrices(
         // 여러 줄로 온다. 팩에서 나오는 건 기본판이므로 괄호 없는 이름(기본판)을 우선하고,
         // 기본판이 없을 때만 가장 싼 값을 쓴다. (덮어쓰기 순서에 맡겼더니 일반 괴력몬이
         // 마스터볼 값 $18를 받았던 문제)
-        const isBase = !String(c.name ?? '').includes('(')
+        const nm = String(c.name ?? '')
+        const isBase = !nm.includes('(')
         if (isBase) {
           prices[num] = basePriced.has(num) ? Math.min(prices[num], market) : market
           basePriced.add(num)
-        } else if (!basePriced.has(num)) {
-          prices[num] = Math.min(prices[num] ?? Infinity, market)
+        } else {
+          // 변형판은 별도 키로 저장(앨범의 미러/리버스 카드 시세용).
+          const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
+          if (vk) prices[num + vk] = Math.min(prices[num + vk] ?? Infinity, market)
+          else if (!basePriced.has(num)) prices[num] = Math.min(prices[num] ?? Infinity, market)
         }
       }
       if (list.length < PPT_PAGE) {
@@ -2685,15 +2691,15 @@ async function getSetPrices(
   }
 }
 
-// 앨범에 넣는다. 같은 카드는 장수만 올린다.
-function addToAlbum(store: PackSimStore, slug: string, cards: PackCard[], god: boolean) {
+// 앨범에 넣는다. 같은 카드는 장수만 올린다(미러 여부까지 같아야 같은 카드).
+function addToAlbum(store: PackSimStore, slug: string, cards: { n: string; r?: string; m?: MirrorFlag }[], god: boolean) {
   for (const c of cards) {
-    const found = store.album.find((a) => a.s === slug && a.n === c.n)
+    const found = store.album.find((a) => a.s === slug && a.n === c.n && (a.m ?? '') === (c.m ?? ''))
     if (found) {
       found.c++
       if (god) found.g = 1
     } else if (store.album.length < ALBUM_LIMIT) {
-      store.album.push({ s: slug, n: c.n, r: c.r ?? 'Common', c: 1, ...(god ? { g: 1 as const } : {}) })
+      store.album.push({ s: slug, n: c.n, r: c.r ?? 'Common', c: 1, ...(c.m ? { m: c.m } : {}), ...(god ? { g: 1 as const } : {}) })
     }
   }
 }
@@ -3085,6 +3091,66 @@ function mountAuth(
         return
       }
 
+      // POST /packsim/box — 박스를 통째로 산다·연다. 일본판은 실물처럼 보장 봉입
+      // (AR 3장·RR 4~5장·SR이상 1장·ACE/마스터볼), 북미판 박스는 순수 독립시행.
+      // 북미 특별세트는 실물에 36팩 박스가 없어(boxPacks=0) 박스 구매 불가.
+      if (segments[0] === 'packsim' && segments[1] === 'box' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
+        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
+        const pack = packBySlug.get(String(body.slug ?? ''))
+        if (!pack || !(pack.boxPacks && pack.boxPacks > 0) || !isLive(pack.slug)) {
+          sendJson(res, 400, { error: 'unknown pack' })
+          return
+        }
+        const store = await getPacksim(user.id)
+        const unlimited = isAdmin(user) && !(body.spend === true)
+        const boxPrice = pack.price * pack.boxPacks
+        if (!unlimited && store.balance < boxPrice) {
+          sendJson(res, 400, { error: 'not enough', balance: store.balance, price: boxPrice })
+          return
+        }
+        const cards = await readPackCards(pack.src)
+        if (cards.length === 0) {
+          sendJson(res, 500, { error: 'pack data missing' })
+          return
+        }
+        const guarantee = pack.jp ? (pack.mirror === 'jp151' ? ('jp151' as const) : ('jp' as const)) : null
+        const box = drawBox(cards, pack.profile, {
+          packs: pack.boxPacks,
+          guarantee,
+          godRate: pack.godRate ?? 0,
+          mirror: pack.mirror,
+        })
+        if (!unlimited) {
+          store.balance -= boxPrice
+          store.spent += boxPrice
+        }
+        store.opened += pack.boxPacks
+        const godCount = box.packs.filter((p) => p.god).length
+        store.god += godCount
+        const flat = box.packs.flatMap((p) => p.cards)
+        store.last = {
+          slug: pack.slug,
+          cards: flat.map(({ n, r, m }) => ({ n, r, ...(m ? { m } : {}) })),
+          god: box.god,
+        }
+        await persistPacksim()
+        sendJson(res, 200, {
+          packs: box.packs,
+          god: box.god,
+          godCount,
+          boxPacks: pack.boxPacks,
+          balance: store.balance,
+          opened: store.opened,
+          packsLeft: store.packs ?? {},
+        })
+        return
+      }
+
       // POST /packsim/open — 보관함의 팩 하나를 연다. 뽑기는 서버가 한다.
       if (segments[0] === 'packsim' && segments[1] === 'open' && req.method === 'POST') {
         const user = await currentUser(req)
@@ -3125,7 +3191,7 @@ function mountAuth(
           sendJson(res, 500, { error: 'pack data missing' })
           return
         }
-        const drawn = drawPack(cards, pack.profile, pack.godRate ?? 0)
+        const drawn = drawPack(cards, pack.profile, pack.godRate ?? 0, pack.mirror)
         if (!unlimited) {
           if (fromStash && store.packs) {
             if (have <= 1) delete store.packs[pack.slug]
@@ -3137,7 +3203,7 @@ function mountAuth(
         }
         store.opened += 1
         if (drawn.god) store.god += 1
-        store.last = { slug: pack.slug, ns: drawn.cards.map((c) => c.n), god: drawn.god }
+        store.last = { slug: pack.slug, cards: drawn.cards.map(({ n, r, m }) => ({ n, r, ...(m ? { m } : {}) })), god: drawn.god }
         await persistPacksim()
         sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited })
         return
@@ -3177,6 +3243,10 @@ function mountAuth(
             if (typeof v === 'string') nameOf.set(String(k), v.replace(/\s+/g, ' ').trim().slice(0, 60))
           }
         }
+        if (!last.cards) {
+          sendJson(res, 400, { error: 'no pack' })
+          return
+        }
         const cards = await readPackCards(pack.src)
         const byN = new Map(cards.map((c) => [c.n, c]))
         const tierKo: Record<string, string> = {
@@ -3185,8 +3255,14 @@ function mountAuth(
           'Special illustration rare': 'SAR', 'Hyper rare': 'HR',
         }
         const rank: Record<string, number> = { Common: 0, Uncommon: 1, Rare: 2, 'Double rare': 3, 'ACE SPEC Rare': 4, 'Illustration rare': 5, 'Ultra Rare': 6, 'Special illustration rare': 7, 'Hyper rare': 8 }
-        const drawn = last.ns.map((n) => byN.get(n)).filter((c): c is NonNullable<typeof c> => !!c)
-        const koN = (c: { n: string; name: string }) => nameOf.get(c.n) || c.name
+        const drawn = last.cards
+          .map((lc) => {
+            const base = byN.get(lc.n)
+            return base ? { ...base, r: lc.r ?? base.r, m: lc.m } : null
+          })
+          .filter((c): c is NonNullable<typeof c> => !!c)
+        const mLabel = (m?: MirrorFlag) => (m === 'master' ? ' (마스터볼 미러)' : m === 'poke' ? ' (몬스터볼 미러)' : m === 'rev' ? ' (리버스)' : '')
+        const koN = (c: { n: string; name: string; m?: MirrorFlag }) => (nameOf.get(c.n) || c.name) + mLabel(c.m)
         const best = drawn.reduce((a, b) => ((rank[b.r ?? ''] ?? 0) > (rank[a.r ?? ''] ?? 0) ? b : a), drawn[0])
         const packName = pack.label.replace(/^\[.+?\]\s*/, '')
         // 제목은 이용자가 쓴 것을 우선하고, 없으면 자동 제목.
@@ -3238,18 +3314,19 @@ function mountAuth(
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        const body = JSON.parse((await readBody(req)) || '{}') as { ns?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { idxs?: unknown }
         const store = await getPacksim(user.id)
         // 앨범에 넣어도 last를 지우지 않는다 — 지우면 그 팩을 자랑할 수 없게 된다
         // (앨범 넣기와 자랑은 독립이어야 한다). 같은 팩을 두 번 넣는 것만 kept로 막는다.
-        if (!store.last || store.last.kept) {
+        if (!store.last?.cards || store.last.kept) {
           sendJson(res, 400, { error: store.last ? 'already kept' : 'no pack' })
           return
         }
-        const allowed = new Set(store.last.ns)
-        const picked = (Array.isArray(body.ns) ? body.ns : []).map(String).filter((n) => allowed.has(n))
-        const cards = await readPackCards(packBySlug.get(store.last.slug)?.src ?? '')
-        addToAlbum(store, store.last.slug, cards.filter((c) => picked.includes(c.n)), store.last.god)
+        const max = store.last.cards.length
+        const picked = [...new Set((Array.isArray(body.idxs) ? body.idxs : []).map(Number))].filter(
+          (i) => Number.isInteger(i) && i >= 0 && i < max,
+        )
+        addToAlbum(store, store.last.slug, picked.map((i) => store.last!.cards[i]), store.last.god)
         store.last.kept = true
         await persistPacksim()
         sendJson(res, 200, { kept: picked.length, album: store.album })
@@ -3268,13 +3345,15 @@ function mountAuth(
         // 중복까지 싹 지우면 안 된다는 피드백 — 선택한 종류마다 1장씩만 줄이고,
         // 0장이 되는 항목만 앨범에서 빠진다.
         const del = new Set(
-          (Array.isArray(body.items) ? body.items : [])
-            .map((it) => `${String((it as { s?: unknown }).s ?? '')}|${String((it as { n?: unknown }).n ?? '')}`),
+          (Array.isArray(body.items) ? body.items : []).map(
+            (it) =>
+              `${String((it as { s?: unknown }).s ?? '')}|${String((it as { n?: unknown }).n ?? '')}|${String((it as { m?: unknown }).m ?? '')}`,
+          ),
         )
         let removed = 0
         for (const key of del) {
-          const [s2, n] = key.split('|')
-          const i = store.album.findIndex((a) => a.s === s2 && a.n === n)
+          const [s2, n, m] = key.split('|')
+          const i = store.album.findIndex((a) => a.s === s2 && a.n === n && (a.m ?? '') === m)
           if (i < 0) continue
           removed++
           if (store.album[i].c > 1) store.album[i].c -= 1
@@ -3321,7 +3400,9 @@ function mountAuth(
         let totalUsd = 0
         let priced = 0
         for (const a of store.album) {
-          const usd = prices[a.s]?.[stripZeros(a.n)] ?? 0
+          const base = stripZeros(a.n)
+          const vk = a.m === 'master' ? '~m' : a.m === 'poke' ? '~p' : a.m === 'rev' ? '~r' : ''
+          const usd = (vk ? prices[a.s]?.[base + vk] : undefined) ?? prices[a.s]?.[base] ?? 0
           if (usd > 0) {
             totalUsd += usd * a.c
             priced++
