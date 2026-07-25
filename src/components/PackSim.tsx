@@ -118,7 +118,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/local/auth/packsim', { credentials: 'include' });
-      if (!r.ok) return setErr('로그인하면 출석 예산으로 팩을 열 수 있습니다.');
+      if (!r.ok) return setErr('로그인하면 출석 보상으로 팩을 열 수 있습니다.');
       const d = (await r.json()) as SimState;
       setSim(d);
       if (!d.admin) setSpend(true); // 일반 이용자는 항상 예산을 쓴다
@@ -144,7 +144,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       setSim(d);
       if (d.gained) {
         trackEvent('packsim_checkin');
-        setCheckinMsg(`오늘의 예산 ${won(d.gained)}을 받았습니다. (연속 ${d.streak}일)`);
+        setCheckinMsg(`출석 보상 ${won(d.gained)}을 받았습니다. (연속 ${d.streak}일)`);
       }
     } finally {
       setBusy(false);
@@ -168,7 +168,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       });
       const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; error?: string };
       if (!r.ok || !d.cards) {
-        setErr(d.error === 'not enough' ? '예산이 부족합니다.' : '팩을 열지 못했습니다.');
+        setErr(d.error === 'not enough' ? '보유 금액이 부족합니다.' : '팩을 열지 못했습니다.');
         return;
       }
       if (d.god) trackEvent('packsim_godpack', cfg.label);
@@ -309,7 +309,6 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
   const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
   const allDone = !!pack && revealed >= pack.length;
-  const affordable = !!sim && (!spend || sim.balance >= cfg.price);
 
   return (
     <div>
@@ -317,24 +316,41 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
         카드 뽑기
       </h2>
 
-      {/* 예산 바 */}
-      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-        <div>
-          <p className="text-[11px] text-neutral-400">내 예산</p>
-          <p className="text-lg font-bold text-black">{won(sim?.balance ?? 0)}</p>
+      {/* 현황판: 보유 금액·연속 출석·연 팩 수를 나란히, 출석 버튼은 오른쪽 */}
+      <div className="mt-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center gap-y-4">
+          <div className="grid flex-1 grid-cols-3 gap-2 sm:max-w-md">
+            <div>
+              <p className="text-xs text-neutral-400">보유 금액</p>
+              <p className="mt-0.5 text-xl font-bold text-black">{won(sim?.balance ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-400">연속 출석</p>
+              <p className="mt-0.5 text-xl font-bold text-black">{sim?.streak ?? 0}일</p>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-400">연 팩</p>
+              <p className="mt-0.5 text-xl font-bold text-black">
+                {sim?.opened ?? 0}팩
+                {sim?.god ? <span className="ml-1 align-middle text-xs font-semibold text-amber-600">갓팩 {sim.god}</span> : null}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={checkIn}
+            disabled={busy || !sim?.canCheckIn}
+            className="ml-auto rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+          >
+            {sim?.canCheckIn ? `출석하고 ${won(DAILY_BUDGET)} 받기` : '오늘 출석 완료'}
+          </button>
         </div>
-        <div className="text-[11px] text-neutral-500">
-          연속 출석 {sim?.streak ?? 0}일 · 지금까지 {sim?.opened ?? 0}팩
-          {sim?.god ? ` · 갓팩 ${sim.god}번` : ''}
-        </div>
-        <button
-          type="button"
-          onClick={checkIn}
-          disabled={busy || !sim?.canCheckIn}
-          className="ml-auto rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
-        >
-          {sim?.canCheckIn ? `출석하고 ${won(DAILY_BUDGET)} 받기` : '오늘 출석 완료'}
-        </button>
+        {sim?.admin && (
+          <label className="mt-3 flex items-center justify-end gap-1.5 text-xs text-neutral-400">
+            <input type="checkbox" checked={spend} onChange={(e) => setSpend(e.target.checked)} />
+            보유 금액 차감 (끄면 운영자 무제한)
+          </label>
+        )}
       </div>
       {checkinMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{checkinMsg}</p>}
       {err && <p className="mt-2 text-sm text-rose-500">{err}</p>}
@@ -361,98 +377,78 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
 
       {tab === 'open' && (
         <>
-          {/* 팩 진열장 — 카드샵 쇼케이스. 어두운 유리장 안에 상자들이 조명을 받고 서 있고,
-              고르면 스포트라이트가 켜지며 살짝 떠오른다. 색은 금색 포인트 하나만 쓴다. */}
-          <div className="mt-4 rounded-2xl bg-gradient-to-b from-neutral-900 via-neutral-900 to-neutral-950 p-5 ring-1 ring-neutral-800">
-            {[
-              { label: '일본판 · 팩당 5장', packs: LIVE_TODAY.filter((p) => p.jp) },
-              { label: '북미판 · 팩당 10장', packs: LIVE_TODAY.filter((p) => !p.jp) },
-            ].map((row, ri) => (
-              <div key={row.label} className={ri === 0 ? 'mb-6' : ''}>
-                <p className="mb-1 text-[11px] font-semibold tracking-[0.2em] text-amber-200/50">{row.label}</p>
-                <div className="grid grid-cols-3">
-                  {row.packs.map((s2) => {
-                    const on = s2.slug === slug;
-                    const img = art[s2.slug]?.boxImg || art[s2.slug]?.logo;
-                    return (
-                      <button
-                        key={s2.slug}
-                        type="button"
-                        onClick={() => {
+          {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
+              (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
+          {[
+            { label: '일본판 · 팩당 5장', packs: LIVE_TODAY.filter((p) => p.jp) },
+            { label: '북미판 · 팩당 10장', packs: LIVE_TODAY.filter((p) => !p.jp) },
+          ].map((row) => (
+            <div key={row.label} className="mt-5">
+              <p className="mb-2 text-xs font-bold text-neutral-500">{row.label}</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {row.packs.map((s2) => {
+                  const on = s2.slug === slug;
+                  const img = art[s2.slug]?.boxImg || art[s2.slug]?.logo;
+                  const can = !!sim && (!spend || sim.balance >= s2.price);
+                  return (
+                    <div
+                      key={s2.slug}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setSlug(s2.slug);
+                        setPack(null);
+                        setKeptMsg('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
                           setSlug(s2.slug);
                           setPack(null);
                           setKeptMsg('');
-                        }}
-                        className="group relative px-2 pt-3 text-center"
-                      >
-                        {/* 스포트라이트 — 선택하면 금빛, 아니면 호버에만 희미하게 */}
-                        <div
-                          className={`pointer-events-none absolute inset-x-6 top-0 h-32 rounded-full blur-2xl transition duration-300 ${
-                            on ? 'bg-amber-300/25' : 'bg-transparent group-hover:bg-white/10'
-                          }`}
-                        />
-                        <div className="relative flex h-28 items-end justify-center sm:h-36">
-                          {img && (
-                            <img
-                              src={thumb(img, 280)}
-                              alt=""
-                              loading="lazy"
-                              className={`max-h-28 object-contain drop-shadow-[0_12px_16px_rgba(0,0,0,0.7)] transition duration-300 sm:max-h-36 ${
-                                on ? '-translate-y-2' : 'group-hover:-translate-y-1'
-                              }`}
-                            />
-                          )}
-                        </div>
-                        {/* 유리 선반: 얇은 빛줄 */}
-                        <div
-                          className={`relative mt-1 h-[3px] rounded-full bg-gradient-to-r from-transparent to-transparent ${
-                            on ? 'via-amber-300/80' : 'via-neutral-500/60'
-                          }`}
-                        />
-                        <div className="pt-2">
-                          <p
-                            className={`line-clamp-1 text-[12px] leading-tight ${
-                              on ? 'font-bold text-white' : 'font-medium text-neutral-300'
+                        }
+                      }}
+                      className={`group cursor-pointer rounded-2xl border p-3 text-center transition ${
+                        on ? 'border-black ring-1 ring-black' : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <div className="flex h-32 items-end justify-center sm:h-40">
+                        {img && (
+                          <img
+                            src={thumb(img, 320)}
+                            alt=""
+                            loading="lazy"
+                            className={`max-h-32 object-contain transition sm:max-h-40 ${
+                              on ? '' : 'group-hover:-translate-y-1'
                             }`}
-                          >
-                            {s2.label.replace(/^\[.+?\]\s*/, '')}
-                          </p>
-                          <p
-                            className={`mt-0.5 text-[11px] tracking-wide ${
-                              on ? 'font-semibold text-amber-300' : 'text-neutral-500'
-                            }`}
-                          >
-                            {won(s2.price)}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                          />
+                        )}
+                      </div>
+                      <p className="mt-2 line-clamp-1 text-sm font-semibold text-neutral-800">
+                        {s2.label.replace(/^\[.+?\]\s*/, '')}
+                      </p>
+                      {on ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void open();
+                          }}
+                          disabled={busy || !can}
+                          className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                        >
+                          {busy ? '여는 중…' : can ? `이 팩 열기 · ${won(s2.price)}` : '보유 금액이 부족합니다'}
+                        </button>
+                      ) : (
+                        <p className="mt-2 py-2 text-xs text-neutral-400">{won(s2.price)}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-            <p className="mt-3 text-center text-[10px] tracking-wide text-neutral-500">
-              오늘의 진열 · 매일 자정에 다른 팩으로 바뀝니다 (전체 22종)
-            </p>
-          </div>
+            </div>
+          ))}
+          <p className="mt-3 text-xs text-neutral-400">매일 자정에 진열이 바뀝니다. (전체 22종)</p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={open}
-              disabled={busy || !affordable}
-              className="rounded-lg bg-black px-5 py-2 text-sm font-bold text-white disabled:opacity-40"
-            >
-              {busy ? '여는 중…' : `📦 ${cfg.label.replace(/^\[.+?\]\s*/, '')} 열기 (${won(cfg.price)})`}
-            </button>
-            {sim?.admin && (
-              <label className="flex items-center gap-1.5 text-xs text-neutral-500">
-                <input type="checkbox" checked={spend} onChange={(e) => setSpend(e.target.checked)} />
-                예산 쓰기 (끄면 운영자 무제한)
-              </label>
-            )}
-            {!affordable && <span className="text-xs text-rose-500">예산이 부족합니다</span>}
-          </div>
           <p className="mt-2 text-xs text-neutral-400">
             비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, 예산은 서비스 안에서만
             쓰이는 숫자입니다. 확률은 재미용 근사치라 실제 봉입률과 다릅니다.

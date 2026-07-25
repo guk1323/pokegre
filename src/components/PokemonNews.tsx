@@ -21,7 +21,9 @@ export function PokemonNews({ items, loading }: { items: KoreanNewsItem[]; loadi
 
   return (
     <div className="mb-6">
-      <p className="text-xs font-semibold text-neutral-500 mb-3">포켓몬 뉴스 (출처: 포켓몬코리아)</p>
+      <p className="mb-3 text-base font-bold text-neutral-900">
+        포켓몬 뉴스 <span className="align-middle text-xs font-normal text-neutral-400">출처: 포켓몬코리아</span>
+      </p>
       <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
         {visible.map((item) => (
           <li key={item.url}>
