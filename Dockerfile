@@ -25,6 +25,10 @@ RUN npm ci --omit=dev
 # 빌드된 프론트와, .ts 그대로 실행할 서버 소스.
 COPY --from=builder /app/dist ./dist
 COPY server ./server
+# 서버가 화면과 같이 쓰는 모듈(카드 뽑기 가격표·뽑기 로직). 이게 빠지면 서버가
+# 아예 안 뜬다 — 실제로 한 번 배포가 죽었다. server/api.ts가 src/에서 import하는
+# 파일이 늘어나면 여기에도 같이 있어야 한다.
+COPY src/lib/packSets.ts src/lib/packDraw.ts ./src/lib/
 
 EXPOSE 3000
 CMD ["npm", "start"]
