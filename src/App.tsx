@@ -26,6 +26,7 @@ import { CardDetail } from './components/CardDetail';
 import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
 import { PokemonNews } from './components/PokemonNews';
+import { PackShelfPromo } from './components/PackShelfPromo';
 import { OnboardingBanner } from './components/OnboardingBanner';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
@@ -636,6 +637,8 @@ function App() {
       <div className="mb-6">
         <PopularSearches items={popularSearches} asOf={popularAsOf} loading={popularLoading} onSelect={setQuery} />
       </div>
+      {/* 오늘의 팩 — 카드 뽑기 입구. 인기 검색어와 뉴스 사이(사용자 지정 위치). */}
+      <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
       <PokemonNews items={news} loading={newsLoading} />
     </>
   );
