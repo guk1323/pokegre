@@ -10,6 +10,7 @@ import {
   MAX_BALANCE,
   STREAK_BONUS,
   STREAK_DAYS,
+  isLive,
   packBySlug,
 } from '../src/lib/packSets.ts'
 import { drawPack, usableCards, type PackCard } from '../src/lib/packDraw.ts'
@@ -2454,6 +2455,9 @@ interface PackSimStore {
   spent: number
   god: number
   album: AlbumCard[]
+  // 방금 연 팩. 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지 못하도록
+  // 서버가 마지막 팩을 기억했다가 그 안의 번호만 받아준다.
+  last?: { slug: string; ns: string[]; god: boolean }
 }
 
 let packsim: Record<string, PackSimStore> | null = null
@@ -2858,14 +2862,19 @@ function mountAuth(
           sendJson(res, 403, { error: 'admin only' })
           return
         }
-        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
         const pack = packBySlug.get(String(body.slug ?? ''))
-        if (!pack) {
+        // 진열 중이 아닌 팩은 화면에 없어도 API로는 부를 수 있으니 여기서도 막는다.
+        if (!pack || !isLive(pack.slug)) {
           sendJson(res, 400, { error: 'unknown pack' })
           return
         }
         const store = await getPacksim(user!.id)
-        if (store.balance < pack.price) {
+        // 운영자는 점검하려고 아무 때나 열어봐야 하므로 예산을 안 쓴다.
+        // 평소 흐름(예산이 깎이고 모자라면 못 여는 것)도 확인할 수 있게, 화면에서
+        // spend:true를 보내면 그때는 똑같이 차감한다.
+        const unlimited = !(body.spend === true)
+        if (!unlimited && store.balance < pack.price) {
           sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
           return
         }
@@ -2875,13 +2884,39 @@ function mountAuth(
           return
         }
         const drawn = drawPack(cards, pack.profile)
-        store.balance -= pack.price
-        store.spent += pack.price
+        if (!unlimited) {
+          store.balance -= pack.price
+          store.spent += pack.price
+        }
         store.opened += 1
         if (drawn.god) store.god += 1
-        addToAlbum(store, pack.slug, drawn.cards, drawn.god)
+        store.last = { slug: pack.slug, ns: drawn.cards.map((c) => c.n), god: drawn.god }
         await persistPacksim()
-        sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened })
+        sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened, unlimited })
+        return
+      }
+
+      // POST /packsim/keep — 방금 연 팩에서 고른 카드만 앨범에 넣는다.
+      // 다 넣으면 커먼으로 뒤덮여서 앨범이 지저분해진다. 남길 것만 고르는 게 재미다.
+      if (segments[0] === 'packsim' && segments[1] === 'keep' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!isAdmin(user)) {
+          sendJson(res, 403, { error: 'admin only' })
+          return
+        }
+        const body = JSON.parse((await readBody(req)) || '{}') as { ns?: unknown }
+        const store = await getPacksim(user!.id)
+        if (!store.last) {
+          sendJson(res, 400, { error: 'no pack' })
+          return
+        }
+        const allowed = new Set(store.last.ns)
+        const picked = (Array.isArray(body.ns) ? body.ns : []).map(String).filter((n) => allowed.has(n))
+        const cards = await readPackCards(packBySlug.get(store.last.slug)?.src ?? '')
+        addToAlbum(store, store.last.slug, cards.filter((c) => picked.includes(c.n)), store.last.god)
+        store.last = undefined
+        await persistPacksim()
+        sendJson(res, 200, { kept: picked.length, album: store.album })
         return
       }
 

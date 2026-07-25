@@ -102,7 +102,24 @@ export const PACK_SETS: PackSet[] = [
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
 ];
 
+// 지금 진열장에 올리는 팩. 데이터는 22개를 다 만들어 뒀지만 한 번에 다 깔면 고르기
+// 벅차고, 나중에 "새 팩 입고"로 쓸 것도 없어진다. 값이 싼 것부터 비싼 것까지 골고루
+// 넣어야 "싼 거 여러 개 vs 비싼 거 하나" 고민이 생긴다.
+// 늘리려면 여기에 슬러그만 추가하면 된다(데이터는 이미 있다).
+export const ACTIVE_SLUGS = [
+  'ja-M4', // 최신
+  'ja-SV11B', // 인기
+  'ja-SV2a', // 151, 스테디셀러
+  'en-sv10', // 북미 최신
+  'en-sv08.5', // 프리즈매틱, 북미 최고 인기
+  'en-sv03.5', // 북미 151
+];
+
+// 앨범에는 지금 안 파는 팩의 카드도 남아 있으므로, 이름·이미지 조회는 전체에서 한다.
 export const packBySlug = new Map(PACK_SETS.map((p) => [p.slug, p]));
+// 화면 진열과 "이 팩 열어도 되나" 검사는 진열 중인 것만 본다.
+export const LIVE_PACKS = ACTIVE_SLUGS.map((s) => packBySlug.get(s)).filter((p): p is PackSet => !!p);
+export const isLive = (slug: string) => ACTIVE_SLUGS.includes(slug);
 
 // ── 예산(출석) 규칙 ────────────────────────────────────────────────────────
 // 숫자를 바꾸고 싶으면 여기만 고치면 된다. 하루치로 일본판 15팩 / 북미 특별팩 3팩쯤
