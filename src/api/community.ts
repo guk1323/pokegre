@@ -6,7 +6,7 @@ export const CATEGORY_LABEL: Record<PostCategory, string> = {
   free: "자유",
   question: "질문",
   suggestion: "건의",
-  pulls: "뽑기 자랑",
+  pulls: "개봉 자랑",
 };
 
 export interface CommunityPost {
@@ -17,6 +17,8 @@ export interface CommunityPost {
   // 작성자가 운영자면 닉네임 옆에 배지를 단다.
   authorIsAdmin: boolean;
   content: string;
+  // 팩 개봉 자랑글에만 붙는 카드 목록(서버가 검증한 결과). 이미지 그리드로 그린다.
+  pull?: { pack: string; god: boolean; cards: { img: string; name: string; r: string }[] };
   createdAt: number;
   // 고친 적 있으면 그 시각. 화면에 "(수정됨)"을 붙이는 데만 쓴다.
   editedAt?: number;

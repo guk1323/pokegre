@@ -212,7 +212,34 @@ function PostDetail({
         {' · 조회 '}
         {(post.viewCount ?? 0).toLocaleString()}
       </p>
-      <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-6">{post.content}</p>
+      {post.pull ? (
+        <div className="mb-6">
+          {post.pull.god && (
+            <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700">
+              갓팩입니다. 전부 AR 이상이 나왔습니다.
+            </p>
+          )}
+          <p className="mb-2 text-xs text-neutral-400">{post.pull.pack}</p>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {post.pull.cards.map((c, i) => (
+              <div key={i}>
+                {c.img && (
+                  <img
+                    src={`/api/img?u=${encodeURIComponent(/\.(png|jpe?g|webp)(\?|$)/i.test(c.img) ? c.img : `${c.img}/high.webp`)}&w=240`}
+                    alt=""
+                    loading="lazy"
+                    className="w-full rounded-lg ring-1 ring-neutral-200"
+                  />
+                )}
+                <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{c.name}</p>
+                <p className="text-[10px] text-neutral-400">{c.r}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-6">{post.content}</p>
+      )}
 
       {/* 좋아요. 비로그인이 누르면 로그인 모달을 띄운다 — 버튼을 숨기면 "왜 못 누르지?"
           하게 되므로 보여주고 누를 때 안내한다. 누른 상태는 파란 하트로 채워 보여준다. */}
@@ -379,7 +406,7 @@ const CATEGORY_TABS: { key: PostCategory | null; label: string }[] = [
   { key: 'free', label: '자유' },
   { key: 'question', label: '질문' },
   { key: 'suggestion', label: '건의' },
-  { key: 'pulls', label: '뽑기 자랑' },
+  { key: 'pulls', label: '개봉 자랑' },
 ];
 
 export function Community({

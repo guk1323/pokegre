@@ -507,6 +507,9 @@ interface CommunityPost {
   // 글을 열어 본 횟수. 상세를 GET할 때마다 1씩 오른다(운영자 조회는 빼서 부풀지 않게).
   // 없던 시절 글은 0으로 본다.
   viewCount?: number
+  // 팩 개봉 자랑글에만 붙는 카드 목록. 커뮤니티 화면이 이걸로 실제 카드 이미지를
+  // 그려 준다(스크린샷 업로드 없이도 "그 뽑은 화면"이 그대로 보인다).
+  pull?: { pack: string; god: boolean; cards: { img: string; name: string; r: string }[] }
   // 운영자가 가린 시각. 지우지 않고 가리는 이유는 두 가지다. 신고가 장난일 수 있어
   // 되돌릴 수 있어야 하고, "왜 내 글 지웠냐"는 항의에 보여줄 원문이 남아야 한다.
   // (정보통신망법이 요구하는 것도 삭제가 아니라 임시조치다.)
@@ -545,6 +548,7 @@ function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
     ...rest,
     title: hidden ? HIDDEN_NOTICE : rest.title,
     content: hidden ? HIDDEN_NOTICE : rest.content,
+    pull: hidden ? undefined : rest.pull,
     author: authorName(authorId, all),
     authorIsAdmin: adminIds.has(authorId),
     isMine: viewer != null && authorId === viewer.id,
@@ -3125,6 +3129,14 @@ function mountAuth(
           createdAt: Date.now(),
           likedBy: [],
           commentCount: 0,
+          // 커뮤니티가 카드 이미지를 그대로 그릴 재료. 등급 낮은 것부터(마지막이 최고).
+          pull: {
+            pack: packName,
+            god: last.god,
+            cards: [...drawn]
+              .sort((a, b) => (rank[a.r ?? ''] ?? 0) - (rank[b.r ?? ''] ?? 0))
+              .map((c) => ({ img: c.img ?? '', name: koN(c), r: tierKo[c.r ?? ''] ?? c.r ?? '' })),
+          },
         }
         await appendCommunityPost(post)
         last.shared = true

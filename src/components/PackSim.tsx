@@ -103,6 +103,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   const [value, setValue] = useState<{ prices: Record<string, Record<string, number>>; totalUsd: number; priced: number; pending?: string[] } | null>(null);
   // 앨범 선택 삭제 모드. 켜면 카드를 눌러 고르고, 한 번에 지운다.
   const [delMode, setDelMode] = useState(false);
+  // 앨범 정렬: 등급순(같은 등급끼리 묶임) · 가격순 · 최근 획득순
+  const [albumSort, setAlbumSort] = useState<'rarity' | 'price' | 'recent'>('rarity');
   const [delPick, setDelPick] = useState<Set<string>>(new Set());
   const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
@@ -313,7 +315,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   return (
     <div>
       <h2 className="text-base font-bold text-black">
-        카드 뽑기
+        팩 개봉
       </h2>
 
       {/* 현황판: 보유 금액·연속 출석·연 팩 수를 나란히, 출석 버튼은 오른쪽 */}
@@ -407,11 +409,11 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                           setKeptMsg('');
                         }
                       }}
-                      className={`group cursor-pointer rounded-2xl border p-3 text-center transition ${
-                        on ? 'border-black ring-1 ring-black' : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50'
+                      className={`group cursor-pointer rounded-2xl border p-3 text-center shadow-sm transition ${
+                        on ? 'border-black ring-1 ring-black' : 'border-neutral-200 hover:border-neutral-300 hover:shadow'
                       }`}
                     >
-                      <div className="flex h-32 items-end justify-center sm:h-40">
+                      <div className="flex h-32 items-end justify-center rounded-xl bg-neutral-50 px-2 pb-2 pt-3 sm:h-40">
                         {img && (
                           <img
                             src={thumb(img, 320)}
@@ -546,78 +548,115 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
             <p className="text-sm text-neutral-400">아직 모은 카드가 없습니다. 팩을 열어보세요.</p>
           ) : (
             <>
-              <div className="mb-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                <p className="text-xs text-neutral-400">
-                  모은 카드 {sim.album.length}종 · 총 {sim.album.reduce((a, b) => a + b.c, 0)}장 · 쓴 돈{' '}
-                  {won(sim.spent)}
-                </p>
-                {value && value.totalUsd > 0 && (
-                  <p className="mt-1 text-sm font-bold text-black">
-                    앨범 예상 가치{' '}
-                    {rates ? `${formatKrwApprox(value.totalUsd * rates.usdToKrw)} ` : ''}
-                    <span className="font-semibold text-neutral-500">(${value.totalUsd.toLocaleString()})</span>
-                  </p>
-                )}
-                <p className="mt-0.5 text-[10px] text-neutral-400">
-                  TCGplayer 마켓가 기준 참고용 추정치{value && value.priced < sim.album.length ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외` : ''}
+              <div className="mb-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-4 sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-neutral-400">모은 카드</p>
+                    <p className="mt-0.5 text-xl font-bold text-black">{sim.album.length}종</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-400">총 장수</p>
+                    <p className="mt-0.5 text-xl font-bold text-black">{sim.album.reduce((a, b) => a + b.c, 0)}장</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-400">쓴 금액</p>
+                    <p className="mt-0.5 text-xl font-bold text-black">{won(sim.spent)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-400">예상 가치</p>
+                    <p className="mt-0.5 text-xl font-bold text-black">
+                      {value && value.totalUsd > 0 && rates
+                        ? formatKrwApprox(value.totalUsd * rates.usdToKrw)
+                        : value && value.totalUsd > 0
+                          ? `$${value.totalUsd.toLocaleString()}`
+                          : '—'}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[11px] text-neutral-400">
+                  예상 가치는 TCGplayer 마켓가 기준 참고용 추정치입니다
+                  {value && value.totalUsd > 0 ? ` ($${value.totalUsd.toLocaleString()})` : ''}
+                  {value && value.priced < sim.album.length ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외` : ''}
                   {rates ? ` · ${rates.date} 환율` : ''}
                 </p>
                 {!!value?.pending?.length && (
-                  <p className="mt-0.5 text-[10px] font-semibold text-amber-600">
+                  <p className="mt-1 text-[11px] font-semibold text-amber-600">
                     세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.
                   </p>
                 )}
-                <div className="mt-2 flex items-center gap-2">
-                  {!delMode ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
+                  {([
+                    ['rarity', '등급순'],
+                    ['price', '가격순'],
+                    ['recent', '최근 획득순'],
+                  ] as const).map(([v, label]) => (
                     <button
+                      key={v}
                       type="button"
-                      onClick={() => setDelMode(true)}
-                      className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-600"
+                      onClick={() => setAlbumSort(v)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        albumSort === v ? 'bg-black text-white' : 'text-neutral-500 hover:bg-neutral-100'
+                      }`}
                     >
-                      선택 삭제
+                      {label}
                     </button>
-                  ) : (
-                    <>
-                      <span className="text-xs text-neutral-500">카드를 눌러 고르세요 ({delPick.size}종)</span>
+                  ))}
+                  <div className="ml-auto flex items-center gap-2">
+                    {!delMode ? (
                       <button
                         type="button"
-                        onClick={() => setDelPick(new Set(sim.album.map((a) => `${a.s}|${a.n}`)))}
-                        className="text-xs text-neutral-500 underline"
+                        onClick={() => setDelMode(true)}
+                        className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-600"
                       >
-                        전체 선택
+                        선택 삭제
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setDelPick(new Set())}
-                        className="text-xs text-neutral-500 underline"
-                      >
-                        전체 해제
-                      </button>
-                      <button
-                        type="button"
-                        onClick={removeSelected}
-                        disabled={busy || delPick.size === 0}
-                        className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white disabled:opacity-40"
-                      >
-                        {delPick.size}종 삭제
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDelMode(false);
-                          setDelPick(new Set());
-                        }}
-                        className="text-xs text-neutral-400 underline"
-                      >
-                        취소
-                      </button>
-                    </>
-                  )}
+                    ) : (
+                      <>
+                        <span className="text-xs text-neutral-500">카드를 눌러 고르세요 ({delPick.size}종)</span>
+                        <button
+                          type="button"
+                          onClick={() => setDelPick(new Set(sim.album.map((a) => `${a.s}|${a.n}`)))}
+                          className="text-xs text-neutral-500 underline"
+                        >
+                          전체 선택
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDelPick(new Set())}
+                          className="text-xs text-neutral-500 underline"
+                        >
+                          전체 해제
+                        </button>
+                        <button
+                          type="button"
+                          onClick={removeSelected}
+                          disabled={busy || delPick.size === 0}
+                          className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white disabled:opacity-40"
+                        >
+                          {delPick.size}종 삭제
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDelMode(false);
+                            setDelPick(new Set());
+                          }}
+                          className="text-xs text-neutral-400 underline"
+                        >
+                          취소
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
                 {[...sim.album]
-                  .sort((a, b) => rankOf(b.r) - rankOf(a.r))
+                  .sort((a, b) => {
+                    if (albumSort === 'price') return usdOf(b) - usdOf(a);
+                    if (albumSort === 'recent') return sim.album.indexOf(b) - sim.album.indexOf(a);
+                    return rankOf(b.r) - rankOf(a.r);
+                  })
                   .map((a) => {
                     const cfgA = packBySlug.get(a.s);
                     const card = setCards[a.s]?.find((c) => c.n === a.n);

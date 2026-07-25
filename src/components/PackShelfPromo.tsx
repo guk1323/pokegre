@@ -32,20 +32,20 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
           onClick={onEnter}
           className="ml-auto rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white"
         >
-          카드 뽑기 →
+          팩 개봉 →
         </button>
       </div>
       <button
         type="button"
         onClick={onEnter}
-        className="group block w-full rounded-2xl border border-neutral-200 bg-white p-4 text-left transition hover:border-neutral-300 hover:bg-neutral-50"
+        className="group block w-full rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:border-neutral-300 hover:shadow"
       >
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
           {packs.map((p) => {
             const img = art[p.slug]?.boxImg || art[p.slug]?.logo;
             return (
               <div key={p.slug} className="px-1 text-center">
-                <div className="flex h-24 items-end justify-center sm:h-32">
+                <div className="flex h-24 items-end justify-center rounded-xl bg-neutral-50 px-2 pb-2 pt-3 sm:h-32">
                   {img && (
                     <img
                       src={thumb(img, 280)}

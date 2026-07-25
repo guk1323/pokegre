@@ -35,11 +35,11 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'centering', label: '센터링 측정', hint: '사진으로 측정 실행' },
   { key: 'artist', label: '작가별 조회', hint: '작가 한 명을 열 때(누구인지도 아래 순위에 집계)' },
   { key: 'sets', label: '세트별 목록 조회', hint: '세트 하나를 열 때(어느 세트인지도 아래 순위에 집계)' },
-  { key: 'packsim', label: '카드 뽑기', hint: '팩 열기 버튼(운영자 전용이라 지금은 늘 0)' },
-  { key: 'packsim_checkin', label: '뽑기 출석', hint: '하루 예산 받기(운영자 전용이라 지금은 늘 0)' },
-  { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩(운영자 전용이라 지금은 늘 0)' },
-  { key: 'packsim_value', label: '앨범 시세', hint: '앨범 탭에서 예상 가치 조회(운영자 전용이라 지금은 늘 0)' },
-  { key: 'packsim_share', label: '뽑기 자랑', hint: '팩 결과를 커뮤니티에 공유(운영자 전용이라 지금은 늘 0)' },
+  { key: 'packsim', label: '팩 개봉', hint: '팩 열기 버튼' },
+  { key: 'packsim_checkin', label: '개봉 출석', hint: '출석 보상 받기' },
+  { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩' },
+  { key: 'packsim_value', label: '앨범 시세', hint: '앨범 탭에서 예상 가치 조회' },
+  { key: 'packsim_share', label: '개봉 자랑', hint: '팩 결과를 커뮤니티에 공유' },
   { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
 ];
 
