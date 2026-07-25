@@ -47,7 +47,11 @@ export const JP_REGULAR: RateProfile = {
 
 // jp=true면 일본판(카드명 일본어·5장) · false면 북미판.
 // price는 한 팩 정가(원). "비싼 팩 하나 vs 싼 팩 여러 개"를 고르는 기준이라 실제 정가를 쓴다.
-// ⚠️ 정가는 시기·환율에 따라 바뀐다. 바뀌면 이 표만 고치면 된다.
+// 기준: 포켓몬센터 공식 정가(사용자 확인, 2026-07) —
+//   일본판 일반팩 180엔(2026-04까지 출시작)·200엔(2026-05부터) ≈ 1,600원·1,800원
+//   일본판 하이클래스팩 550엔(10장) ≈ 4,900원 (전용 확률 프로필 만들 때 쓸 것)
+//   북미판 부스터 $4.49 ≈ 6,500원 (특별세트도 정가는 같다)
+// ⚠️ 정가·환율이 바뀌면 이 표만 고치면 된다.
 export type PackSet = {
   slug: string;
   label: string;
@@ -56,7 +60,7 @@ export type PackSet = {
   profile: RateProfile;
   price: number;
 };
-const JP = (id: string, name: string, price = 2000): PackSet => ({
+const JP = (id: string, name: string, price = 1600): PackSet => ({
   slug: `ja-${id}`,
   label: `[일본판] ${name}`,
   src: `/packsim/ja-${id}.json`,
@@ -64,7 +68,7 @@ const JP = (id: string, name: string, price = 2000): PackSet => ({
   profile: JP_REGULAR,
   price,
 });
-const NA = (id: string, name: string, profile = NA_REGULAR, price = 7000): PackSet => ({
+const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500): PackSet => ({
   slug: `en-${id}`,
   label: `[북미판] ${name}`,
   src: `/sets/en-${id}.json`,
@@ -87,16 +91,16 @@ export const PACK_SETS: PackSet[] = [
   JP('SV7', '스텔라미라클'),
   JP('SV6', '변환의 가면'),
   JP('SV3', '흑염의 지배자'),
-  JP('SV2a', '포켓몬 카드 151', 2500), // 인기 세트라 정가보다 비싸게 거래된다
+  JP('SV2a', '포켓몬 카드 151'), // 시장가는 정가보다 높지만, 표는 정가 기준으로 통일
   // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
   NA('me01', 'Mega Evolution'),
   NA('sv10', 'Destined Rivals'),
   NA('sv09', 'Journey Together'),
-  NA('sv08.5', 'Prismatic Evolutions', NA_SPECIAL, 9000), // 특별세트, 실제로 더 비싸다
+  NA('sv08.5', 'Prismatic Evolutions', NA_SPECIAL), // 확률만 특별(SAR 2배), 정가는 같다
   NA('sv08', 'Surging Sparks'),
   NA('sv07', 'Stellar Crown'),
   NA('sv06', 'Twilight Masquerade'),
-  NA('sv03.5', '151', NA_SPECIAL, 9000),
+  NA('sv03.5', '151', NA_SPECIAL),
   NA('sv03', 'Obsidian Flames'),
   // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
@@ -139,7 +143,7 @@ export const LIVE_PACKS = ACTIVE_SLUGS.map((s) => packBySlug.get(s)).filter((p):
 export const isLive = (slug: string) => ACTIVE_SLUGS.includes(slug);
 
 // ── 예산(출석) 규칙 ────────────────────────────────────────────────────────
-// 숫자를 바꾸고 싶으면 여기만 고치면 된다. 하루치로 일본판 15팩 / 북미 특별팩 3팩쯤
+// 숫자를 바꾸고 싶으면 여기만 고치면 된다. 하루치로 일본판 18팩 / 북미판 4팩쯤
 // 살 수 있게 잡았다 — "뭘 살지" 고민이 생기는 선. 더 적으면 선택이 없고, 더 많으면
 // 아무거나 다 살 수 있어서 역시 선택이 사라진다.
 export const DAILY_BUDGET = 30000;
@@ -147,7 +151,7 @@ export const FIRST_BONUS = 50000; // 처음 출석하면 바로 여러 팩을 �
 export const STREAK_DAYS = 7; // 연속 출석 보너스 주기
 export const STREAK_BONUS = 30000;
 // 안 들어온 날짜만큼 무한정 쌓이면 어느 날 한 번에 털고 다시 안 온다. 상한을 두면
-// "모았으니 이제 쓰자"가 되고, 그래도 북미 특별팩 30개를 한 번에 지를 수 있다.
+// "모았으니 이제 쓰자"가 되고, 그래도 북미판 부스터 46개를 한 번에 지를 수 있다.
 export const MAX_BALANCE = 300000;
 
 // ── 갓팩 ──────────────────────────────────────────────────────────────────
