@@ -539,9 +539,9 @@ export function PackSim({
                             e.stopPropagation();
                             onOpenSet(s2.slug);
                           }}
-                          className="mt-1.5 text-xs text-neutral-500 underline"
+                          className="mt-1.5 w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600"
                         >
-                          수록 카드 보기
+                          수록 카드 전체 보기
                         </button>
                       )}
                     </div>
