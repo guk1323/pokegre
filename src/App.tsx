@@ -356,6 +356,7 @@ function App() {
     setProviders([]);
     // 운영자가 로그아웃했는데 운영자 전용 화면이 그대로 열려 있으면 빈 화면만 남는다.
     // (세트별 목록은 공개 화면이라 제외 — 로그아웃해도 그대로 볼 수 있다.)
+    // packsim은 이제 이용자 화면이지만 로그인 필요라, 로그아웃하면 홈으로 보낸다.
     if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'packsim') setView('cards');
   }
 
@@ -808,7 +809,7 @@ function App() {
                     type="button"
                     onClick={() => setOpenMenu(openMenu === 'more' ? null : 'more')}
                     className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                      view === 'artists' || view === 'sets' || view === 'centering'
+                      view === 'artists' || view === 'sets' || view === 'centering' || view === 'packsim'
                         ? 'bg-black text-white'
                         : 'text-neutral-600 hover:bg-neutral-100'
                     }`}
@@ -821,6 +822,7 @@ function App() {
                         { v: 'artists', label: '작가별 목록' },
                         { v: 'sets', label: '세트별 목록', beta: true },
                         { v: 'centering', label: '센터링 측정', beta: true },
+                        { v: 'packsim', label: '카드 뽑기', beta: true },
                       ] as { v: MainView; label: string; beta?: boolean }[]).map((it) => (
                         <button
                           key={it.v}
@@ -857,7 +859,7 @@ function App() {
                       type="button"
                       onClick={() => setOpenMenu(openMenu === 'admin' ? null : 'admin')}
                       className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                        view === 'reports' || view === 'stats' || view === 'scantest' || view === 'packsim'
+                        view === 'reports' || view === 'stats' || view === 'scantest'
                           ? 'bg-black text-white'
                           : 'text-neutral-600 hover:bg-neutral-100'
                       }`}
@@ -870,7 +872,6 @@ function App() {
                           { v: 'reports', label: '신고함' },
                           { v: 'stats', label: '통계' },
                           { v: 'scantest', label: '스캔 테스트' },
-                          { v: 'packsim', label: '카드 뽑기' },
                         ] as { v: MainView; label: string }[]).map((it) => (
                           <button
                             key={it.v}

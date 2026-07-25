@@ -16,7 +16,7 @@ import {
   type PackSet,
 } from '../lib/packSets';
 
-// 운영자 전용 카드 뽑기(실험). 출석으로 받은 예산으로 팩을 사서 열고, 나온 카드를
+// 카드 뽑기(베타). 출석으로 받은 예산으로 팩을 사서 열고, 나온 카드를
 // 앨범에 모은다. 뽑기·예산 계산은 전부 서버가 한다(화면에서 하면 얼마든지 조작 가능).
 // 확률은 커뮤니티 실측 집계(공식 발표는 없음)라 재미용 근사치다.
 
@@ -314,7 +314,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   return (
     <div>
       <h2 className="text-base font-bold text-black">
-        카드 뽑기 <span className="align-middle text-[11px] font-semibold text-amber-600">운영자 · 실험</span>
+        카드 뽑기 <span className="align-middle text-[11px] font-semibold text-amber-600">베타</span>
       </h2>
 
       {/* 예산 바 */}
