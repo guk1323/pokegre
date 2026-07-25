@@ -29,17 +29,19 @@ export const NA_SPECIAL: RateProfile = {
     { rolls: [['Ultra Rare', 0.083], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
   ],
 };
-// 일본판 일반 부스터(5장) — 박스(30팩) 보장 구조를 팩당으로 환산:
-// AR 3/박스=10% · RR ~4/박스=13% · SR ~1/박스=2.8% · SAR ~1/6박스=0.56% · UR(HR) ~1/12박스=0.28%.
+// 일본판 일반 부스터(5장) — 박스(30팩) 보장 스펙(사용자 제공, 2026-07)을 팩당으로 환산:
+// AR 3장/박스=10% · RR 4~5장/박스=15% · SR이상 합계 1장/박스 보장(≈3.4%).
+// 그중 SAR+금UR은 3~4박스당 1장 — SAR이 대부분(세트당 SAR 6종 vs 금UR 3종)이라
+// SAR ≈4.8박스당 1장(0.7%), 금UR ≈11박스당 1장(0.3%), 나머지는 SR(풀아트).
 export const JP_REGULAR: RateProfile = {
   commons: 3,
   uncommons: 1,
   slots: [
     {
       rolls: [
-        ['Hyper rare', 0.0028],
-        ['Special illustration rare', 0.0056],
-        ['Ultra Rare', 0.0277],
+        ['Hyper rare', 0.003],
+        ['Special illustration rare', 0.007],
+        ['Ultra Rare', 0.0233],
         ['Illustration rare', 0.1],
         ['Double rare', 0.15],
       ],
