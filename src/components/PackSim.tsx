@@ -278,7 +278,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   const affordable = !!sim && (!spend || sim.balance >= cfg.price);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <h2 className="text-base font-bold text-black">
         카드 뽑기 <span className="align-middle text-[11px] font-semibold text-amber-600">운영자 · 실험</span>
       </h2>
@@ -327,36 +327,68 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
 
       {tab === 'open' && (
         <>
-          {/* 팩 진열장 — 가게에서 고르듯 상자 사진을 보고 고른다 */}
-          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {LIVE_PACKS.map((s) => {
-              const on = s.slug === slug;
-              const img = art[s.slug]?.boxImg || art[s.slug]?.logo;
-              return (
-                <button
-                  key={s.slug}
-                  type="button"
-                  onClick={() => {
-                    setSlug(s.slug);
-                    setPack(null);
-                    setKeptMsg('');
-                  }}
-                  className={`rounded-xl border p-2 text-left transition ${
-                    on ? 'border-black bg-neutral-50 ring-2 ring-black' : 'border-neutral-200 hover:bg-neutral-50'
-                  }`}
-                >
-                  <div className="flex h-16 items-center justify-center">
-                    {img && <img src={thumb(img, 160)} alt="" loading="lazy" className="max-h-16 object-contain" />}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-tight text-neutral-700">
-                    {s.label.replace(/^\[.+?\]\s*/, '')}
-                  </p>
-                  <p className="text-[10px] text-neutral-400">
-                    {s.jp ? '일본판 5장' : '북미판 10장'} · {won(s.price)}
-                  </p>
-                </button>
-              );
-            })}
+          {/* 팩 진열장 — 가게 가판대처럼. 일본판·북미판 두 줄, 상자들이 나무 선반 위에 서 있고
+              선반 아래에 가격 스티커가 붙는다. 상자를 누르면 살짝 떠오르며 선택된다. */}
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50 via-orange-50 to-amber-100 px-4 pb-4 pt-3 shadow-inner">
+            {/* 차양 줄무늬 */}
+            <div className="mx-auto mb-3 h-3 w-44 rounded-b-xl bg-[repeating-linear-gradient(90deg,#f87171_0_14px,#ffffff_14px_28px)] shadow-sm" />
+            {[
+              { label: '🇯🇵 일본판 · 한 팩 5장', packs: LIVE_PACKS.filter((p) => p.jp) },
+              { label: '🇺🇸 북미판 · 한 팩 10장', packs: LIVE_PACKS.filter((p) => !p.jp) },
+            ].map((row) => (
+              <div key={row.label} className="mb-3 last:mb-0">
+                <p className="mb-1 text-[11px] font-bold tracking-wide text-amber-800/80">{row.label}</p>
+                <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3">
+                  {row.packs.map((s2) => {
+                    const on = s2.slug === slug;
+                    const img = art[s2.slug]?.boxImg || art[s2.slug]?.logo;
+                    return (
+                      <button
+                        key={s2.slug}
+                        type="button"
+                        onClick={() => {
+                          setSlug(s2.slug);
+                          setPack(null);
+                          setKeptMsg('');
+                        }}
+                        className="group px-2 pt-2 text-center"
+                      >
+                        <div className={`flex h-28 items-end justify-center sm:h-36 ${on ? '' : ''}`}>
+                          {img && (
+                            <img
+                              src={thumb(img, 280)}
+                              alt=""
+                              loading="lazy"
+                              className={`max-h-28 object-contain drop-shadow-lg transition sm:max-h-36 ${
+                                on ? '-translate-y-2 scale-105' : 'group-hover:-translate-y-1'
+                              }`}
+                            />
+                          )}
+                        </div>
+                        {/* 나무 선반(칸끼리 붙어 한 판처럼 보인다) */}
+                        <div className="h-3 w-full bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 shadow-[0_3px_5px_rgba(120,53,15,0.35)]" />
+                        <div className="pt-1.5">
+                          <span
+                            className={`inline-block -rotate-2 rounded-md px-2 py-0.5 text-[12px] font-black shadow-sm ${
+                              on ? 'bg-black text-amber-300 ring-2 ring-amber-500' : 'bg-yellow-300 text-amber-900'
+                            }`}
+                          >
+                            {won(s2.price)}
+                          </span>
+                          <p
+                            className={`mt-1 line-clamp-1 text-[12px] leading-tight ${
+                              on ? 'font-extrabold text-black' : 'font-semibold text-neutral-600'
+                            }`}
+                          >
+                            {s2.label.replace(/^\[.+?\]\s*/, '')}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -445,7 +477,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
           )}
 
           {pack && (
-            <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
+            <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
               {pack.map((c, i) => (
                 <CardSlot
                   key={i}
@@ -546,7 +578,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
                 {[...sim.album]
                   .sort((a, b) => rankOf(b.r) - rankOf(a.r))
                   .map((a) => {

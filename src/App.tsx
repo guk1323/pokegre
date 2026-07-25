@@ -928,9 +928,7 @@ function App() {
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (
-            <div className="mx-auto max-w-4xl">
-              <CenteringTool onSearchByPhoto={searchByPhoto} />
-            </div>
+            <CenteringTool onSearchByPhoto={searchByPhoto} />
           ) : view === 'artists' ? (
             <ArtistsView
               onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
