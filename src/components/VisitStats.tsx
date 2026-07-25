@@ -38,6 +38,7 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'packsim', label: '카드 뽑기', hint: '팩 열기 버튼(운영자 전용이라 지금은 늘 0)' },
   { key: 'packsim_checkin', label: '뽑기 출석', hint: '하루 예산 받기(운영자 전용이라 지금은 늘 0)' },
   { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩(운영자 전용이라 지금은 늘 0)' },
+  { key: 'packsim_value', label: '앨범 시세', hint: '앨범 탭에서 예상 가치 조회(운영자 전용이라 지금은 늘 0)' },
   { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
 ];
 

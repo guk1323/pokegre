@@ -12,6 +12,7 @@ import {
   STREAK_DAYS,
   isLive,
   packBySlug,
+  PPT_SET_NAMES,
 } from '../src/lib/packSets.ts'
 import { drawPack, usableCards, type PackCard } from '../src/lib/packDraw.ts'
 
@@ -1093,7 +1094,7 @@ const MAX_SET_KEYS = 500
 // sets=세트별 목록에서 세트 열람, ebay_korean=이베이 한글판 시세 조회.
 const ALLOWED_EVENTS = new Set([
   'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'ebay_korean',
-  'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack',
+  'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -2508,6 +2509,40 @@ async function readPackCards(src: string): Promise<PackCard[]> {
   return []
 }
 
+// ── 앨범 시세 ─────────────────────────────────────────────────────────────
+// 세트 하나의 카드 시세(TCGplayer 마켓가, USD)를 PPT에서 받아 하루 캐시한다.
+// PPT는 분당 제한이 빡빡해서(연속 2~3콜에 429) 세트 단위로 한 번에 받고(limit=250),
+// 캐시가 있으면 크레딧을 아예 안 쓴다. 카드번호는 "174/086" 꼴이라 앞자리만 쓴다.
+const packPriceCache = new Map<string, { at: number; prices: Record<string, number> }>()
+const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
+const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
+
+async function getSetPrices(slug: string, apiKey: string): Promise<Record<string, number> | null> {
+  const setName = PPT_SET_NAMES[slug]
+  if (!setName || !apiKey) return null
+  const hit = packPriceCache.get(slug)
+  if (hit && Date.now() - hit.at < PACK_PRICE_TTL_MS) return hit.prices
+  try {
+    const r = await fetch(
+      `${PRICE_TRACKER_ORIGIN}/cards?language=${slug.startsWith('ja-') ? 'japanese' : 'english'}&setName=${encodeURIComponent(setName)}&limit=250`,
+      { headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` } },
+    )
+    if (!r.ok) return hit?.prices ?? null // 429 등이면 만료된 캐시라도 쓴다
+    const j = (await r.json()) as { data?: { cardNumber?: string; prices?: { market?: number } }[] }
+    const list = Array.isArray(j.data) ? j.data : []
+    const prices: Record<string, number> = {}
+    for (const c of list) {
+      const num = stripZeros(String(c.cardNumber ?? '').split('/')[0])
+      const market = c.prices?.market ?? 0
+      if (num && market > 0) prices[num] = market
+    }
+    packPriceCache.set(slug, { at: Date.now(), prices })
+    return prices
+  } catch {
+    return hit?.prices ?? null
+  }
+}
+
 // 앨범에 넣는다. 같은 카드는 장수만 올린다.
 function addToAlbum(store: PackSimStore, slug: string, cards: PackCard[], god: boolean) {
   for (const c of cards) {
@@ -2651,6 +2686,7 @@ function mountAuth(
   clientSecret: string,
   naverClientId: string,
   naverClientSecret: string,
+  pptApiKey: string, // 앨범 시세(카드 뽑기)용 PPT 키
 ) {
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
   // 콜백이 돌아올 때만 지워져서, 로그인하다 그만두면 영원히 남는다. 인증도 필요 없는
@@ -2920,6 +2956,60 @@ function mountAuth(
         return
       }
 
+      // POST /packsim/album/remove — 앨범에서 카드를 뺀다.
+      // all=true면 그 카드를 통째로, 아니면 한 장만 줄인다(중복 정리용).
+      if (segments[0] === 'packsim' && segments[1] === 'album' && segments[2] === 'remove' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!isAdmin(user)) {
+          sendJson(res, 403, { error: 'admin only' })
+          return
+        }
+        const body = JSON.parse((await readBody(req)) || '{}') as { s?: unknown; n?: unknown; all?: unknown }
+        const store = await getPacksim(user!.id)
+        const slug = String(body.s ?? '')
+        const num = String(body.n ?? '')
+        const i = store.album.findIndex((a) => a.s === slug && a.n === num)
+        if (i < 0) {
+          sendJson(res, 404, { error: 'not in album' })
+          return
+        }
+        if (body.all === true || store.album[i].c <= 1) store.album.splice(i, 1)
+        else store.album[i].c -= 1
+        await persistPacksim()
+        sendJson(res, 200, { album: store.album })
+        return
+      }
+
+      // GET /packsim/value — 앨범 카드들의 시세(TCGplayer 마켓가, USD)와 합계.
+      // 환율 변환은 화면이 한다(이미 쓰는 환율 API가 있다).
+      if (segments[0] === 'packsim' && segments[1] === 'value' && req.method === 'GET') {
+        const user = await currentUser(req)
+        if (!isAdmin(user)) {
+          sendJson(res, 403, { error: 'admin only' })
+          return
+        }
+        const store = await getPacksim(user!.id)
+        const slugs = [...new Set(store.album.map((a) => a.s))]
+        const prices: Record<string, Record<string, number>> = {}
+        for (const slug of slugs) {
+          const p = await getSetPrices(slug, pptApiKey)
+          if (p) prices[slug] = p
+          // 캐시가 없어서 진짜 PPT를 부른 직후엔 잠깐 쉰다(연속 호출 429 방지).
+          if (p && !packPriceCache.get(slug)) await new Promise((r) => setTimeout(r, 1200))
+        }
+        let totalUsd = 0
+        let priced = 0
+        for (const a of store.album) {
+          const usd = prices[a.s]?.[stripZeros(a.n)] ?? 0
+          if (usd > 0) {
+            totalUsd += usd * a.c
+            priced++
+          }
+        }
+        sendJson(res, 200, { prices, totalUsd: Math.round(totalUsd * 100) / 100, priced, totalKinds: store.album.length })
+        return
+      }
+
       // ── 네이버 ────────────────────────────────────────────────────────────
       // 카카오와 흐름은 같지만 다른 점이 셋 있다. 토큰을 받을 때 state를 다시 보내야
       // 하고, 회원번호가 response 안에 한 겹 들어있고, 토큰 요청이 GET이다.
@@ -3149,5 +3239,6 @@ export function mountApi(app: Mountable, env: ApiEnv) {
     env.KAKAO_CLIENT_SECRET ?? '',
     env.NAVER_CLIENT_ID ?? '',
     env.NAVER_CLIENT_SECRET ?? '',
+    env.POKEMON_PRICE_TRACKER_API_KEY ?? '',
   )
 }

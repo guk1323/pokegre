@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { trackEvent } from '../api/localStats';
+import { fetchExchangeRates, formatKrwApprox, type ExchangeRates } from '../api/exchangeRate';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 import { koreanizeTitle } from '../lib/koreanizeTitle';
 import { rankOf, type PackCard } from '../lib/packDraw';
@@ -90,6 +91,9 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
   const [setCards, setSetCards] = useState<Record<string, PackCard[]>>({});
   // 팩 진열용 이미지(박스 사진·로고). public/sets/index.json에 이미 들어 있다.
   const [art, setArt] = useState<Record<string, { boxImg?: string; logo?: string }>>({});
+  // 앨범 시세(세트→번호→USD). 합계와 카드별 표시에 쓴다.
+  const [value, setValue] = useState<{ prices: Record<string, Record<string, number>>; totalUsd: number; priced: number } | null>(null);
+  const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<string>>(new Set());
   const [keptMsg, setKeptMsg] = useState('');
@@ -186,10 +190,33 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
     }
   }
 
-  // 앨범 탭: 앨범에 든 세트의 카드 목록을 받아 이름·이미지를 붙인다.
+  // 앨범에서 카드 빼기. all=true면 통째로, 아니면 중복 한 장만 줄인다.
+  async function removeFromAlbum(a: AlbumCard, all: boolean) {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/local/auth/packsim/album/remove', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s: a.s, n: a.n, all }),
+      });
+      const d = (await r.json()) as { album?: AlbumCard[] };
+      if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 앨범 탭: 앨범에 든 세트의 카드 목록을 받아 이름·이미지를 붙인다. 시세·환율도 같이.
   useEffect(() => {
     if (tab !== 'album' || !sim) return;
     void load();
+    trackEvent('packsim_value');
+    void fetch('/api/local/auth/packsim/value', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setValue(d as typeof value))
+      .catch(() => undefined);
+    void fetchExchangeRates().then(setRates).catch(() => undefined);
     const need = [...new Set(sim.album.map((a) => a.s))].filter((s) => !setCards[s]);
     for (const s of need) {
       const src = packBySlug.get(s)?.src;
@@ -203,6 +230,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
+  const usdOf = (a: AlbumCard) => value?.prices[a.s]?.[a.n.replace(/^0+/, '') || '0'] ?? 0;
   const koName = (jp: boolean, name: string) =>
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
   const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
@@ -410,10 +438,23 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
             <p className="text-sm text-neutral-400">아직 모은 카드가 없어요. 팩을 열어보세요.</p>
           ) : (
             <>
-              <p className="mb-3 text-xs text-neutral-400">
-                모은 카드 {sim.album.length}종 · 총 {sim.album.reduce((a, b) => a + b.c, 0)}장 · 쓴 돈{' '}
-                {won(sim.spent)}
-              </p>
+              <div className="mb-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                <p className="text-xs text-neutral-400">
+                  모은 카드 {sim.album.length}종 · 총 {sim.album.reduce((a, b) => a + b.c, 0)}장 · 쓴 돈{' '}
+                  {won(sim.spent)}
+                </p>
+                {value && value.totalUsd > 0 && (
+                  <p className="mt-1 text-sm font-bold text-black">
+                    앨범 예상 가치{' '}
+                    {rates ? `${formatKrwApprox(value.totalUsd * rates.usdToKrw)} ` : ''}
+                    <span className="font-semibold text-neutral-500">(${value.totalUsd.toLocaleString()})</span>
+                  </p>
+                )}
+                <p className="mt-0.5 text-[10px] text-neutral-400">
+                  TCGplayer 마켓가 기준 참고용 추정치{value && value.priced < sim.album.length ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외` : ''}
+                  {rates ? ` · ${rates.date} 환율` : ''}
+                </p>
+              </div>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                 {[...sim.album]
                   .sort((a, b) => rankOf(b.r) - rankOf(a.r))
@@ -436,15 +477,41 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
                           {meta.ko}
                           {a.g ? ' ✨' : ''}
                         </p>
-                        {onPickCard && name && (
+                        {usdOf(a) > 0 && (
+                          <p className="text-[10px] font-semibold text-emerald-700">
+                            {rates ? formatKrwApprox(usdOf(a) * rates.usdToKrw) : `$${usdOf(a)}`}
+                            {a.c > 1 ? ` ×${a.c}` : ''}
+                          </p>
+                        )}
+                        <div className="mt-0.5 flex items-center gap-2">
+                          {onPickCard && name && (
+                            <button
+                              type="button"
+                              onClick={() => onPickCard(name)}
+                              className="text-[10px] text-neutral-500 underline"
+                            >
+                              시세
+                            </button>
+                          )}
+                          {a.c > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeFromAlbum(a, false)}
+                              disabled={busy}
+                              className="text-[10px] text-neutral-400 underline disabled:opacity-40"
+                            >
+                              1장 빼기
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => onPickCard(name)}
-                            className="mt-0.5 text-[10px] text-neutral-500 underline"
+                            onClick={() => removeFromAlbum(a, true)}
+                            disabled={busy}
+                            className="text-[10px] text-rose-400 underline disabled:opacity-40"
                           >
-                            시세 보기
+                            삭제
                           </button>
-                        )}
+                        </div>
                       </div>
                     );
                   })}

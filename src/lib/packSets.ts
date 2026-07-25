@@ -115,6 +115,23 @@ export const ACTIVE_SLUGS = [
   'en-sv03.5', // 북미 151
 ];
 
+// PPT(PokemonPriceTracker)에서 이 세트를 부르는 이름. 앨범 시세 계산에 쓴다.
+// ⚠️ 전부 PPT API로 직접 확인한 이름만 적는다(추측 금지 — 여기 없는 세트는 시세 표시가
+// 안 될 뿐이다). 새 팩을 진열하면 PPT에서 세트명을 확인해 여기 추가할 것.
+export const PPT_SET_NAMES: Record<string, string> = {
+  'ja-M4': 'M4: Ninja Spinner',
+  'ja-SV11B': 'SV11B: Black Bolt',
+  'ja-SV2a': 'SV2a: Pokemon Card 151',
+  'ja-SV8': 'SV8: Super Electric Breaker',
+  'ja-SV8a': 'SV8a: Terastal Fest ex',
+  'en-sv10': 'SV10: Destined Rivals',
+  'en-sv08.5': 'SV: Prismatic Evolutions',
+  'en-sv03.5': 'SV: Scarlet & Violet 151',
+  'en-sv08': 'SV08: Surging Sparks',
+  'en-sv03': 'SV03: Obsidian Flames',
+  'en-me01': 'ME01: Mega Evolution',
+};
+
 // 앨범에는 지금 안 파는 팩의 카드도 남아 있으므로, 이름·이미지 조회는 전체에서 한다.
 export const packBySlug = new Map(PACK_SETS.map((p) => [p.slug, p]));
 // 화면 진열과 "이 팩 열어도 되나" 검사는 진열 중인 것만 본다.
