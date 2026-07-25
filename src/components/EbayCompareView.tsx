@@ -103,7 +103,7 @@ export function EbayCompareView({
             </tr>
             {grades.length === 0 ? (
               <tr>
-                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-400">등급별 낙찰 데이터가 없어요.</td>
+                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-400">등급별 낙찰 데이터가 없습니다.</td>
               </tr>
             ) : (
               grades.map((grade) => {
@@ -145,8 +145,8 @@ export function EbayCompareView({
         </table>
 
         <p className="mt-3 text-[11px] text-neutral-400">
-          같은 등급에서 더 싼 쪽을 초록으로 표시했어요. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 낙찰이 적어 값이
-          불확실하니 참고만 하세요. 이베이 낙찰가는 현재 적정가(없으면 중앙값) 기준이며 참고용이에요.
+          같은 등급에서 더 싼 쪽을 초록으로 표시합니다. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 낙찰이 적어 값이
+          불확실하니 참고만 하세요. 이베이 낙찰가는 현재 적정가(없으면 중앙값) 기준이며 참고용입니다.
         </p>
       </div>
     </div>

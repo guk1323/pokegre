@@ -20,7 +20,7 @@ import {
 } from './api/community';
 
 async function handleReport(action: () => Promise<void>) {
-  if (!window.confirm('이 게시물을 신고하시겠어요? 운영자가 확인 후 조치합니다.')) return;
+  if (!window.confirm('이 게시물을 신고하시겠습니까? 운영자가 확인 후 조치합니다.')) return;
   try {
     await action();
     window.alert('신고가 접수되었습니다.');
@@ -603,8 +603,8 @@ export function Community({
         heading={category === null ? '전체 게시판' : `${CATEGORY_LABEL[category]}게시판`}
         emptyText={
           category === null
-            ? '아직 글이 없어요. 첫 글을 남겨보세요!'
-            : `${CATEGORY_LABEL[category]}게시판에 아직 글이 없어요. 첫 글을 남겨보세요!`
+            ? '아직 글이 없습니다. 첫 글을 남겨보세요.'
+            : `${CATEGORY_LABEL[category]}게시판에 아직 글이 없습니다. 첫 글을 남겨보세요.`
         }
         posts={posts}
         loading={postsLoading}

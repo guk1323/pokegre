@@ -178,18 +178,18 @@ export function VisitStats() {
 
       {recent.length === 0 ? (
         <p className="text-sm text-neutral-400 py-8 text-center rounded-xl border border-dashed border-neutral-200">
-          아직 방문 기록이 없어요.
+          아직 방문 기록이 없습니다.
         </p>
       ) : (
         <BarList items={recent} max={max} />
       )}
 
       <p className="mt-4 text-xs text-neutral-400">
-        같은 브라우저는 하루 한 번만 집계됩니다. IP·기기·회원 정보는 저장하지 않아요.
+        같은 브라우저는 하루 한 번만 집계됩니다. IP·기기·회원 정보는 저장하지 않습니다.
       </p>
 
       <h2 className="text-base font-bold text-black mt-8 mb-1">기능 사용</h2>
-      <p className="text-xs text-neutral-400 mb-4">기능별 사용 횟수만 셉니다. 누가 썼는지·개인정보는 남기지 않아요.</p>
+      <p className="text-xs text-neutral-400 mb-4">기능별 사용 횟수만 셉니다. 누가 썼는지·개인정보는 남기지 않습니다.</p>
       <div className="overflow-x-auto rounded-xl border border-neutral-200">
         <table className="w-full text-sm">
           <thead>
@@ -216,16 +216,16 @@ export function VisitStats() {
         </table>
       </div>
       <p className="mt-2 text-[11px] text-neutral-400">
-        전체에는 날짜별 집계를 시작하기 전의 누적치도 포함돼요.
+        전체에는 날짜별 집계를 시작하기 전의 누적치도 포함됩니다.
       </p>
 
       <h2 className="text-base font-bold text-black mt-8 mb-1">작가별 조회 순위</h2>
       <p className="text-xs text-neutral-400 mb-4">일러스트레이터를 눌러 카드 목록을 연 횟수예요. 많이 본 순.</p>
-      <RankList items={artists} emptyText="아직 작가 조회 기록이 없어요." />
+      <RankList items={artists} emptyText="아직 작가 조회 기록이 없습니다." />
 
       <h2 className="text-base font-bold text-black mt-8 mb-1">세트별 조회 순위</h2>
       <p className="text-xs text-neutral-400 mb-4">세트별 목록에서 세트를 눌러 수록 카드를 연 횟수예요. 많이 본 순.</p>
-      <RankList items={sets} emptyText="아직 세트 조회 기록이 없어요." />
+      <RankList items={sets} emptyText="아직 세트 조회 기록이 없습니다." />
     </div>
   );
 }

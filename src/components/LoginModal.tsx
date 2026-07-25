@@ -8,7 +8,7 @@ export function LoginModal({ onClose }: { onClose: () => void }) {
       <div className="w-full max-w-xs rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-base font-bold text-black mb-1">로그인</h2>
         <p className="text-xs text-neutral-500 mb-5">
-          간편하게 시작하세요. 관심 카드를 계정에 보관하고 커뮤니티에 글을 남길 수 있어요.
+          간편하게 시작하세요. 관심 카드를 계정에 보관하고 커뮤니티에 글을 남길 수 있습니다.
         </p>
 
         {/* 각 서비스의 지정 색을 그대로 쓴다. 흑백 테마와 안 어울려 보여도, 로그인

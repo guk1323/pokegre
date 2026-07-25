@@ -193,7 +193,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
             </div>
           </div>
         </div>
-        <p className="mb-3 text-xs text-neutral-400">카드를 누르면 그 카드 시세를 검색해요.</p>
+        <p className="mb-3 text-xs text-neutral-400">카드를 누르면 그 카드 시세를 검색합니다.</p>
 
         {/* 이 작가 카드 안에서 포켓몬명으로 거르기(한글·영어) */}
         {!loading && (cards?.length ?? 0) > 0 && (
@@ -211,7 +211,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
         {loading ? (
           <p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>
         ) : filtered.length === 0 ? (
-          <p className="py-16 text-center text-sm text-neutral-400">'{cardQuery}'에 맞는 카드가 없어요.</p>
+          <p className="py-16 text-center text-sm text-neutral-400">'{cardQuery}'에 맞는 카드가 없습니다.</p>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -289,7 +289,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
       {index === null ? (
         <p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>
       ) : index.length === 0 ? (
-        <p className="py-16 text-center text-sm text-neutral-400">작가 데이터를 준비 중이에요.</p>
+        <p className="py-16 text-center text-sm text-neutral-400">작가 데이터를 준비 중입니다.</p>
       ) : (
         <ArtistList index={index} query={query} onOpen={openArtist} />
       )}
@@ -312,7 +312,7 @@ function ArtistList({
   return (
     <>
       {filtered.length === 0 ? (
-        <p className="py-16 text-center text-sm text-neutral-400">'{query}'에 맞는 작가가 없어요.</p>
+        <p className="py-16 text-center text-sm text-neutral-400">'{query}'에 맞는 작가가 없습니다.</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((a) => (

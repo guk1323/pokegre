@@ -50,7 +50,7 @@ export function KoreanEbayView({ query }: { query: string }) {
   if (err) {
     return (
       <p className="py-16 text-center text-sm text-neutral-400">
-        한글판 시세를 불러오지 못했어요. 잠시 후 다시 시도해주세요.
+        한글판 시세를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
       </p>
     );
   }
@@ -60,9 +60,9 @@ export function KoreanEbayView({ query }: { query: string }) {
   if (items.length === 0) {
     return (
       <div className="py-16 text-center">
-        <p className="text-sm font-semibold text-neutral-500">'{query}' 한글판 매물을 못 찾았어요.</p>
+        <p className="text-sm font-semibold text-neutral-500">'{query}' 한글판 매물을 찾지 못했습니다.</p>
         <p className="mt-1 text-xs text-neutral-400">
-          영어 카드명으로 검색하면 더 잘 나와요 (예: Charizard, Pikachu ex).
+          영어 카드명으로 검색하면 더 잘 나옵니다 (예: Charizard, Pikachu ex).
         </p>
       </div>
     );

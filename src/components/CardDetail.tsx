@@ -122,7 +122,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       {/* 카드 이름 한글화가 이상하면(예: 파미리마토→패밀리마트) 사용자가 알려준다.
           화면에 보인 제목과 원본 링크만 보내고, 사진·개인정보는 안 보낸다. */}
       {titleReported ? (
-        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사해요! 이름을 고칠게요.</p>
+        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사합니다. 이름을 고치겠습니다.</p>
       ) : (
         <button
           type="button"
@@ -146,7 +146,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
             <KrwHint amount={card.price} currency="jpy" showDate />
           </>
         ) : (
-          <span className="text-lg font-bold text-neutral-400">현재 매물이 없어요</span>
+          <span className="text-lg font-bold text-neutral-400">현재 매물이 없습니다</span>
         )}
       </div>
 

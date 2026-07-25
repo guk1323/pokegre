@@ -25,7 +25,7 @@ font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;background:#111;color
 .b{padding:2rem}h1{font-size:1.4rem}p{color:#aaa;font-size:.95rem;line-height:1.6}
 a{color:#666;font-size:.8rem;text-decoration:none}</style></head><body><div class="b">
 <h1>🔧 서비스 점검 중입니다</h1><p>안녕하세요, pokegre 운영자입니다.<br>
-더 나은 서비스를 위해 잠시 점검하고 있어요.<br>최대한 빠르게 마치겠습니다. 조금만 기다려 주세요!</p>
+더 나은 서비스를 위해 잠시 점검하고 있습니다.<br>최대한 빠르게 마치겠습니다. 조금만 기다려 주세요!</p>
 <p><a href="/api/local/auth/kakao">운영자 로그인</a></p></div></body></html>`
 
 app.use(async (req, res, next) => {

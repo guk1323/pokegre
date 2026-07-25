@@ -117,7 +117,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
     const res = detectCard(img, { backSide: side === 'back' });
     if (res) {
       patch(side, { outer: res.outer, inner: res.inner, autoOk: true });
-      showFlash(`${SIDE_LABEL[side]} 자동 인식 완료 ✓ (같은 사진이면 결과가 같을 수 있어요)`);
+      showFlash(`${SIDE_LABEL[side]} 자동 인식 완료 ✓ (같은 사진이면 결과가 같을 수 있습니다)`);
     } else {
       patch(side, { autoOk: false });
       showFlash(`${SIDE_LABEL[side]} 자동 인식 실패 — 네모를 직접 맞춰 주세요`);
@@ -134,7 +134,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
       streamRef.current = stream;
       setCameraOn(true);
     } catch {
-      window.alert('카메라를 열 수 없어요. 카메라 권한을 허용했는지 확인해 주세요.');
+      window.alert('카메라를 열 수 없습니다. 카메라 권한을 허용했는지 확인해 주세요.');
     }
   }
 
@@ -293,7 +293,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
       const file = new File([blob], 'card.jpg', { type: blob.type || 'image/jpeg' });
       await onSearchByPhoto(file);
     } catch (e) {
-      setScanErr(e instanceof Error ? e.message : '카드 인식에 실패했어요.');
+      setScanErr(e instanceof Error ? e.message : '카드 인식에 실패했습니다.');
     } finally {
       setScanning(false);
     }
@@ -451,7 +451,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
             </div>
             {!st.autoOk && (
               <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-[11px] font-semibold text-amber-700">
-                ⚠️ 자동 인식을 못 했어요. 어두운 배경에 한 장만 놓고 다시 찍거나, 네모를 직접 맞춰 주세요.
+                ⚠️ 자동 인식에 실패했습니다. 어두운 배경에 한 장만 놓고 다시 찍거나, 네모를 직접 맞춰 주세요.
               </div>
             )}
             {res && (
@@ -487,9 +487,9 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
       {howto && (
         <div className="mb-4 rounded-xl bg-neutral-50 p-4 text-xs text-neutral-600">
           <ol className="list-decimal space-y-1.5 pl-4">
-            <li>카드를 슬리브·케이스에서 꺼내 <b>어두운 배경</b>에 한 장만 놓고, 기울지 않게 똑바로 찍어요.</li>
-            <li><span className="font-semibold text-[#2a78d6]">파란 네모</span>(카드 테두리)·<span className="font-semibold text-emerald-600">초록 네모</span>(일러스트 테두리)가 자동으로 얹혀요. 빗나가면 <b>모서리를 잡아 직접 맞추면</b> 돼요.</li>
-            <li><b>앞·뒷면 모두</b> 재면 회사별 종합 등급이 나와요. 참고용이에요.</li>
+            <li>카드를 슬리브·케이스에서 꺼내 <b>어두운 배경</b>에 한 장만 놓고, 기울지 않게 똑바로 찍습니다.</li>
+            <li><span className="font-semibold text-[#2a78d6]">파란 네모</span>(카드 테두리)·<span className="font-semibold text-emerald-600">초록 네모</span>(일러스트 테두리)가 자동으로 얹힙니다. 빗나가면 <b>모서리를 잡아 직접 맞추면</b> 됩니다.</li>
+            <li><b>앞·뒷면 모두</b> 재면 회사별 종합 등급이 나옵니다. 참고용입니다.</li>
           </ol>
         </div>
       )}

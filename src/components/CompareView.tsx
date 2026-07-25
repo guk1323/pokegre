@@ -186,7 +186,7 @@ export function CompareView({
               </tr>
             ) : orderedConds.length === 0 ? (
               <tr>
-                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-400">상태·등급별 매물 정보가 없어요.</td>
+                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-400">상태·등급별 매물 정보가 없습니다.</td>
               </tr>
             ) : (
               orderedConds.map(({ code, text }) => (
@@ -207,7 +207,7 @@ export function CompareView({
         </table>
 
         <p className="mt-3 text-[11px] text-neutral-400">
-          최저가가 더 싼 쪽을 초록으로, 시세 추이는 오름 ▲빨강 / 내림 ▼초록으로 표시했어요. 참고용이며 실제 거래가와 다를 수 있어요.
+          최저가가 더 싼 쪽을 초록으로, 시세 추이는 오름 ▲빨강 / 내림 ▼초록으로 표시합니다. 참고용이며 실제 거래가와 다를 수 있습니다.
         </p>
       </div>
     </div>

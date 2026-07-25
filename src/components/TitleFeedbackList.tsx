@@ -67,7 +67,7 @@ export function TitleFeedbackList() {
         <p className="text-sm text-neutral-400 py-8 text-center">신고 목록을 불러오지 못했습니다.</p>
       ) : items.length === 0 ? (
         <p className="text-sm text-neutral-400 py-8 text-center rounded-xl border border-dashed border-neutral-200">
-          신고가 없어요. (처리 완료)
+          신고가 없습니다. (처리 완료)
         </p>
       ) : (
         <ul className="space-y-2">

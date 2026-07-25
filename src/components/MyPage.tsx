@@ -38,7 +38,7 @@ function LoginMethods({
     } catch (e) {
       window.alert(
         e instanceof Error && e.message === UNLINK_LAST
-          ? '마지막 로그인 수단은 해제할 수 없어요. 해제하면 계정에 들어올 방법이 없어집니다.'
+          ? '마지막 로그인 수단은 해제할 수 없습니다. 해제하면 계정에 들어올 방법이 없어집니다.'
           : '해제하지 못했습니다.',
       );
     } finally {
@@ -189,7 +189,7 @@ function AccountCard({
         <div className="min-w-0">
           <p className="text-sm font-bold text-black mb-1">로그인하고 시작하기</p>
           <p className="text-xs text-neutral-500">
-            관심 카드를 계정에 보관하고 커뮤니티에 글을 남길 수 있어요.
+            관심 카드를 계정에 보관하고 커뮤니티에 글을 남길 수 있습니다.
           </p>
         </div>
         <button
@@ -307,7 +307,7 @@ export function MyPage({
       <CardRow
         title="최근 본 카드"
         items={recentlyViewed}
-        emptyText="아직 본 카드가 없어요. 카드를 검색해서 눌러보세요."
+        emptyText="아직 본 카드가 없습니다. 카드를 검색해서 눌러보세요."
         selectedId={selectedId}
         onSelect={onSelect}
         isFavorite={isFavorite}

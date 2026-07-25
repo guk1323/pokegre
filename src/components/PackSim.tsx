@@ -118,12 +118,12 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/local/auth/packsim', { credentials: 'include' });
-      if (!r.ok) return setErr('로그인하면 출석 예산으로 팩을 열 수 있어요.');
+      if (!r.ok) return setErr('로그인하면 출석 예산으로 팩을 열 수 있습니다.');
       const d = (await r.json()) as SimState;
       setSim(d);
       if (!d.admin) setSpend(true); // 일반 이용자는 항상 예산을 쓴다
     } catch {
-      setErr('불러오지 못했어요.');
+      setErr('불러오지 못했습니다.');
     }
   }, []);
   useEffect(() => {
@@ -144,7 +144,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       setSim(d);
       if (d.gained) {
         trackEvent('packsim_checkin');
-        setCheckinMsg(`오늘의 예산 ${won(d.gained)} 받았어요! (연속 ${d.streak}일)`);
+        setCheckinMsg(`오늘의 예산 ${won(d.gained)}을 받았습니다. (연속 ${d.streak}일)`);
       }
     } finally {
       setBusy(false);
@@ -168,7 +168,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       });
       const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; error?: string };
       if (!r.ok || !d.cards) {
-        setErr(d.error === 'not enough' ? '예산이 모자라요.' : '팩을 열지 못했어요.');
+        setErr(d.error === 'not enough' ? '예산이 부족합니다.' : '팩을 열지 못했습니다.');
         return;
       }
       if (d.god) trackEvent('packsim_godpack', cfg.label);
@@ -198,7 +198,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       });
       const d = (await r.json()) as { kept?: number; album?: AlbumCard[] };
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
-      setKeptMsg(d.kept ? `${d.kept}장을 앨범에 넣었어요.` : '앨범에 넣지 않고 넘겼어요.');
+      setKeptMsg(d.kept ? `${d.kept}장을 앨범에 넣었습니다.` : '앨범에 넣지 않고 넘겼습니다.');
       setPack(null);
     } finally {
       setBusy(false);
@@ -220,14 +220,14 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       });
       const d = (await r.json()) as { postId?: number; gained?: number; balance?: number; error?: string };
       if (!r.ok || !d.postId) {
-        setShare({ shared: false, msg: d.error === 'already shared' ? '이미 자랑한 팩이에요.' : '올리지 못했어요.' });
+        setShare({ shared: false, msg: d.error === 'already shared' ? '이미 자랑한 팩입니다.' : '올리지 못했습니다.' });
         return;
       }
       trackEvent('packsim_share');
       if (typeof d.balance === 'number') setSim((s2) => (s2 ? { ...s2, balance: d.balance! } : s2));
       setShare({
         shared: true,
-        msg: d.gained ? `커뮤니티에 올렸어요! 자랑 보상 +${won(d.gained)} (하루 1번)` : '커뮤니티에 올렸어요!',
+        msg: d.gained ? `커뮤니티에 올렸습니다. 자랑 보상 +${won(d.gained)} (하루 1번)` : '커뮤니티에 올렸습니다.',
       });
     } finally {
       setBusy(false);
@@ -237,7 +237,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   // 선택한 카드들을 앨범에서 지운다(중복 포함 통째로). 확인을 한 번 받는다.
   async function removeSelected() {
     if (delPick.size === 0) return;
-    if (!window.confirm(`선택한 ${delPick.size}종을 앨범에서 삭제할까요? 중복으로 모은 것도 같이 빠져요.`)) return;
+    if (!window.confirm(`선택한 ${delPick.size}종을 앨범에서 삭제하시겠습니까? 중복으로 모은 것도 함께 삭제됩니다.`)) return;
     setBusy(true);
     try {
       const items = [...delPick].map((k) => {
@@ -314,7 +314,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   return (
     <div>
       <h2 className="text-base font-bold text-black">
-        카드 뽑기 <span className="align-middle text-[11px] font-semibold text-amber-600">베타</span>
+        카드 뽑기
       </h2>
 
       {/* 예산 바 */}
@@ -451,7 +451,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                 예산 쓰기 (끄면 운영자 무제한)
               </label>
             )}
-            {!affordable && <span className="text-xs text-rose-500">예산이 모자라요</span>}
+            {!affordable && <span className="text-xs text-rose-500">예산이 부족합니다</span>}
           </div>
           <p className="mt-2 text-xs text-neutral-400">
             비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, 예산은 서비스 안에서만
@@ -461,7 +461,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
 
           {god && (
             <div className="mt-4 animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-3 text-center text-base font-black text-black">
-              ✨ 갓팩! 전부 AR 이상이에요 ✨
+              ✨ 갓팩! 전부 AR 이상입니다 ✨
             </div>
           )}
 
@@ -547,7 +547,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       {tab === 'album' && (
         <div className="mt-4">
           {!sim?.album.length ? (
-            <p className="text-sm text-neutral-400">아직 모은 카드가 없어요. 팩을 열어보세요.</p>
+            <p className="text-sm text-neutral-400">아직 모은 카드가 없습니다. 팩을 열어보세요.</p>
           ) : (
             <>
               <div className="mb-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
@@ -568,7 +568,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                 </p>
                 {!!value?.pending?.length && (
                   <p className="mt-0.5 text-[10px] font-semibold text-amber-600">
-                    세트 {value.pending.length}개 시세를 준비하는 중이에요. 잠시 뒤 자동으로 채워져요(다음부터는 바로 떠요).
+                    세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.
                   </p>
                 )}
                 <div className="mt-2 flex items-center gap-2">
@@ -735,7 +735,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
           <p className="mt-4 text-xs text-neutral-500">
             표에 없는 자리는 커먼·언커먼·레어로 채웁니다. 예산은 출석하면 하루 {won(DAILY_BUDGET)}, 다음 날로
             이월되고 최대 {won(MAX_BALANCE)}까지 쌓입니다. {STREAK_DAYS}일 연속 출석하면 {won(STREAK_BONUS)}을 더
-            드려요.
+            드립니다.
           </p>
         </div>
       )}

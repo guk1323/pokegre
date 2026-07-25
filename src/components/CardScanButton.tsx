@@ -6,7 +6,7 @@ export function CardScanButton({
   onResult,
 }: {
   // 소스별로 다른 검색어를 준다. SNKRDUNK는 언어 무관한 "세트+번호"라 항상 확실하고,
-  // 이베이는 영어 이름이 필요하다. App이 소스에 맞춰 고른다. result는 "틀렸어요" 신고용.
+  // 이베이는 영어 이름이 필요하다. App이 소스에 맞춰 고른다. result는 "틀렸습니다" 신고용.
   onResult: (q: {
     snkrdunk: string;
     ebay: string;
@@ -29,7 +29,7 @@ export function CardScanButton({
     try {
       const result = await scanCard(file);
       if (!result.found) {
-        setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
+        setError('카드를 인식하지 못했습니다. 다시 찍어보세요.');
         return;
       }
       // SNKRDUNK: "세트+번호"(예: M4 086/083)는 언어와 무관해 이름 오독에도 안 흔들리고
@@ -42,10 +42,10 @@ export function CardScanButton({
         // 'english'만 북미판으로, 그 외(japanese·korean 등)는 전부 일본판 시장으로.
         onResult({ snkrdunk, ebay, edition: result.edition === 'english' ? 'english' : 'japanese', result });
       } else {
-        setError('카드를 인식하지 못했어요. 다시 찍어보세요.');
+        setError('카드를 인식하지 못했습니다. 다시 찍어보세요.');
       }
     } catch {
-      setError('카드 인식에 실패했어요.');
+      setError('카드 인식에 실패했습니다.');
     } finally {
       setLoading(false);
     }

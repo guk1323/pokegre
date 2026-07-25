@@ -156,7 +156,7 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
                 <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{koSerie(selected.ed, selected.serie)}</span>
               )}
             </div>
-            <p className="mt-1.5 text-xs text-neutral-400">카드를 누르면 그 카드 시세를 검색해요.</p>
+            <p className="mt-1.5 text-xs text-neutral-400">카드를 누르면 그 카드 시세를 검색합니다.</p>
           </div>
         </div>
 
@@ -245,7 +245,7 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold text-black">세트별 목록 <span className="align-middle text-[11px] font-semibold text-amber-500">베타</span></h2>
-          <p className="mt-1 text-xs text-neutral-400">발매 팩별로 수록 카드를 봐요. 일부 세트는 이미지·이름을 다듬는 중이에요.</p>
+          <p className="mt-1 text-xs text-neutral-400">발매 팩별로 수록 카드를 볼 수 있습니다. 일부 세트는 이미지·이름을 다듬는 중입니다.</p>
         </div>
         {index && index.length > 0 && (
           <div className="relative w-full flex-shrink-0 sm:w-60 md:w-72">
@@ -309,7 +309,7 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
       ) : list.length === 0 ? (
         <div className="py-20 text-center">
           <p className="text-3xl">🔍</p>
-          <p className="mt-2 text-sm font-semibold text-neutral-500">검색 결과가 없어요</p>
+          <p className="mt-2 text-sm font-semibold text-neutral-500">검색 결과가 없습니다</p>
           <p className="mt-1 text-xs text-neutral-400">다른 이름으로 찾아보세요.</p>
         </div>
       ) : (

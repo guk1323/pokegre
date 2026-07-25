@@ -19,24 +19,24 @@ type MatchResult =
 
 async function matchExactCard(index: SetIndexEntry[], r: CardScanResult): Promise<MatchResult> {
   const numTarget = r.cardNumber ? parseInt(r.cardNumber, 10) : NaN;
-  if (!Number.isFinite(numTarget)) return { ok: false, reason: '카드 번호(예: 015/100)를 못 읽었어요.' };
+  if (!Number.isFinite(numTarget)) return { ok: false, reason: '카드 번호(예: 015/100)를 읽지 못했습니다.' };
   const code = (r.setCode ?? '').trim().toLowerCase();
-  if (!code) return { ok: false, reason: '세트 코드를 못 읽었어요.' };
+  if (!code) return { ok: false, reason: '세트 코드를 읽지 못했습니다.' };
   const ed = r.edition === 'english' ? 'en' : 'ja';
   // 같은 판(일본판/북미판)에서 세트 id가 코드와 일치하는 세트를 찾는다.
   const cand = index.filter((s) => s.ed === ed && (s.id ?? '').toLowerCase() === code);
   if (cand.length === 0) {
-    return { ok: false, reason: `세트 '${r.setCode}'(${ed === 'en' ? '북미판' : '일본판'})를 우리 목록에서 못 찾았어요.` };
+    return { ok: false, reason: `세트 '${r.setCode}'(${ed === 'en' ? '북미판' : '일본판'})를 우리 목록에서 찾지 못했습니다.` };
   }
   const set = cand[0];
   let data: { cards?: SetCard[] };
   try {
     data = await fetch(`/sets/${set.slug}.json`).then((res) => res.json());
   } catch {
-    return { ok: false, reason: `세트 데이터(${set.slug})를 불러오지 못했어요.` };
+    return { ok: false, reason: `세트 데이터(${set.slug})를 불러오지 못했습니다.` };
   }
   const card = (data.cards ?? []).find((c) => parseInt(c.n, 10) === numTarget);
-  if (!card) return { ok: false, reason: `세트 '${set.name}'에 ${numTarget}번 카드가 없어요.` };
+  if (!card) return { ok: false, reason: `세트 '${set.name}'에 ${numTarget}번 카드가 없습니다.` };
   return { ok: true, set, card };
 }
 
@@ -53,7 +53,7 @@ export function ScanTest() {
     fetch('/sets/index.json')
       .then((r) => r.json())
       .then((d: SetIndexEntry[]) => setIndex(d))
-      .catch(() => setErr('세트 목록을 불러오지 못했어요.'));
+      .catch(() => setErr('세트 목록을 불러오지 못했습니다.'));
   }, []);
 
   async function onPick(file: File) {
@@ -69,7 +69,7 @@ export function ScanTest() {
       setRaw(result);
       if (index) setMatch(await matchExactCard(index, result));
     } catch {
-      setErr('스캔에 실패했어요. 잠시 후 다시 시도해주세요.');
+      setErr('스캔에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setBusy(false);
     }

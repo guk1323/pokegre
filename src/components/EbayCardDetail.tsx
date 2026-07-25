@@ -32,7 +32,7 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
         {card.cardNumber ? ` · ${card.cardNumber}` : ''} · 낙찰 {card.totalSales.toLocaleString()}건
       </p>
       {titleReported ? (
-        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사해요! 이름을 고칠게요.</p>
+        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사합니다. 이름을 고치겠습니다.</p>
       ) : (
         <button
           type="button"

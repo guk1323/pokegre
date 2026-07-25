@@ -54,7 +54,7 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
         {card.cardNumber ? ` · ${card.cardNumber}` : ''}
       </p>
       {titleReported ? (
-        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사해요! 이름을 고칠게요.</p>
+        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사합니다. 이름을 고치겠습니다.</p>
       ) : (
         <button
           type="button"
@@ -96,7 +96,7 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
           )}
         </a>
       ) : (
-        <p className="text-sm text-neutral-400 py-8 text-center">TCGplayer 시세가 없어요.</p>
+        <p className="text-sm text-neutral-400 py-8 text-center">TCGplayer 시세가 없습니다.</p>
       )}
 
       {chartGrades.length > 0 && (

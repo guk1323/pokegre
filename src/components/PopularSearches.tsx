@@ -62,7 +62,7 @@ export function PopularSearches({
   if (items.length === 0) {
     return (
       <p className="text-sm text-neutral-400 py-12 text-center">
-        아직 쌓인 검색 기록이 없어요. 카드를 검색하면 여기에 순위가 쌓입니다.
+        아직 쌓인 검색 기록이 없습니다. 카드를 검색하면 여기에 순위가 쌓입니다.
       </p>
     );
   }

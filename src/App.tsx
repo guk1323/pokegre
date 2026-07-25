@@ -102,7 +102,7 @@ function App() {
   const [openMenu, setOpenMenu] = useState<'more' | 'admin' | null>(null);
   const [source, setSource] = useState<PriceSource>('snkrdunk');
   const [query, setQuery] = useState('');
-  // 방금 스캔한 결과. "이 카드 아니에요" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
+  // 방금 스캔한 결과. "이 카드가 아닙니다" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
   const [scannedResult, setScannedResult] = useState<CardScanResult | null>(null);
   const [scanReported, setScanReported] = useState(false);
   // 스캔이 "세트+번호"로 검색했는데 0건이면 카드 이름으로 자동 재검색하기 위한 백업 이름.
@@ -252,9 +252,9 @@ function App() {
     const link = params.get('link');
     if (link) {
       setView('mypage');
-      if (link === 'ok') window.alert('계정을 연결했어요. 이제 어느 쪽으로 로그인해도 같은 계정으로 들어옵니다.');
-      else if (link === 'taken') window.alert('이미 다른 계정에 연결된 로그인 수단이에요.');
-      else window.alert('연결하지 못했어요. 다시 시도해주세요.');
+      if (link === 'ok') window.alert('계정을 연결했습니다. 이제 어느 쪽으로 로그인해도 같은 계정으로 들어옵니다.');
+      else if (link === 'taken') window.alert('이미 다른 계정에 연결된 로그인 수단입니다.');
+      else window.alert('연결하지 못했습니다. 다시 시도해 주세요.');
     }
 
     if (params.has('setNickname') || params.has('login') || params.has('link')) {
@@ -311,7 +311,7 @@ function App() {
     trackEvent('scan');
     const result = await scanCard(file);
     if (!result.found || !(result.pokemonNameEn || result.cardNumber)) {
-      throw new Error('카드를 인식하지 못했어요. 앞면이 또렷한 사진으로 다시 해보세요.');
+      throw new Error('카드를 인식하지 못했습니다. 앞면이 또렷한 사진으로 다시 시도해 주세요.');
     }
     applyScanResult(result);
     setView('cards');
@@ -485,7 +485,7 @@ function App() {
         .catch((err: Error) => {
           setEbayError(
             err.message === EBAY_RATE_LIMITED
-              ? '시세 조회 한도를 초과했어요. 잠시 후 다시 시도해주세요.'
+              ? '시세 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.'
               : '시세를 불러오지 못했습니다.',
           );
           // 이전 검색 결과가 남아 있으면 에러 문구 아래에 엉뚱한 카드가 계속
@@ -825,7 +825,7 @@ function App() {
                         { v: 'artists', label: '작가별 목록' },
                         { v: 'sets', label: '세트별 목록', beta: true },
                         { v: 'centering', label: '센터링 측정', beta: true },
-                        { v: 'packsim', label: '카드 뽑기', beta: true },
+                        { v: 'packsim', label: '카드 뽑기' },
                       ] as { v: MainView; label: string; beta?: boolean }[]).map((it) => (
                         <button
                           key={it.v}
@@ -969,7 +969,7 @@ function App() {
                   <CardScanButton onResult={({ result }) => applyScanResult(result)} />
                 </div>
                 {scanFellBack && (
-                  <p className="text-xs text-neutral-400 mt-2">번호로 못 찾아 카드 이름으로 다시 검색했어요.</p>
+                  <p className="text-xs text-neutral-400 mt-2">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
                 )}
                 {showTranslationHint && (
                   <p className="text-xs text-neutral-400 mt-2">
@@ -980,7 +980,7 @@ function App() {
                 {scannedResult && (
                   <p className="text-xs text-neutral-400 mt-2">
                     {scanReported ? (
-                      '알려주셔서 감사해요! 개선에 참고할게요.'
+                      '알려주셔서 감사합니다. 개선에 참고하겠습니다.'
                     ) : (
                       <>
                         찾는 카드가 아닌가요?{' '}
@@ -992,7 +992,7 @@ function App() {
                           }}
                           className="font-semibold text-[#2a78d6] hover:underline"
                         >
-                          스캔이 틀렸어요
+                          스캔이 틀렸습니다
                         </button>
                       </>
                     )}

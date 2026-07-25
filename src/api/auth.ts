@@ -52,9 +52,9 @@ export async function setNickname(nickname: string): Promise<string> {
 
 export function nicknameErrorMessage(err: unknown): string {
   const code = err instanceof Error ? err.message : '';
-  if (code === NICKNAME_TAKEN) return '이미 사용 중인 닉네임이에요.';
-  if (code === NICKNAME_RESERVED) return '운영자만 쓸 수 있는 닉네임이에요.';
-  if (code === NICKNAME_BANNED) return '사용할 수 없는 단어가 들어있어요.';
+  if (code === NICKNAME_TAKEN) return '이미 사용 중인 닉네임입니다.';
+  if (code === NICKNAME_RESERVED) return '운영자만 쓸 수 있는 닉네임입니다.';
+  if (code === NICKNAME_BANNED) return '사용할 수 없는 단어가 들어있습니다.';
   return '닉네임을 저장하지 못했습니다.';
 }
 
