@@ -2513,7 +2513,7 @@ async function readPackCards(src: string): Promise<PackCard[]> {
 // 세트 하나의 카드 시세(TCGplayer 마켓가, USD)를 PPT에서 받아 하루 캐시한다.
 // PPT는 분당 제한이 빡빡해서(연속 2~3콜에 429) 세트 단위로 한 번에 받고(limit=250),
 // 캐시가 있으면 크레딧을 아예 안 쓴다. 카드번호는 "174/086" 꼴이라 앞자리만 쓴다.
-const packPriceCache = new Map<string, { at: number; prices: Record<string, number> }>()
+const packPriceCache = new Map<string, { at: number; prices: Record<string, number>; partial?: boolean }>()
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 const PACK_PRICE_FILE = dataFile('pack-prices.json')
 const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
@@ -2523,7 +2523,7 @@ const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
 // ② 서버가 뒤에서 1분 간격으로 하나씩 새로 받아 하루 한 번 갈아끼운다.
 async function loadPackPriceFile() {
   try {
-    const raw = JSON.parse(await readFile(PACK_PRICE_FILE, 'utf-8')) as Record<string, { at: number; prices: Record<string, number> }>
+    const raw = JSON.parse(await readFile(PACK_PRICE_FILE, 'utf-8')) as Record<string, { at: number; prices: Record<string, number>; partial?: boolean }>
     for (const [slug, v] of Object.entries(raw)) packPriceCache.set(slug, v)
   } catch {
     /* 처음엔 없다 */
@@ -2541,15 +2541,21 @@ async function warmPackPrices(apiKey: string) {
   try {
     for (const slug of Object.keys(PPT_SET_NAMES)) {
       const hit = packPriceCache.get(slug)
-      if (hit && Date.now() - hit.at < PACK_PRICE_TTL_MS) continue
+      if (hit && !hit.partial && Date.now() - hit.at < PACK_PRICE_TTL_MS) continue
       await getSetPrices(slug, apiKey, { pages: 3, pauseMs: 70_000 })
       await savePackPriceFile()
-      // 세트 하나가 크레딧 250, 분당 한도가 500이라 70초씩 띄운다.
+      // 페이지 하나가 크레딧 200, 분당 한도가 500이라 세트 사이도 70초씩 띄운다.
       await new Promise((r) => setTimeout(r, 70_000))
     }
   } finally {
     warming = false
   }
+  // 429로 부분만 받은 세트가 남았으면 5분 뒤 한 번 더 돈다.
+  const leftover = Object.keys(PPT_SET_NAMES).some((slug) => {
+    const hit = packPriceCache.get(slug)
+    return !hit || hit.partial || Date.now() - hit.at >= PACK_PRICE_TTL_MS
+  })
+  if (leftover) setTimeout(() => void warmPackPrices(apiKey), 5 * 60_000)
 }
 
 // PPT는 limit을 크게 줘도 한 번에 200행까지만 준다(offset으로 이어받기는 된다 —
@@ -2581,15 +2587,18 @@ async function getSetPrices(
   const setName = PPT_SET_NAMES[slug]
   if (!setName || !apiKey) return null
   const hit = packPriceCache.get(slug)
-  if (hit && Date.now() - hit.at < PACK_PRICE_TTL_MS) return hit.prices
+  // partial(뒤 페이지를 못 받은 것)은 신선한 걸로 치지 않는다 — 안 그러면 429 한 번에
+  // 앞번호 카드가 빠진 채 하루 동안 굳는다(Destined Rivals가 45번부터 시작하던 문제).
+  if (hit && !hit.partial && Date.now() - hit.at < PACK_PRICE_TTL_MS) return hit.prices
   const lang = slug.startsWith('ja-') ? 'japanese' : 'english'
   const pages = opts.pages ?? 2
   try {
     const prices: Record<string, number> = {}
+    let complete = false
     for (let p = 0; p < pages; p++) {
       const list = await fetchSetPage(setName, lang, apiKey, p * PPT_PAGE)
       if (list === null) {
-        // 첫 페이지부터 실패(429 등)면 만료된 캐시라도 쓴다. 뒤 페이지 실패면 받은 만큼 저장.
+        // 첫 페이지부터 실패(429 등)면 이전 캐시라도 쓴다. 뒤 페이지 실패면 받은 만큼(partial) 저장.
         if (p === 0) return hit?.prices ?? null
         break
       }
@@ -2600,11 +2609,16 @@ async function getSetPrices(
         const market = c.prices?.market ?? 0
         if (num && market > 0) prices[num] = market
       }
-      if (list.length < PPT_PAGE) break // 마지막 페이지
+      if (list.length < PPT_PAGE) {
+        complete = true // 덜 찬 페이지 = 마지막 페이지까지 다 받았다
+        break
+      }
       if (opts.pauseMs && p < pages - 1) await new Promise((r) => setTimeout(r, opts.pauseMs))
     }
-    packPriceCache.set(slug, { at: Date.now(), prices })
-    return prices
+    // 이전 값이 더 많으면(부분 수집이 이전보다 후퇴) 합쳐서 잃지 않는다.
+    const merged = { ...(hit?.prices ?? {}), ...prices }
+    packPriceCache.set(slug, { at: Date.now(), prices: merged, ...(complete ? {} : { partial: true }) })
+    return merged
   } catch {
     return hit?.prices ?? null
   }
@@ -3069,18 +3083,18 @@ function mountAuth(
         let fetched = false
         for (const slug of slugs) {
           const cached = packPriceCache.get(slug)
-          const fresh = cached && Date.now() - cached.at < PACK_PRICE_TTL_MS
+          const fresh = cached && !cached.partial && Date.now() - cached.at < PACK_PRICE_TTL_MS
           if (fresh) {
             prices[slug] = cached.prices
             continue
           }
-          if (!fetched && PPT_SET_NAMES[slug]) {
+          if (!fetched && !warming && PPT_SET_NAMES[slug]) {
             fetched = true
             const p = await getSetPrices(slug, pptApiKey)
             if (p && packPriceCache.get(slug)) prices[slug] = p
             else if (PPT_SET_NAMES[slug]) pending.push(slug)
           } else if (PPT_SET_NAMES[slug]) {
-            if (cached) prices[slug] = cached.prices // 만료됐어도 있으면 일단 보여준다
+            if (cached) prices[slug] = cached.prices // 만료·부분이어도 있으면 일단 보여준다
             pending.push(slug)
           }
         }
