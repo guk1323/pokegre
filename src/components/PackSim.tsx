@@ -327,18 +327,16 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
 
       {tab === 'open' && (
         <>
-          {/* 팩 진열장 — 가게 가판대처럼. 일본판·북미판 두 줄, 상자들이 나무 선반 위에 서 있고
-              선반 아래에 가격 스티커가 붙는다. 상자를 누르면 살짝 떠오르며 선택된다. */}
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50 via-orange-50 to-amber-100 px-4 pb-4 pt-3 shadow-inner">
-            {/* 차양 줄무늬 */}
-            <div className="mx-auto mb-3 h-3 w-44 rounded-b-xl bg-[repeating-linear-gradient(90deg,#f87171_0_14px,#ffffff_14px_28px)] shadow-sm" />
+          {/* 팩 진열장 — 카드샵 쇼케이스. 어두운 유리장 안에 상자들이 조명을 받고 서 있고,
+              고르면 스포트라이트가 켜지며 살짝 떠오른다. 색은 금색 포인트 하나만 쓴다. */}
+          <div className="mt-4 rounded-2xl bg-gradient-to-b from-neutral-900 via-neutral-900 to-neutral-950 p-5 ring-1 ring-neutral-800">
             {[
-              { label: '🇯🇵 일본판 · 한 팩 5장', packs: LIVE_PACKS.filter((p) => p.jp) },
-              { label: '🇺🇸 북미판 · 한 팩 10장', packs: LIVE_PACKS.filter((p) => !p.jp) },
-            ].map((row) => (
-              <div key={row.label} className="mb-3 last:mb-0">
-                <p className="mb-1 text-[11px] font-bold tracking-wide text-amber-800/80">{row.label}</p>
-                <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-3">
+              { label: '일본판 · 팩당 5장', packs: LIVE_PACKS.filter((p) => p.jp) },
+              { label: '북미판 · 팩당 10장', packs: LIVE_PACKS.filter((p) => !p.jp) },
+            ].map((row, ri) => (
+              <div key={row.label} className={ri === 0 ? 'mb-6' : ''}>
+                <p className="mb-1 text-[11px] font-semibold tracking-[0.2em] text-amber-200/50">{row.label}</p>
+                <div className="grid grid-cols-3">
                   {row.packs.map((s2) => {
                     const on = s2.slug === slug;
                     const img = art[s2.slug]?.boxImg || art[s2.slug]?.logo;
@@ -351,36 +349,46 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                           setPack(null);
                           setKeptMsg('');
                         }}
-                        className="group px-2 pt-2 text-center"
+                        className="group relative px-2 pt-3 text-center"
                       >
-                        <div className={`flex h-28 items-end justify-center sm:h-36 ${on ? '' : ''}`}>
+                        {/* 스포트라이트 — 선택하면 금빛, 아니면 호버에만 희미하게 */}
+                        <div
+                          className={`pointer-events-none absolute inset-x-6 top-0 h-32 rounded-full blur-2xl transition duration-300 ${
+                            on ? 'bg-amber-300/25' : 'bg-transparent group-hover:bg-white/10'
+                          }`}
+                        />
+                        <div className="relative flex h-28 items-end justify-center sm:h-36">
                           {img && (
                             <img
                               src={thumb(img, 280)}
                               alt=""
                               loading="lazy"
-                              className={`max-h-28 object-contain drop-shadow-lg transition sm:max-h-36 ${
-                                on ? '-translate-y-2 scale-105' : 'group-hover:-translate-y-1'
+                              className={`max-h-28 object-contain drop-shadow-[0_12px_16px_rgba(0,0,0,0.7)] transition duration-300 sm:max-h-36 ${
+                                on ? '-translate-y-2' : 'group-hover:-translate-y-1'
                               }`}
                             />
                           )}
                         </div>
-                        {/* 나무 선반(칸끼리 붙어 한 판처럼 보인다) */}
-                        <div className="h-3 w-full bg-gradient-to-b from-amber-600 via-amber-700 to-amber-900 shadow-[0_3px_5px_rgba(120,53,15,0.35)]" />
-                        <div className="pt-1.5">
-                          <span
-                            className={`inline-block -rotate-2 rounded-md px-2 py-0.5 text-[12px] font-black shadow-sm ${
-                              on ? 'bg-black text-amber-300 ring-2 ring-amber-500' : 'bg-yellow-300 text-amber-900'
-                            }`}
-                          >
-                            {won(s2.price)}
-                          </span>
+                        {/* 유리 선반: 얇은 빛줄 */}
+                        <div
+                          className={`relative mt-1 h-[3px] rounded-full bg-gradient-to-r from-transparent to-transparent ${
+                            on ? 'via-amber-300/80' : 'via-neutral-500/60'
+                          }`}
+                        />
+                        <div className="pt-2">
                           <p
-                            className={`mt-1 line-clamp-1 text-[12px] leading-tight ${
-                              on ? 'font-extrabold text-black' : 'font-semibold text-neutral-600'
+                            className={`line-clamp-1 text-[12px] leading-tight ${
+                              on ? 'font-bold text-white' : 'font-medium text-neutral-300'
                             }`}
                           >
                             {s2.label.replace(/^\[.+?\]\s*/, '')}
+                          </p>
+                          <p
+                            className={`mt-0.5 text-[11px] tracking-wide ${
+                              on ? 'font-semibold text-amber-300' : 'text-neutral-500'
+                            }`}
+                          >
+                            {won(s2.price)}
                           </p>
                         </div>
                       </button>
