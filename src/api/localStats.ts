@@ -84,6 +84,7 @@ export type TrackedEvent =
   | 'packsim_checkin'
   | 'packsim_godpack'
   | 'packsim_value'
+  | 'packsim_share'
   | 'sets'
   | 'ebay_korean'
   // 운영자 전용 화면(카드 뽑기·스캔 테스트). 운영자 사용은 서버가 집계에서 빼므로

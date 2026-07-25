@@ -21,6 +21,7 @@ import {
 // 확률은 커뮤니티 실측 집계(공식 발표는 없음)라 재미용 근사치다.
 
 type AlbumCard = { s: string; n: string; r: string; c: number; g?: 1 };
+type ShareState = { shared: boolean; msg: string };
 type SimState = {
   balance: number;
   lastCheckIn: string;
@@ -106,6 +107,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<string>>(new Set());
   const [keptMsg, setKeptMsg] = useState('');
+  const [share, setShare] = useState<ShareState>({ shared: false, msg: '' });
   // 운영자는 점검하려고 아무 때나 열어야 해서 기본이 무제한이다. 끄면 평소처럼
   // 예산이 깎이고 모자라면 못 연다(그 흐름도 확인해야 하니 스위치로 뒀다).
   const [spend, setSpend] = useState(false);
@@ -173,6 +175,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       // 일러레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.n)));
       setKeptMsg('');
+      setShare({ shared: false, msg: '' });
       setGod(!!d.god);
       setSim((s) => (s ? { ...s, balance: d.balance ?? s.balance, opened: s.opened + 1 } : s));
       // 앨범 숫자도 같이 맞춘다. 정확한 값은 탭을 열 때 서버에서 다시 받는다.
@@ -194,6 +197,35 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
       setKeptMsg(d.kept ? `${d.kept}장을 앨범에 넣었어요.` : '앨범에 넣지 않고 넘겼어요.');
       setPack(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 방금 연 팩을 커뮤니티 "뽑기 자랑"에 올린다. 카드·등급은 서버가 기억하는 값으로
+  // 쓰고, 여기선 한글 이름 표기만 보내준다. 보상은 하루 1번.
+  async function shareToCommunity() {
+    if (!pack) return;
+    setBusy(true);
+    try {
+      const names = Object.fromEntries(pack.map((c) => [c.n, koName(cfg.jp, c.name)]));
+      const r = await fetch('/api/local/auth/packsim/share', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names }),
+      });
+      const d = (await r.json()) as { postId?: number; gained?: number; balance?: number; error?: string };
+      if (!r.ok || !d.postId) {
+        setShare({ shared: false, msg: d.error === 'already shared' ? '이미 자랑한 팩이에요.' : '올리지 못했어요.' });
+        return;
+      }
+      trackEvent('packsim_share');
+      if (typeof d.balance === 'number') setSim((s2) => (s2 ? { ...s2, balance: d.balance! } : s2));
+      setShare({
+        shared: true,
+        msg: d.gained ? `커뮤니티에 올렸어요! 자랑 보상 +${won(d.gained)} (하루 1번)` : '커뮤니티에 올렸어요!',
+      });
     } finally {
       setBusy(false);
     }
@@ -460,14 +492,23 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
               </button>
               <button
                 type="button"
+                onClick={shareToCommunity}
+                disabled={busy || share.shared}
+                className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+              >
+                {share.shared ? '자랑 완료' : '📣 커뮤니티에 자랑하기'}
+              </button>
+              <button
+                type="button"
                 onClick={keepCards}
                 disabled={busy}
-                className="ml-auto rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+                className="rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
                 {keep.size ? `${keep.size}장 앨범에 넣기` : '넣지 않고 넘기기'}
               </button>
             </div>
           )}
+          {share.msg && <p className="mt-2 text-sm font-semibold text-indigo-600">{share.msg}</p>}
 
           {pack && (
             <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">

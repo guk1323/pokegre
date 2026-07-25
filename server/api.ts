@@ -8,6 +8,7 @@ import {
   DAILY_BUDGET,
   FIRST_BONUS,
   MAX_BALANCE,
+  SHARE_BONUS,
   STREAK_BONUS,
   STREAK_DAYS,
   isLive,
@@ -453,8 +454,8 @@ const MAX_COMMENT_LENGTH = 2_000
 // 옛 이름이 박힌 채로 남아, 같은 사람이 두 사람처럼 보인다. authorId만 남기고 닉네임은
 // 매번 조회해서 채운다.
 // 게시판 종류. 서버가 값을 정하므로 클라이언트가 아무 문자열이나 보내도 free로 떨어진다.
-type PostCategory = 'free' | 'question' | 'suggestion'
-const POST_CATEGORIES: PostCategory[] = ['free', 'question', 'suggestion']
+type PostCategory = 'free' | 'question' | 'suggestion' | 'pulls'
+const POST_CATEGORIES: PostCategory[] = ['free', 'question', 'suggestion', 'pulls']
 
 interface CommunityPost {
   id: number
@@ -554,6 +555,10 @@ interface CommunityReport {
 // 신고 접수는 아직 별도 관리자 화면이 없어서, data/community-reports.json에 쌓아두고
 // 운영자가 주기적으로 파일을 확인해 삭제 여부를 판단하는 방식으로 최소한의 신고
 // 창구만 우선 마련한다(정보통신망법상 불법정보 신고 접수 창구 요건 대응).
+// 카드 뽑기 자랑글이 커뮤니티 캐시를 거쳐 글을 넣을 수 있게, mountCommunity가
+// 마운트 시점에 이 변수에 등록 함수를 담아둔다(파일 직접 쓰기는 캐시와 어긋난다).
+let appendCommunityPost: ((post: CommunityPost) => Promise<void>) | null = null
+
 function mountCommunity(app: Mountable) {
   let posts: CommunityPost[] | null = null
   let comments: CommunityComment[] | null = null
@@ -582,6 +587,14 @@ function mountCommunity(app: Mountable) {
   async function persistPosts() {
     await mkdir(path.dirname(POSTS_FILE), { recursive: true })
     await writeFile(POSTS_FILE, JSON.stringify(posts))
+  }
+
+  // 카드 뽑기 자랑글 등록 훅(위 모듈 변수 참조). 글 수 상한도 일반 글쓰기와 같게 지킨다.
+  appendCommunityPost = async (post: CommunityPost) => {
+    const all = await loadPosts()
+    all.push(post)
+    if (all.length > MAX_POSTS) all.splice(0, all.length - MAX_POSTS)
+    await persistPosts()
   }
 
   async function loadComments(): Promise<CommunityComment[]> {
@@ -1094,7 +1107,7 @@ const MAX_SET_KEYS = 500
 // sets=세트별 목록에서 세트 열람, ebay_korean=이베이 한글판 시세 조회.
 const ALLOWED_EVENTS = new Set([
   'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'ebay_korean',
-  'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value',
+  'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value', 'packsim_share',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -2457,8 +2470,10 @@ interface PackSimStore {
   god: number
   album: AlbumCard[]
   // 방금 연 팩. 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지 못하도록
-  // 서버가 마지막 팩을 기억했다가 그 안의 번호만 받아준다.
-  last?: { slug: string; ns: string[]; god: boolean }
+  // 서버가 마지막 팩을 기억했다가 그 안의 번호만 받아준다. shared는 같은 팩 중복 자랑 방지.
+  last?: { slug: string; ns: string[]; god: boolean; shared?: boolean }
+  // 자랑 보상을 마지막으로 받은 날(KST). 하루 1번만 준다.
+  lastShareDay?: string
 }
 
 let packsim: Record<string, PackSimStore> | null = null
@@ -3018,6 +3033,83 @@ function mountAuth(
         store.last = { slug: pack.slug, ns: drawn.cards.map((c) => c.n), god: drawn.god }
         await persistPacksim()
         sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened, unlimited })
+        return
+      }
+
+      // POST /packsim/share — 방금 연 팩을 커뮤니티 "뽑기 자랑"에 올린다.
+      // 글은 서버가 기억하는 마지막 팩으로만 쓴다(가짜 결과로 자랑·보상 방지).
+      // 보상(SHARE_BONUS)은 하루 1번. 같은 팩은 한 번만 올릴 수 있다.
+      if (segments[0] === 'packsim' && segments[1] === 'share' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!isAdmin(user)) {
+          sendJson(res, 403, { error: 'admin only' })
+          return
+        }
+        if (!user!.nickname) {
+          sendJson(res, 400, { error: 'nickname required' })
+          return
+        }
+        const store = await getPacksim(user!.id)
+        const last = store.last
+        if (!last || last.shared) {
+          sendJson(res, 400, { error: last ? 'already shared' : 'no pack' })
+          return
+        }
+        const pack = packBySlug.get(last.slug)
+        if (!pack || !appendCommunityPost) {
+          sendJson(res, 500, { error: 'unavailable' })
+          return
+        }
+        // 카드·등급·갓팩 여부는 서버가 기억하는 값만 쓴다(조작 불가). 한글 이름 표기만
+        // 화면이 보내준다 — 서버에 번역기를 들이는 것보다 가볍고, 이름은 표기일 뿐이라
+        // 속여도 자기 자랑글이 이상해질 뿐이다. 길이만 자르고 줄바꿈은 뗀다.
+        const body = JSON.parse((await readBody(req)) || '{}') as { names?: unknown }
+        const nameOf = new Map<string, string>()
+        if (body.names && typeof body.names === 'object') {
+          for (const [k, v] of Object.entries(body.names as Record<string, unknown>)) {
+            if (typeof v === 'string') nameOf.set(String(k), v.replace(/\s+/g, ' ').trim().slice(0, 60))
+          }
+        }
+        const cards = await readPackCards(pack.src)
+        const byN = new Map(cards.map((c) => [c.n, c]))
+        const tierKo: Record<string, string> = {
+          Common: '커먼', Uncommon: '언커먼', Rare: '레어', 'Double rare': 'RR',
+          'ACE SPEC Rare': 'ACE', 'Illustration rare': 'AR', 'Ultra Rare': 'UR',
+          'Special illustration rare': 'SAR', 'Hyper rare': 'HR',
+        }
+        const rank: Record<string, number> = { Common: 0, Uncommon: 1, Rare: 2, 'Double rare': 3, 'ACE SPEC Rare': 4, 'Illustration rare': 5, 'Ultra Rare': 6, 'Special illustration rare': 7, 'Hyper rare': 8 }
+        const drawn = last.ns.map((n) => byN.get(n)).filter((c): c is NonNullable<typeof c> => !!c)
+        const koN = (c: { n: string; name: string }) => nameOf.get(c.n) || c.name
+        const best = drawn.reduce((a, b) => ((rank[b.r ?? ''] ?? 0) > (rank[a.r ?? ''] ?? 0) ? b : a), drawn[0])
+        const packName = pack.label.replace(/^\[.+?\]\s*/, '')
+        const title = last.god
+          ? `✨ 갓팩!! ${packName} 전부 AR 이상`
+          : `📦 ${packName} 개봉 — ${koN(best)} ${tierKo[best.r ?? ''] ?? ''}`.trim()
+        const lines = [...drawn]
+          .sort((a, b) => (rank[b.r ?? ''] ?? 0) - (rank[a.r ?? ''] ?? 0))
+          .map((c) => `${(rank[c.r ?? ''] ?? 0) >= 5 ? '⭐' : '·'} ${koN(c)} — ${tierKo[c.r ?? ''] ?? c.r}`)
+        const content = [`카드 뽑기에서 ${pack.jp ? '일본판' : '북미판'} ${packName} 팩을 열었어요!`, '', ...lines].join('\n')
+        const post: CommunityPost = {
+          id: Date.now(),
+          title,
+          category: 'pulls',
+          authorId: user!.id,
+          content,
+          createdAt: Date.now(),
+          likedBy: [],
+          commentCount: 0,
+        }
+        await appendCommunityPost(post)
+        last.shared = true
+        const today = todayKst()
+        let gained = 0
+        if (store.lastShareDay !== today) {
+          gained = SHARE_BONUS
+          store.balance = Math.min(MAX_BALANCE, store.balance + gained)
+          store.lastShareDay = today
+        }
+        await persistPacksim()
+        sendJson(res, 200, { postId: post.id, gained, balance: store.balance })
         return
       }
 

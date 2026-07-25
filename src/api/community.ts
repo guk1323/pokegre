@@ -1,11 +1,12 @@
 import { isTrackingOff } from './localStats';
 
-export type PostCategory = "free" | "question" | "suggestion";
+export type PostCategory = "free" | "question" | "suggestion" | "pulls";
 
 export const CATEGORY_LABEL: Record<PostCategory, string> = {
   free: "자유",
   question: "질문",
   suggestion: "건의",
+  pulls: "뽑기 자랑",
 };
 
 export interface CommunityPost {

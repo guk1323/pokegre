@@ -379,6 +379,7 @@ const CATEGORY_TABS: { key: PostCategory | null; label: string }[] = [
   { key: 'free', label: '자유' },
   { key: 'question', label: '질문' },
   { key: 'suggestion', label: '건의' },
+  { key: 'pulls', label: '뽑기 자랑' },
 ];
 
 export function Community({
