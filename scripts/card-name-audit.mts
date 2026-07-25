@@ -41,10 +41,14 @@ const yearOf = new Map(idx.map((s) => [s.slug, +(s.releaseDate ?? '2005').slice(
 // (pokemoncard.co.kr)에서 받아 둔 "세트 → 번호 → 정식 한글명"이다. 한국판은 서포트·굿즈
 // 번호를 한글 가나다순으로 다시 매기므로 번호끼리 맞추면 안 되고, 세트 안에 그 이름이
 // 있는지만 본다(있으면 우리 번역이 공식과 같다는 뜻).
-const official = JSON.parse(readFileSync(join(ROOT, 'scripts/ko-official-card-names.json'), 'utf8')) as Record<
-  string,
-  Record<string, string>
->
+// 이 파일은 공식 사이트에서 받아 둔 참고자료라 레포에 두지 않는다. 있으면 ③검사를 하고
+// 없으면 건너뛴다(다시 받으려면 CLAUDE.md의 "카드명 번역 점검" 참고).
+let official: Record<string, Record<string, string>> = {}
+try {
+  official = JSON.parse(readFileSync(join(ROOT, 'scripts/ko-official-card-names.json'), 'utf8'))
+} catch {
+  /* 없으면 ③ 검사 생략 */
+}
 const officialBySet = new Map(
   Object.entries(official).map(([code, byNum]) => [code, new Set(Object.values(byNum).map((v) => v.replace(/\s/g, '')))]),
 )

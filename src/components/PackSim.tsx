@@ -307,7 +307,10 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
             </label>
             {!affordable && <span className="text-xs text-rose-500">예산이 모자라요</span>}
           </div>
-          <p className="mt-2 text-xs text-neutral-400">재미용 근사치라 실제 봉입률과는 다릅니다.</p>
+          <p className="mt-2 text-xs text-neutral-400">
+            비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, 예산은 서비스 안에서만
+            쓰이는 숫자입니다. 확률은 재미용 근사치라 실제 봉입률과 다릅니다.
+          </p>
           {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
 
           {god && (
