@@ -2542,7 +2542,7 @@ async function warmPackPrices(apiKey: string) {
     for (const slug of Object.keys(PPT_SET_NAMES)) {
       const hit = packPriceCache.get(slug)
       if (hit && Date.now() - hit.at < PACK_PRICE_TTL_MS) continue
-      await getSetPrices(slug, apiKey)
+      await getSetPrices(slug, apiKey, { pages: 3, pauseMs: 70_000 })
       await savePackPriceFile()
       // 세트 하나가 크레딧 250, 분당 한도가 500이라 70초씩 띄운다.
       await new Promise((r) => setTimeout(r, 70_000))
@@ -2552,26 +2552,56 @@ async function warmPackPrices(apiKey: string) {
   }
 }
 
-async function getSetPrices(slug: string, apiKey: string): Promise<Record<string, number> | null> {
+// PPT는 limit을 크게 줘도 한 번에 200행까지만 준다(offset으로 이어받기는 된다 —
+// 처음엔 이걸 몰라서 세트의 앞번호 카드들이 통째로 잘렸다. 리자몽=6번이 그래서 빠졌다).
+const PPT_PAGE = 200
+
+async function fetchSetPage(
+  setName: string,
+  lang: string,
+  apiKey: string,
+  offset: number,
+): Promise<{ cardNumber?: string; name?: string; prices?: { market?: number } }[] | null> {
+  const r = await fetch(
+    `${PRICE_TRACKER_ORIGIN}/cards?language=${lang}&setName=${encodeURIComponent(setName)}&limit=${PPT_PAGE}&offset=${offset}`,
+    { headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` } },
+  )
+  if (!r.ok) return null
+  const j = (await r.json()) as { data?: { cardNumber?: string; name?: string; prices?: { market?: number } }[] }
+  return Array.isArray(j.data) ? j.data : []
+}
+
+// pages: 최대 몇 페이지까지 받을지. pauseMs: 페이지 사이 쉬는 시간 — 분당 크레딧이
+// 500이고 페이지 하나가 200이라, 세 페이지째부터는 1분을 넘겨 받아야 한다(워밍 전용).
+async function getSetPrices(
+  slug: string,
+  apiKey: string,
+  opts: { pages?: number; pauseMs?: number } = {},
+): Promise<Record<string, number> | null> {
   const setName = PPT_SET_NAMES[slug]
   if (!setName || !apiKey) return null
   const hit = packPriceCache.get(slug)
   if (hit && Date.now() - hit.at < PACK_PRICE_TTL_MS) return hit.prices
+  const lang = slug.startsWith('ja-') ? 'japanese' : 'english'
+  const pages = opts.pages ?? 2
   try {
-    const r = await fetch(
-      `${PRICE_TRACKER_ORIGIN}/cards?language=${slug.startsWith('ja-') ? 'japanese' : 'english'}&setName=${encodeURIComponent(setName)}&limit=250`,
-      { headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` } },
-    )
-    if (!r.ok) return hit?.prices ?? null // 429 등이면 만료된 캐시라도 쓴다
-    const j = (await r.json()) as { data?: { cardNumber?: string; name?: string; prices?: { market?: number } }[] }
-    const list = Array.isArray(j.data) ? j.data : []
     const prices: Record<string, number> = {}
-    for (const c of list) {
-      // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
-      const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
-      const num = stripZeros(rawNum.split('/')[0])
-      const market = c.prices?.market ?? 0
-      if (num && market > 0) prices[num] = market
+    for (let p = 0; p < pages; p++) {
+      const list = await fetchSetPage(setName, lang, apiKey, p * PPT_PAGE)
+      if (list === null) {
+        // 첫 페이지부터 실패(429 등)면 만료된 캐시라도 쓴다. 뒤 페이지 실패면 받은 만큼 저장.
+        if (p === 0) return hit?.prices ?? null
+        break
+      }
+      for (const c of list) {
+        // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
+        const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
+        const num = stripZeros(rawNum.split('/')[0])
+        const market = c.prices?.market ?? 0
+        if (num && market > 0) prices[num] = market
+      }
+      if (list.length < PPT_PAGE) break // 마지막 페이지
+      if (opts.pauseMs && p < pages - 1) await new Promise((r) => setTimeout(r, opts.pauseMs))
     }
     packPriceCache.set(slug, { at: Date.now(), prices })
     return prices
