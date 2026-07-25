@@ -2,7 +2,7 @@ import express from 'express'
 import compression from 'compression'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
-import { mountApi } from './api.ts'
+import { isAdminRequest, maintenanceOn, mountApi } from './api.ts'
 
 // 프로덕션 진입점. 개발은 vite가 API(server/api.ts)와 프론트를 함께 띄우지만,
 // 배포에서는 이 프로세스가 둘 다 맡는다 — 같은 mountApi를 부르므로 라우팅은 개발과
@@ -13,6 +13,33 @@ const app = express()
 app.use(compression())
 const PORT = Number(process.env.PORT ?? 3000)
 const DIST = path.resolve(process.cwd(), 'dist')
+
+// ── 점검 모드 ────────────────────────────────────────────────────────────────
+// /data/maintenance.on 파일이 있으면 일반 방문자에겐 점검 안내만 보여준다. 운영자
+// 세션은 그대로 통과해 전체 기능을 쓸 수 있다(완성 전 기능을 이용자 시점으로 시험할 때
+// 씀). 로그인 경로는 열어 둔다 — 막으면 운영자가 로그아웃된 상태에서 못 들어온다.
+const MAINT_HTML = `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>점검 중 | pokegre</title>
+<style>body{margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center;
+font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;background:#111;color:#eee;text-align:center}
+.b{padding:2rem}h1{font-size:1.4rem}p{color:#aaa;font-size:.95rem;line-height:1.6}
+a{color:#666;font-size:.8rem;text-decoration:none}</style></head><body><div class="b">
+<h1>🔧 서비스 점검 중입니다</h1><p>안녕하세요, pokegre 운영자입니다.<br>
+더 나은 서비스를 위해 잠시 점검하고 있어요.<br>최대한 빠르게 마치겠습니다. 조금만 기다려 주세요!</p>
+<p><a href="/api/local/auth/kakao">운영자 로그인</a></p></div></body></html>`
+
+app.use(async (req, res, next) => {
+  if (!(await maintenanceOn())) return next()
+  // 로그인·세션 확인 경로는 통과(운영자가 들어올 문). 뽑기 API도 이 아래라 함께 열리지만,
+  // 점검 중엔 일반 방문자가 화면 자체를 못 열어 실질적으로 접근할 수 없다.
+  if (req.path.startsWith('/api/local/auth')) return next()
+  if (await isAdminRequest(req)) return next()
+  if (req.path.startsWith('/api/')) {
+    res.status(503).json({ error: 'maintenance' })
+    return
+  }
+  res.status(503).type('html').send(MAINT_HTML)
+})
 
 // API가 정적 파일보다 먼저다. 순서가 뒤집히면 SPA 폴백이 /api/* 요청까지 삼켜서
 // index.html을 돌려주고, 클라이언트는 JSON 대신 HTML을 받아 파싱 에러를 낸다.

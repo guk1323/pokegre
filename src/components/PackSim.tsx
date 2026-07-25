@@ -33,6 +33,7 @@ type SimState = {
   today: string;
   canCheckIn: boolean;
   gained?: number;
+  admin?: boolean; // 무제한 스위치는 운영자에게만 보인다
 };
 
 // 등급 표기(한글·약칭)와 색.
@@ -117,8 +118,10 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/local/auth/packsim', { credentials: 'include' });
-      if (!r.ok) return setErr('아직 운영자만 쓸 수 있는 실험 기능이에요.');
-      setSim((await r.json()) as SimState);
+      if (!r.ok) return setErr('로그인하면 출석 예산으로 팩을 열 수 있어요.');
+      const d = (await r.json()) as SimState;
+      setSim(d);
+      if (!d.admin) setSpend(true); // 일반 이용자는 항상 예산을 쓴다
     } catch {
       setErr('불러오지 못했어요.');
     }
@@ -442,10 +445,12 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
             >
               {busy ? '여는 중…' : `📦 ${cfg.label.replace(/^\[.+?\]\s*/, '')} 열기 (${won(cfg.price)})`}
             </button>
-            <label className="flex items-center gap-1.5 text-xs text-neutral-500">
-              <input type="checkbox" checked={spend} onChange={(e) => setSpend(e.target.checked)} />
-              예산 쓰기 (끄면 운영자 무제한)
-            </label>
+            {sim?.admin && (
+              <label className="flex items-center gap-1.5 text-xs text-neutral-500">
+                <input type="checkbox" checked={spend} onChange={(e) => setSpend(e.target.checked)} />
+                예산 쓰기 (끄면 운영자 무제한)
+              </label>
+            )}
             {!affordable && <span className="text-xs text-rose-500">예산이 모자라요</span>}
           </div>
           <p className="mt-2 text-xs text-neutral-400">

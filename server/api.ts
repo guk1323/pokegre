@@ -65,6 +65,33 @@ function mountConfig(app: Mountable) {
 // 적게 두고(사장님이 넣기 쉬우라고) 여기서 붙인다.
 let adminIds: Set<string> = new Set()
 
+// ── 점검 모드 ─────────────────────────────────────────────────────────────
+// /data/maintenance.on 파일이 있으면 점검 중. 배포 없이 켜고 끌 수 있게 파일 스위치로
+// 두고, 서버 진입점(index.ts)이 요청마다 묻는다(5초 캐시라 부담 없음).
+
+let maintCache = { at: 0, on: false }
+export async function maintenanceOn(): Promise<boolean> {
+  if (Date.now() - maintCache.at < 5_000) return maintCache.on
+  let on = false
+  try {
+    await readFile(path.join(DATA_DIR, 'maintenance.on'))
+    on = true
+  } catch {
+    on = false
+  }
+  maintCache = { at: Date.now(), on }
+  return on
+}
+
+// 점검 중에도 운영자는 정상 이용해야 하므로, 진입점이 요청 쿠키로 운영자인지 묻는다.
+export async function isAdminRequest(req: import('node:http').IncomingMessage): Promise<boolean> {
+  try {
+    return isAdmin(await currentUser(req))
+  } catch {
+    return false
+  }
+}
+
 function isAdmin(user: User | null): boolean {
   return user != null && adminIds.has(user.id)
 }
@@ -2957,26 +2984,27 @@ function mountAuth(
       // GET /packsim — 예산·연속출석·앨범. 오늘 출석 안 했으면 받을 금액도 같이 알려준다.
       if (segments[0] === 'packsim' && segments.length === 1 && req.method === 'GET') {
         const user = await currentUser(req)
-        // 아직 운영자 전용 실험이다. 화면 메뉴만 숨기면 API는 그대로 열려 있어서,
-        // 로그인만 하면 누구나 출석·팩열기를 부를 수 있다. 여기서 같이 막는다.
-        if (!isAdmin(user)) {
-          sendJson(res, 403, { error: 'admin only' })
+        // 로그인만 하면 쓸 수 있다(공개 시점의 형태). 화면 노출은 아직 운영자 메뉴뿐이고,
+        // 점검 모드를 켜면 일반 방문자는 화면 자체를 못 연다.
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
           return
         }
-        const store = await getPacksim(user!.id)
+        const store = await getPacksim(user.id)
         const today = todayKst()
-        sendJson(res, 200, { ...store, today, canCheckIn: store.lastCheckIn !== today })
+        // admin: 화면이 "예산 쓰기" 스위치(무제한)를 운영자에게만 보여주기 위한 표식.
+        sendJson(res, 200, { ...store, today, canCheckIn: store.lastCheckIn !== today, admin: isAdmin(user) })
         return
       }
 
       // POST /packsim/checkin — 하루 한 번 예산 지급. 연속 출석이면 보너스가 붙는다.
       if (segments[0] === 'packsim' && segments[1] === 'checkin' && req.method === 'POST') {
         const user = await currentUser(req)
-        if (!isAdmin(user)) {
-          sendJson(res, 403, { error: 'admin only' })
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
           return
         }
-        const store = await getPacksim(user!.id)
+        const store = await getPacksim(user.id)
         const today = todayKst()
         if (store.lastCheckIn === today) {
           sendJson(res, 200, { ...store, today, canCheckIn: false, gained: 0 })
@@ -2998,8 +3026,8 @@ function mountAuth(
       // POST /packsim/open — 팩 하나를 산다. 가격도 뽑기도 서버가 한다.
       if (segments[0] === 'packsim' && segments[1] === 'open' && req.method === 'POST') {
         const user = await currentUser(req)
-        if (!isAdmin(user)) {
-          sendJson(res, 403, { error: 'admin only' })
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
           return
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
@@ -3009,11 +3037,10 @@ function mountAuth(
           sendJson(res, 400, { error: 'unknown pack' })
           return
         }
-        const store = await getPacksim(user!.id)
-        // 운영자는 점검하려고 아무 때나 열어봐야 하므로 예산을 안 쓴다.
-        // 평소 흐름(예산이 깎이고 모자라면 못 여는 것)도 확인할 수 있게, 화면에서
-        // spend:true를 보내면 그때는 똑같이 차감한다.
-        const unlimited = !(body.spend === true)
+        const store = await getPacksim(user.id)
+        // 무제한(예산 안 씀)은 운영자 전용 — 일반 이용자는 항상 차감된다.
+        // 운영자도 "예산 쓰기"를 켜면 이용자와 똑같이 차감돼 그 흐름을 확인할 수 있다.
+        const unlimited = isAdmin(user) && !(body.spend === true)
         if (!unlimited && store.balance < pack.price) {
           sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
           return
@@ -3041,15 +3068,15 @@ function mountAuth(
       // 보상(SHARE_BONUS)은 하루 1번. 같은 팩은 한 번만 올릴 수 있다.
       if (segments[0] === 'packsim' && segments[1] === 'share' && req.method === 'POST') {
         const user = await currentUser(req)
-        if (!isAdmin(user)) {
-          sendJson(res, 403, { error: 'admin only' })
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
           return
         }
-        if (!user!.nickname) {
+        if (!user.nickname) {
           sendJson(res, 400, { error: 'nickname required' })
           return
         }
-        const store = await getPacksim(user!.id)
+        const store = await getPacksim(user.id)
         const last = store.last
         if (!last || last.shared) {
           sendJson(res, 400, { error: last ? 'already shared' : 'no pack' })
@@ -3093,7 +3120,7 @@ function mountAuth(
           id: Date.now(),
           title,
           category: 'pulls',
-          authorId: user!.id,
+          authorId: user.id,
           content,
           createdAt: Date.now(),
           likedBy: [],
@@ -3117,12 +3144,12 @@ function mountAuth(
       // 다 넣으면 커먼으로 뒤덮여서 앨범이 지저분해진다. 남길 것만 고르는 게 재미다.
       if (segments[0] === 'packsim' && segments[1] === 'keep' && req.method === 'POST') {
         const user = await currentUser(req)
-        if (!isAdmin(user)) {
-          sendJson(res, 403, { error: 'admin only' })
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
           return
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { ns?: unknown }
-        const store = await getPacksim(user!.id)
+        const store = await getPacksim(user.id)
         if (!store.last) {
           sendJson(res, 400, { error: 'no pack' })
           return
@@ -3140,12 +3167,12 @@ function mountAuth(
       // POST /packsim/album/remove — 선택한 카드들을 앨범에서 뺀다(중복 포함 통째로).
       if (segments[0] === 'packsim' && segments[1] === 'album' && segments[2] === 'remove' && req.method === 'POST') {
         const user = await currentUser(req)
-        if (!isAdmin(user)) {
-          sendJson(res, 403, { error: 'admin only' })
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
           return
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { items?: unknown }
-        const store = await getPacksim(user!.id)
+        const store = await getPacksim(user.id)
         const del = new Set(
           (Array.isArray(body.items) ? body.items : [])
             .map((it) => `${String((it as { s?: unknown }).s ?? '')}|${String((it as { n?: unknown }).n ?? '')}`),
@@ -3161,11 +3188,11 @@ function mountAuth(
       // 환율 변환은 화면이 한다(이미 쓰는 환율 API가 있다).
       if (segments[0] === 'packsim' && segments[1] === 'value' && req.method === 'GET') {
         const user = await currentUser(req)
-        if (!isAdmin(user)) {
-          sendJson(res, 403, { error: 'admin only' })
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
           return
         }
-        const store = await getPacksim(user!.id)
+        const store = await getPacksim(user.id)
         const slugs = [...new Set(store.album.map((a) => a.s))]
         const prices: Record<string, Record<string, number>> = {}
         const pending: string[] = []
