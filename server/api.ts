@@ -2528,11 +2528,13 @@ async function getSetPrices(slug: string, apiKey: string): Promise<Record<string
       { headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` } },
     )
     if (!r.ok) return hit?.prices ?? null // 429 등이면 만료된 캐시라도 쓴다
-    const j = (await r.json()) as { data?: { cardNumber?: string; prices?: { market?: number } }[] }
+    const j = (await r.json()) as { data?: { cardNumber?: string; name?: string; prices?: { market?: number } }[] }
     const list = Array.isArray(j.data) ? j.data : []
     const prices: Record<string, number> = {}
     for (const c of list) {
-      const num = stripZeros(String(c.cardNumber ?? '').split('/')[0])
+      // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
+      const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
+      const num = stripZeros(rawNum.split('/')[0])
       const market = c.prices?.market ?? 0
       if (num && market > 0) prices[num] = market
     }
@@ -2956,27 +2958,23 @@ function mountAuth(
         return
       }
 
-      // POST /packsim/album/remove — 앨범에서 카드를 뺀다.
-      // all=true면 그 카드를 통째로, 아니면 한 장만 줄인다(중복 정리용).
+      // POST /packsim/album/remove — 선택한 카드들을 앨범에서 뺀다(중복 포함 통째로).
       if (segments[0] === 'packsim' && segments[1] === 'album' && segments[2] === 'remove' && req.method === 'POST') {
         const user = await currentUser(req)
         if (!isAdmin(user)) {
           sendJson(res, 403, { error: 'admin only' })
           return
         }
-        const body = JSON.parse((await readBody(req)) || '{}') as { s?: unknown; n?: unknown; all?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { items?: unknown }
         const store = await getPacksim(user!.id)
-        const slug = String(body.s ?? '')
-        const num = String(body.n ?? '')
-        const i = store.album.findIndex((a) => a.s === slug && a.n === num)
-        if (i < 0) {
-          sendJson(res, 404, { error: 'not in album' })
-          return
-        }
-        if (body.all === true || store.album[i].c <= 1) store.album.splice(i, 1)
-        else store.album[i].c -= 1
+        const del = new Set(
+          (Array.isArray(body.items) ? body.items : [])
+            .map((it) => `${String((it as { s?: unknown }).s ?? '')}|${String((it as { n?: unknown }).n ?? '')}`),
+        )
+        const before = store.album.length
+        store.album = store.album.filter((a) => !del.has(`${a.s}|${a.n}`))
         await persistPacksim()
-        sendJson(res, 200, { album: store.album })
+        sendJson(res, 200, { removed: before - store.album.length, album: store.album })
         return
       }
 
@@ -2991,11 +2989,27 @@ function mountAuth(
         const store = await getPacksim(user!.id)
         const slugs = [...new Set(store.album.map((a) => a.s))]
         const prices: Record<string, Record<string, number>> = {}
+        const pending: string[] = []
+        // PPT는 분당 크레딧 500인데 세트 하나 받는 데 250이 든다. 한 요청에 두 세트를
+        // 받으면 그 분의 남은 호출이 전부 429라, 업스트림은 요청당 1세트만 부르고
+        // 나머지는 pending으로 알린다. 화면이 1분쯤 뒤 다시 부르면 하나씩 채워진다.
+        let fetched = false
         for (const slug of slugs) {
-          const p = await getSetPrices(slug, pptApiKey)
-          if (p) prices[slug] = p
-          // 캐시가 없어서 진짜 PPT를 부른 직후엔 잠깐 쉰다(연속 호출 429 방지).
-          if (p && !packPriceCache.get(slug)) await new Promise((r) => setTimeout(r, 1200))
+          const cached = packPriceCache.get(slug)
+          const fresh = cached && Date.now() - cached.at < PACK_PRICE_TTL_MS
+          if (fresh) {
+            prices[slug] = cached.prices
+            continue
+          }
+          if (!fetched && PPT_SET_NAMES[slug]) {
+            fetched = true
+            const p = await getSetPrices(slug, pptApiKey)
+            if (p && packPriceCache.get(slug)) prices[slug] = p
+            else if (PPT_SET_NAMES[slug]) pending.push(slug)
+          } else if (PPT_SET_NAMES[slug]) {
+            if (cached) prices[slug] = cached.prices // 만료됐어도 있으면 일단 보여준다
+            pending.push(slug)
+          }
         }
         let totalUsd = 0
         let priced = 0
@@ -3006,7 +3020,7 @@ function mountAuth(
             priced++
           }
         }
-        sendJson(res, 200, { prices, totalUsd: Math.round(totalUsd * 100) / 100, priced, totalKinds: store.album.length })
+        sendJson(res, 200, { prices, pending, totalUsd: Math.round(totalUsd * 100) / 100, priced, totalKinds: store.album.length })
         return
       }
 

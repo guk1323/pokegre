@@ -92,7 +92,10 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
   // 팩 진열용 이미지(박스 사진·로고). public/sets/index.json에 이미 들어 있다.
   const [art, setArt] = useState<Record<string, { boxImg?: string; logo?: string }>>({});
   // 앨범 시세(세트→번호→USD). 합계와 카드별 표시에 쓴다.
-  const [value, setValue] = useState<{ prices: Record<string, Record<string, number>>; totalUsd: number; priced: number } | null>(null);
+  const [value, setValue] = useState<{ prices: Record<string, Record<string, number>>; totalUsd: number; priced: number; pending?: string[] } | null>(null);
+  // 앨범 선택 삭제 모드. 켜면 카드를 눌러 고르고, 한 번에 지운다.
+  const [delMode, setDelMode] = useState(false);
+  const [delPick, setDelPick] = useState<Set<string>>(new Set());
   const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<string>>(new Set());
@@ -190,32 +193,46 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
     }
   }
 
-  // 앨범에서 카드 빼기. all=true면 통째로, 아니면 중복 한 장만 줄인다.
-  async function removeFromAlbum(a: AlbumCard, all: boolean) {
+  // 선택한 카드들을 앨범에서 지운다(중복 포함 통째로). 확인을 한 번 받는다.
+  async function removeSelected() {
+    if (delPick.size === 0) return;
+    if (!window.confirm(`선택한 ${delPick.size}종을 앨범에서 삭제할까요? 중복으로 모은 것도 같이 빠져요.`)) return;
     setBusy(true);
     try {
+      const items = [...delPick].map((k) => {
+        const [s2, n] = k.split('|');
+        return { s: s2, n };
+      });
       const r = await fetch('/api/local/auth/packsim/album/remove', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ s: a.s, n: a.n, all }),
+        body: JSON.stringify({ items }),
       });
       const d = (await r.json()) as { album?: AlbumCard[] };
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
+      setDelPick(new Set());
+      setDelMode(false);
     } finally {
       setBusy(false);
     }
   }
+
+  const loadValue = useCallback(async () => {
+    try {
+      const r = await fetch('/api/local/auth/packsim/value', { credentials: 'include' });
+      if (r.ok) setValue((await r.json()) as typeof value);
+    } catch {
+      /* 시세는 참고용이라 실패해도 앨범은 그대로 보인다 */
+    }
+  }, []);
 
   // 앨범 탭: 앨범에 든 세트의 카드 목록을 받아 이름·이미지를 붙인다. 시세·환율도 같이.
   useEffect(() => {
     if (tab !== 'album' || !sim) return;
     void load();
     trackEvent('packsim_value');
-    void fetch('/api/local/auth/packsim/value', { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setValue(d as typeof value))
-      .catch(() => undefined);
+    void loadValue();
     void fetchExchangeRates().then(setRates).catch(() => undefined);
     const need = [...new Set(sim.album.map((a) => a.s))].filter((s) => !setCards[s]);
     for (const s of need) {
@@ -229,6 +246,14 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
     // sim.album이 바뀔 때마다 다시 볼 필요는 없다(탭 진입 시 한 번).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // 서버가 PPT 분당 한도(세트당 크레딧 250, 분당 500) 때문에 요청당 1세트만 받아온다.
+  // 아직 못 받은 세트(pending)가 있으면 70초 뒤 다시 불러 하나씩 채운다.
+  useEffect(() => {
+    if (tab !== 'album' || !value?.pending?.length) return;
+    const t = setTimeout(() => void loadValue(), 70_000);
+    return () => clearTimeout(t);
+  }, [tab, value, loadValue]);
 
   const usdOf = (a: AlbumCard) => value?.prices[a.s]?.[a.n.replace(/^0+/, '') || '0'] ?? 0;
   const koName = (jp: boolean, name: string) =>
@@ -454,6 +479,44 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
                   TCGplayer 마켓가 기준 참고용 추정치{value && value.priced < sim.album.length ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외` : ''}
                   {rates ? ` · ${rates.date} 환율` : ''}
                 </p>
+                {!!value?.pending?.length && (
+                  <p className="mt-0.5 text-[10px] font-semibold text-amber-600">
+                    세트 {value.pending.length}개 시세를 불러오는 중이에요. 1분쯤 뒤 자동으로 채워져요.
+                  </p>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  {!delMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setDelMode(true)}
+                      className="rounded-lg border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-600"
+                    >
+                      선택 삭제
+                    </button>
+                  ) : (
+                    <>
+                      <span className="text-xs text-neutral-500">카드를 눌러 고르세요 ({delPick.size}종)</span>
+                      <button
+                        type="button"
+                        onClick={removeSelected}
+                        disabled={busy || delPick.size === 0}
+                        className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white disabled:opacity-40"
+                      >
+                        {delPick.size}종 삭제
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDelMode(false);
+                          setDelPick(new Set());
+                        }}
+                        className="text-xs text-neutral-400 underline"
+                      >
+                        취소
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
                 {[...sim.album]
@@ -463,9 +526,30 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
                     const card = setCards[a.s]?.find((c) => c.n === a.n);
                     const name = card ? koName(!!cfgA?.jp, card.name) : '';
                     const meta = RARITY[a.r] ?? RARITY.Common;
+                    const dk = `${a.s}|${a.n}`;
+                    const picked = delPick.has(dk);
                     return (
-                      <div key={`${a.s}-${a.n}`}>
-                        <div className={`overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls}`}>
+                      <div
+                        key={`${a.s}-${a.n}`}
+                        onClick={
+                          delMode
+                            ? () =>
+                                setDelPick((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(dk)) next.delete(dk);
+                                  else next.add(dk);
+                                  return next;
+                                })
+                            : undefined
+                        }
+                        role={delMode ? 'button' : undefined}
+                        className={delMode ? 'cursor-pointer' : undefined}
+                      >
+                        <div
+                          className={`overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${
+                            delMode && picked ? 'outline outline-[3px] outline-rose-500' : ''
+                          }`}
+                        >
                           {card?.img && (
                             <img src={thumb(card.img, 240)} alt="" loading="lazy" className="w-full object-contain" />
                           )}
@@ -483,35 +567,22 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
                             {a.c > 1 ? ` ×${a.c}` : ''}
                           </p>
                         )}
-                        <div className="mt-0.5 flex items-center gap-2">
-                          {onPickCard && name && (
+                        {delMode ? (
+                          <p className={`mt-0.5 text-[10px] font-bold ${picked ? 'text-rose-600' : 'text-neutral-300'}`}>
+                            {picked ? '✓ 삭제 선택됨' : '누르면 선택'}
+                          </p>
+                        ) : (
+                          onPickCard &&
+                          name && (
                             <button
                               type="button"
                               onClick={() => onPickCard(name)}
-                              className="text-[10px] text-neutral-500 underline"
+                              className="mt-0.5 text-[10px] text-neutral-500 underline"
                             >
-                              시세
+                              시세 보기
                             </button>
-                          )}
-                          {a.c > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeFromAlbum(a, false)}
-                              disabled={busy}
-                              className="text-[10px] text-neutral-400 underline disabled:opacity-40"
-                            >
-                              1장 빼기
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => removeFromAlbum(a, true)}
-                            disabled={busy}
-                            className="text-[10px] text-rose-400 underline disabled:opacity-40"
-                          >
-                            삭제
-                          </button>
-                        </div>
+                          )
+                        )}
                       </div>
                     );
                   })}
