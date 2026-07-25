@@ -274,7 +274,6 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
   const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
   const allDone = !!pack && revealed >= pack.length;
-  const best = pack ? pack.reduce((a, b) => (rankOf(b.r) > rankOf(a.r) ? b : a)) : null;
   const affordable = !!sim && (!spend || sim.balance >= cfg.price);
 
   return (
@@ -445,23 +444,6 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
             </div>
           )}
 
-          {allDone && best && (
-            <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm">
-              이번 팩 최고 등급: <b className={RARITY[best.r ?? '']?.cls.split(' ')[0]}>{RARITY[best.r ?? '']?.ko}</b>
-              {' · '}
-              {koName(cfg.jp, best.name)}
-              {onPickCard && (
-                <button
-                  type="button"
-                  onClick={() => onPickCard(pickTarget(cfg.slug, best.n, best.name))}
-                  className="ml-2 rounded-md bg-black px-2 py-1 text-[11px] font-bold text-white"
-                >
-                  시세 보기
-                </button>
-              )}
-            </div>
-          )}
-
           {allDone && (
             <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-sm font-semibold text-neutral-700">
@@ -490,6 +472,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                 <CardSlot
                   key={i}
                   card={c}
+                  index={i}
+                  isLast={i === pack.length - 1}
                   flipped={i < revealed}
                   isNext={i === revealed && !allDone}
                   onFlip={revealNext}
@@ -722,13 +706,36 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
         .flip-front { transform: rotateY(180deg); }
         .card-hit { box-shadow: 0 0 14px 2px rgba(245, 158, 11, 0.65); border-radius: 0.5rem; }
         .card-picked { outline: 3px solid #059669; outline-offset: 2px; border-radius: 0.6rem; cursor: pointer; }
+        /* 팩을 열면 카드가 한 장씩 깔린다 */
+        .deal { animation: dealIn 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+        @keyframes dealIn {
+          from { opacity: 0; transform: translateY(16px) scale(0.92); }
+          to { opacity: 1; transform: none; }
+        }
+        /* 마지막 한 장(제일 좋은 카드)은 금빛으로 더 세게 고동친다 */
+        .flip-last { animation: lastPulse 0.9s ease-in-out infinite; }
+        @keyframes lastPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.75); }
+          60% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0), 0 0 26px 6px rgba(245, 158, 11, 0.55); }
+        }
+        /* AR 이상을 뒤집으면 빛이 한 번 쓸고 지나간다 */
+        .card-shine { position: relative; }
+        .card-shine::after {
+          content: '';
+          position: absolute; inset: -40%;
+          background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.7) 50%, transparent 58%);
+          transform: translateX(-130%);
+          animation: shineSweep 0.9s 0.3s ease-out forwards;
+        }
+        @keyframes shineSweep { to { transform: translateX(130%); } }
         @keyframes nextPulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.55); }
           70% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
         }
         @media (prefers-reduced-motion: reduce) {
           .flip-inner { transition: none; }
-          .flip-next { animation: none; }
+          .flip-next, .flip-last, .deal { animation: none; }
+          .card-shine::after { animation: none; opacity: 0; }
         }
       `}</style>
     </div>
@@ -737,6 +744,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
 
 function CardSlot({
   card,
+  index,
+  isLast,
   flipped,
   isNext,
   onFlip,
@@ -746,6 +755,8 @@ function CardSlot({
   onPick,
 }: {
   card: PackCard;
+  index: number;
+  isLast: boolean;
   flipped: boolean;
   isNext: boolean;
   onFlip: () => void;
@@ -759,17 +770,18 @@ function CardSlot({
   return (
     <div>
       <div
-        className={`flip ${isNext ? 'flip-next' : ''} ${picking && picked ? 'card-picked' : ''}`}
+        style={{ animationDelay: `${index * 70}ms` }}
+        className={`flip deal ${isNext ? (isLast ? 'flip-next flip-last' : 'flip-next') : ''} ${picking && picked ? 'card-picked' : ''}`}
         onClick={isNext ? onFlip : picking ? onPick : undefined}
         role={isNext || picking ? 'button' : undefined}
         aria-label={isNext ? '카드 뒤집기' : picking ? '앨범에 넣기 선택' : undefined}
       >
         <div className="flip-inner" data-flipped={flipped}>
           <div className="flip-face flip-back">
-            <img src="/card-back.svg" alt="" className="h-full w-full rounded-lg object-cover" />
+            <img src="/pack-card-back.svg" alt="" className="h-full w-full rounded-lg object-cover" />
           </div>
           <div className={`flip-face flip-front ${hit ? 'card-hit' : ''}`}>
-            <div className={`h-full overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls}`}>
+            <div className={`h-full overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${hit ? 'card-shine' : ''}`}>
               {card.img && (
                 <img src={thumb(card.img, 240)} alt="" loading="lazy" className="h-full w-full object-contain" />
               )}
