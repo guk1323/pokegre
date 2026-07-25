@@ -8,6 +8,7 @@ import {
   DAILY_BUDGET,
   FIRST_BONUS,
   MAX_BALANCE,
+  MAX_STASH,
   SHARE_BONUS,
   STREAK_BONUS,
   STREAK_DAYS,
@@ -3073,6 +3074,11 @@ function mountAuth(
           store.spent += pack.price
         }
         store.packs ??= {}
+        const total = Object.values(store.packs).reduce((a, b) => a + b, 0)
+        if (total >= MAX_STASH) {
+          sendJson(res, 400, { error: 'stash full', max: MAX_STASH })
+          return
+        }
         store.packs[pack.slug] = (store.packs[pack.slug] ?? 0) + 1
         await persistPacksim()
         sendJson(res, 200, { balance: store.balance, packs: store.packs })
@@ -3094,12 +3100,22 @@ function mountAuth(
           return
         }
         const store = await getPacksim(user.id)
-        // 무제한은 운영자 전용 — 보관함 없이도 바로 열어 점검할 수 있다.
+        // 무제한은 운영자 전용 — 보관함·GP 없이도 바로 열어 점검할 수 있다.
         const unlimited = isAdmin(user) && !(body.spend === true)
         const have = store.packs?.[pack.slug] ?? 0
-        if (!unlimited && have < 1) {
-          sendJson(res, 400, { error: 'no pack in stash' })
-          return
+        // "바로 개봉": 보관함에 있으면 그걸 쓰고(진열 안 바뀌어도 됨), 없으면 그 자리에서
+        // 산다(오늘 진열 중 + GP 차감). 보관함 우선이라 같은 팩을 담아두고 바로 개봉을
+        // 눌러도 이중으로 GP가 나가지 않는다.
+        let fromStash = false
+        if (!unlimited) {
+          if (have >= 1) fromStash = true
+          else if (!isLive(pack.slug)) {
+            sendJson(res, 400, { error: 'unknown pack' })
+            return
+          } else if (store.balance < pack.price) {
+            sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
+            return
+          }
         }
         const cards = await readPackCards(pack.src)
         if (cards.length === 0) {
@@ -3107,9 +3123,12 @@ function mountAuth(
           return
         }
         const drawn = drawPack(cards, pack.profile)
-        if (!unlimited && store.packs) {
+        if (fromStash && store.packs) {
           if (have <= 1) delete store.packs[pack.slug]
           else store.packs[pack.slug] = have - 1
+        } else if (!unlimited) {
+          store.balance -= pack.price
+          store.spent += pack.price
         }
         store.opened += 1
         if (drawn.god) store.god += 1

@@ -117,6 +117,8 @@ export function PackSim({
   const [delMode, setDelMode] = useState(false);
   // 앨범 정렬: 등급순(같은 등급끼리 묶임) · 가격순 · 최근 획득순
   const [albumSort, setAlbumSort] = useState<'rarity' | 'price' | 'recent'>('rarity');
+  // 앨범이 수백 종으로 커져도 보고 싶은 등급만 추릴 수 있게.
+  const [albumFilter, setAlbumFilter] = useState<'all' | 'rr' | 'ar'>('all');
   const [delPick, setDelPick] = useState<Set<string>>(new Set());
   const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
@@ -192,7 +194,13 @@ export function PackSim({
       });
       const d = (await r.json()) as { balance?: number; packs?: Record<string, number>; error?: string };
       if (!r.ok) {
-        setErr(d.error === 'not enough' ? 'GP가 부족합니다.' : '구매하지 못했습니다.');
+        setErr(
+          d.error === 'not enough'
+            ? 'GP가 부족합니다.'
+            : d.error === 'stash full'
+              ? '보관함이 가득 찼습니다. (최대 50팩)'
+              : '구매하지 못했습니다.',
+        );
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
@@ -223,10 +231,10 @@ export function PackSim({
       });
       const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string };
       if (!r.ok || !d.cards) {
-        setErr(d.error === 'no pack in stash' ? '보관함에 이 팩이 없습니다. 먼저 구매해 주세요.' : '팩을 열지 못했습니다.');
+        setErr(d.error === 'not enough' ? 'GP가 부족합니다.' : '팩을 열지 못했습니다.');
         return;
       }
-      setSim((s2) => (s2 ? { ...s2, packs: d.packs ?? s2.packs } : s2));
+      setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
       if (d.god) trackEvent('packsim_godpack', cfg.label);
       // 등급 낮은 카드가 앞, 제일 좋은 카드가 맨 뒤로 오게 정렬해 마지막 한 장에서 터지게 한다.
       const sorted = [...d.cards].sort((a, b) => rankOf(a.r) - rankOf(b.r));
@@ -524,17 +532,30 @@ export function PackSim({
                         {s2.label.replace(/^\[.+?\]\s*/, '')}
                       </p>
                       {on ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void buy(s2.slug);
-                          }}
-                          disabled={busy || !can}
-                          className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
-                        >
-                          {busy ? '담는 중…' : can ? `구매해서 보관함에 담기 · ${gp(s2.price)}` : 'GP가 부족합니다'}
-                        </button>
+                        <div className="mt-2 space-y-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void open(s2.slug);
+                            }}
+                            disabled={busy || !can}
+                            className="w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                          >
+                            {busy ? '여는 중…' : can ? `바로 개봉 · ${gp(s2.price)}` : 'GP가 부족합니다'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void buy(s2.slug);
+                            }}
+                            disabled={busy || !can}
+                            className="w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-40"
+                          >
+                            보관함에 담기
+                          </button>
+                        </div>
                       ) : (
                         <p className="mt-2 py-1.5">
                           <span className="inline-block rounded-full bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-white">
@@ -822,6 +843,23 @@ export function PackSim({
                 )}
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
                   {([
+                    ['all', '전체'],
+                    ['rr', 'RR 이상'],
+                    ['ar', 'AR 이상'],
+                  ] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setAlbumFilter(v)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        albumFilter === v ? 'bg-neutral-200 text-black' : 'text-neutral-500 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <span className="text-neutral-200">|</span>
+                  {([
                     ['rarity', '등급순'],
                     ['price', '가격순'],
                     ['recent', '최근 획득순'],
@@ -888,6 +926,7 @@ export function PackSim({
               </div>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
                 {[...sim.album]
+                  .filter((a) => (albumFilter === 'all' ? true : albumFilter === 'ar' ? rankOf(a.r) >= 5 : rankOf(a.r) >= 3))
                   .sort((a, b) => {
                     if (albumSort === 'price') return usdOf(b) - usdOf(a);
                     if (albumSort === 'recent') return sim.album.indexOf(b) - sim.album.indexOf(a);
