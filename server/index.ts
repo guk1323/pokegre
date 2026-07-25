@@ -34,6 +34,7 @@ app.use(async (req, res, next) => {
   // 점검 중엔 일반 방문자가 화면 자체를 못 열어 실질적으로 접근할 수 없다.
   if (req.path.startsWith('/api/local/auth')) return next()
   if (await isAdminRequest(req)) return next()
+  res.setHeader('Cache-Control', 'no-store')
   if (req.path.startsWith('/api/')) {
     res.status(503).json({ error: 'maintenance' })
     return
