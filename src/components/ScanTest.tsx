@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { scanCard, type CardScanResult } from '../api/cardScan';
+import { trackEvent } from '../api/localStats';
 import { koreanizeTitle } from '../lib/koreanizeTitle';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 
@@ -56,6 +57,8 @@ export function ScanTest() {
   }, []);
 
   async function onPick(file: File) {
+    // 실험실도 몇 번 썼는지는 남긴다(운영자 사용은 서버가 제외).
+    trackEvent('scantest');
     setBusy(true);
     setErr('');
     setRaw(null);

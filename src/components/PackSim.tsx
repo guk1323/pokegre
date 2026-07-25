@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { trackEvent } from '../api/localStats';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 import { koreanizeTitle } from '../lib/koreanizeTitle';
 
@@ -150,6 +151,8 @@ export function PackSim() {
 
   function open() {
     if (!cards || cards.length === 0) return;
+    // 어느 세트를 얼마나 뽑아보는지 집계한다(운영자 사용은 서버가 제외).
+    trackEvent('packsim', cfg.label);
     setOpening(true);
     setPack(null);
     setRevealed(0);

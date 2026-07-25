@@ -82,7 +82,11 @@ export type TrackedEvent =
   | 'artist'
   | 'tcgplayer'
   | 'sets'
-  | 'ebay_korean';
+  | 'ebay_korean'
+  // 운영자 전용 화면(카드 뽑기·스캔 테스트). 운영자 사용은 서버가 집계에서 빼므로
+  // 지금은 늘 0이지만, 나중에 공개로 돌리면 그때부터 바로 잡힌다.
+  | 'packsim'
+  | 'scantest';
 // label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
 export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;

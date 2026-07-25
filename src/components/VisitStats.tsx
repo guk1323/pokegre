@@ -24,15 +24,19 @@ function dayKey(offset: number): string {
 }
 
 // 기능 사용 표에 보여줄 항목과 순서.
-const EVENT_ROWS: { key: string; label: string }[] = [
-  { key: 'snkrdunk_search', label: '스니커덩크 검색' },
-  { key: 'ebay_search', label: '이베이 검색(북미/일본판)' },
-  { key: 'ebay_korean', label: '이베이 한글판 조회' },
-  { key: 'tcgplayer', label: 'TCGplayer 조회' },
-  { key: 'scan', label: '사진 검색' },
-  { key: 'centering', label: '센터링 측정' },
-  { key: 'artist', label: '작가별 조회' },
-  { key: 'sets', label: '세트별 목록 조회' },
+// hint는 "무슨 행동일 때 1 올라가는지". 나중에 숫자를 해석할 때 기준을 몰라
+// 다시 코드를 뒤지는 일이 없도록 화면에 같이 적어둔다.
+const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
+  { key: 'snkrdunk_search', label: '스니커덩크 검색', hint: '검색 실행(자동완성 선택 포함)' },
+  { key: 'ebay_search', label: '이베이 검색(북미/일본판)', hint: '이베이 소스로 검색 실행' },
+  { key: 'ebay_korean', label: '이베이 한글판 조회', hint: '판 토글에서 한글판 조회' },
+  { key: 'tcgplayer', label: 'TCGplayer 조회', hint: '카드 상세에서 TCGplayer 시세 열람' },
+  { key: 'scan', label: '사진 검색', hint: '사진을 넣어 카드 인식 실행' },
+  { key: 'centering', label: '센터링 측정', hint: '사진으로 측정 실행' },
+  { key: 'artist', label: '작가별 조회', hint: '작가 한 명을 열 때(누구인지도 아래 순위에 집계)' },
+  { key: 'sets', label: '세트별 목록 조회', hint: '세트 하나를 열 때(어느 세트인지도 아래 순위에 집계)' },
+  { key: 'packsim', label: '카드 뽑기', hint: '팩 열기 버튼(운영자 전용이라 지금은 늘 0)' },
+  { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
 ];
 
 // 조회 순위 목록(작가별·세트별 공용): 상위 5개만 보여주고 "더보기"로 5개씩 늘린다.
@@ -195,7 +199,10 @@ export function VisitStats() {
           <tbody>
             {EVENT_ROWS.map((row) => (
               <tr key={row.key} className="border-b border-neutral-50 last:border-0">
-                <td className="px-4 py-2.5 font-semibold text-neutral-700">{row.label}</td>
+                <td className="px-4 py-2.5">
+                  <span className="font-semibold text-neutral-700">{row.label}</span>
+                  <span className="block text-[11px] font-normal text-neutral-400">{row.hint}</span>
+                </td>
                 <td className="px-4 py-2.5 text-right font-bold text-black">{(evToday[row.key] ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-2.5 text-right font-bold text-black">{(evWeek[row.key] ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-2.5 text-right font-bold text-black">{(evTotal[row.key] ?? 0).toLocaleString()}</td>
