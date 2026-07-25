@@ -77,7 +77,13 @@ const PROFILE_GROUPS = [...new Set(LIVE_PACKS.map((p) => p.profile))].map((profi
   };
 });
 
-export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void }) {
+// "시세 보기"가 넘기는 목표. 이름만 넘기면 같은 이름의 다른 카드가 잔뜩 나와서,
+// 그 카드 한 장으로 좁혀지는 검색어(일본판: "세트코드 번호" / 북미판: "영문이름 번호")를 만든다.
+// 사진 스캔이 쓰는 방식과 같다 — SNKRDUNK 상품명에 "[SV11B 174/086]"이 박혀 있어
+// 뒷자리 없이도 정확히 걸리는 걸 확인했다.
+export type PickTarget = { query: string; source: 'snkrdunk' | 'ebay'; edition: 'japanese' | 'english' };
+
+export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => void }) {
   const [tab, setTab] = useState<'open' | 'album' | 'rates'>('open');
   const [sim, setSim] = useState<SimState | null>(null);
   const [slug, setSlug] = useState(LIVE_PACKS[0].slug);
@@ -255,6 +261,14 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
     return () => clearTimeout(t);
   }, [tab, value, loadValue]);
 
+  // 카드 한 장을 정확히 가리키는 검색 목표를 만든다.
+  const pickTarget = (slug: string, n: string, rawName: string): PickTarget => {
+    const jp = !!packBySlug.get(slug)?.jp;
+    return jp
+      ? { query: `${slug.replace(/^ja-/, '')} ${n}`, source: 'snkrdunk', edition: 'japanese' }
+      : { query: `${rawName} ${n}`, source: 'ebay', edition: 'english' };
+  };
+
   const usdOf = (a: AlbumCard) => value?.prices[a.s]?.[a.n.replace(/^0+/, '') || '0'] ?? 0;
   const koName = (jp: boolean, name: string) =>
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
@@ -399,7 +413,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
               {onPickCard && (
                 <button
                   type="button"
-                  onClick={() => onPickCard(koName(cfg.jp, best.name))}
+                  onClick={() => onPickCard(pickTarget(cfg.slug, best.n, best.name))}
                   className="ml-2 rounded-md bg-black px-2 py-1 text-[11px] font-bold text-white"
                 >
                   시세 보기
@@ -481,7 +495,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
                 </p>
                 {!!value?.pending?.length && (
                   <p className="mt-0.5 text-[10px] font-semibold text-amber-600">
-                    세트 {value.pending.length}개 시세를 불러오는 중이에요. 1분쯤 뒤 자동으로 채워져요.
+                    세트 {value.pending.length}개 시세를 준비하는 중이에요. 잠시 뒤 자동으로 채워져요(다음부터는 바로 떠요).
                   </p>
                 )}
                 <div className="mt-2 flex items-center gap-2">
@@ -496,6 +510,20 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
                   ) : (
                     <>
                       <span className="text-xs text-neutral-500">카드를 눌러 고르세요 ({delPick.size}종)</span>
+                      <button
+                        type="button"
+                        onClick={() => setDelPick(new Set(sim.album.map((a) => `${a.s}|${a.n}`)))}
+                        className="text-xs text-neutral-500 underline"
+                      >
+                        전체 선택
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDelPick(new Set())}
+                        className="text-xs text-neutral-500 underline"
+                      >
+                        전체 해제
+                      </button>
                       <button
                         type="button"
                         onClick={removeSelected}
@@ -573,10 +601,10 @@ export function PackSim({ onPickCard }: { onPickCard?: (name: string) => void })
                           </p>
                         ) : (
                           onPickCard &&
-                          name && (
+                          card && (
                             <button
                               type="button"
-                              onClick={() => onPickCard(name)}
+                              onClick={() => onPickCard(pickTarget(a.s, a.n, card.name))}
                               className="mt-0.5 text-[10px] text-neutral-500 underline"
                             >
                               시세 보기

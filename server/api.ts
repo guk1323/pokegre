@@ -2515,7 +2515,42 @@ async function readPackCards(src: string): Promise<PackCard[]> {
 // 캐시가 있으면 크레딧을 아예 안 쓴다. 카드번호는 "174/086" 꼴이라 앞자리만 쓴다.
 const packPriceCache = new Map<string, { at: number; prices: Record<string, number> }>()
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
+const PACK_PRICE_FILE = dataFile('pack-prices.json')
 const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
+
+// 앨범을 열 때 받아오면 세트당 1분씩 걸려 못 쓴다(PPT 분당 한도). 대신
+// ① 캐시를 파일로 남겨 재배포 직후에도 어제 시세가 바로 뜨고
+// ② 서버가 뒤에서 1분 간격으로 하나씩 새로 받아 하루 한 번 갈아끼운다.
+async function loadPackPriceFile() {
+  try {
+    const raw = JSON.parse(await readFile(PACK_PRICE_FILE, 'utf-8')) as Record<string, { at: number; prices: Record<string, number> }>
+    for (const [slug, v] of Object.entries(raw)) packPriceCache.set(slug, v)
+  } catch {
+    /* 처음엔 없다 */
+  }
+}
+async function savePackPriceFile() {
+  await mkdir(path.dirname(PACK_PRICE_FILE), { recursive: true })
+  await writeFile(PACK_PRICE_FILE, JSON.stringify(Object.fromEntries(packPriceCache)))
+}
+
+let warming = false
+async function warmPackPrices(apiKey: string) {
+  if (!apiKey || warming) return
+  warming = true
+  try {
+    for (const slug of Object.keys(PPT_SET_NAMES)) {
+      const hit = packPriceCache.get(slug)
+      if (hit && Date.now() - hit.at < PACK_PRICE_TTL_MS) continue
+      await getSetPrices(slug, apiKey)
+      await savePackPriceFile()
+      // 세트 하나가 크레딧 250, 분당 한도가 500이라 70초씩 띄운다.
+      await new Promise((r) => setTimeout(r, 70_000))
+    }
+  } finally {
+    warming = false
+  }
+}
 
 async function getSetPrices(slug: string, apiKey: string): Promise<Record<string, number> | null> {
   const setName = PPT_SET_NAMES[slug]
@@ -2690,6 +2725,14 @@ function mountAuth(
   naverClientSecret: string,
   pptApiKey: string, // 앨범 시세(카드 뽑기)용 PPT 키
 ) {
+  // 앨범 시세 캐시: 파일에서 복구하고, 프로덕션이면 뒤에서 미리 데워둔다.
+  // (개발 서버는 재시작이 잦아 그때마다 크레딧을 태우지 않게 열 때만 받는다.)
+  void loadPackPriceFile().then(() => {
+    if (process.env.NODE_ENV === 'production') {
+      setTimeout(() => void warmPackPrices(pptApiKey), 5_000)
+      setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, TTL 지난 것만 받는다
+    }
+  })
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
   // 콜백이 돌아올 때만 지워져서, 로그인하다 그만두면 영원히 남는다. 인증도 필요 없는
   // /kakao를 반복 호출해 메모리를 불릴 수 있으므로 만료를 붙인다. 카카오 로그인 화면에
