@@ -7,9 +7,9 @@ import { rankOf, type PackCard } from '../lib/packDraw';
 import {
   DAILY_BUDGET,
   GOD_PACK_RATE,
+  livePacks,
   NA_SPECIAL,
   MAX_BALANCE,
-  LIVE_PACKS,
   STREAK_BONUS,
   STREAK_DAYS,
   packBySlug,
@@ -66,8 +66,9 @@ function ratesOf(pack: PackSet): { ko: string; pct: number; per: number }[] {
 
 // 확률은 "팩 종류"마다 정해져 있고 같은 종류면 세트가 달라도 같다. 팩을 하나씩
 // 바꿔가며 봐야 하면 불편하니, 종류별로 묶어 한 화면에 다 보여준다.
-const PROFILE_GROUPS = [...new Set(LIVE_PACKS.map((p) => p.profile))].map((profile) => {
-  const packs = LIVE_PACKS.filter((p) => p.profile === profile);
+const LIVE_TODAY: PackSet[] = livePacks();
+const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profile) => {
+  const packs = LIVE_TODAY.filter((p) => p.profile === profile);
   const first = packs[0];
   const kind = first.jp ? '일본판 확장팩 (5장)' : profile === NA_SPECIAL ? '북미판 특별세트 (10장)' : '북미판 일반 부스터 (10장)';
   return {
@@ -77,16 +78,15 @@ const PROFILE_GROUPS = [...new Set(LIVE_PACKS.map((p) => p.profile))].map((profi
   };
 });
 
-// "시세 보기"가 넘기는 목표. 이름만 넘기면 같은 이름의 다른 카드가 잔뜩 나와서,
-// 그 카드 한 장으로 좁혀지는 검색어(일본판: "세트코드 번호" / 북미판: "영문이름 번호")를 만든다.
-// 사진 스캔이 쓰는 방식과 같다 — SNKRDUNK 상품명에 "[SV11B 174/086]"이 박혀 있어
-// 뒷자리 없이도 정확히 걸리는 걸 확인했다.
-export type PickTarget = { query: string; source: 'snkrdunk' | 'ebay'; edition: 'japanese' | 'english' };
+// "시세 보기"가 넘기는 목표. 앨범에 보여주는 값이 TCGplayer 마켓가이므로 눌렀을 때도
+// TCGplayer 화면으로 간다(보여준 숫자와 다른 시장으로 보내면 헷갈린다). 검색어는
+// "이름 번호"라 그 카드 한 장으로 좁혀진다(039처럼 0 붙은 그대로 — 39는 239에도 걸린다).
+export type PickTarget = { query: string; source: 'snkrdunk' | 'ebay' | 'tcgplayer'; edition: 'japanese' | 'english' };
 
 export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => void }) {
   const [tab, setTab] = useState<'open' | 'album' | 'rates'>('open');
   const [sim, setSim] = useState<SimState | null>(null);
-  const [slug, setSlug] = useState(LIVE_PACKS[0].slug);
+  const [slug, setSlug] = useState(LIVE_TODAY[0].slug);
   const [pack, setPack] = useState<PackCard[] | null>(null);
   const [god, setGod] = useState(false);
   const [revealed, setRevealed] = useState(0);
@@ -110,7 +110,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   // 예산이 깎이고 모자라면 못 연다(그 흐름도 확인해야 하니 스위치로 뒀다).
   const [spend, setSpend] = useState(false);
 
-  const cfg = packBySlug.get(slug) ?? LIVE_PACKS[0];
+  const cfg = packBySlug.get(slug) ?? LIVE_TODAY[0];
 
   const load = useCallback(async () => {
     try {
@@ -261,12 +261,12 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
     return () => clearTimeout(t);
   }, [tab, value, loadValue]);
 
-  // 카드 한 장을 정확히 가리키는 검색 목표를 만든다.
-  const pickTarget = (slug: string, n: string, rawName: string): PickTarget => {
-    const jp = !!packBySlug.get(slug)?.jp;
-    return jp
-      ? { query: `${slug.replace(/^ja-/, '')} ${n}`, source: 'snkrdunk', edition: 'japanese' }
-      : { query: `${rawName} ${n}`, source: 'ebay', edition: 'english' };
+  // 카드 한 장을 정확히 가리키는 검색 목표를 만든다. 앨범이 보여주는 값이 TCGplayer
+  // 마켓가라 눌렀을 때도 TCGplayer 화면으로 간다. 검색어는 "이름 번호" — 한글 이름은
+  // 기존 번역 파이프라인이 영문으로 바꿔 준다(번호는 039처럼 0 붙은 그대로가 정확).
+  const pickTarget = (slug2: string, n: string, rawName: string): PickTarget => {
+    const jp = !!packBySlug.get(slug2)?.jp;
+    return { query: `${koName(jp, rawName)} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
   };
 
   const usdOf = (a: AlbumCard) => value?.prices[a.s]?.[a.n.replace(/^0+/, '') || '0'] ?? 0;
@@ -330,8 +330,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
               고르면 스포트라이트가 켜지며 살짝 떠오른다. 색은 금색 포인트 하나만 쓴다. */}
           <div className="mt-4 rounded-2xl bg-gradient-to-b from-neutral-900 via-neutral-900 to-neutral-950 p-5 ring-1 ring-neutral-800">
             {[
-              { label: '일본판 · 팩당 5장', packs: LIVE_PACKS.filter((p) => p.jp) },
-              { label: '북미판 · 팩당 10장', packs: LIVE_PACKS.filter((p) => !p.jp) },
+              { label: '일본판 · 팩당 5장', packs: LIVE_TODAY.filter((p) => p.jp) },
+              { label: '북미판 · 팩당 10장', packs: LIVE_TODAY.filter((p) => !p.jp) },
             ].map((row, ri) => (
               <div key={row.label} className={ri === 0 ? 'mb-6' : ''}>
                 <p className="mb-1 text-[11px] font-semibold tracking-[0.2em] text-amber-200/50">{row.label}</p>
@@ -396,6 +396,9 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                 </div>
               </div>
             ))}
+            <p className="mt-3 text-center text-[10px] tracking-wide text-neutral-500">
+              오늘의 진열 · 매일 자정에 다른 팩으로 바뀝니다 (전체 22종)
+            </p>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-3">

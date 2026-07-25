@@ -106,41 +106,76 @@ export const PACK_SETS: PackSet[] = [
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
 ];
 
-// 지금 진열장에 올리는 팩. 데이터는 22개를 다 만들어 뒀지만 한 번에 다 깔면 고르기
-// 벅차고, 나중에 "새 팩 입고"로 쓸 것도 없어진다. 값이 싼 것부터 비싼 것까지 골고루
-// 넣어야 "싼 거 여러 개 vs 비싼 거 하나" 고민이 생긴다.
-// 늘리려면 여기에 슬러그만 추가하면 된다(데이터는 이미 있다).
-export const ACTIVE_SLUGS = [
-  'ja-M4', // 최신
-  'ja-SV11B', // 인기
-  'ja-SV2a', // 151, 스테디셀러
-  'en-sv10', // 북미 최신
-  'en-sv08.5', // 프리즈매틱, 북미 최고 인기
-  'en-sv03.5', // 북미 151
-];
-
-// PPT(PokemonPriceTracker)에서 이 세트를 부르는 이름. 앨범 시세 계산에 쓴다.
-// ⚠️ 전부 PPT API로 직접 확인한 이름만 적는다(추측 금지 — 여기 없는 세트는 시세 표시가
-// 안 될 뿐이다). 새 팩을 진열하면 PPT에서 세트명을 확인해 여기 추가할 것.
+// PPT(PokemonPriceTracker)에서 각 세트를 부르는 이름. 앨범 시세 수집(warm)에 쓴다.
+// ⚠️ 전부 PPT API로 직접 확인한 문자열만 적는다(추측 금지). m1L·m1S는 소문자 m이 맞다.
 export const PPT_SET_NAMES: Record<string, string> = {
+  // 일본판
   'ja-M4': 'M4: Ninja Spinner',
+  'ja-M3': 'M3: Nihil Zero',
+  'ja-M1L': 'm1L: Mega Brave',
+  'ja-M1S': 'm1S: Mega Symphonia',
   'ja-SV11B': 'SV11B: Black Bolt',
-  'ja-SV2a': 'SV2a: Pokemon Card 151',
+  'ja-SV11W': 'SV11W: White Flare',
+  'ja-SV10': 'SV10: The Glory of Team Rocket',
+  'ja-SV9': 'SV9: Battle Partners',
   'ja-SV8': 'SV8: Super Electric Breaker',
-  'ja-SV8a': 'SV8a: Terastal Fest ex',
-  'en-sv10': 'SV10: Destined Rivals',
-  'en-sv08.5': 'SV: Prismatic Evolutions',
-  'en-sv03.5': 'SV: Scarlet & Violet 151',
-  'en-sv08': 'SV08: Surging Sparks',
-  'en-sv03': 'SV03: Obsidian Flames',
+  'ja-SV7': 'SV7: Stellar Miracle',
+  'ja-SV6': 'SV6: Transformation Mask',
+  'ja-SV3': 'SV3: Ruler of the Black Flame',
+  'ja-SV2a': 'SV2a: Pokemon Card 151',
+  // 북미판
   'en-me01': 'ME01: Mega Evolution',
+  'en-sv10': 'SV10: Destined Rivals',
+  'en-sv09': 'SV09: Journey Together',
+  'en-sv08.5': 'SV: Prismatic Evolutions',
+  'en-sv08': 'SV08: Surging Sparks',
+  'en-sv07': 'SV07: Stellar Crown',
+  'en-sv06': 'SV06: Twilight Masquerade',
+  'en-sv03.5': 'SV: Scarlet & Violet 151',
+  'en-sv03': 'SV03: Obsidian Flames',
 };
 
-// 앨범에는 지금 안 파는 팩의 카드도 남아 있으므로, 이름·이미지 조회는 전체에서 한다.
+// ── 오늘의 진열대 ─────────────────────────────────────────────────────────
+// 매일 일본판 3팩 + 북미판 3팩을 랜덤으로 진열한다. 날짜(한국시간)를 시드로 쓰는
+// 결정적 셔플이라 서버와 화면이 따로 맞출 필요 없이 같은 답을 얻고, 자정에 바뀐다.
+// 22팩 전부 시세를 미리 받아두므로(PPT_SET_NAMES) 어떤 팩이 떠도 시세는 바로 뜬다.
+export function kstDateStr(now = Date.now()): string {
+  return new Date(now + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
+// mulberry32 — 시드 하나로 같은 순서를 재현하는 가벼운 난수.
+function seededRng(seed: number): () => number {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededPick<T>(arr: T[], n: number, seed: number): T[] {
+  const rnd = seededRng(seed);
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+export function livePacks(date = kstDateStr()): PackSet[] {
+  let h = 0;
+  for (const ch of date) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const jp = PACK_SETS.filter((p) => p.jp);
+  const na = PACK_SETS.filter((p) => !p.jp);
+  return [...seededPick(jp, 3, h), ...seededPick(na, 3, h ^ 0x9e3779b9)];
+}
+
+// 앨범에는 오늘 진열에 없는 팩의 카드도 남아 있으므로, 이름·이미지 조회는 전체에서 한다.
 export const packBySlug = new Map(PACK_SETS.map((p) => [p.slug, p]));
-// 화면 진열과 "이 팩 열어도 되나" 검사는 진열 중인 것만 본다.
-export const LIVE_PACKS = ACTIVE_SLUGS.map((s) => packBySlug.get(s)).filter((p): p is PackSet => !!p);
-export const isLive = (slug: string) => ACTIVE_SLUGS.includes(slug);
+// "이 팩 열어도 되나" 검사는 오늘 진열 기준.
+export const isLive = (slug: string) => livePacks().some((p) => p.slug === slug);
 
 // ── 예산(출석) 규칙 ────────────────────────────────────────────────────────
 // 숫자를 바꾸고 싶으면 여기만 고치면 된다. 하루치로 일본판 18팩 / 북미판 4팩쯤
