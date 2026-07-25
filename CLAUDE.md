@@ -18,6 +18,7 @@
 |---|---|---|---|---|
 | `POKEMON_PRICE_TRACKER_API_KEY` | **PPT** (pokemonpricetracker.com/api/v2). eBay·TCGplayer 시세, 등급별 히스토리 | **유료(Pro $10)** | server/api.ts (Bearer) | `/cards` 응답에 **카드 이미지도 포함**(`imageCdnUrl` 200/400/800, tcgplayer-cdn). `setName`으로 조회 가능. **rate limit 매우 빡빡 — 2~3연속 호출이면 429**. `page` 파라미터 없음(`limit`만, 최대 250). |
 | `POKEMONTCG_API_KEY` | **pokemontcg.io** 카드 이미지·데이터 | 무료 | **코드 미사용(데이터 작업용)** | 이미지 채우기 등 스크립트에서 `X-Api-Key` 헤더로. 키 없이 부르면 rate limit 걸림 → **반드시 이 키 사용**. 데이터 API가 가끔 500 뜸. |
+| `EBAY_APP_ID` / `EBAY_CERT_ID` | **이베이 Browse API** — 한글판(Korean Version) **현재 매물가(호가)**. server/api.ts `mountEbayKorean` → `/api/local/ebay-korean?q=` | 무료(Browse) | server/api.ts (OAuth client_credentials) | 이베이는 **매물 제목이 영어**라 `"카드명 Korean Version"`로 검색. **호가만**(체결가=Marketplace Insights는 별도 승인 필요, 403). 화면은 이베이 판 토글의 "한글판"(edition='korean' → KoreanEbayView). Fly엔 `fly secrets set`으로. |
 | `ANTHROPIC_API_KEY` | 카드 사진 스캔(이미지→카드 인식) | 종량제 | server/api.ts | scan-card는 인증 필요(요금 방지). |
 | `KAKAO_REST_API_KEY` / `KAKAO_CLIENT_SECRET` | 카카오 로그인 | 무료 | server/api.ts | |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 | 무료 | server/api.ts | |
@@ -73,7 +74,10 @@
 - **세트 화면(SetsView)은 현재 `isAdmin` 전용**(App.tsx). 일반 유저에겐 안 보임.
 - **환율은 "어제 날짜"가 정상 = 버그 아님.** 유럽중앙은행 일일 발표값(Frankfurter `/latest`)이라 평일 하루 한 번, 보통 전날 값. "7.XX 환율 기준" 라벨은 의도된 표기(실시간 아님을 밝히는 것). FX 수수료로 어차피 2~5% 어긋나서 실시간 살 이유 없음 — 그렇게 설계함. **"환율 안 바뀐다/멈췄다"고 오해 말 것.**
 - **트레이너 이름 번역**: 예전 세션이 일본어 음역을 잘못 넣은 게 많았음 → [[pokegre-trainer-romaji-errors]] 참고. 나무위키/Fandom은 WebFetch가 402/403 → **인app 브라우저로 읽기**.
-- 배포: `fly deploy -a pokegre` (사용자 인가 하에). 프로덕션 `/data` 읽기는 집계만, PII 금지.
+- 배포: `fly deploy -a pokegre` (사용자 인가 하에). 프로덕션 `/data` 읽기는 집계만, PII 금지. **배포 전 검증은 `npm run build`로** — `npx tsc --noEmit`은 통과해도 빌드용 `tsc -b`(프로젝트참조·incremental)가 더 엄격해 다른 에러를 잡는다(한 번 배포 실패함). 새 서버 키는 `.env`뿐 아니라 `fly secrets set ... -a pokegre`도 필요(프로덕션은 .env 안 읽음).
+
+## 카드명 번역 점검
+`npx tsx scripts/card-name-audit.mts --list` — 세트 카드명 중 ①일본어 잔여 ②음역으로 깨진 이름을 찾는다. 옛 세트(e시리즈·PCG·neo)는 **원본 TCGdex의 일본어 칸이 오염**(정식 일본명 대신 영어명 가타카나 음차: `デンリュウ`가 아니라 `アンファロス`)돼 있어 사전이 못 잡는 게 원인 — 우리 번역기 버그가 아니다. 포켓몬은 `src/data/pokemonNameAliases.json`, 굿즈·트레이너는 `STRUCTURAL_TERMS`에 추가. **별칭은 3글자 이상만**(2글자는 다른 이름에 끼어듦), 추가 전 트레이너 이름과 충돌 검사, 한글명은 `pokemonNames.json`에서 가져올 것. 상세는 메모리 [[pokegre-translation-batch-check]].
 
 ## 신고함 처리
 `/data/translation-feedback.json`(번역 신고), `/data/community-reports.json`(게시글 신고). 운영자만 GET/DELETE. 서버 접근: `fly ssh console -a pokegre -C "..."`.
