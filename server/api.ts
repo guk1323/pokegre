@@ -2,6 +2,17 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
+// 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
+// 믿으면 예산을 속일 수 있어서, 서버도 같은 표로 차감하고 뽑기도 서버가 한다).
+import {
+  DAILY_BUDGET,
+  FIRST_BONUS,
+  MAX_BALANCE,
+  STREAK_BONUS,
+  STREAK_DAYS,
+  packBySlug,
+} from '../src/lib/packSets.ts'
+import { drawPack, usableCards, type PackCard } from '../src/lib/packDraw.ts'
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -1081,7 +1092,7 @@ const MAX_SET_KEYS = 500
 // sets=세트별 목록에서 세트 열람, ebay_korean=이베이 한글판 시세 조회.
 const ALLOWED_EVENTS = new Set([
   'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'ebay_korean',
-  'packsim', 'scantest',
+  'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -2420,6 +2431,92 @@ async function getCollections(id: string): Promise<Collections> {
   return all[id]
 }
 
+// ── 카드 뽑기(PackSim) ────────────────────────────────────────────────────
+// 출석으로 받은 예산으로 팩을 사서 열고, 나온 카드를 앨범에 모은다.
+// 뽑기는 서버에서 한다 — 화면에서 뽑으면 예산도 앨범도 얼마든지 조작할 수 있다.
+const PACKSIM_FILE = dataFile('packsim.json')
+// 앨범은 "종류별 1줄 + 장수"라 22개 팩을 다 모아도 3,500줄쯤이다. 상한을 둬서
+// 한 사람이 파일을 무한정 키우지 못하게 한다.
+const ALBUM_LIMIT = 4000
+
+interface AlbumCard {
+  s: string // 세트 슬러그
+  n: string // 카드 번호
+  r: string // 레어도
+  c: number // 모은 장수
+  g?: 1 // 갓팩에서 나온 적 있음
+}
+interface PackSimStore {
+  balance: number
+  lastCheckIn: string // 한국시간 'YYYY-MM-DD'
+  streak: number
+  opened: number
+  spent: number
+  god: number
+  album: AlbumCard[]
+}
+
+let packsim: Record<string, PackSimStore> | null = null
+async function loadPacksim(): Promise<Record<string, PackSimStore>> {
+  if (packsim) return packsim
+  try {
+    packsim = JSON.parse(await readFile(PACKSIM_FILE, 'utf-8')) as Record<string, PackSimStore>
+  } catch {
+    packsim = {}
+  }
+  return packsim
+}
+async function persistPacksim() {
+  await mkdir(path.dirname(PACKSIM_FILE), { recursive: true })
+  await writeFile(PACKSIM_FILE, JSON.stringify(packsim))
+}
+async function getPacksim(id: string): Promise<PackSimStore> {
+  const all = await loadPacksim()
+  all[id] ??= { balance: 0, lastCheckIn: '', streak: 0, opened: 0, spent: 0, god: 0, album: [] }
+  return all[id]
+}
+
+// 출석은 "하루 한 번"이라 기준 시각이 필요하다. 이용자가 전부 한국이므로 한국시간
+// 자정으로 끊는다(서버는 UTC로 돌 수도 있어서 UTC+9로 옮겨 날짜만 본다).
+function todayKst(): string {
+  return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+}
+function dayDiff(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400_000)
+}
+
+// 세트 카드 목록은 정적 파일이라 한 번 읽어 캐시한다. 배포본은 dist/, 개발은 public/에 있다.
+const packCardsCache = new Map<string, PackCard[]>()
+async function readPackCards(src: string): Promise<PackCard[]> {
+  const cached = packCardsCache.get(src)
+  if (cached) return cached
+  const rel = src.replace(/^\//, '')
+  for (const base of ['dist', 'public']) {
+    try {
+      const raw = await readFile(path.resolve(process.cwd(), base, rel), 'utf-8')
+      const cards = usableCards((JSON.parse(raw) as { cards?: PackCard[] }).cards ?? [])
+      packCardsCache.set(src, cards)
+      return cards
+    } catch {
+      /* 다음 경로 */
+    }
+  }
+  return []
+}
+
+// 앨범에 넣는다. 같은 카드는 장수만 올린다.
+function addToAlbum(store: PackSimStore, slug: string, cards: PackCard[], god: boolean) {
+  for (const c of cards) {
+    const found = store.album.find((a) => a.s === slug && a.n === c.n)
+    if (found) {
+      found.c++
+      if (god) found.g = 1
+    } else if (store.album.length < ALBUM_LIMIT) {
+      store.album.push({ s: slug, n: c.n, r: c.r ?? 'Common', c: 1, ...(god ? { g: 1 as const } : {}) })
+    }
+  }
+}
+
 // 클라이언트가 보낸 값을 그대로 믿지 않는다. 카드 참조 외의 필드를 끼워넣거나
 // 목록을 무한정 키우는 걸 막는다.
 function sanitizeRefs(input: unknown, limit: number): CardRef[] {
@@ -2709,6 +2806,82 @@ function mountAuth(
         store.recent = sanitizeRefs([...store.recent, ...(Array.isArray(body.recent) ? body.recent : [])], RECENT_LIMIT)
         await persistCollections()
         sendJson(res, 200, store)
+        return
+      }
+
+      // ── 카드 뽑기(PackSim) ───────────────────────────────────────────────
+      // GET /packsim — 예산·연속출석·앨범. 오늘 출석 안 했으면 받을 금액도 같이 알려준다.
+      if (segments[0] === 'packsim' && segments.length === 1 && req.method === 'GET') {
+        const user = await currentUser(req)
+        // 아직 운영자 전용 실험이다. 화면 메뉴만 숨기면 API는 그대로 열려 있어서,
+        // 로그인만 하면 누구나 출석·팩열기를 부를 수 있다. 여기서 같이 막는다.
+        if (!isAdmin(user)) {
+          sendJson(res, 403, { error: 'admin only' })
+          return
+        }
+        const store = await getPacksim(user!.id)
+        const today = todayKst()
+        sendJson(res, 200, { ...store, today, canCheckIn: store.lastCheckIn !== today })
+        return
+      }
+
+      // POST /packsim/checkin — 하루 한 번 예산 지급. 연속 출석이면 보너스가 붙는다.
+      if (segments[0] === 'packsim' && segments[1] === 'checkin' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!isAdmin(user)) {
+          sendJson(res, 403, { error: 'admin only' })
+          return
+        }
+        const store = await getPacksim(user!.id)
+        const today = todayKst()
+        if (store.lastCheckIn === today) {
+          sendJson(res, 200, { ...store, today, canCheckIn: false, gained: 0 })
+          return
+        }
+        const first = !store.lastCheckIn
+        // 어제 왔으면 연속, 하루라도 건너뛰면 처음부터. 이월은 되지만 연속은 끊긴다.
+        store.streak = !first && dayDiff(store.lastCheckIn, today) === 1 ? store.streak + 1 : 1
+        let gained = DAILY_BUDGET
+        if (first) gained += FIRST_BONUS
+        if (store.streak > 0 && store.streak % STREAK_DAYS === 0) gained += STREAK_BONUS
+        store.balance = Math.min(MAX_BALANCE, store.balance + gained)
+        store.lastCheckIn = today
+        await persistPacksim()
+        sendJson(res, 200, { ...store, today, canCheckIn: false, gained })
+        return
+      }
+
+      // POST /packsim/open — 팩 하나를 산다. 가격도 뽑기도 서버가 한다.
+      if (segments[0] === 'packsim' && segments[1] === 'open' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!isAdmin(user)) {
+          sendJson(res, 403, { error: 'admin only' })
+          return
+        }
+        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown }
+        const pack = packBySlug.get(String(body.slug ?? ''))
+        if (!pack) {
+          sendJson(res, 400, { error: 'unknown pack' })
+          return
+        }
+        const store = await getPacksim(user!.id)
+        if (store.balance < pack.price) {
+          sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
+          return
+        }
+        const cards = await readPackCards(pack.src)
+        if (cards.length === 0) {
+          sendJson(res, 500, { error: 'pack data missing' })
+          return
+        }
+        const drawn = drawPack(cards, pack.profile)
+        store.balance -= pack.price
+        store.spent += pack.price
+        store.opened += 1
+        if (drawn.god) store.god += 1
+        addToAlbum(store, pack.slug, drawn.cards, drawn.god)
+        await persistPacksim()
+        sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened })
         return
       }
 

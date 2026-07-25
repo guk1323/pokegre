@@ -920,7 +920,7 @@ function App() {
           ) : view === 'scantest' ? (
             <ScanTest />
           ) : view === 'packsim' ? (
-            <PackSim />
+            <PackSim onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })} />
           ) : view === 'sets' ? (
             <SetsView onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })} />
           ) : view === 'community' ? (

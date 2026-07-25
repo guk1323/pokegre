@@ -36,6 +36,8 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'artist', label: '작가별 조회', hint: '작가 한 명을 열 때(누구인지도 아래 순위에 집계)' },
   { key: 'sets', label: '세트별 목록 조회', hint: '세트 하나를 열 때(어느 세트인지도 아래 순위에 집계)' },
   { key: 'packsim', label: '카드 뽑기', hint: '팩 열기 버튼(운영자 전용이라 지금은 늘 0)' },
+  { key: 'packsim_checkin', label: '뽑기 출석', hint: '하루 예산 받기(운영자 전용이라 지금은 늘 0)' },
+  { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩(운영자 전용이라 지금은 늘 0)' },
   { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
 ];
 
