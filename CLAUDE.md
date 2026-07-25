@@ -77,7 +77,10 @@
 - 배포: `fly deploy -a pokegre` (사용자 인가 하에). 프로덕션 `/data` 읽기는 집계만, PII 금지. **배포 전 검증은 `npm run build`로** — `npx tsc --noEmit`은 통과해도 빌드용 `tsc -b`(프로젝트참조·incremental)가 더 엄격해 다른 에러를 잡는다(한 번 배포 실패함). 새 서버 키는 `.env`뿐 아니라 `fly secrets set ... -a pokegre`도 필요(프로덕션은 .env 안 읽음).
 
 ## 카드명 번역 점검
-`npx tsx scripts/card-name-audit.mts --list` — 세트 카드명 중 ①일본어 잔여 ②음역으로 깨진 이름을 찾는다. 옛 세트(e시리즈·PCG·neo)는 **원본 TCGdex의 일본어 칸이 오염**(정식 일본명 대신 영어명 가타카나 음차: `デンリュウ`가 아니라 `アンファロス`)돼 있어 사전이 못 잡는 게 원인 — 우리 번역기 버그가 아니다. 포켓몬은 `src/data/pokemonNameAliases.json`, 굿즈·트레이너는 `STRUCTURAL_TERMS`에 추가. **별칭은 3글자 이상만**(2글자는 다른 이름에 끼어듦), 추가 전 트레이너 이름과 충돌 검사, 한글명은 `pokemonNames.json`에서 가져올 것. 상세는 메모리 [[pokegre-translation-batch-check]].
+**공식 한글 카드명 출처(제일 정확 — 추측하지 말 것):** 포켓몬코리아 카드검색 `https://pokemoncard.co.kr/cards/detail/<CardNum>` 은 서버렌더라 curl로 읽힌다. 이름은 `class="card-hp title"`, 번호는 `class="p_num"`, 이미지 경로에 세트코드가 들어 있다. **CardNum = 세트별 접두사 + 카드번호 3자리**(예: `BS2019007`+`092` = SM10 92번). 접두사는 `BS<연도><세트순번3자리>`라 `...001`을 훑어 세트별로 알아낼 수 있다(2018~2026 매핑을 이미 한 번 떴다). ⚠️ **한국판은 서포트·굿즈 블록을 한글 가나다순으로 다시 매긴다** — 번호가 일본판과 1:1이 아니다. 블록(예: SM12a 148~163) 전체를 받아, 이미 맞는 이름들을 짝지어 두고 **남은 것끼리 소거법**으로 맞춰야 한다. 한국 미발매(1996~2006 옛 세트)는 이 방법이 안 되니 표준 외래어 표기로.
+
+`npx tsx scripts/card-name-audit.mts --list` — ①일본어 잔여 ②음역으로 깨진 이름 ③**공식 카드명 대조**. ③이 제일 정확하다: `scripts/ko-official-card-names.json`(공식 사이트에서 받아 둔 39개 세트·2,083장의 정식 한글명)에 우리 결과가 있는지 본다. 없으면 우리가 틀린 것. 세트가 늘면 위 방법으로 더 받아 이 파일에 합치면 된다.
+**고치기 전후로 전체 카드명 렌더 결과를 떠서 diff할 것** — 2글자 규칙이 다른 이름을 깨뜨렸는지(예: `デンジ`가 `デンジャラス`를 깸) 이걸로만 잡힌다. 옛 세트(e시리즈·PCG·neo)는 **원본 TCGdex의 일본어 칸이 오염**(정식 일본명 대신 영어명 가타카나 음차: `デンリュウ`가 아니라 `アンファロス`)돼 있어 사전이 못 잡는 게 원인 — 우리 번역기 버그가 아니다. 포켓몬은 `src/data/pokemonNameAliases.json`, 굿즈·트레이너는 `STRUCTURAL_TERMS`에 추가. **별칭은 3글자 이상만**(2글자는 다른 이름에 끼어듦), 추가 전 트레이너 이름과 충돌 검사, 한글명은 `pokemonNames.json`에서 가져올 것. 상세는 메모리 [[pokegre-translation-batch-check]].
 
 ## 신고함 처리
 `/data/translation-feedback.json`(번역 신고), `/data/community-reports.json`(게시글 신고). 운영자만 GET/DELETE. 서버 접근: `fly ssh console -a pokegre -C "..."`.

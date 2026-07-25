@@ -203,7 +203,6 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Eri: '비파', // 팀 스타 보스
   Ortega: '오르티가', // 팀 스타 보스
   Giacomo: '피나', // 팀 스타 악 보스
-  Atticus: '추명', // 팀 스타 독 보스
   // 플레어단 간부 + 스컬단.
   Aliana: '아케비',
   Celosia: '코레아',
@@ -219,11 +218,14 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Kahili: '카히리',
   Wicke: '비커', // 에테르재단 비서
   // 히스이 (레전드 아르세우스).
-  Volo: '찬석',
-  Adaman: '류가',
+  Volo: '월로',
+  Drayton: '제빈',
+  Perrin: '세류',
+  Crispin: '하솔',
+  Adaman: '찬석', // 공식 카드로 확인(류가 아님)
   Irida: '주혜',
-  Cyllene: '경단', // 조사대장
-  Kamado: '파래열',
+  Cyllene: '금경', // 조사대장. 공식 카드 S9a로 확인(경단·찬석 아님)
+  Kamado: '전목', // 공식 카드 S9a로 확인(파래열 아님)
   Mai: '마이',
   Laventon: '라벤',
   Valerie: '마슈', // マーシュ, 후늬시티 페어리 관장 (마수드는 오역)
@@ -266,7 +268,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Pal Pad': '팔패드',
   'Super Rod': '슈퍼로드',
   'Air Balloon': '풍선',
-  'Rocky Helmet': '오톨도톨헬멧',
+  'Rocky Helmet': '울퉁불퉁멧', // 공식 카드 SV1V 073으로 확인
   'Pokémon Catcher': '포켓몬 캐처',
   'Crushing Hammer': '크래시해머',
   'Enhanced Hammer': '강화해머',
@@ -353,7 +355,12 @@ export function koreanizeEnglishCardName(name: string): string {
   const exact = TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey];
   if (exact) return exact;
 
-  let result = name;
+  // 북미판 세트인데 원본 DB가 "ナッシー[Exeggutor]"처럼 일본어 이름에 영어 이름을
+  // 대괄호로 덧붙여 둔 경우가 있다. 대괄호 안이 진짜 이름이라 그것만 남긴다.
+  const bracketed = name.trim().match(/^[ァ-ヶー・]+\[(.+)\]$/);
+  const base = bracketed ? bracketed[1] : name;
+
+  let result = base;
   // 표기 차이 보정: 카드 데이터는 곧은 어포스트로피(Farfetch'd)와 성별 기호 앞 공백
   // (Nidoran ♂)을 쓰는데, 사전은 굽은 어포스트로피(Farfetch’d)·붙임(Nidoran♂) 표기라
   // 그대로는 파오리·니드런이 안 잡힌다. 사전 표기에 맞춰 정규화한다.

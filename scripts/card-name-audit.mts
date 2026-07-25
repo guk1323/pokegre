@@ -12,7 +12,7 @@
 import { readFileSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { koreanizeTitle, STRUCTURAL_TERMS } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 
@@ -24,6 +24,9 @@ const CJK = /[぀-ヿ一-鿿]/ // 히라가나·가타카나·한자
 const KATA_ONLY = /^[ァ-ヶー・]{2,10}$/ // 포켓몬 이름 후보(트레이너는 보통 の·한자가 섞인다)
 const koNames = (pokemonNames as { ko: string }[]).map((p) => p.ko)
 const koSet = new Set(koNames)
+// 이미 손으로 확인해 통짜로 등록해 둔 이름(굿즈·트레이너)은 "안 고친 것"이 아니다.
+// 빼주지 않으면 고칠수록 숫자가 안 줄어 남은 일이 얼마인지 알 수 없다.
+const reviewed = new Set(STRUCTURAL_TERMS.filter(([ja]) => KATA_ONLY.test(ja)).map(([ja]) => ja))
 
 // 화면에 나오는 그대로 변환한다(일본판은 일본어 변환 후 영어 변환기까지 태운다).
 const render = (ed: string, name: string) =>
@@ -34,10 +37,24 @@ const idx: { slug: string; releaseDate?: string }[] = JSON.parse(
 )
 const yearOf = new Map(idx.map((s) => [s.slug, +(s.releaseDate ?? '2005').slice(0, 4)]))
 
+// ③ 포켓몬코리아 공식 카드명과의 대조. ko-official-card-names.json은 공식 카드검색
+// (pokemoncard.co.kr)에서 받아 둔 "세트 → 번호 → 정식 한글명"이다. 한국판은 서포트·굿즈
+// 번호를 한글 가나다순으로 다시 매기므로 번호끼리 맞추면 안 되고, 세트 안에 그 이름이
+// 있는지만 본다(있으면 우리 번역이 공식과 같다는 뜻).
+const official = JSON.parse(readFileSync(join(ROOT, 'scripts/ko-official-card-names.json'), 'utf8')) as Record<
+  string,
+  Record<string, string>
+>
+const officialBySet = new Map(
+  Object.entries(official).map(([code, byNum]) => [code, new Set(Object.values(byNum).map((v) => v.replace(/\s/g, '')))]),
+)
+
 type Row = { n: number; got: string; year: number; set: string }
 const cjkLeft = new Map<string, Row>()
 const kataLeft = new Map<string, Row>()
 let total = 0
+const officialOk = new Set<string>()
+const officialNg = new Map<string, number>()
 
 for (const dir of ['public/sets', 'public/packsim']) {
   let files: string[]
@@ -66,8 +83,15 @@ for (const dir of ['public/sets', 'public/packsim']) {
         cur.n++
         cjkLeft.set(c.name, cur)
       }
+      // ③ 공식 카드명 대조(한국 발매 세트만). 포켓몬 카드는 이미 정식 사전으로 잡히므로 뺀다.
+      const off = officialBySet.get(slug.replace(/^ja-/, ''))
+      if (ed === 'ja' && off && !koNames.some((k) => got.includes(k))) {
+        if (off.has(got.replace(/\s/g, ''))) officialOk.add(got)
+        else officialNg.set(got, (officialNg.get(got) ?? 0) + 1)
+      }
+
       // 가타카나만으로 된 이름인데 공식 한글명이 안 들어있다 = 음역으로 깨진 것
-      if (ed === 'ja' && KATA_ONLY.test(c.name) && !koNames.some((k) => got.includes(k))) {
+      if (ed === 'ja' && KATA_ONLY.test(c.name) && !reviewed.has(c.name) && !koNames.some((k) => got.includes(k))) {
         const cur = kataLeft.get(c.name) ?? { n: 0, got, year, set: slug }
         cur.n++
         cur.year = Math.min(cur.year, year)
@@ -82,6 +106,7 @@ console.log(`카드명 ${total}건 검사`)
 console.log(`  ① 일본어·한자 잔여: ${cjkLeft.size}종 / ${sum(cjkLeft)}건`)
 console.log(`  ② 음역으로 깨진 이름: ${kataLeft.size}종 / ${sum(kataLeft)}건`)
 console.log(`  (공식 한글명 사전: ${koSet.size}종)`)
+console.log(`  ③ 포켓몬코리아 공식 카드명과 대조: 일치 ${officialOk.size}종 / 불일치 ${officialNg.size}종`)
 
 if (cjkLeft.size) {
   console.log('\n① 일본어·한자가 남은 것:')
@@ -99,6 +124,13 @@ if (LIST && kataLeft.size) {
   console.log('\n포켓몬이면 src/data/pokemonNameAliases.json에, 굿즈·트레이너면')
   console.log('src/lib/koreanizeTitle.ts의 STRUCTURAL_TERMS에 넣는다.')
   console.log('⚠️ 별칭은 3글자 이상만 — 2글자는 다른 이름 안에 끼어든다(グリ가 スグリ를 깨뜨린 적 있음).')
-} else if (!LIST) {
+}
+
+if (LIST && officialNg.size) {
+  console.log('\n③ 공식 카드명과 다른 것(같은 세트의 공식 목록에 그 이름이 없음):')
+  ;[...officialNg].sort((a, b) => b[1] - a[1]).forEach(([ko, n]) => console.log(`   ${n}건  ${ko}`))
+}
+
+if (!LIST) {
   console.log('\n목록은 --list 로 본다.')
 }
