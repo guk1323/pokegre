@@ -24,14 +24,56 @@ function dayKey(offset: number): string {
 }
 
 // 기능 사용 표에 보여줄 항목과 순서.
-const EVENT_ROWS: { key: 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist' | 'tcgplayer'; label: string }[] = [
+const EVENT_ROWS: { key: string; label: string }[] = [
   { key: 'snkrdunk_search', label: '스니커덩크 검색' },
-  { key: 'ebay_search', label: '이베이 검색' },
+  { key: 'ebay_search', label: '이베이 검색(북미/일본판)' },
+  { key: 'ebay_korean', label: '이베이 한글판 조회' },
+  { key: 'tcgplayer', label: 'TCGplayer 조회' },
   { key: 'scan', label: '사진 검색' },
   { key: 'centering', label: '센터링 측정' },
   { key: 'artist', label: '작가별 조회' },
-  { key: 'tcgplayer', label: 'TCGplayer 조회' },
+  { key: 'sets', label: '세트별 목록 조회' },
 ];
+
+// 조회 순위 목록(작가별·세트별 공용): 상위 5개만 보여주고 "더보기"로 5개씩 늘린다.
+function RankList({ items, emptyText }: { items: { name: string; count: number }[]; emptyText: string }) {
+  const [shown, setShown] = useState(5);
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-neutral-400 py-6 text-center rounded-xl border border-dashed border-neutral-200">
+        {emptyText}
+      </p>
+    );
+  }
+  const max = Math.max(1, ...items.map((a) => a.count));
+  return (
+    <>
+      <ol className="space-y-1.5">
+        {items.slice(0, shown).map((a, i) => (
+          <li key={a.name} className="flex items-center gap-2">
+            <span className="w-6 flex-shrink-0 text-right text-xs font-semibold text-neutral-400">{i + 1}</span>
+            <span className="w-40 flex-shrink-0 truncate text-xs text-neutral-700">{a.name}</span>
+            <div className="h-5 flex-1 rounded bg-neutral-100">
+              <div className="h-5 rounded bg-[#2a78d6]" style={{ width: `${Math.max(2, (a.count / max) * 100)}%` }} />
+            </div>
+            <span className="w-10 flex-shrink-0 text-right text-xs font-semibold text-neutral-700">
+              {a.count.toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {shown < items.length && (
+        <button
+          type="button"
+          onClick={() => setShown((n) => n + 5)}
+          className="mt-2 w-full rounded-lg border border-neutral-200 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+        >
+          {Math.min(5, items.length - shown)}개 더보기 ({shown}/{items.length})
+        </button>
+      )}
+    </>
+  );
+}
 
 // 가로 막대 목록(방문·검색 공용).
 function BarList({ items, max }: { items: { date: string; count: number }[]; max: number }) {
@@ -58,6 +100,7 @@ export function VisitStats() {
   const [memberCount, setMemberCount] = useState(0);
   const [events, setEvents] = useState<EventDayBuckets>({});
   const [artists, setArtists] = useState<ArtistStat[]>([]);
+  const [sets, setSets] = useState<ArtistStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -75,6 +118,7 @@ export function VisitStats() {
       .then((r) => {
         setEvents(r.days);
         setArtists(r.artists);
+        setSets(r.sets);
       })
       .catch(() => undefined);
   }, []);
@@ -100,9 +144,6 @@ export function VisitStats() {
       if (week.has(day)) evWeek[ev] = (evWeek[ev] ?? 0) + (n ?? 0);
     }
   }
-
-  // ── 작가별 조회 순위 ──
-  const artistMax = Math.max(1, ...artists.map((a) => a.count));
 
   return (
     <div>
@@ -169,26 +210,11 @@ export function VisitStats() {
 
       <h2 className="text-base font-bold text-black mt-8 mb-1">작가별 조회 순위</h2>
       <p className="text-xs text-neutral-400 mb-4">일러스트레이터를 눌러 카드 목록을 연 횟수예요. 많이 본 순.</p>
-      {artists.length === 0 ? (
-        <p className="text-sm text-neutral-400 py-6 text-center rounded-xl border border-dashed border-neutral-200">
-          아직 작가 조회 기록이 없어요.
-        </p>
-      ) : (
-        <ol className="space-y-1.5">
-          {artists.map((a, i) => (
-            <li key={a.name} className="flex items-center gap-2">
-              <span className="w-6 flex-shrink-0 text-right text-xs font-semibold text-neutral-400">{i + 1}</span>
-              <span className="w-40 flex-shrink-0 truncate text-xs text-neutral-700">{a.name}</span>
-              <div className="h-5 flex-1 rounded bg-neutral-100">
-                <div className="h-5 rounded bg-[#2a78d6]" style={{ width: `${Math.max(2, (a.count / artistMax) * 100)}%` }} />
-              </div>
-              <span className="w-10 flex-shrink-0 text-right text-xs font-semibold text-neutral-700">
-                {a.count.toLocaleString()}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <RankList items={artists} emptyText="아직 작가 조회 기록이 없어요." />
+
+      <h2 className="text-base font-bold text-black mt-8 mb-1">세트별 조회 순위</h2>
+      <p className="text-xs text-neutral-400 mb-4">세트별 목록에서 세트를 눌러 수록 카드를 연 횟수예요. 많이 본 순.</p>
+      <RankList items={sets} emptyText="아직 세트 조회 기록이 없어요." />
     </div>
   );
 }

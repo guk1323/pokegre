@@ -105,7 +105,12 @@ const packJpPatterns = (packNames as PackName[])
 // PokemonPriceTracker API의 search 파라미터는 TCGPlayer 표기(영문) 기준이라, 한글
 // 검색어를 영문 포켓몬 이름으로 치환해서 보낸다. translateQuery.ts(한글→일본어)와
 // 동일한 부분 문자열 치환 방식을 쓴다.
-export function translateSearchQueryToEnglish(query: string, edition: 'japanese' | 'english' = 'japanese'): string {
+// edition='korean'은 이베이 한글판(Browse API) 경로라 이 PPT용 번역엔 안 오지만, 타입
+// 호환을 위해 받아만 두고 영문판과 같게 처리한다(실제로는 호출되지 않음).
+export function translateSearchQueryToEnglish(
+  query: string,
+  edition: 'japanese' | 'english' | 'korean' = 'japanese',
+): string {
   const trimmed = query.trim();
   if (!trimmed) return trimmed;
 

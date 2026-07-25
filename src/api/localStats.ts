@@ -74,7 +74,15 @@ export function trackVisit(): void {
 }
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
-export type TrackedEvent = 'snkrdunk_search' | 'ebay_search' | 'scan' | 'centering' | 'artist' | 'tcgplayer';
+export type TrackedEvent =
+  | 'snkrdunk_search'
+  | 'ebay_search'
+  | 'scan'
+  | 'centering'
+  | 'artist'
+  | 'tcgplayer'
+  | 'sets'
+  | 'ebay_korean';
 // label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
 export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;
@@ -103,25 +111,16 @@ export interface ArtistStat {
   count: number;
 }
 
-// 기능별 사용 횟수(날짜별) + 작가별 조회 순위. 운영자만 부를 수 있다(아니면 서버가 404).
-export async function fetchEventStats(): Promise<{ days: EventDayBuckets; artists: ArtistStat[] }> {
+// 기능별 사용 횟수(날짜별) + 작가별·세트별 조회 순위. 운영자만 부를 수 있다(아니면 서버가 404).
+export async function fetchEventStats(): Promise<{
+  days: EventDayBuckets;
+  artists: ArtistStat[];
+  sets: ArtistStat[];
+}> {
   const res = await fetch('/api/local/track-event');
   if (!res.ok) throw new Error('기능 통계를 불러오지 못했습니다.');
-  const data = (await res.json()) as { days?: EventDayBuckets; artists?: ArtistStat[] };
-  return { days: data.days ?? {}, artists: data.artists ?? [] };
-}
-
-export interface SearchDayStat {
-  date: string;
-  count: number;
-}
-
-// 날짜별 검색 횟수 합계(검색어 목록 아님). 운영자만 부를 수 있다(아니면 서버가 404).
-export async function fetchSearchStats(): Promise<SearchDayStat[]> {
-  const res = await fetch('/api/local/search-stats');
-  if (!res.ok) throw new Error('검색 통계를 불러오지 못했습니다.');
-  const data = (await res.json()) as { items?: SearchDayStat[] };
-  return data.items ?? [];
+  const data = (await res.json()) as { days?: EventDayBuckets; artists?: ArtistStat[]; sets?: ArtistStat[] };
+  return { days: data.days ?? {}, artists: data.artists ?? [], sets: data.sets ?? [] };
 }
 
 export interface VisitStat {

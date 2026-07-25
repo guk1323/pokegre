@@ -60,7 +60,9 @@ export const EBAY_PAGE_SIZE = 12;
 // 카드 발매판. PokemonPriceTracker는 일본판/영문판을 각각 별도 DB로 들고 있어서
 // language 파라미터로 고른다. SNKRDUNK는 일본 마켓이라 북미판 카탈로그가 없고,
 // 그래서 북미판 시세는 이쪽(eBay)에서만 볼 수 있다.
-export type CardEdition = 'japanese' | 'english';
+// 한글판은 PPT가 아니라 이베이 Browse API(호가)로 별도 처리하지만, 발매판 토글을
+// 공유하려고 여기 함께 둔다. PPT 검색 함수엔 'korean'을 넘기지 않게 호출부에서 막는다.
+export type CardEdition = 'japanese' | 'english' | 'korean';
 
 // PokemonPriceTracker 일일 크레딧 초과(429)를 호출부에서 식별하기 위한 에러 표식.
 export const EBAY_RATE_LIMITED = 'ebay_rate_limited';

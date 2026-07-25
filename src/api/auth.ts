@@ -91,12 +91,6 @@ export interface StoredCollections {
   recent: StoredCardRef[];
 }
 
-export async function fetchCollections(): Promise<StoredCollections | null> {
-  const res = await fetch('/api/local/auth/collections');
-  if (!res.ok) return null;
-  return res.json();
-}
-
 export async function saveCollections(input: Partial<StoredCollections>): Promise<void> {
   await fetch('/api/local/auth/collections', {
     method: 'PUT',

@@ -23,6 +23,9 @@ export interface ApiEnv {
   KAKAO_CLIENT_SECRET?: string
   NAVER_CLIENT_ID?: string
   NAVER_CLIENT_SECRET?: string
+  // 이베이 Browse API(한글판 시세, 호가). App ID(Client ID) / Cert ID(Client Secret).
+  EBAY_APP_ID?: string
+  EBAY_CERT_ID?: string
   // 운영자의 카카오 회원번호. 쉼표로 여럿 넣을 수 있다.
   ADMIN_KAKAO_IDS?: string
   // 피드백을 받을 카카오 오픈톡 링크. 비어 있으면 화면에 버튼이 안 뜬다.
@@ -202,6 +205,9 @@ const IMG_ALLOWED_HOSTS = new Set([
   'tcgplayer-cdn.tcgplayer.com',
   'images.pokemontcg.io',
   'images.scrydex.com',
+  'www.artofpkm.com', // 옛 일본판(e-Card·PCG) 공식 스캔. cdn.artofpkm.com으로 302됨
+  'cdn.artofpkm.com',
+  'i.ebayimg.com', // 이베이 한글판 매물 사진(Browse API)
 ])
 // 썸네일은 장당 수 KB라, 800장이면 최대 수십 MB 정도다(512MB 램에 안전한 상한).
 const IMG_CACHE_MAX = 800
@@ -1067,8 +1073,15 @@ const ARTIST_STATS_FILE = dataFile('artist-stats.json')
 // 클라이언트가 아무 이름이나 보내 맵을 부풀리지 못하게, 서로 다른 작가 이름은 이만큼까지만
 // 새로 받는다(실제 작가는 80명 안팎이라 넉넉하다). 넘으면 이미 있는 이름만 카운트한다.
 const MAX_ARTIST_KEYS = 300
+// 세트별 목록에서 어떤 세트를 눌렀는지(누적). "세트별 조회" 이벤트에 딸려 온 세트 이름으로 센다.
+const SET_STATS_FILE = dataFile('set-stats.json')
+// 실제 세트는 250여 개라 500까지 새 이름을 받는다. 넘으면 이미 있는 이름만 카운트.
+const MAX_SET_KEYS = 500
 // 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
-const ALLOWED_EVENTS = new Set(['snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer'])
+// sets=세트별 목록에서 세트 열람, ebay_korean=이베이 한글판 시세 조회.
+const ALLOWED_EVENTS = new Set([
+  'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'ebay_korean',
+])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
 // 날짜 구분이 없던 옛 형식의 누적치를 담아두는 칸 이름. 전체 합계에만 들어간다.
@@ -1682,6 +1695,8 @@ function mountEventStats(app: Mountable) {
   let buckets: Record<string, Record<string, number>> | null = null
   // 작가별 조회 누적: { "Mitsuhiro Arita": 12, ... }
   let artists: Record<string, number> | null = null
+  // 세트별 조회 누적: { "초전브레이커": 8, ... }
+  let sets: Record<string, number> | null = null
   const allow = rateLimiter(60, 60 * 1000)
 
   async function loadArtists() {
@@ -1692,6 +1707,16 @@ function mountEventStats(app: Mountable) {
       artists = {}
     }
     return artists!
+  }
+
+  async function loadSets() {
+    if (sets) return sets
+    try {
+      sets = JSON.parse(await readFile(SET_STATS_FILE, 'utf-8')) as Record<string, number>
+    } catch {
+      sets = {}
+    }
+    return sets!
   }
 
   async function load() {
@@ -1757,6 +1782,14 @@ function mountEventStats(app: Mountable) {
             await writeFile(ARTIST_STATS_FILE, JSON.stringify(tally))
           }
         }
+        // 세트별 목록도 어떤 세트를 열었는지 라벨(세트 한글명)로 따로 센다.
+        if (ev === 'sets' && label) {
+          const tally = await loadSets()
+          if (label in tally || Object.keys(tally).length < MAX_SET_KEYS) {
+            tally[label] = (tally[label] ?? 0) + 1
+            await writeFile(SET_STATS_FILE, JSON.stringify(tally))
+          }
+        }
         res.statusCode = 204
         res.end()
       } catch {
@@ -1780,9 +1813,15 @@ function mountEventStats(app: Mountable) {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 50)
+    // 세트별 조회 순위: 많이 연 순으로 상위 100개.
+    const setTally = await loadSets()
+    const setRanking = Object.entries(setTally)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 100)
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ days: all, artists: artistRanking }))
+    res.end(JSON.stringify({ days: all, artists: artistRanking, sets: setRanking }))
   })
 }
 
@@ -1952,6 +1991,109 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       res.statusCode = 502
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ error: 'upstream_fetch_failed' }))
+    }
+  })
+}
+
+// ── 이베이 한글판(Korean Version) 시세 ────────────────────────────────────
+// Browse API로 "카드명 Korean Version" 현재 매물가(호가)를 받는다. 체결가(낙찰가)를 주는
+// Marketplace Insights는 이베이 별도 승인이 필요해 지금은 호가. 그래서 화면에 "현재 매물가"로
+// 명확히 표기한다(북미판=체결가와 혼동 금지). 키(App/Cert)는 서버에서만, 클라이언트엔 안 내림.
+const EBAY_OAUTH_URL = 'https://api.ebay.com/identity/v1/oauth2/token'
+const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
+const EBAY_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6시간(호가는 자주 안 변함 + 무료 콜 아낌)
+const EBAY_MAX_ENTRIES = 2000
+
+function mountEbayKorean(app: Mountable, appId: string, certId: string) {
+  const cache = new TtlCache<string>(EBAY_CACHE_TTL_MS, EBAY_MAX_ENTRIES)
+  const allow = rateLimiter(300, 60 * 1000)
+  // 앱 토큰(client_credentials, 2시간)은 요청마다 새로 받지 않고 캐시해 재사용한다.
+  let token = { value: '', exp: 0 }
+
+  async function getToken(): Promise<string> {
+    const now = Date.now()
+    if (token.value && now < token.exp - 60_000) return token.value
+    const basic = Buffer.from(`${appId}:${certId}`).toString('base64')
+    const r = await fetch(EBAY_OAUTH_URL, {
+      method: 'POST',
+      headers: { authorization: `Basic ${basic}`, 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=client_credentials&scope=' + encodeURIComponent('https://api.ebay.com/oauth/api_scope'),
+    })
+    const j = (await r.json()) as { access_token?: string; expires_in?: number }
+    if (!j.access_token) throw new Error('ebay_oauth_failed')
+    token = { value: j.access_token, exp: now + (j.expires_in ?? 7200) * 1000 }
+    return token.value
+  }
+
+  app.use('/api/local/ebay-korean', async (req, res) => {
+    if (!appId || !certId) {
+      sendJson(res, 501, { error: 'EBAY keys not configured' })
+      return
+    }
+    const url = new URL(req.url ?? '', 'http://localhost')
+    const q = (url.searchParams.get('q') ?? '').trim().slice(0, 100)
+    if (!q) {
+      sendJson(res, 400, { error: 'missing q' })
+      return
+    }
+    const cacheKey = q.toLowerCase()
+    const cached = cache.get(cacheKey)
+    if (cached) {
+      res.statusCode = 200
+      res.setHeader('content-type', 'application/json')
+      res.end(cached)
+      return
+    }
+    if (!allow(req)) {
+      tooManyRequests(res)
+      return
+    }
+    try {
+      const tok = await getToken()
+      // 이베이 매물 제목은 영어라 "Korean Version"을 붙여 한글판만 걸러 받는다.
+      // category_ids=183454 = CCG Individual Cards(낱장 카드). 박스·팩·스티커 등을 뺀다.
+      const params = new URLSearchParams({
+        q: `${q} Korean Version`,
+        category_ids: '183454',
+        limit: '24',
+        filter: 'buyingOptions:{FIXED_PRICE}',
+        sort: 'price',
+      })
+      const r = await fetch(`${EBAY_BROWSE_URL}?${params.toString()}`, {
+        headers: { authorization: `Bearer ${tok}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
+      })
+      if (!r.ok) {
+        sendJson(res, r.status, { error: 'upstream_error', status: r.status })
+        return
+      }
+      const j = (await r.json()) as {
+        total?: number
+        itemSummaries?: Array<{
+          title?: string
+          price?: { value?: string; currency?: string }
+          itemWebUrl?: string
+          image?: { imageUrl?: string }
+          thumbnailImages?: Array<{ imageUrl?: string }>
+          condition?: string
+        }>
+      }
+      const items = (j.itemSummaries ?? [])
+        .map((it) => ({
+          title: it.title ?? '',
+          price: it.price?.value ? Number(it.price.value) : null,
+          currency: it.price?.currency ?? 'USD',
+          url: it.itemWebUrl ?? '',
+          img: it.image?.imageUrl ?? it.thumbnailImages?.[0]?.imageUrl ?? '',
+          condition: it.condition ?? '',
+        }))
+        .filter((x) => x.price != null && x.price > 0)
+      const body = JSON.stringify({ total: j.total ?? items.length, items })
+      cache.set(cacheKey, body)
+      res.statusCode = 200
+      res.setHeader('content-type', 'application/json')
+      res.end(body)
+    } catch {
+      sendJson(res, 502, { error: 'ebay_fetch_failed' })
     }
   })
 }
@@ -2790,6 +2932,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountExchangeRate(app)
   mountCommunity(app)
   mountEbayPrice(app, env.POKEMON_PRICE_TRACKER_API_KEY ?? '')
+  mountEbayKorean(app, env.EBAY_APP_ID ?? '', env.EBAY_CERT_ID ?? '')
   mountCardScan(app, env.ANTHROPIC_API_KEY ?? '')
   mountAuth(
     app,

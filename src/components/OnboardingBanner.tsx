@@ -1,11 +1,27 @@
 import { useState } from 'react';
 
-// 처음 온 사람에게 "여기서 뭘 할 수 있는지"를 한눈에 알려주는 배너. 홍보로 들어온
-// 사람이 검색창만 보고 뭘 해야 할지 몰라 나가지 않게 한다.
+// 홈 상단 "업데이트 소식" 배너. 새로 추가된 기능을 알린다(예전엔 "처음이신가요?" 안내였음).
+// 사용법 상세는 커뮤니티 이용안내 공지가 대신한다.
 //
-// 한 번 닫으면 다시 안 뜬다. 닫았다는 사실만 브라우저에 남기고(회원정보와 무관),
-// 안내 문구를 바꿔 다시 보여주고 싶을 때를 위해 버전을 키에 붙인다.
-const DISMISS_KEY = 'pokegre_onboarding_dismissed_v3';
+// 한 번 닫으면 다시 안 뜬다. 새 업데이트를 올릴 땐 DATE와 항목을 바꾸고 DISMISS_KEY 뒤
+// 날짜를 함께 바꾸면(예: _v20260724 → _v20260810) 닫았던 사람에게도 새 소식이 다시 뜬다.
+const DISMISS_KEY = 'pokegre_update_dismissed_v20260724';
+const UPDATE_DATE = '2026년 7월 24일';
+// 이번 업데이트 항목(위가 최신 강조). 다음 릴리스 땐 이 배열만 갈아끼우면 된다.
+const UPDATES: { title: string; desc: string }[] = [
+  {
+    title: '세트별 목록 추가',
+    desc: '카드 도구 ▾ → 세트별 목록에서 팩별 수록 카드를 확인할 수 있습니다. 일본판·북미판·모바일 포켓으로 구분했습니다.',
+  },
+  {
+    title: '이베이 한글판 시세 추가',
+    desc: '카드 검색 후 eBay → 한글판에서 이베이에 올라온 한글판 매물가(호가)를 확인할 수 있습니다.',
+  },
+  {
+    title: '세트·카드 한글 이름 정리',
+    desc: '일본판·북미판·포켓 세트 이름을 공식 한글명으로 정리했습니다.',
+  },
+];
 
 function alreadyDismissed(): boolean {
   try {
@@ -39,24 +55,23 @@ export function OnboardingBanner() {
       >
         ✕
       </button>
-      <p className="text-sm font-bold text-black">처음이신가요?</p>
-      <ul className="mt-2 space-y-1.5 text-sm text-neutral-600">
-        <li>
-          <span className="font-semibold text-neutral-800">카드 이름</span>을 검색하면 일본 실거래가(스니덩크)와 이베이
-          등급별 낙찰가를 한눈에 확인합니다. 한글·영어·일본어 모두 가능합니다.
-        </li>
-        <li>
-          이름을 몰라도 됩니다. <span className="font-semibold text-neutral-800">📷 카드 사진</span>을 찍거나 앨범에서 골라 검색합니다.
-        </li>
-        <li>
-          <span className="font-semibold text-neutral-800">카드 센터링</span>(중앙 정렬)은 사진으로 바로 측정합니다.
-        </li>
-        <li>
-          마음에 드는 카드는 <span className="font-semibold text-neutral-800">북마크</span>로 저장하고,{' '}
-          <span className="font-semibold text-neutral-800">커뮤니티</span>에서 질문·건의를 남기면 됩니다.
-        </li>
-        <li className="text-xs text-neutral-400">표시되는 시세는 참고용이며 실제 거래가와 다를 수 있습니다.</li>
+      <div className="flex items-baseline gap-2">
+        <p className="text-sm font-bold text-black">📢 새로워진 기능</p>
+        <span className="text-[11px] font-semibold text-neutral-400">{UPDATE_DATE}</span>
+      </div>
+      <ul className="mt-2.5 space-y-2">
+        {UPDATES.map((u) => (
+          <li key={u.title} className="flex gap-2 text-sm">
+            <span className="mt-0.5 select-none text-neutral-300">•</span>
+            <span className="text-neutral-600">
+              <b className="text-neutral-900">{u.title}</b> — {u.desc}
+            </span>
+          </li>
+        ))}
       </ul>
+      <p className="mt-3 text-xs text-neutral-400">
+        시세는 참고용이며 실제 거래가와 다를 수 있습니다. 자세한 이용법은 커뮤니티 이용안내를 참고해 주세요.
+      </p>
     </div>
   );
 }
