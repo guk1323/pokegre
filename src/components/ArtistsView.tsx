@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../api/localStats';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
+import { koSetName } from '../lib/setNameKo';
 import { useSubScreen } from '../lib/useSubScreen';
 
 // 작가별 카드 모음. 스니커덩크엔 일러스트레이터 정보가 없어서, 작가 정보가 있는 해외
@@ -240,7 +241,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
                       />
                     </div>
                     <p className="mt-1.5 line-clamp-1 text-xs font-semibold text-black">{koName}</p>
-                    <p className="line-clamp-1 text-[11px] text-neutral-400">{c.set}</p>
+                    <p className="line-clamp-1 text-[11px] text-neutral-400">{koSetName(c.set)}</p>
                   </button>
                 );
               })}

@@ -21,6 +21,7 @@ import { SearchSuggestions } from './components/SearchSuggestions';
 import { CardTile } from './components/CardTile';
 import { CompareView } from './components/CompareView';
 import { EbayCompareView } from './components/EbayCompareView';
+import { KoreanEbayView } from './components/KoreanEbayView';
 import { CardDetail } from './components/CardDetail';
 import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
@@ -38,6 +39,8 @@ import { LoginModal } from './components/LoginModal';
 const MyPage = lazy(() => import('./components/MyPage').then((m) => ({ default: m.MyPage })));
 const ReportInbox = lazy(() => import('./components/ReportInbox').then((m) => ({ default: m.ReportInbox })));
 const VisitStats = lazy(() => import('./components/VisitStats').then((m) => ({ default: m.VisitStats })));
+const ScanTest = lazy(() => import('./components/ScanTest').then((m) => ({ default: m.ScanTest })));
+const PackSim = lazy(() => import('./components/PackSim').then((m) => ({ default: m.PackSim })));
 const SetsView = lazy(() => import('./components/SetsView').then((m) => ({ default: m.SetsView })));
 const TitleFeedbackList = lazy(() => import('./components/TitleFeedbackList').then((m) => ({ default: m.TitleFeedbackList })));
 const CenteringTool = lazy(() => import('./components/CenteringTool').then((m) => ({ default: m.CenteringTool })));
@@ -56,7 +59,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim';
 type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
@@ -94,6 +97,8 @@ function DetailLayout({
 
 function App() {
   const [view, setView] = useState<MainView>('cards');
+  // 상단 드롭다운(더보기·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
+  const [openMenu, setOpenMenu] = useState<'more' | 'admin' | null>(null);
   const [source, setSource] = useState<PriceSource>('snkrdunk');
   const [query, setQuery] = useState('');
   // 방금 스캔한 결과. "이 카드 아니에요" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
@@ -168,6 +173,12 @@ function App() {
   }
   // 소스(스니덩크↔이베이)를 바꾸면 열려 있던 비교 표는 닫는다(소스별 표가 달라서).
   useEffect(() => setCompareOpen(false), [source]);
+  // 한글판은 이베이 전용 판이라, 이베이가 아닌 소스로 옮기면 일본판으로 되돌린다
+  // (안 그러면 TCGplayer에서 '한글판' 상태가 남아 PPT에 잘못된 판이 넘어간다).
+  useEffect(() => {
+    if (source !== 'ebay' && edition === 'korean') setEdition('japanese');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source]);
   const [providers, setProviders] = useState<LoginProvider[]>([]);
   const [needsNickname, setNeedsNickname] = useState(false);
   // 로그인 모달은 마이페이지·커뮤니티 어디서든 열리므로 App이 들고 있는다.
@@ -344,7 +355,8 @@ function App() {
     setIsAdmin(false);
     setProviders([]);
     // 운영자가 로그아웃했는데 운영자 전용 화면이 그대로 열려 있으면 빈 화면만 남는다.
-    if (view === 'reports' || view === 'stats' || view === 'sets') setView('cards');
+    // (세트별 목록은 공개 화면이라 제외 — 로그아웃해도 그대로 볼 수 있다.)
+    if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'packsim') setView('cards');
   }
 
   useEffect(() => {
@@ -431,6 +443,8 @@ function App() {
   // 이베이 쪽은 검색당 크레딧이 소모돼서 스니덩크(350ms)보다 디바운스를 여유 있게 뒀다.
   useEffect(() => {
     if (source !== 'ebay' && source !== 'tcgplayer') return;
+    // 한글판(이베이)은 PPT가 아니라 Browse API(KoreanEbayView가 자체 조회)라 여기선 건너뛴다.
+    if (source === 'ebay' && edition === 'korean') return;
     // 이베이·TCGplayer는 같은 PPT 데이터를 쓰되, 서버가 소스별로 카드를 추려 준다.
     const market = source === 'tcgplayer' ? 'tcgplayer' : 'ebay';
 
@@ -769,8 +783,15 @@ function App() {
                     시세 읽는 법 같은 상세는 커뮤니티 이용안내 공지가 대신한다. */}
                 <p className="text-sm text-neutral-500 mt-1">포켓몬 카드의 모든 것</p>
               </div>
-              {/* 좁은 화면에서 메뉴 글자가 단어 중간에 꺾이지 않게, 버튼 단위로만 줄바꿈한다. */}
-              <nav className="flex flex-wrap gap-2">
+              {/* 상단은 최상위 4개(카드 시세·더보기·커뮤니티·마이페이지)로 못박는다.
+                  새 도구가 생기면 "더보기" 드롭다운으로 흡수해 상단 폭이 안 늘어나게 한다.
+                  드롭다운은 뒤에 깔린 백드롭 클릭으로 닫는다(z-index만으로 처리, 문서 리스너 없음). */}
+              {openMenu && (
+                <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} aria-hidden />
+              )}
+              {/* 좁은 화면에서 메뉴 글자가 단어 중간에 꺾이지 않게, 버튼 단위로만 줄바꿈한다.
+                  relative z-50 으로 버튼이 백드롭 위에 오게 해 클릭이 통한다. */}
+              <nav className="relative z-50 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => navigate({ view: 'cards' })}
@@ -780,28 +801,45 @@ function App() {
                 >
                   카드 시세
                 </button>
-                {/* 카드 → 그 카드 그린 사람 → 카드 상태(센터링) 순으로 정보 흐름을 두고,
-                    소통(커뮤니티)을 뒤에 둔다. */}
-                <button
-                  type="button"
-                  onClick={() => navigate({ view: 'artists' })}
-                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                    view === 'artists' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
-                  }`}
-                >
-                  일러스트레이터
-                </button>
-                {/* 베타로 모두에게 공개(2026-07-18). 서버 데이터가 없는 순수 클라이언트
-                    도구라 서버 차단은 필요 없다. "베타" 배지로 다듬는 중임을 알린다. */}
-                <button
-                  type="button"
-                  onClick={() => navigate({ view: 'centering' })}
-                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                    view === 'centering' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
-                  }`}
-                >
-                  센터링<span className="ml-1 text-[10px] text-amber-500">베타</span>
-                </button>
+                {/* 더보기: "카드를 다른 각도로 보는" 도구 묶음(작가별·세트별 목록, 센터링 측정).
+                    앞으로 도구가 늘어도 여기로만 쌓인다. */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenMenu(openMenu === 'more' ? null : 'more')}
+                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                      view === 'artists' || view === 'sets' || view === 'centering'
+                        ? 'bg-black text-white'
+                        : 'text-neutral-600 hover:bg-neutral-100'
+                    }`}
+                  >
+                    카드 도구 <span className="text-[10px]">▾</span>
+                  </button>
+                  {openMenu === 'more' && (
+                    <div className="absolute right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
+                      {([
+                        { v: 'artists', label: '작가별 목록' },
+                        { v: 'sets', label: '세트별 목록', beta: true },
+                        { v: 'centering', label: '센터링 측정', beta: true },
+                      ] as { v: MainView; label: string; beta?: boolean }[]).map((it) => (
+                        <button
+                          key={it.v}
+                          type="button"
+                          onClick={() => {
+                            navigate({ view: it.v });
+                            setOpenMenu(null);
+                          }}
+                          className={`block w-full px-4 py-2 text-left text-sm font-semibold ${
+                            view === it.v ? 'text-black' : 'text-neutral-600 hover:bg-neutral-50'
+                          }`}
+                        >
+                          {it.label}
+                          {it.beta && <span className="ml-1 text-[10px] text-amber-500">베타</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => navigate({ view: 'community' })}
@@ -811,40 +849,46 @@ function App() {
                 >
                   커뮤니티
                 </button>
-                {/* 운영자에게만 보인다. 다른 사람 메뉴를 깔끔하게 두려는 것뿐이고,
-                    실제 차단은 서버가 한다 — 주소를 직접 쳐도 목록을 안 준다. */}
+                {/* 운영: 운영자 전용 화면(신고함·통계)을 드롭다운 하나로 묶어 상단을 깔끔히 둔다.
+                    실제 차단은 서버가 한다 — 주소를 직접 쳐도 데이터를 안 준다. */}
                 {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => navigate({ view: 'reports' })}
-                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                      view === 'reports' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
-                  >
-                    신고함
-                  </button>
-                )}
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => navigate({ view: 'stats' })}
-                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                      view === 'stats' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
-                  >
-                    통계
-                  </button>
-                )}
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => navigate({ view: 'sets' })}
-                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                      view === 'sets' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
-                  >
-                    세트
-                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setOpenMenu(openMenu === 'admin' ? null : 'admin')}
+                      className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                        view === 'reports' || view === 'stats' || view === 'scantest' || view === 'packsim'
+                          ? 'bg-black text-white'
+                          : 'text-neutral-600 hover:bg-neutral-100'
+                      }`}
+                    >
+                      운영 <span className="text-[10px]">▾</span>
+                    </button>
+                    {openMenu === 'admin' && (
+                      <div className="absolute right-0 z-50 mt-1 w-32 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
+                        {([
+                          { v: 'reports', label: '신고함' },
+                          { v: 'stats', label: '통계' },
+                          { v: 'scantest', label: '스캔 테스트' },
+                          { v: 'packsim', label: '카드 뽑기' },
+                        ] as { v: MainView; label: string }[]).map((it) => (
+                          <button
+                            key={it.v}
+                            type="button"
+                            onClick={() => {
+                              navigate({ view: it.v });
+                              setOpenMenu(null);
+                            }}
+                            className={`block w-full px-4 py-2 text-left text-sm font-semibold ${
+                              view === it.v ? 'text-black' : 'text-neutral-600 hover:bg-neutral-50'
+                            }`}
+                          >
+                            {it.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
                 {/* 로그인 버튼을 헤더에 두면 공급자가 늘 때마다(네이버 등) 자리가 모자란다.
                     진입점을 마이페이지 한 곳으로 모으고, 헤더엔 상태만 드러낸다. */}
@@ -873,6 +917,10 @@ function App() {
             </div>
           ) : view === 'stats' ? (
             <VisitStats />
+          ) : view === 'scantest' ? (
+            <ScanTest />
+          ) : view === 'packsim' ? (
+            <PackSim />
           ) : view === 'sets' ? (
             <SetsView onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })} />
           ) : view === 'community' ? (
@@ -1002,6 +1050,18 @@ function App() {
                     >
                       북미판
                     </button>
+                    {/* 한글판은 이베이 전용(Browse API 호가). TCGplayer엔 한국판이 없어 안 띄운다. */}
+                    {source === 'ebay' && (
+                      <button
+                        type="button"
+                        onClick={() => setEdition('korean')}
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          edition === 'korean' ? 'bg-black text-white' : 'text-neutral-600'
+                        }`}
+                      >
+                        한글판
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1011,6 +1071,8 @@ function App() {
                   설정이라, 홈 화면까지 바꾸지는 않는다. */}
               {isHome ? (
                 <DetailLayout main={homeMain} detail={null} />
+              ) : source === 'ebay' && edition === 'korean' ? (
+                <DetailLayout main={<KoreanEbayView query={query.trim()} />} detail={null} />
               ) : source === 'ebay' || source === 'tcgplayer' ? (
                 <DetailLayout
                   main={ebayMain}

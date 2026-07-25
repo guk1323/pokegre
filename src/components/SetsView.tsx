@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { koreanizeTitle } from '../lib/koreanizeTitle';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
+import { koSetName } from '../lib/setNameKo';
 import { useSubScreen } from '../lib/useSubScreen';
+import { trackEvent } from '../api/localStats';
 
 // 세트(발매 패키지)별 수록 카드. 데이터는 TCGdex에서 미리 긁어 public/sets/에 저장해둔 걸
 // 읽는다. 일본판(ja)·북미판(en). 카드 이름은 원어로 저장돼 있어 화면에서 우리 변환기로
-// 한글화한다. 지금은 운영자만 보는 화면(App에서 admin 게이트).
+// 한글화한다. 공개 화면(더보기 ▾ 메뉴). 세트 데이터는 정적 public/sets JSON이라 서버 인증 불필요.
 interface SetIndexEntry {
   slug: string;
   ed: 'ja' | 'en';
@@ -32,18 +34,27 @@ interface SetFile {
 
 const PAGE = 60;
 
-// 카드 이미지 주소. TCGdex는 베이스 주소라 /low.webp를 붙이고,
-// 다른 소스(리미트리스·포켈렉터·스니덩크·pokemontcg CDN)는 완성된 주소 그대로 쓴다.
+// 카드 이미지 주소. TCGdex는 베이스 주소라 /high.webp를 붙인다(low.webp는 245px라
+// 320px 표시에서 뿌옇게 확대돼, 600px high를 받아 프록시가 선명하게 축소한다).
+// 다른 소스(리미트리스·포켈렉터·스니덩크·pokemontcg·artofpkm)는 완성된 주소 그대로 쓴다.
 const cardImg = (base: string) =>
-  !base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/low.webp`;
+  !base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`;
 // 목록 썸네일은 64px인데 원본(로고 127KB·박스 59KB)을 그대로 받으면 느리다.
 // 무료 CDN(wsrv.nl)으로 필요한 크기의 WebP로 줄여 받는다(~5KB). w는 표시의 2배(레티나).
 const thumb = (url: string, w: number) => (url ? `/api/img?u=${encodeURIComponent(url)}&w=${w}` : '');
+// 이미지가 아직 없는 카드(옛 프로모·트레이너킷 등, 공개 소스에 스캔이 없음)의 임시 대체.
+// 빈 회색칸 대신 "뒷면(이미지 준비 중)"을 보여줘 일관성을 지킨다. 소스 생기면 교체.
+const CARD_BACK = '/card-back.svg';
+// 스니덩크는 "마켓 거래 사진"(슬랩·손·책상 위 등)이라 공식 카드 렌더가 아니다. 경로 불문
+// (apparel_used_listings·upload_bg_removed 다) "이미지 없음"으로 취급해 뒷면으로 대체한다.
+// 공식 꽉 찬 렌더(tcgdex·pokemontcg·limitless·artofpkm·tcgplayer)만 진짜 이미지로 남긴다.
+const usable = (url?: string) => !!url && !url.includes('snkrdunk');
 // 일본판은 일본어 변환 후, TCGdex에 영어로 섞여 오는 이름(옛 세트의 Koffing 등)까지
 // 영어 변환기로 한 번 더 잡는다. 북미판은 영어 변환만.
 const koName = (ed: 'ja' | 'en', name: string) =>
   ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
-const koSet = (ed: 'ja' | 'en', name: string) => (ed === 'ja' ? koreanizeTitle(name) : name);
+const koSet = (ed: 'ja' | 'en', name: string) =>
+  ed === 'ja' ? koreanizeTitle(name) : koSetName(name);
 // 시리즈 이름 중 자동 변환이 어색한 것만 손으로 잡는다.
 // (剣と盾는 と가 "토"로 변환돼 "剣토盾"처럼 깨진다.)
 const SERIE_LABEL: Record<string, string> = {
@@ -55,7 +66,9 @@ const shortDate = (d: string) => (d ? d.slice(0, 7).replace('-', '.') : '');
 
 export function SetsView({ onPickCard }: { onPickCard: (name: string) => void }) {
   const [index, setIndex] = useState<SetIndexEntry[] | null>(null);
-  const [ed, setEd] = useState<'ja' | 'en'>('ja');
+  // 일본판 / 북미판 / 모바일 포켓 3분류. Pocket은 실물 아닌 디지털 게임(Pokémon TCG Pocket)이라
+  // 실물 시세가 없어서 따로 뗀다 — 북미판에 섞이면 눌러도 시세가 빈 막다른 길이 됨.
+  const [tab, setTab] = useState<'ja' | 'en' | 'pocket'>('ja');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<SetIndexEntry | null>(null);
   const [cards, setCards] = useState<SetCard[] | null>(null);
@@ -103,6 +116,8 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
   }, []);
 
   function openSet(s: SetIndexEntry) {
+    // 어떤 세트를 열었는지 통계에 남긴다(운영자 방문 통계의 "세트별 조회" 랭킹). 라벨은 화면 한글명.
+    trackEvent('sets', koSet(s.ed, s.name));
     showSet(s);
     sub.push(s.slug);
   }
@@ -169,21 +184,19 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
                     className="group text-left"
                   >
                     <div className="aspect-[5/7] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200/70 transition group-hover:shadow-lg group-hover:ring-neutral-300">
-                      {c.img && (
-                        <img
-                          src={thumb(cardImg(c.img), 320)}
-                          alt={nm}
-                          loading="lazy"
-                          decoding="async"
-                          className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.04]"
-                          onError={(e) => {
-                            // 축소 CDN이 실패하면 원본으로 한 번 더 시도한다.
-                            const img = e.currentTarget;
-                            if (img.src !== cardImg(c.img)) img.src = cardImg(c.img);
-                            else img.style.display = 'none';
-                          }}
-                        />
-                      )}
+                      <img
+                        src={usable(c.img) ? thumb(cardImg(c.img), 320) : CARD_BACK}
+                        alt={nm}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.04]"
+                        onError={(e) => {
+                          // 축소 CDN 실패 → 원본 한 번 더 → 그래도 없으면 뒷면(빈칸 방지).
+                          const img = e.currentTarget;
+                          if (usable(c.img) && img.src !== cardImg(c.img)) img.src = cardImg(c.img);
+                          else if (!img.src.endsWith(CARD_BACK)) img.src = CARD_BACK;
+                        }}
+                      />
                     </div>
                     <div className="mt-1.5 flex items-start justify-between gap-1.5">
                       <p className="line-clamp-1 text-xs font-bold text-black">{nm}</p>
@@ -214,8 +227,9 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
 
   // ── 세트 목록 ─────────────────────────────────────────────────────────────
   const q = query.trim().toLowerCase();
+  const isPocket = (s: SetIndexEntry) => /pocket/i.test(s.serie || '');
   const list = (index ?? [])
-    .filter((s) => s.ed === ed)
+    .filter((s) => (tab === 'pocket' ? isPocket(s) : s.ed === tab && !isPocket(s)))
     .filter((s) => !q || s.name.toLowerCase().includes(q) || koSet(s.ed, s.name).toLowerCase().includes(q));
   // 시리즈별로 묶는다(등장 순서 = 발매 최신순 유지). 평평한 나열보다 훨씬 정돈돼 보인다.
   const groups: { serie: string; sets: SetIndexEntry[] }[] = [];
@@ -230,8 +244,8 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
     <div className="mx-auto max-w-6xl">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-black">세트별 카드 <span className="align-middle text-[11px] font-semibold text-amber-600">운영자</span></h2>
-          <p className="mt-1 text-xs text-neutral-400">발매 팩별로 수록 카드를 봐요.</p>
+          <h2 className="text-lg font-bold text-black">세트별 목록 <span className="align-middle text-[11px] font-semibold text-amber-500">베타</span></h2>
+          <p className="mt-1 text-xs text-neutral-400">발매 팩별로 수록 카드를 봐요. 일부 세트는 이미지·이름을 다듬는 중이에요.</p>
         </div>
         {index && index.length > 0 && (
           <div className="relative w-full flex-shrink-0 sm:w-60 md:w-72">
@@ -260,19 +274,26 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
         )}
       </div>
 
-      {/* 판 선택 */}
+      {/* 판 선택: 일본판 / 북미판 / 모바일 포켓 */}
       <div className="mb-4 inline-flex rounded-full border border-neutral-300 p-1">
-        {(['ja', 'en'] as const).map((e) => (
+        {([
+          ['ja', '일본판'],
+          ['en', '북미판'],
+          ['pocket', '모바일 포켓'],
+        ] as const).map(([e, label]) => (
           <button
             key={e}
             type="button"
-            onClick={() => setEd(e)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${ed === e ? 'bg-black text-white' : 'text-neutral-600'}`}
+            onClick={() => setTab(e)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${tab === e ? 'bg-black text-white' : 'text-neutral-600'}`}
           >
-            {e === 'ja' ? '일본판' : '북미판'}
+            {label}
           </button>
         ))}
       </div>
+      {tab === 'pocket' && (
+        <p className="-mt-2 mb-4 text-[11px] text-neutral-400">모바일 게임(Pokémon TCG Pocket) 카드예요. 실물 카드가 아니라 시세는 없습니다.</p>
+      )}
 
       {index === null ? (
         // 스켈레톤: 로딩 중에도 갤러리 자리를 미리 잡는다.
@@ -296,7 +317,7 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
           <section key={grp.serie} className="mb-8">
             {/* 시리즈 헤더 */}
             <div className="mb-3 flex items-baseline gap-2">
-              <h3 className="text-sm font-extrabold text-neutral-900">{koSerie(ed, grp.serie)}</h3>
+              <h3 className="text-sm font-extrabold text-neutral-900">{koSerie(grp.sets[0]?.ed ?? 'en', grp.serie)}</h3>
               <span className="text-[11px] font-semibold text-neutral-400">{grp.sets.length}개 세트</span>
               <span className="ml-1 h-px flex-1 bg-neutral-100" />
             </div>
@@ -306,15 +327,15 @@ export function SetsView({ onPickCard }: { onPickCard: (name: string) => void })
                 <button key={s.slug} type="button" onClick={() => openSet(s)} className="group text-left">
                   <div className="aspect-[5/7] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200/70 transition group-hover:shadow-lg group-hover:ring-neutral-300">
                     <img
-                      src={thumb(cardImg(s.cover), 200)}
+                      src={usable(s.cover) ? thumb(cardImg(s.cover), 200) : CARD_BACK}
                       alt={s.name}
                       loading="lazy"
                       decoding="async"
                       className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
                       onError={(e) => {
                         const img = e.currentTarget;
-                        if (img.src !== cardImg(s.cover)) img.src = cardImg(s.cover);
-                        else img.style.display = 'none';
+                        if (usable(s.cover) && img.src !== cardImg(s.cover)) img.src = cardImg(s.cover);
+                        else if (!img.src.endsWith(CARD_BACK)) img.src = CARD_BACK;
                       }}
                     />
                   </div>
