@@ -34,6 +34,7 @@ type SimState = {
   canCheckIn: boolean;
   gained?: number;
   admin?: boolean; // 무제한 스위치는 운영자에게만 보인다
+  packs?: Record<string, number>; // 사서 아직 안 연 팩(보관함)
 };
 
 // 등급 표기(한글·약칭)와 색.
@@ -111,6 +112,11 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   const [keep, setKeep] = useState<Set<string>>(new Set());
   const [keptMsg, setKeptMsg] = useState('');
   const [share, setShare] = useState<ShareState>({ shared: false, msg: '' });
+  // 자랑 작성 폼(바로 올리지 않고 글을 쓴 뒤 직접 등록한다).
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareText, setShareText] = useState('');
+  // 겹쳐 놓고 한 장씩 까는 연출: 맨 위 카드가 뒤집히는 중인지.
+  const [flipping, setFlipping] = useState(false);
   // 운영자는 점검하려고 아무 때나 열어야 해서 기본이 무제한이다. 끄면 평소처럼
   // 예산이 깎이고 모자라면 못 연다(그 흐름도 확인해야 하니 스위치로 뒀다).
   const [spend, setSpend] = useState(false);
@@ -153,26 +159,55 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
     }
   }
 
-  async function open() {
-    if (!sim || (spend && sim.balance < cfg.price)) return;
+  // 팩 구매: 보관함에 담기만 한다(모아뒀다 나중에 깔 수 있게).
+  async function buy(slug2: string) {
+    const target = packBySlug.get(slug2);
+    if (!sim || !target || (spend && sim.balance < target.price)) return;
+    setErr('');
+    setBusy(true);
+    try {
+      const r = await fetch('/api/local/auth/packsim/buy', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: slug2, spend }),
+      });
+      const d = (await r.json()) as { balance?: number; packs?: Record<string, number>; error?: string };
+      if (!r.ok) {
+        setErr(d.error === 'not enough' ? '보유 금액이 부족합니다.' : '구매하지 못했습니다.');
+        return;
+      }
+      setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
+      setKeptMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 보관함에 담았습니다.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function open(slug2: string) {
+    if (!sim) return;
     setErr('');
     setBusy(true);
     setPack(null);
     setRevealed(0);
+    setFlipping(false);
     setGod(false);
-    trackEvent('packsim', cfg.label);
+    const target = packBySlug.get(slug2);
+    setSlug(slug2);
+    trackEvent('packsim', target?.label ?? slug2);
     try {
       const r = await fetch('/api/local/auth/packsim/open', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: cfg.slug, spend }),
+        body: JSON.stringify({ slug: slug2, spend }),
       });
-      const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; error?: string };
+      const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string };
       if (!r.ok || !d.cards) {
-        setErr(d.error === 'not enough' ? '보유 금액이 부족합니다.' : '팩을 열지 못했습니다.');
+        setErr(d.error === 'no pack in stash' ? '보관함에 이 팩이 없습니다. 먼저 구매해 주세요.' : '팩을 열지 못했습니다.');
         return;
       }
+      setSim((s2) => (s2 ? { ...s2, packs: d.packs ?? s2.packs } : s2));
       if (d.god) trackEvent('packsim_godpack', cfg.label);
       // 등급 낮은 카드가 앞, 제일 좋은 카드가 맨 뒤로 오게 정렬해 마지막 한 장에서 터지게 한다.
       const sorted = [...d.cards].sort((a, b) => rankOf(a.r) - rankOf(b.r));
@@ -181,6 +216,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.n)));
       setKeptMsg('');
       setShare({ shared: false, msg: '' });
+      setShareOpen(false);
+      setShareText('');
       setGod(!!d.god);
       setSim((s) => (s ? { ...s, balance: d.balance ?? s.balance, opened: s.opened + 1 } : s));
       // 앨범 숫자도 같이 맞춘다. 정확한 값은 탭을 열 때 서버에서 다시 받는다.
@@ -218,7 +255,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ names }),
+        body: JSON.stringify({ names, comment: shareText }),
       });
       const d = (await r.json()) as { postId?: number; gained?: number; balance?: number; error?: string };
       if (!r.ok || !d.postId) {
@@ -231,6 +268,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
         shared: true,
         msg: d.gained ? `커뮤니티에 올렸습니다. 자랑 보상 +${won(d.gained)} (하루 1번)` : '커뮤니티에 올렸습니다.',
       });
+      setShareOpen(false);
     } finally {
       setBusy(false);
     }
@@ -239,7 +277,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   // 선택한 카드들을 앨범에서 지운다(중복 포함 통째로). 확인을 한 번 받는다.
   async function removeSelected() {
     if (delPick.size === 0) return;
-    if (!window.confirm(`선택한 ${delPick.size}종을 앨범에서 삭제하시겠습니까? 중복으로 모은 것도 함께 삭제됩니다.`)) return;
+    if (!window.confirm(`선택한 ${delPick.size}종에서 1장씩 삭제합니다. 삭제한 카드는 복구할 수 없습니다. 계속하시겠습니까?`)) return;
     setBusy(true);
     try {
       const items = [...delPick].map((k) => {
@@ -379,6 +417,40 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
 
       {tab === 'open' && (
         <>
+          {/* 팩 보관함 — 산 팩을 모아뒀다가 원할 때 연다 */}
+          {sim?.packs && Object.keys(sim.packs).length > 0 && (
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-bold text-neutral-500">팩 보관함</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(sim.packs).map(([s3, cnt]) => {
+                  const p3 = packBySlug.get(s3);
+                  if (!p3 || cnt < 1) return null;
+                  const img3 = art[s3]?.boxImg || art[s3]?.logo;
+                  return (
+                    <div key={s3} className="flex items-center gap-3 rounded-2xl border border-neutral-200 p-3 shadow-sm">
+                      <div className="flex h-14 w-16 items-center justify-center rounded-xl bg-neutral-50">
+                        {img3 && <img src={thumb(img3, 120)} alt="" className="max-h-12 object-contain" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-neutral-800">
+                          {p3.label.replace(/^\[.+?\]\s*/, '')} <span className="text-neutral-400">×{cnt}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void open(s3)}
+                          disabled={busy}
+                          className="mt-1 rounded-lg bg-black px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+                        >
+                          {busy ? '여는 중…' : '개봉'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
@@ -433,12 +505,12 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            void open();
+                            void buy(s2.slug);
                           }}
                           disabled={busy || !can}
                           className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                         >
-                          {busy ? '여는 중…' : can ? `이 팩 열기 · ${won(s2.price)}` : '보유 금액이 부족합니다'}
+                          {busy ? '담는 중…' : can ? `구매해서 보관함에 담기 · ${won(s2.price)}` : '보유 금액이 부족합니다'}
                         </button>
                       ) : (
                         <p className="mt-2 py-2 text-xs text-neutral-400">{won(s2.price)}</p>
@@ -463,22 +535,70 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
             </div>
           )}
 
+          {/* 겹쳐 놓인 팩에서 맨 위 카드를 눌러 한 장씩 깐다. 누르면 뒤집혀 보이고,
+              잠시 뒤 옆으로 빠지며 다음 카드가 나온다. 마지막 장은 금빛으로 고동친다. */}
           {pack && !allDone && (
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={revealNext}
-                className="rounded-lg bg-amber-500 px-5 py-2 text-sm font-bold text-white shadow-sm"
-              >
-                카드 넘기기 <span className="opacity-80">({revealed}/{pack.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRevealed(pack.length)}
-                className="text-xs text-neutral-400 underline"
-              >
-                전체 한번에 공개
-              </button>
+            <div className="mt-6">
+              <div className="relative mx-auto h-72 w-52 sm:h-80 sm:w-56">
+                {/* 뒤에 남은 카드 두께 표현 */}
+                {pack.length - revealed > 2 && (
+                  <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl border border-neutral-200 bg-neutral-100" />
+                )}
+                {pack.length - revealed > 1 && (
+                  <div className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-neutral-200 bg-neutral-50" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (flipping) return;
+                    setFlipping(true);
+                    // 뒤집혀 보이는 시간을 준 뒤 다음 카드로 넘어간다.
+                    setTimeout(() => {
+                      revealNext();
+                      setFlipping(false);
+                    }, 900);
+                  }}
+                  className={`absolute inset-0 ${flipping ? '' : 'cursor-pointer'}`}
+                  aria-label="카드 뒤집기"
+                >
+                  <div className={`flip h-full w-full ${!flipping && revealed === pack.length - 1 ? 'flip-last' : ''}`}>
+                    <div className="flip-inner" data-flipped={flipping}>
+                      <div className="flip-face flip-back">
+                        <img src="/pack-card-back.svg" alt="" className="h-full w-full rounded-xl object-cover shadow-md" />
+                      </div>
+                      <div className={`flip-face flip-front ${flipping && rankOf(pack[revealed]?.r) >= 5 ? 'card-hit' : ''}`}>
+                        <div className={`h-full overflow-hidden rounded-xl bg-neutral-100 ring-1 ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).cls} ${flipping && rankOf(pack[revealed]?.r) >= 5 ? 'card-shine' : ''}`}>
+                          {pack[revealed]?.img && (
+                            <img src={thumb(pack[revealed].img!, 480)} alt="" className="h-full w-full object-contain" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+              <p className="mt-3 text-center text-sm font-semibold text-neutral-600">
+                {flipping
+                  ? `${koName(cfg.jp, pack[revealed]?.name ?? '')} · ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).ko}`
+                  : `카드를 눌러 넘기세요 (${revealed}/${pack.length})`}
+              </p>
+              <div className="mt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => setRevealed(pack.length)}
+                  className="text-xs text-neutral-400 underline"
+                >
+                  전체 한번에 공개
+                </button>
+              </div>
+              {/* 이미 깐 카드 미리보기 */}
+              {revealed > 0 && (
+                <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-1">
+                  {pack.slice(0, revealed).map((c, i) => (
+                    <img key={i} src={thumb(c.img ?? '', 80)} alt="" className="h-14 rounded ring-1 ring-neutral-200" />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -495,11 +615,11 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
               </button>
               <button
                 type="button"
-                onClick={shareToCommunity}
+                onClick={() => setShareOpen(true)}
                 disabled={busy || share.shared}
                 className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
-                {share.shared ? '자랑 완료' : '📣 커뮤니티에 자랑하기'}
+                {share.shared ? '자랑 완료' : '커뮤니티에 자랑하기'}
               </button>
               <button
                 type="button"
@@ -509,6 +629,38 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
               >
                 {keep.size ? `${keep.size}장 앨범에 넣기` : '넣지 않고 넘기기'}
               </button>
+            </div>
+          )}
+          {shareOpen && !share.shared && (
+            <div className="mt-3 rounded-xl border border-neutral-200 p-3">
+              <p className="text-xs text-neutral-500">
+                개봉 결과 카드 이미지가 글에 함께 올라갑니다. 하고 싶은 말을 적고 등록해 주세요.
+              </p>
+              <textarea
+                value={shareText}
+                onChange={(e) => setShareText(e.target.value)}
+                maxLength={1000}
+                rows={3}
+                placeholder="예: 오늘 운이 좋았습니다!"
+                className="mt-2 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+              />
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={shareToCommunity}
+                  disabled={busy}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+                >
+                  커뮤니티에 등록
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareOpen(false)}
+                  className="text-xs text-neutral-400 underline"
+                >
+                  취소
+                </button>
+              </div>
             </div>
           )}
           {share.msg && <p className="mt-2 text-sm font-semibold text-indigo-600">{share.msg}</p>}
@@ -549,14 +701,15 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
           ) : (
             <>
               <div className="mb-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
-                <div className="grid grid-cols-2 gap-x-2 gap-y-4 sm:grid-cols-4">
+                <div className="grid grid-cols-3 gap-x-2 gap-y-4">
                   <div>
                     <p className="text-xs text-neutral-400">모은 카드</p>
-                    <p className="mt-0.5 text-xl font-bold text-black">{sim.album.length}종</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-400">총 장수</p>
-                    <p className="mt-0.5 text-xl font-bold text-black">{sim.album.reduce((a, b) => a + b.c, 0)}장</p>
+                    <p className="mt-0.5 text-xl font-bold text-black">
+                      {sim.album.length}종
+                      <span className="ml-1 text-sm font-semibold text-neutral-400">
+                        {sim.album.reduce((a, b) => a + b.c, 0)}장
+                      </span>
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-neutral-400">쓴 금액</p>

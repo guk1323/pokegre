@@ -2500,6 +2500,8 @@ interface PackSimStore {
   spent: number
   god: number
   album: AlbumCard[]
+  // 사서 아직 안 연 팩(슬러그→개수). "모아뒀다가 나중에 깐다"용 보관함.
+  packs?: Record<string, number>
   // 방금 연 팩. 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지 못하도록
   // 서버가 마지막 팩을 기억했다가 그 안의 번호만 받아준다. shared는 같은 팩 중복 자랑 방지.
   last?: { slug: string; ns: string[]; god: boolean; shared?: boolean }
@@ -2640,6 +2642,7 @@ async function getSetPrices(
   const pages = opts.pages ?? 2
   try {
     const prices: Record<string, number> = {}
+    const basePriced = new Set<string>() // 기본판 값을 이미 받은 번호
     let complete = false
     for (let p = 0; p < pages; p++) {
       const list = await fetchSetPage(setName, lang, apiKey, p * PPT_PAGE)
@@ -2653,7 +2656,18 @@ async function getSetPrices(
         const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
         const num = stripZeros(rawNum.split('/')[0])
         const market = c.prices?.market ?? 0
-        if (num && market > 0) prices[num] = market
+        if (!num || market <= 0) continue
+        // 같은 번호가 "Machamp / Machamp (Poke Ball Pattern) / (Master Ball Pattern)"처럼
+        // 여러 줄로 온다. 팩에서 나오는 건 기본판이므로 괄호 없는 이름(기본판)을 우선하고,
+        // 기본판이 없을 때만 가장 싼 값을 쓴다. (덮어쓰기 순서에 맡겼더니 일반 괴력몬이
+        // 마스터볼 값 $18를 받았던 문제)
+        const isBase = !String(c.name ?? '').includes('(')
+        if (isBase) {
+          prices[num] = basePriced.has(num) ? Math.min(prices[num], market) : market
+          basePriced.add(num)
+        } else if (!basePriced.has(num)) {
+          prices[num] = Math.min(prices[num] ?? Infinity, market)
+        }
       }
       if (list.length < PPT_PAGE) {
         complete = true // 덜 찬 페이지 = 마지막 페이지까지 다 받았다
@@ -3027,7 +3041,38 @@ function mountAuth(
         return
       }
 
-      // POST /packsim/open — 팩 하나를 산다. 가격도 뽑기도 서버가 한다.
+      // POST /packsim/buy — 팩을 사서 보관함에 담는다(바로 열지 않는다).
+      // 구매만 오늘 진열(isLive) 기준이고, 보관함에 있는 팩은 진열이 바뀌어도 열 수 있다.
+      if (segments[0] === 'packsim' && segments[1] === 'buy' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
+        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
+        const pack = packBySlug.get(String(body.slug ?? ''))
+        if (!pack || !isLive(pack.slug)) {
+          sendJson(res, 400, { error: 'unknown pack' })
+          return
+        }
+        const store = await getPacksim(user.id)
+        const unlimited = isAdmin(user) && !(body.spend === true)
+        if (!unlimited && store.balance < pack.price) {
+          sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
+          return
+        }
+        if (!unlimited) {
+          store.balance -= pack.price
+          store.spent += pack.price
+        }
+        store.packs ??= {}
+        store.packs[pack.slug] = (store.packs[pack.slug] ?? 0) + 1
+        await persistPacksim()
+        sendJson(res, 200, { balance: store.balance, packs: store.packs })
+        return
+      }
+
+      // POST /packsim/open — 보관함의 팩 하나를 연다. 뽑기는 서버가 한다.
       if (segments[0] === 'packsim' && segments[1] === 'open' && req.method === 'POST') {
         const user = await currentUser(req)
         if (!user) {
@@ -3036,17 +3081,17 @@ function mountAuth(
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
         const pack = packBySlug.get(String(body.slug ?? ''))
-        // 진열 중이 아닌 팩은 화면에 없어도 API로는 부를 수 있으니 여기서도 막는다.
-        if (!pack || !isLive(pack.slug)) {
+        // 보관함에 있으면 진열이 바뀐 팩도 열 수 있다(isLive는 구매에서만 검사).
+        if (!pack) {
           sendJson(res, 400, { error: 'unknown pack' })
           return
         }
         const store = await getPacksim(user.id)
-        // 무제한(예산 안 씀)은 운영자 전용 — 일반 이용자는 항상 차감된다.
-        // 운영자도 "예산 쓰기"를 켜면 이용자와 똑같이 차감돼 그 흐름을 확인할 수 있다.
+        // 무제한은 운영자 전용 — 보관함 없이도 바로 열어 점검할 수 있다.
         const unlimited = isAdmin(user) && !(body.spend === true)
-        if (!unlimited && store.balance < pack.price) {
-          sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
+        const have = store.packs?.[pack.slug] ?? 0
+        if (!unlimited && have < 1) {
+          sendJson(res, 400, { error: 'no pack in stash' })
           return
         }
         const cards = await readPackCards(pack.src)
@@ -3055,15 +3100,15 @@ function mountAuth(
           return
         }
         const drawn = drawPack(cards, pack.profile)
-        if (!unlimited) {
-          store.balance -= pack.price
-          store.spent += pack.price
+        if (!unlimited && store.packs) {
+          if (have <= 1) delete store.packs[pack.slug]
+          else store.packs[pack.slug] = have - 1
         }
         store.opened += 1
         if (drawn.god) store.god += 1
         store.last = { slug: pack.slug, ns: drawn.cards.map((c) => c.n), god: drawn.god }
         await persistPacksim()
-        sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened, unlimited })
+        sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited })
         return
       }
 
@@ -3094,7 +3139,7 @@ function mountAuth(
         // 카드·등급·갓팩 여부는 서버가 기억하는 값만 쓴다(조작 불가). 한글 이름 표기만
         // 화면이 보내준다 — 서버에 번역기를 들이는 것보다 가볍고, 이름은 표기일 뿐이라
         // 속여도 자기 자랑글이 이상해질 뿐이다. 길이만 자르고 줄바꿈은 뗀다.
-        const body = JSON.parse((await readBody(req)) || '{}') as { names?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { names?: unknown; comment?: unknown }
         const nameOf = new Map<string, string>()
         if (body.names && typeof body.names === 'object') {
           for (const [k, v] of Object.entries(body.names as Record<string, unknown>)) {
@@ -3116,10 +3161,10 @@ function mountAuth(
         const title = last.god
           ? `✨ 갓팩!! ${packName} 전부 AR 이상`
           : `📦 ${packName} 개봉 — ${koN(best)} ${tierKo[best.r ?? ''] ?? ''}`.trim()
-        const lines = [...drawn]
-          .sort((a, b) => (rank[b.r ?? ''] ?? 0) - (rank[a.r ?? ''] ?? 0))
-          .map((c) => `${(rank[c.r ?? ''] ?? 0) >= 5 ? '⭐' : '·'} ${koN(c)} — ${tierKo[c.r ?? ''] ?? c.r}`)
-        const content = [`카드 뽑기에서 ${pack.jp ? '일본판' : '북미판'} ${packName} 팩을 열었어요!`, '', ...lines].join('\n')
+        // 본문은 이용자가 쓴 글. 카드 목록은 pull(이미지 그리드)로 보여주므로 글이 없으면
+        // 짧은 기본 문장만 넣는다.
+        const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 1000) : ''
+        const content = comment || `${pack.jp ? '일본판' : '북미판'} ${packName} 팩을 열었습니다.`
         const post: CommunityPost = {
           id: Date.now(),
           title,
@@ -3185,14 +3230,23 @@ function mountAuth(
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { items?: unknown }
         const store = await getPacksim(user.id)
+        // 중복까지 싹 지우면 안 된다는 피드백 — 선택한 종류마다 1장씩만 줄이고,
+        // 0장이 되는 항목만 앨범에서 빠진다.
         const del = new Set(
           (Array.isArray(body.items) ? body.items : [])
             .map((it) => `${String((it as { s?: unknown }).s ?? '')}|${String((it as { n?: unknown }).n ?? '')}`),
         )
-        const before = store.album.length
-        store.album = store.album.filter((a) => !del.has(`${a.s}|${a.n}`))
+        let removed = 0
+        for (const key of del) {
+          const [s2, n] = key.split('|')
+          const i = store.album.findIndex((a) => a.s === s2 && a.n === n)
+          if (i < 0) continue
+          removed++
+          if (store.album[i].c > 1) store.album[i].c -= 1
+          else store.album.splice(i, 1)
+        }
         await persistPacksim()
-        sendJson(res, 200, { removed: before - store.album.length, album: store.album })
+        sendJson(res, 200, { removed, album: store.album })
         return
       }
 

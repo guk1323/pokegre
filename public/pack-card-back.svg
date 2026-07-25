@@ -1,23 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 350" width="250" height="350" role="img" aria-label="카드 뒷면">
-  <!-- 팩 개봉의 "아직 안 뒤집은 카드" 표시. 실제 카드 뒷면을 흉내 내면 가짜 카드처럼
-       보여 거부감이 든다는 피드백이 있어, 사이트 기본 톤(연회색·미니멀)으로 만든
-       자리 표시 디자인이다. -->
+  <!-- 팩 개봉의 "아직 안 뒤집은 카드". 실제 카드 뒷면을 흉내 내지 않되(가짜 카드 거부감),
+       흰 화면에서 또렷이 보이도록 사이트의 검정 버튼 톤(진회색)으로 만든 자리 표시다. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fafafa"/>
-      <stop offset="1" stop-color="#efefef"/>
+      <stop offset="0" stop-color="#2d2d2d"/>
+      <stop offset="1" stop-color="#171717"/>
     </linearGradient>
   </defs>
 
   <rect width="250" height="350" rx="14" fill="url(#bg)"/>
-  <rect x="1" y="1" width="248" height="348" rx="13" fill="none" stroke="#d4d4d4" stroke-width="2"/>
-  <rect x="12" y="12" width="226" height="326" rx="9" fill="none" stroke="#e5e5e5" stroke-width="1.5"/>
+  <rect x="1.5" y="1.5" width="247" height="347" rx="12.5" fill="none" stroke="#444444" stroke-width="2"/>
+  <rect x="13" y="13" width="224" height="324" rx="8" fill="none" stroke="#3a3a3a" stroke-width="1.5"/>
 
-  <!-- 중앙: 가는 선 다이아 하나만 -->
-  <g transform="translate(125,165)" stroke="#c4c4c4" fill="none">
-    <rect x="-34" y="-34" width="68" height="68" transform="rotate(45)" stroke-width="1.8"/>
-    <rect x="-5" y="-5" width="10" height="10" transform="rotate(45)" fill="#bdbdbd" stroke="none"/>
+  <!-- 중앙: 가는 선 다이아 -->
+  <g transform="translate(125,165)" stroke="#6b6b6b" fill="none">
+    <rect x="-36" y="-36" width="72" height="72" transform="rotate(45)" stroke-width="1.8"/>
+    <rect x="-5.5" y="-5.5" width="11" height="11" transform="rotate(45)" fill="#8a8a8a" stroke="none"/>
   </g>
 
-  <text x="125" y="300" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="5" fill="#a3a3a3">pokegre</text>
+  <text x="125" y="302" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="5" fill="#9a9a9a">pokegre</text>
 </svg>
