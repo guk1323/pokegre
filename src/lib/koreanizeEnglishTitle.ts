@@ -195,6 +195,10 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Jupiter: '주피터',
   Saturn: '새턴',
   Charon: '플루토',
+  Allister: '어니언', // 가라르 고스트 관장
+  Bede: '비트', // 가라르
+  Kieran: '카지', // 벽록의 가면 (시유의 남동생)
+  Briar: '브라이어', // SV
   Mela: '멜로코', // 팀 스타 보스
   Eri: '비파', // 팀 스타 보스
   Ortega: '오르티가', // 팀 스타 보스
