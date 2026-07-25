@@ -27,6 +27,20 @@ const packKoByCode = new Map(
 // 포켓몬 이름 앞에 붙는 수식어. "ex"/"V"/"VMAX"/"GX" 같은 접미사는 한국 공식 표기에서도
 // 영문 그대로 쓰기 때문에 건드리지 않는다.
 const STRUCTURAL_EN_TO_KO: [string, string][] = [
+  // 소유격 카드명(Destined Rivals 등). 함수 초입에서 곧은 어포스트로피(')를 굽은
+  // 것(’)으로 정규화하므로 여기 키도 굽은 표기다. 한글명은 전부 기존 트레이너
+  // 사전에서 확정된 이름만 쓴다.
+  ['Team Rocket’s ', '로켓단의 '],
+  ['Ethan’s ', '심향의 '],
+  ['Misty’s ', '이슬의 '],
+  ['Cynthia’s ', '난천의 '],
+  ['Steven’s ', '성호의 '],
+  ['Arven’s ', '페퍼의 '],
+  ['Marnie’s ', '마리의 '],
+  ['Lillie’s ', '릴리에의 '],
+  ['N’s ', 'N의 '],
+  ['Iono’s ', '모야모의 '],
+  ['Hop’s ', '호프의 '],
   ['Mega ', '메가'],
   ['Radiant ', '찬란한 '], // かがやく/輝く의 영문판. koreanizeTitle과 같은 표기로 맞춘다.
   // 지역폼 접두사. 뒤의 포켓몬 이름은 사전 치환으로 한글이 되고, 이 접두사만 남던 걸

@@ -113,6 +113,7 @@ app.get('/c/:id', async (req, res) => {
   try {
     const id = req.params.id
     if (!/^\d+$/.test(id)) {
+      res.setHeader('Cache-Control', 'no-cache')
       res.sendFile(path.join(DIST, 'index.html'))
       return
     }
@@ -121,11 +122,24 @@ app.get('/c/:id', async (req, res) => {
     res.set('content-type', 'text/html; charset=utf-8')
     res.send(buildCardHtml(id, name, card))
   } catch {
+    res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(path.join(DIST, 'index.html'))
   }
 })
 
-app.use(express.static(DIST))
+// 정적 파일 캐시 정책. 번들(assets/*)은 파일명에 해시가 있어 1년 캐시해도 안전하지만,
+// index.html에 정책이 없으면 브라우저가 휴리스틱으로 옛 HTML을 들고 있어 배포한 새
+// 기능이 "안 보이는" 문제가 생긴다(실제로 몇 번 겪음). HTML은 항상 재검증하게 한다.
+app.use(
+  express.static(DIST, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache')
+      else if (filePath.includes(`${path.sep}assets${path.sep}`))
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      else res.setHeader('Cache-Control', 'no-cache')
+    },
+  }),
+)
 
 // SPA 폴백. 위에서 API도 정적 파일도 처리하지 못한 GET은 전부 index.html로 넘겨
 // 클라이언트 라우팅이 이어받게 한다. express 5는 '*' 경로 문법이 바뀌어서

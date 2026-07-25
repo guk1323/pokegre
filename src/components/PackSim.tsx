@@ -98,7 +98,7 @@ export function PackSim({
   // 진열 팩의 "수록 카드 보기" → 세트 목록 화면으로 이동.
   onOpenSet?: (slug: string) => void;
 }) {
-  const [tab, setTab] = useState<'open' | 'album' | 'rates'>('open');
+  const [tab, setTab] = useState<'open' | 'stash' | 'album' | 'rates'>('open');
   const [sim, setSim] = useState<SimState | null>(null);
   const [slug, setSlug] = useState(LIVE_TODAY[0].slug);
   const [pack, setPack] = useState<PackCard[] | null>(null);
@@ -118,7 +118,7 @@ export function PackSim({
   // 앨범 정렬: 등급순(같은 등급끼리 묶임) · 가격순 · 최근 획득순
   const [albumSort, setAlbumSort] = useState<'rarity' | 'price' | 'recent'>('rarity');
   // 앨범이 수백 종으로 커져도 보고 싶은 등급만 추릴 수 있게.
-  const [albumFilter, setAlbumFilter] = useState<'all' | 'rr' | 'ar'>('all');
+  const [albumFilter, setAlbumFilter] = useState<string>('all'); // 'all' 또는 등급 키
   const [delPick, setDelPick] = useState<Set<string>>(new Set());
   const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
@@ -130,6 +130,7 @@ export function PackSim({
   // 자랑 작성 폼(바로 올리지 않고 글을 쓴 뒤 직접 등록한다).
   const [shareOpen, setShareOpen] = useState(false);
   const [shareText, setShareText] = useState('');
+  const [shareTitle, setShareTitle] = useState('');
   // 겹쳐 놓인 카드 개봉: 덮개를 위로 드래그하면 아래 카드가 슬쩍 보이다가, 충분히
   // 밀면 넘어간다("쫄리는 맛"). phase: covered=덮개 있음, leaving=덮개 날아가는 중,
   // shown=카드 공개(누르면 다음).
@@ -204,13 +205,13 @@ export function PackSim({
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
-      setKeptMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 보관함에 담았습니다.`);
+      setKeptMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 보관함에 담았습니다. (${gp(target.price)} 차감)`);
     } finally {
       setBusy(false);
     }
   }
 
-  async function open(slug2: string) {
+  async function open(slug2: string, from?: 'stash') {
     if (!sim) return;
     setErr('');
     setBusy(true);
@@ -227,7 +228,7 @@ export function PackSim({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: slug2, spend }),
+        body: JSON.stringify({ slug: slug2, spend, from }),
       });
       const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string };
       if (!r.ok || !d.cards) {
@@ -246,6 +247,7 @@ export function PackSim({
       setShare({ shared: false, msg: '' });
       setShareOpen(false);
       setShareText('');
+      setShareTitle('');
       setGod(!!d.god);
       setSim((s) => (s ? { ...s, balance: d.balance ?? s.balance, opened: s.opened + 1 } : s));
       // 앨범 숫자도 같이 맞춘다. 정확한 값은 탭을 열 때 서버에서 다시 받는다.
@@ -283,7 +285,7 @@ export function PackSim({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ names, comment: shareText }),
+        body: JSON.stringify({ names, comment: shareText, title: shareTitle }),
       });
       const d = (await r.json()) as { postId?: number; gained?: number; balance?: number; error?: string };
       if (!r.ok || !d.postId) {
@@ -427,6 +429,7 @@ export function PackSim({
       <div className="mt-4 flex gap-1">
         {([
           ['open', '팩 열기'],
+          ['stash', `팩 보관함${sim?.packs && Object.values(sim.packs).reduce((a, b) => a + b, 0) > 0 ? ` (${Object.values(sim.packs).reduce((a, b) => a + b, 0)})` : ''}`],
           ['album', `내 앨범${sim?.album.length ? ` (${sim.album.length})` : ''}`],
           ['rates', '확률표'],
         ] as const).map(([v, label]) => (
@@ -445,40 +448,6 @@ export function PackSim({
 
       {tab === 'open' && (
         <>
-          {/* 팩 보관함 — 산 팩을 모아뒀다가 원할 때 연다 */}
-          {sim?.packs && Object.keys(sim.packs).length > 0 && (
-            <div className="mt-5">
-              <p className="mb-2 text-xs font-bold text-neutral-500">팩 보관함</p>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(sim.packs).map(([s3, cnt]) => {
-                  const p3 = packBySlug.get(s3);
-                  if (!p3 || cnt < 1) return null;
-                  const img3 = art[s3]?.boxImg || art[s3]?.logo;
-                  return (
-                    <div key={s3} className="flex items-center gap-3 rounded-2xl border border-neutral-200 p-3 shadow-sm">
-                      <div className="flex h-14 w-16 items-center justify-center rounded-xl bg-neutral-50">
-                        {img3 && <img src={thumb(img3, 120)} alt="" className="max-h-12 object-contain" />}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-neutral-800">
-                          {p3.label.replace(/^\[.+?\]\s*/, '')} <span className="text-neutral-400">×{cnt}</span>
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => void open(s3)}
-                          disabled={busy}
-                          className="mt-1 rounded-lg bg-black px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40"
-                        >
-                          {busy ? '여는 중…' : '개봉'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
@@ -553,7 +522,7 @@ export function PackSim({
                             disabled={busy || !can}
                             className="w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-40"
                           >
-                            보관함에 담기
+                            보관함에 담기 · {gp(s2.price)}
                           </button>
                         </div>
                       ) : (
@@ -736,6 +705,14 @@ export function PackSim({
                 개봉 결과 카드 이미지가 글에 함께 올라갑니다. 하고 싶은 말을 적고 등록해 주세요.
                 {sim?.canShareBonus ? ` 오늘 첫 자랑에는 ${gp(SHARE_BONUS)}를 드립니다.` : ''}
               </p>
+              <input
+                type="text"
+                value={shareTitle}
+                onChange={(e) => setShareTitle(e.target.value)}
+                maxLength={80}
+                placeholder="제목 (비우면 자동으로 지어 드립니다)"
+                className="mt-2 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+              />
               <textarea
                 value={shareText}
                 onChange={(e) => setShareText(e.target.value)}
@@ -842,11 +819,7 @@ export function PackSim({
                   </p>
                 )}
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
-                  {([
-                    ['all', '전체'],
-                    ['rr', 'RR 이상'],
-                    ['ar', 'AR 이상'],
-                  ] as const).map(([v, label]) => (
+                  {['all', ...[...new Set(sim.album.map((a) => a.r))].sort((a, b) => rankOf(b) - rankOf(a))].map((v) => (
                     <button
                       key={v}
                       type="button"
@@ -855,7 +828,7 @@ export function PackSim({
                         albumFilter === v ? 'bg-neutral-200 text-black' : 'text-neutral-500 hover:bg-neutral-100'
                       }`}
                     >
-                      {label}
+                      {v === 'all' ? '전체' : (RARITY[v]?.ko ?? v).split(' ').pop()}
                     </button>
                   ))}
                   <span className="text-neutral-200">|</span>
@@ -926,7 +899,7 @@ export function PackSim({
               </div>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
                 {[...sim.album]
-                  .filter((a) => (albumFilter === 'all' ? true : albumFilter === 'ar' ? rankOf(a.r) >= 5 : rankOf(a.r) >= 3))
+                  .filter((a) => albumFilter === 'all' || a.r === albumFilter)
                   .sort((a, b) => {
                     if (albumSort === 'price') return usdOf(b) - usdOf(a);
                     if (albumSort === 'recent') return sim.album.indexOf(b) - sim.album.indexOf(a);
@@ -997,6 +970,50 @@ export function PackSim({
                       </div>
                     );
                   })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'stash' && (
+        <div className="mt-4">
+          {!sim?.packs || Object.values(sim.packs).reduce((a, b) => a + b, 0) === 0 ? (
+            <p className="text-sm text-neutral-400">
+              보관 중인 팩이 없습니다. 팩 열기에서 "보관함에 담기"로 모아둘 수 있습니다.
+            </p>
+          ) : (
+            <>
+              <p className="mb-3 text-xs text-neutral-400">
+                모아둔 팩은 진열이 바뀐 뒤에도 열 수 있습니다. (최대 50팩)
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {Object.entries(sim.packs).map(([s3, cnt]) => {
+                  const p3 = packBySlug.get(s3);
+                  if (!p3 || cnt < 1) return null;
+                  const img3 = art[s3]?.boxImg || art[s3]?.logo;
+                  return (
+                    <div key={s3} className="rounded-2xl border border-neutral-200 p-3 text-center shadow-sm">
+                      <div className="flex h-28 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3">
+                        {img3 && <img src={thumb(img3, 240)} alt="" className="max-h-24 object-contain" />}
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-neutral-800">
+                        {p3.label.replace(/^\[.+?\]\s*/, '')} <span className="text-neutral-400">×{cnt}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTab('open');
+                          void open(s3, 'stash');
+                        }}
+                        disabled={busy}
+                        className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                      >
+                        개봉
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}

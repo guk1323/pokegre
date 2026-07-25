@@ -214,6 +214,7 @@ function PostDetail({
       </p>
       {post.pull ? (
         <div className="mb-6">
+          {post.content && <p className="mb-3 whitespace-pre-wrap text-sm text-neutral-800">{post.content}</p>}
           {post.pull.god && (
             <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700">
               갓팩입니다. 전부 AR 이상이 나왔습니다.
@@ -227,8 +228,7 @@ function PostDetail({
                   <img
                     src={`/api/img?u=${encodeURIComponent(/\.(png|jpe?g|webp)(\?|$)/i.test(c.img) ? c.img : `${c.img}/high.webp`)}&w=240`}
                     alt=""
-                    loading="lazy"
-                    className="w-full rounded-lg ring-1 ring-neutral-200"
+                    className="aspect-[5/7] w-full rounded-lg bg-neutral-50 object-contain ring-1 ring-neutral-200"
                   />
                 )}
                 <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{c.name}</p>

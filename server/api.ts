@@ -3092,9 +3092,8 @@ function mountAuth(
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown; from?: unknown }
         const pack = packBySlug.get(String(body.slug ?? ''))
-        // 보관함에 있으면 진열이 바뀐 팩도 열 수 있다(isLive는 구매에서만 검사).
         if (!pack) {
           sendJson(res, 400, { error: 'unknown pack' })
           return
@@ -3102,14 +3101,18 @@ function mountAuth(
         const store = await getPacksim(user.id)
         // 무제한은 운영자 전용 — 보관함·GP 없이도 바로 열어 점검할 수 있다.
         const unlimited = isAdmin(user) && !(body.spend === true)
+        // from='stash'면 보관함에서 꺼내 연다(진열이 바뀐 팩도 됨, GP 안 나감).
+        // 아니면 "바로 개봉" = 그 자리에서 구매(오늘 진열 + GP 차감). 보관함은 절대
+        // 건드리지 않는다 — 담아둔 팩이 몰래 소비되면 이용자가 헷갈린다(피드백).
+        const fromStash = body.from === 'stash'
         const have = store.packs?.[pack.slug] ?? 0
-        // "바로 개봉": 보관함에 있으면 그걸 쓰고(진열 안 바뀌어도 됨), 없으면 그 자리에서
-        // 산다(오늘 진열 중 + GP 차감). 보관함 우선이라 같은 팩을 담아두고 바로 개봉을
-        // 눌러도 이중으로 GP가 나가지 않는다.
-        let fromStash = false
         if (!unlimited) {
-          if (have >= 1) fromStash = true
-          else if (!isLive(pack.slug)) {
+          if (fromStash) {
+            if (have < 1) {
+              sendJson(res, 400, { error: 'no pack in stash' })
+              return
+            }
+          } else if (!isLive(pack.slug)) {
             sendJson(res, 400, { error: 'unknown pack' })
             return
           } else if (store.balance < pack.price) {
@@ -3123,12 +3126,14 @@ function mountAuth(
           return
         }
         const drawn = drawPack(cards, pack.profile)
-        if (fromStash && store.packs) {
-          if (have <= 1) delete store.packs[pack.slug]
-          else store.packs[pack.slug] = have - 1
-        } else if (!unlimited) {
-          store.balance -= pack.price
-          store.spent += pack.price
+        if (!unlimited) {
+          if (fromStash && store.packs) {
+            if (have <= 1) delete store.packs[pack.slug]
+            else store.packs[pack.slug] = have - 1
+          } else {
+            store.balance -= pack.price
+            store.spent += pack.price
+          }
         }
         store.opened += 1
         if (drawn.god) store.god += 1
@@ -3165,7 +3170,7 @@ function mountAuth(
         // 카드·등급·갓팩 여부는 서버가 기억하는 값만 쓴다(조작 불가). 한글 이름 표기만
         // 화면이 보내준다 — 서버에 번역기를 들이는 것보다 가볍고, 이름은 표기일 뿐이라
         // 속여도 자기 자랑글이 이상해질 뿐이다. 길이만 자르고 줄바꿈은 뗀다.
-        const body = JSON.parse((await readBody(req)) || '{}') as { names?: unknown; comment?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { names?: unknown; comment?: unknown; title?: unknown }
         const nameOf = new Map<string, string>()
         if (body.names && typeof body.names === 'object') {
           for (const [k, v] of Object.entries(body.names as Record<string, unknown>)) {
@@ -3184,9 +3189,11 @@ function mountAuth(
         const koN = (c: { n: string; name: string }) => nameOf.get(c.n) || c.name
         const best = drawn.reduce((a, b) => ((rank[b.r ?? ''] ?? 0) > (rank[a.r ?? ''] ?? 0) ? b : a), drawn[0])
         const packName = pack.label.replace(/^\[.+?\]\s*/, '')
-        const title = last.god
-          ? `✨ 갓팩!! ${packName} 전부 AR 이상`
-          : `📦 ${packName} 개봉 — ${koN(best)} ${tierKo[best.r ?? ''] ?? ''}`.trim()
+        // 제목은 이용자가 쓴 것을 우선하고, 없으면 자동 제목.
+        const userTitle = typeof body.title === 'string' ? body.title.replace(/\s+/g, ' ').trim().slice(0, 80) : ''
+        const title =
+          userTitle ||
+          (last.god ? `갓팩! ${packName} 전부 AR 이상` : `${packName} 개봉 — ${koN(best)} ${tierKo[best.r ?? ''] ?? ''}`.trim())
         // 본문은 이용자가 쓴 글. 카드 목록은 pull(이미지 그리드)로 보여주므로 글이 없으면
         // 짧은 기본 문장만 넣는다.
         const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 1000) : ''
