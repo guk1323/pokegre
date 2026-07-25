@@ -78,7 +78,9 @@ export function SetsView({
   const [tab, setTab] = useState<'ja' | 'en' | 'pocket'>('ja');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<SetIndexEntry | null>(null);
-  // initialSlug가 오면 목록이 로드된 뒤 그 세트를 자동 선택한다(한 번만).
+  // initialSlug(팩 개봉의 "수록 카드 전체 보기")가 오면 목록 로드 뒤 그 세트를 연다.
+  // 반드시 클릭과 같은 showSet을 타야 한다 — 예전에 setSelected만 해서 제목만 뜨고
+  // 카드 목록이 영영 안 불려오는 버그가 있었다.
   const initialApplied = useRef(false);
   useEffect(() => {
     if (!initialSlug || !index || initialApplied.current) return;
@@ -86,8 +88,10 @@ export function SetsView({
     if (hit) {
       initialApplied.current = true;
       setTab(hit.slug.startsWith('en-') ? 'en' : 'ja');
-      setSelected(hit);
+      showSet(hit);
     }
+    // showSet은 렌더마다 새로 만들어지는 일반 함수라 의존성에 넣지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSlug, index]);
   const [cards, setCards] = useState<SetCard[] | null>(null);
   const [loading, setLoading] = useState(false);

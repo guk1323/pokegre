@@ -1,6 +1,6 @@
 // 팩 한 개를 뽑는 순수 로직. 서버(server/api.ts)가 이걸로 뽑아서 결과를 내려준다 —
 // 화면에서 뽑으면 예산·앨범을 얼마든지 조작할 수 있어서 뽑기 자체를 서버에 뒀다.
-import { GOD_PACK_RATE, GOD_TIERS, type RateProfile } from './packSets.ts';
+import { GOD_TIERS, type RateProfile } from './packSets.ts';
 
 export type PackCard = { n: string; name: string; img?: string; r?: string };
 
@@ -70,12 +70,12 @@ function drawGodPack(pools: Record<string, PackCard[]>, size: number): PackCard[
 
 export type DrawResult = { cards: PackCard[]; god: boolean };
 
-// 세트 프로필대로 한 팩을 뽑는다. 아주 낮은 확률로 갓팩이 나온다.
-export function drawPack(cards: PackCard[], profile: RateProfile): DrawResult {
+// 세트 프로필대로 한 팩을 뽑는다. godRate(팩별, 151류 특수팩만 >0)면 갓팩이 나올 수 있다.
+export function drawPack(cards: PackCard[], profile: RateProfile, godRate = 0): DrawResult {
   const pools = groupByRarity(cards);
   const size = profile.commons + profile.uncommons + profile.slots.length;
 
-  if (Math.random() < GOD_PACK_RATE) {
+  if (godRate > 0 && Math.random() < godRate) {
     const god = drawGodPack(pools, size);
     // 상위 등급이 거의 없는 세트에서 갓팩이 나오면 밋밋하니, 못 채우면 일반 팩으로 돌린다.
     if (god.length === size) return { cards: god, god: true };

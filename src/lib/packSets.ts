@@ -13,8 +13,10 @@ export const NA_REGULAR: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    { rolls: [['Hyper rare', 0.0055], ['Special illustration rare', 0.0114], ['Illustration rare', 0.0769]], fb: 'cu' },
-    { rolls: [['Ultra Rare', 0.0667], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
+    // 36팩 박스 기대치(사용자 제공 실측): IR 2~3장, SIR 1장(32~48팩당), HR 1장(50~70팩당)
+    { rolls: [['Hyper rare', 0.0167], ['Special illustration rare', 0.025], ['Illustration rare', 0.0694]], fb: 'cu' },
+    // UR(풀아트) 2장/박스, RR(ex) 6~7장/박스
+    { rolls: [['Ultra Rare', 0.0556], ['Double rare', 0.1806], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
   ],
 };
 // 북미판 특별세트(프리즈매틱·151 등, 10장) — SAR가 일반의 2배가량 후함(1/45).
@@ -22,8 +24,9 @@ export const NA_SPECIAL: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    { rolls: [['Hyper rare', 0.011], ['Special illustration rare', 0.0222], ['Illustration rare', 0.1]], fb: 'cu' },
-    { rolls: [['Ultra Rare', 0.08], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
+    // 북미 151 실측(사용자 제공): IR 1/12~13, SIR 1/32~35, HR 1/50~60
+    { rolls: [['Hyper rare', 0.018], ['Special illustration rare', 0.03], ['Illustration rare', 0.08]], fb: 'cu' },
+    { rolls: [['Ultra Rare', 0.083], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
   ],
 };
 // 일본판 일반 부스터(5장) — 박스(30팩) 보장 구조를 팩당으로 환산:
@@ -38,7 +41,27 @@ export const JP_REGULAR: RateProfile = {
         ['Special illustration rare', 0.0056],
         ['Ultra Rare', 0.0277],
         ['Illustration rare', 0.1],
-        ['Double rare', 0.13],
+        ['Double rare', 0.15],
+      ],
+      fb: 'rare',
+    },
+  ],
+};
+
+// 일본판 151(SV2a) 전용 — 특수팩이다: 팩당 7장, 박스 20팩(사용자 제공 공식 스펙).
+// 박스 보장: AR 3장 = 15%/팩 · RR 4~5장 = 22.5%/팩 · SR이상 1장 = 5%/팩
+// (그중 SAR은 5~6박스당 1장 = 0.9%/팩, 금장 UR은 더 드묾)
+export const JP_151: RateProfile = {
+  commons: 4,
+  uncommons: 1,
+  slots: [
+    { rolls: [['Illustration rare', 0.15]], fb: 'cu' },
+    {
+      rolls: [
+        ['Hyper rare', 0.004],
+        ['Special illustration rare', 0.009],
+        ['Ultra Rare', 0.037],
+        ['Double rare', 0.225],
       ],
       fb: 'rare',
     },
@@ -59,27 +82,32 @@ export type PackSet = {
   jp: boolean;
   profile: RateProfile;
   price: number;
+  // 갓팩 확률. 실물에서 갓팩은 151류 특수팩에만 있으므로(일본 151 약 1/700~800팩,
+  // 북미 특별세트 약 1/1000팩) 해당 팩에만 넣는다. 없으면 0.
+  godRate?: number;
 };
-const JP = (id: string, name: string, price = 1600): PackSet => ({
+const JP = (id: string, name: string, price = 1600, extra: Partial<PackSet> = {}): PackSet => ({
   slug: `ja-${id}`,
   label: `[일본판] ${name}`,
   src: `/packsim/ja-${id}.json`,
   jp: true,
   profile: JP_REGULAR,
   price,
+  ...extra,
 });
-const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500): PackSet => ({
+const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500, extra: Partial<PackSet> = {}): PackSet => ({
   slug: `en-${id}`,
   label: `[북미판] ${name}`,
   src: `/sets/en-${id}.json`,
   jp: false,
   profile,
   price,
+  ...extra,
 });
 
 export const PACK_SETS: PackSet[] = [
   // 일본판 5장팩 — limitless에서 받은 데이터(시크릿 포함). scripts/gen-packsim.mjs
-  JP('M4', '닌자스피너'),
+  JP('M4', '닌자스피너', 1800), // 2026-05 세대부터 200엔
   JP('M3', '니힐제로'),
   JP('M1L', '메가브레이브'),
   JP('M1S', '메가심포니아'),
@@ -91,16 +119,16 @@ export const PACK_SETS: PackSet[] = [
   JP('SV7', '스텔라미라클'),
   JP('SV6', '변환의 가면'),
   JP('SV3', '흑염의 지배자'),
-  JP('SV2a', '포켓몬 카드 151'), // 시장가는 정가보다 높지만, 표는 정가 기준으로 통일
+  JP('SV2a', '포켓몬 카드 151', 2600, { profile: JP_151, godRate: 1 / 750 }), // 특수팩: 290엔·7장·20팩 박스·갓팩 존재
   // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
   NA('me01', 'Mega Evolution'),
   NA('sv10', 'Destined Rivals'),
   NA('sv09', 'Journey Together'),
-  NA('sv08.5', 'Prismatic Evolutions', NA_SPECIAL), // 확률만 특별(SAR 2배), 정가는 같다
+  NA('sv08.5', 'Prismatic Evolutions', NA_SPECIAL, 6500, { godRate: 1 / 1000 }), // 특별세트(36팩 박스 없음), 갓팩 존재
   NA('sv08', 'Surging Sparks'),
   NA('sv07', 'Stellar Crown'),
   NA('sv06', 'Twilight Masquerade'),
-  NA('sv03.5', '151', NA_SPECIAL),
+  NA('sv03.5', '151', NA_SPECIAL, 6500, { godRate: 1 / 1000 }), // 특별세트, 갓팩 존재
   NA('sv03', 'Obsidian Flames'),
   // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
@@ -197,10 +225,8 @@ export const SHARE_BONUS = 5000;
 export const MAX_STASH = 50;
 
 // ── 갓팩 ──────────────────────────────────────────────────────────────────
-// 아주 낮은 확률로 팩 전체가 AR 이상으로 채워진다. 1/500이면 하루치 GP(일본판 18팩)를
-// 매일 다 써도 한 달에 한 번쯤 나온다 — 기다릴 만하면서 영영 못 보진 않는 선.
-export const GOD_PACK_RATE = 0.002;
 // 갓팩에 들어가는 등급(높은 것부터). 세트에 없는 등급은 건너뛴다.
+// 확률은 팩별 godRate(위 PACK_SETS)로 정한다 — 실물처럼 151류 특수팩에만 있다.
 export const GOD_TIERS = [
   'Hyper rare',
   'Special illustration rare',

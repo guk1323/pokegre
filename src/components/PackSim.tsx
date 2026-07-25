@@ -6,7 +6,6 @@ import { koreanizeTitle } from '../lib/koreanizeTitle';
 import { rankOf, type PackCard } from '../lib/packDraw';
 import {
   DAILY_BUDGET,
-  GOD_PACK_RATE,
   livePacks,
   NA_SPECIAL,
   MAX_BALANCE,
@@ -82,6 +81,7 @@ const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profi
     name: `${kind} — ${packs.length}종`,
     packs: packs.map((p) => p.label.replace(/^\[.+?\]\s*/, '')),
     rates: ratesOf(first),
+    godRate: first.godRate ?? 0,
   };
 });
 
@@ -451,8 +451,8 @@ export function PackSim({
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
-            { label: '일본판 · 팩당 5장', dot: 'bg-rose-500', packs: LIVE_TODAY.filter((p) => p.jp) },
-            { label: '북미판 · 팩당 10장', dot: 'bg-blue-500', packs: LIVE_TODAY.filter((p) => !p.jp) },
+            { label: '일본판', dot: 'bg-rose-500', packs: LIVE_TODAY.filter((p) => p.jp) },
+            { label: '북미판', dot: 'bg-blue-500', packs: LIVE_TODAY.filter((p) => !p.jp) },
           ].map((row) => (
             <div key={row.label} className="mt-5">
               <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-neutral-600">
@@ -499,6 +499,9 @@ export function PackSim({
                       </div>
                       <p className="mt-2 line-clamp-1 text-sm font-semibold text-neutral-800">
                         {s2.label.replace(/^\[.+?\]\s*/, '')}
+                        <span className="ml-1 text-xs font-normal text-neutral-400">
+                          {s2.profile.commons + s2.profile.uncommons + s2.profile.slots.length}장
+                        </span>
                       </p>
                       {on ? (
                         <div className="mt-2 space-y-1.5">
@@ -1047,16 +1050,25 @@ export function PackSim({
                       <td className="py-1.5 text-neutral-500">{r.per}팩에 1장</td>
                     </tr>
                   ))}
+                  {g.godRate > 0 && (
+                    <tr className="border-t border-neutral-100">
+                      <td className="py-1.5 font-semibold text-amber-600">갓팩</td>
+                      <td className="py-1.5">{(g.godRate * 100).toFixed(2)}%</td>
+                      <td className="py-1.5 text-neutral-500">{Math.round(1 / g.godRate)}팩에 1번</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           ))}
 
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm font-bold text-amber-700">
-              ✨ 갓팩 — {(GOD_PACK_RATE * 100).toFixed(2)}% ({Math.round(1 / GOD_PACK_RATE)}팩에 1번)
+            <p className="text-sm font-bold text-amber-700">갓팩</p>
+            <p className="mt-1 text-xs text-neutral-600">
+              실물과 같게 151류 특수팩에만 있습니다 — 일본판 151은 750팩에 1번, 북미판
+              특별세트(Prismatic·151)는 1,000팩에 1번. 걸리면 팩 전체가 아트레어(AR) 이상으로
+              나옵니다. 일반 확장팩에는 갓팩이 없습니다.
             </p>
-            <p className="mt-1 text-xs text-neutral-600">팩 전체가 일러레어(AR) 이상으로 채워집니다. 팩 종류와 상관없이 같습니다.</p>
           </div>
 
           <p className="mt-4 text-xs text-neutral-500">

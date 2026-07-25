@@ -3125,7 +3125,7 @@ function mountAuth(
           sendJson(res, 500, { error: 'pack data missing' })
           return
         }
-        const drawn = drawPack(cards, pack.profile)
+        const drawn = drawPack(cards, pack.profile, pack.godRate ?? 0)
         if (!unlimited) {
           if (fromStash && store.packs) {
             if (have <= 1) delete store.packs[pack.slug]
