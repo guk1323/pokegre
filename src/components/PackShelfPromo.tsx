@@ -7,7 +7,7 @@ import { livePacks } from '../lib/packSets';
 // 매일 자정(KST)에 함께 바뀐다.
 
 const thumb = (url: string, w: number) => `/api/img?u=${encodeURIComponent(url)}&w=${w}`;
-const won = (n: number) => `${n.toLocaleString()}원`;
+const won = (n: number) => `${n.toLocaleString()} GP`;
 
 export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
   const [art, setArt] = useState<Record<string, { boxImg?: string; logo?: string }>>({});
@@ -45,7 +45,7 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
             const img = art[p.slug]?.boxImg || art[p.slug]?.logo;
             return (
               <div key={p.slug} className="px-1 text-center">
-                <div className="flex h-24 items-end justify-center rounded-xl bg-neutral-50 px-2 pb-2 pt-3 sm:h-32">
+                <div className="flex h-24 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3 sm:h-32">
                   {img && (
                     <img
                       src={thumb(img, 280)}
@@ -58,7 +58,10 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
                 <p className="mt-2 line-clamp-1 text-xs font-semibold text-neutral-700">
                   {p.label.replace(/^\[.+?\]\s*/, '')}
                 </p>
-                <p className="mt-0.5 text-[11px] text-neutral-400">{won(p.price)}</p>
+                <p className="mt-1">
+                  <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${p.jp ? 'bg-rose-500' : 'bg-blue-500'}`} />
+                  <span className="align-middle text-[11px] font-bold text-neutral-700">{won(p.price)}</span>
+                </p>
               </div>
             );
           })}

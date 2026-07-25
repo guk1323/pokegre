@@ -148,6 +148,8 @@ function App() {
   // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
   // 안 주므로 아무것도 못 본다.
   const [isAdmin, setIsAdmin] = useState(false);
+  // 팩 개봉의 "수록 카드 보기" → 세트 목록에서 그 세트를 바로 연다.
+  const [setsInitialSlug, setSetsInitialSlug] = useState<string | null>(null);
   // 카드 비교. 최대 2장을 담아 나란히 본다. 베타로 모두에게 공개(2026-07-20).
   const showCompare = true;
   const [compareCards, setCompareCards] = useState<SnkrdunkCard[]>([]);
@@ -926,9 +928,16 @@ function App() {
           ) : view === 'packsim' ? (
             <PackSim
               onPickCard={(t) => navigate({ view: 'cards', source: t.source, query: t.query, edition: t.edition })}
+              onOpenSet={(slug) => {
+                setSetsInitialSlug(slug);
+                navigate({ view: 'sets' });
+              }}
             />
           ) : view === 'sets' ? (
-            <SetsView onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })} />
+            <SetsView
+              initialSlug={setsInitialSlug}
+              onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
+            />
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (

@@ -64,13 +64,31 @@ const SERIE_LABEL: Record<string, string> = {
 const koSerie = (ed: 'ja' | 'en', serie: string) => SERIE_LABEL[serie] ?? koSet(ed, serie);
 const shortDate = (d: string) => (d ? d.slice(0, 7).replace('-', '.') : '');
 
-export function SetsView({ onPickCard }: { onPickCard: (name: string) => void }) {
+export function SetsView({
+  onPickCard,
+  initialSlug,
+}: {
+  onPickCard: (name: string) => void;
+  // 팩 개봉 화면의 "수록 카드 보기"가 특정 세트를 바로 열 때 쓴다.
+  initialSlug?: string | null;
+}) {
   const [index, setIndex] = useState<SetIndexEntry[] | null>(null);
   // 일본판 / 북미판 / 모바일 포켓 3분류. Pocket은 실물 아닌 디지털 게임(Pokémon TCG Pocket)이라
   // 실물 시세가 없어서 따로 뗀다 — 북미판에 섞이면 눌러도 시세가 빈 막다른 길이 됨.
   const [tab, setTab] = useState<'ja' | 'en' | 'pocket'>('ja');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<SetIndexEntry | null>(null);
+  // initialSlug가 오면 목록이 로드된 뒤 그 세트를 자동 선택한다(한 번만).
+  const initialApplied = useRef(false);
+  useEffect(() => {
+    if (!initialSlug || !index || initialApplied.current) return;
+    const hit = index.find((e) => e.slug === initialSlug);
+    if (hit) {
+      initialApplied.current = true;
+      setTab(hit.slug.startsWith('en-') ? 'en' : 'ja');
+      setSelected(hit);
+    }
+  }, [initialSlug, index]);
   const [cards, setCards] = useState<SetCard[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [shown, setShown] = useState(PAGE);

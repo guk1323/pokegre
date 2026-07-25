@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox, type ExchangeRates } from '../api/exchangeRate';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
@@ -13,11 +13,12 @@ import {
   STREAK_BONUS,
   STREAK_DAYS,
   packBySlug,
+  SHARE_BONUS,
   type PackSet,
 } from '../lib/packSets';
 
-// 카드 뽑기(베타). 출석으로 받은 예산으로 팩을 사서 열고, 나온 카드를
-// 앨범에 모은다. 뽑기·예산 계산은 전부 서버가 한다(화면에서 하면 얼마든지 조작 가능).
+// 팩 개봉. 출석으로 받은 GP(그레포인트)로 팩을 사서 열고, 나온 카드를
+// 앨범에 모은다. 개봉·GP 계산은 전부 서버가 한다(화면에서 하면 얼마든지 조작 가능).
 // 확률은 커뮤니티 실측 집계(공식 발표는 없음)라 재미용 근사치다.
 
 type AlbumCard = { s: string; n: string; r: string; c: number; g?: 1 };
@@ -34,6 +35,7 @@ type SimState = {
   canCheckIn: boolean;
   gained?: number;
   admin?: boolean; // 무제한 스위치는 운영자에게만 보인다
+  canShareBonus?: boolean; // 오늘 첫 자랑 보상(+5,000GP)이 남아 있는지
   packs?: Record<string, number>; // 사서 아직 안 연 팩(보관함)
 };
 
@@ -44,9 +46,9 @@ const RARITY: Record<string, { ko: string; cls: string }> = {
   Rare: { ko: '레어', cls: 'text-sky-600 ring-sky-300' },
   'Double rare': { ko: '더블레어 RR', cls: 'text-indigo-600 ring-indigo-300' },
   'ACE SPEC Rare': { ko: 'ACE', cls: 'text-rose-600 ring-rose-300' },
-  'Illustration rare': { ko: '일러레어 AR', cls: 'text-amber-600 ring-amber-300' },
+  'Illustration rare': { ko: '아트레어 AR', cls: 'text-amber-600 ring-amber-300' },
   'Ultra Rare': { ko: '울트라레어 UR', cls: 'text-fuchsia-600 ring-fuchsia-300' },
-  'Special illustration rare': { ko: '스페셜 AR (SAR)', cls: 'text-amber-500 ring-amber-400' },
+  'Special illustration rare': { ko: '스페셜아트레어 SAR', cls: 'text-amber-500 ring-amber-400' },
   'Hyper rare': { ko: '하이퍼레어 HR', cls: 'text-yellow-500 ring-yellow-400' },
 };
 
@@ -56,7 +58,9 @@ const thumb = (url: string, w: number) => {
   const src = cardImg(url);
   return src ? `/api/img?u=${encodeURIComponent(src)}&w=${w}` : '';
 };
-const won = (n: number) => `${n.toLocaleString()}원`;
+// pokegre 안에서만 쓰는 포인트 "GP(그레포인트)". 실제 돈 같아 보인다는 피드백으로
+// 원화 대신 자체 재화 단위를 쓴다(숫자는 실제 정가 기준 그대로).
+const gp = (n: number) => `${n.toLocaleString()} GP`;
 
 // 팩 하나에서 그 등급이 나올 확률(%). 슬롯별 확률을 합쳐서 보여준다.
 function ratesOf(pack: PackSet): { ko: string; pct: number; per: number }[] {
@@ -86,7 +90,14 @@ const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profi
 // "이름 번호"라 그 카드 한 장으로 좁혀진다(039처럼 0 붙은 그대로 — 39는 239에도 걸린다).
 export type PickTarget = { query: string; source: 'snkrdunk' | 'ebay' | 'tcgplayer'; edition: 'japanese' | 'english' };
 
-export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => void }) {
+export function PackSim({
+  onPickCard,
+  onOpenSet,
+}: {
+  onPickCard?: (target: PickTarget) => void;
+  // 진열 팩의 "수록 카드 보기" → 세트 목록 화면으로 이동.
+  onOpenSet?: (slug: string) => void;
+}) {
   const [tab, setTab] = useState<'open' | 'album' | 'rates'>('open');
   const [sim, setSim] = useState<SimState | null>(null);
   const [slug, setSlug] = useState(LIVE_TODAY[0].slug);
@@ -111,14 +122,21 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<string>>(new Set());
   const [keptMsg, setKeptMsg] = useState('');
+  // 앨범에 넣기와 자랑하기는 서로 독립 — 넣었다고 자랑 기회가 사라지면 안 된다.
+  const [keptDone, setKeptDone] = useState(false);
   const [share, setShare] = useState<ShareState>({ shared: false, msg: '' });
   // 자랑 작성 폼(바로 올리지 않고 글을 쓴 뒤 직접 등록한다).
   const [shareOpen, setShareOpen] = useState(false);
   const [shareText, setShareText] = useState('');
-  // 겹쳐 놓고 한 장씩 까는 연출: 맨 위 카드가 뒤집히는 중인지.
-  const [flipping, setFlipping] = useState(false);
+  // 겹쳐 놓인 카드 개봉: 덮개를 위로 드래그하면 아래 카드가 슬쩍 보이다가, 충분히
+  // 밀면 넘어간다("쫄리는 맛"). phase: covered=덮개 있음, leaving=덮개 날아가는 중,
+  // shown=카드 공개(누르면 다음).
+  const [phase, setPhase] = useState<'covered' | 'leaving' | 'shown'>('covered');
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragStartY = useRef(0);
   // 운영자는 점검하려고 아무 때나 열어야 해서 기본이 무제한이다. 끄면 평소처럼
-  // 예산이 깎이고 모자라면 못 연다(그 흐름도 확인해야 하니 스위치로 뒀다).
+  // GP가 깎이고 모자라면 못 연다(그 흐름도 확인해야 하니 스위치로 뒀다).
   const [spend, setSpend] = useState(false);
 
   const cfg = packBySlug.get(slug) ?? LIVE_TODAY[0];
@@ -126,10 +144,10 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/local/auth/packsim', { credentials: 'include' });
-      if (!r.ok) return setErr('로그인하면 출석 보상으로 팩을 열 수 있습니다.');
+      if (!r.ok) return setErr('로그인하면 출석 보상 GP로 팩을 열 수 있습니다.');
       const d = (await r.json()) as SimState;
       setSim(d);
-      if (!d.admin) setSpend(true); // 일반 이용자는 항상 예산을 쓴다
+      if (!d.admin) setSpend(true); // 일반 이용자는 항상 GP를 쓴다
     } catch {
       setErr('불러오지 못했습니다.');
     }
@@ -152,7 +170,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       setSim(d);
       if (d.gained) {
         trackEvent('packsim_checkin');
-        setCheckinMsg(`출석 보상 ${won(d.gained)}을 받았습니다. (연속 ${d.streak}일)`);
+        setCheckinMsg(`출석 보상 ${gp(d.gained)}을 받았습니다. (연속 ${d.streak}일)`);
       }
     } finally {
       setBusy(false);
@@ -174,7 +192,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       });
       const d = (await r.json()) as { balance?: number; packs?: Record<string, number>; error?: string };
       if (!r.ok) {
-        setErr(d.error === 'not enough' ? '보유 금액이 부족합니다.' : '구매하지 못했습니다.');
+        setErr(d.error === 'not enough' ? 'GP가 부족합니다.' : '구매하지 못했습니다.');
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
@@ -190,7 +208,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
     setBusy(true);
     setPack(null);
     setRevealed(0);
-    setFlipping(false);
+    setPhase('covered');
+    setDragY(0);
     setGod(false);
     const target = packBySlug.get(slug2);
     setSlug(slug2);
@@ -215,6 +234,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       // 일러레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.n)));
       setKeptMsg('');
+      setKeptDone(false);
       setShare({ shared: false, msg: '' });
       setShareOpen(false);
       setShareText('');
@@ -238,7 +258,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       const d = (await r.json()) as { kept?: number; album?: AlbumCard[] };
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
       setKeptMsg(d.kept ? `${d.kept}장을 앨범에 넣었습니다.` : '앨범에 넣지 않고 넘겼습니다.');
-      setPack(null);
+      setKeptDone(true);
     } finally {
       setBusy(false);
     }
@@ -266,7 +286,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
       if (typeof d.balance === 'number') setSim((s2) => (s2 ? { ...s2, balance: d.balance! } : s2));
       setShare({
         shared: true,
-        msg: d.gained ? `커뮤니티에 올렸습니다. 자랑 보상 +${won(d.gained)} (하루 1번)` : '커뮤니티에 올렸습니다.',
+        msg: d.gained ? `커뮤니티에 올렸습니다. 자랑 보상 +${gp(d.gained)} (하루 1번)` : '커뮤니티에 올렸습니다.',
       });
       setShareOpen(false);
     } finally {
@@ -361,8 +381,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
         <div className="flex flex-wrap items-center gap-y-4">
           <div className="grid flex-1 grid-cols-3 gap-2 sm:max-w-md">
             <div>
-              <p className="text-xs text-neutral-400">보유 금액</p>
-              <p className="mt-0.5 text-xl font-bold text-black">{won(sim?.balance ?? 0)}</p>
+              <p className="text-xs text-neutral-400">보유 GP</p>
+              <p className="mt-0.5 text-xl font-bold text-black">{gp(sim?.balance ?? 0)}</p>
             </div>
             <div>
               <p className="text-xs text-neutral-400">연속 출석</p>
@@ -382,13 +402,13 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
             disabled={busy || !sim?.canCheckIn}
             className="ml-auto rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40"
           >
-            {sim?.canCheckIn ? `출석하고 ${won(DAILY_BUDGET)} 받기` : '오늘 출석 완료'}
+            {sim?.canCheckIn ? `출석하고 ${gp(DAILY_BUDGET)} 받기` : '오늘 출석 완료'}
           </button>
         </div>
         {sim?.admin && (
           <label className="mt-3 flex items-center justify-end gap-1.5 text-xs text-neutral-400">
             <input type="checkbox" checked={spend} onChange={(e) => setSpend(e.target.checked)} />
-            보유 금액 차감 (끄면 운영자 무제한)
+            GP 차감 (끄면 운영자 무제한)
           </label>
         )}
       </div>
@@ -454,11 +474,14 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
-            { label: '일본판 · 팩당 5장', packs: LIVE_TODAY.filter((p) => p.jp) },
-            { label: '북미판 · 팩당 10장', packs: LIVE_TODAY.filter((p) => !p.jp) },
+            { label: '일본판 · 팩당 5장', dot: 'bg-rose-500', packs: LIVE_TODAY.filter((p) => p.jp) },
+            { label: '북미판 · 팩당 10장', dot: 'bg-blue-500', packs: LIVE_TODAY.filter((p) => !p.jp) },
           ].map((row) => (
             <div key={row.label} className="mt-5">
-              <p className="mb-2 text-xs font-bold text-neutral-500">{row.label}</p>
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-neutral-600">
+                <span className={`inline-block h-2 w-2 rounded-full ${row.dot}`} />
+                {row.label}
+              </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {row.packs.map((s2) => {
                   const on = s2.slug === slug;
@@ -485,7 +508,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                         on ? 'border-black ring-1 ring-black' : 'border-neutral-200 hover:border-neutral-300 hover:shadow'
                       }`}
                     >
-                      <div className="flex h-32 items-end justify-center rounded-xl bg-neutral-50 px-2 pb-2 pt-3 sm:h-40">
+                      <div className="flex h-32 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3 sm:h-40">
                         {img && (
                           <img
                             src={thumb(img, 320)}
@@ -510,10 +533,26 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                           disabled={busy || !can}
                           className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                         >
-                          {busy ? '담는 중…' : can ? `구매해서 보관함에 담기 · ${won(s2.price)}` : '보유 금액이 부족합니다'}
+                          {busy ? '담는 중…' : can ? `구매해서 보관함에 담기 · ${gp(s2.price)}` : 'GP가 부족합니다'}
                         </button>
                       ) : (
-                        <p className="mt-2 py-2 text-xs text-neutral-400">{won(s2.price)}</p>
+                        <p className="mt-2 py-1.5">
+                          <span className="inline-block rounded-full bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-white">
+                            {gp(s2.price)}
+                          </span>
+                        </p>
+                      )}
+                      {on && onOpenSet && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenSet(s2.slug);
+                          }}
+                          className="mt-1.5 text-xs text-neutral-500 underline"
+                        >
+                          수록 카드 보기
+                        </button>
                       )}
                     </div>
                   );
@@ -524,8 +563,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
           <p className="mt-3 text-xs text-neutral-400">매일 자정에 진열이 바뀝니다. (전체 22종)</p>
 
           <p className="mt-2 text-xs text-neutral-400">
-            비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, 예산은 서비스 안에서만
-            쓰이는 숫자입니다. 확률은 재미용 근사치라 실제 봉입률과 다릅니다.
+            비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, GP는 pokegre 안에서만
+            쓰이는 포인트로 현금 가치가 없습니다. 확률은 재미용 근사치라 실제 봉입률과 다릅니다.
           </p>
           {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
 
@@ -535,52 +574,88 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
             </div>
           )}
 
-          {/* 겹쳐 놓인 팩에서 맨 위 카드를 눌러 한 장씩 깐다. 누르면 뒤집혀 보이고,
-              잠시 뒤 옆으로 빠지며 다음 카드가 나온다. 마지막 장은 금빛으로 고동친다. */}
+          {/* 겹쳐 놓인 팩. 덮개를 위로 드래그하면 아래 카드가 조금씩 드러난다 —
+              색·이름을 슬쩍 보다가 충분히 밀면 덮개가 날아가고 카드가 공개된다. */}
           {pack && !allDone && (
-            <div className="mt-6">
-              <div className="relative mx-auto h-72 w-52 sm:h-80 sm:w-56">
-                {/* 뒤에 남은 카드 두께 표현 */}
+            <div className="mt-6 select-none">
+              <div className="relative mx-auto h-72 w-52 touch-none sm:h-80 sm:w-56">
                 {pack.length - revealed > 2 && (
-                  <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl border border-neutral-200 bg-neutral-100" />
+                  <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl border border-neutral-300 bg-neutral-200" />
                 )}
                 {pack.length - revealed > 1 && (
-                  <div className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-neutral-200 bg-neutral-50" />
+                  <div className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-neutral-300 bg-neutral-100" />
                 )}
-                <button
-                  type="button"
+
+                {/* 현재 카드(덮개 아래) */}
+                <div
+                  className={`absolute inset-0 ${phase === 'shown' ? 'cursor-pointer' : ''}`}
                   onClick={() => {
-                    if (flipping) return;
-                    setFlipping(true);
-                    // 뒤집혀 보이는 시간을 준 뒤 다음 카드로 넘어간다.
-                    setTimeout(() => {
-                      revealNext();
-                      setFlipping(false);
-                    }, 900);
+                    if (phase !== 'shown') return;
+                    revealNext();
+                    setPhase('covered');
+                    setDragY(0);
                   }}
-                  className={`absolute inset-0 ${flipping ? '' : 'cursor-pointer'}`}
-                  aria-label="카드 뒤집기"
+                  role={phase === 'shown' ? 'button' : undefined}
+                  aria-label={phase === 'shown' ? '다음 카드' : undefined}
                 >
-                  <div className={`flip h-full w-full ${!flipping && revealed === pack.length - 1 ? 'flip-last' : ''}`}>
-                    <div className="flip-inner" data-flipped={flipping}>
-                      <div className="flip-face flip-back">
-                        <img src="/pack-card-back.svg" alt="" className="h-full w-full rounded-xl object-cover shadow-md" />
-                      </div>
-                      <div className={`flip-face flip-front ${flipping && rankOf(pack[revealed]?.r) >= 5 ? 'card-hit' : ''}`}>
-                        <div className={`h-full overflow-hidden rounded-xl bg-neutral-100 ring-1 ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).cls} ${flipping && rankOf(pack[revealed]?.r) >= 5 ? 'card-shine' : ''}`}>
-                          {pack[revealed]?.img && (
-                            <img src={thumb(pack[revealed].img!, 480)} alt="" className="h-full w-full object-contain" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                  <div
+                    className={`h-full overflow-hidden rounded-xl bg-neutral-100 ring-1 ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).cls} ${
+                      phase === 'shown' && rankOf(pack[revealed]?.r) >= 5 ? 'card-hit card-shine' : ''
+                    }`}
+                  >
+                    {pack[revealed]?.img && (
+                      <img src={thumb(pack[revealed].img!, 480)} alt="" draggable={false} className="h-full w-full object-contain" />
+                    )}
                   </div>
-                </button>
+                </div>
+
+                {/* 덮개: 드래그하면 위로 밀리며 아래가 드러난다 */}
+                {phase !== 'shown' && (
+                  <div
+                    onPointerDown={(e) => {
+                      if (phase !== 'covered') return;
+                      dragStartY.current = e.clientY;
+                      setDragging(true);
+                      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                    }}
+                    onPointerMove={(e) => {
+                      if (!dragging || phase !== 'covered') return;
+                      setDragY(Math.max(0, Math.min(340, dragStartY.current - e.clientY)));
+                    }}
+                    onPointerUp={() => {
+                      if (phase !== 'covered') return;
+                      setDragging(false);
+                      // 충분히 밀었거나 살짝 탭했으면 공개, 아니면 제자리로.
+                      if (dragY > 130 || dragY < 8) {
+                        setPhase('leaving');
+                        setTimeout(() => {
+                          setPhase('shown');
+                          setDragY(0);
+                        }, 220);
+                      } else {
+                        setDragY(0);
+                      }
+                    }}
+                    className={`absolute inset-0 cursor-grab active:cursor-grabbing ${
+                      !dragging && revealed === pack.length - 1 ? 'flip-last rounded-xl' : ''
+                    }`}
+                    style={{
+                      transform: phase === 'leaving' ? 'translateY(-460px)' : `translateY(${-dragY}px)`,
+                      opacity: phase === 'leaving' ? 0 : 1,
+                      transition: dragging ? 'none' : 'transform 0.22s ease, opacity 0.22s ease',
+                    }}
+                  >
+                    <img src="/pack-card-back.svg" alt="" draggable={false} className="h-full w-full rounded-xl object-cover shadow-md" />
+                  </div>
+                )}
               </div>
-              <p className="mt-3 text-center text-sm font-semibold text-neutral-600">
-                {flipping
-                  ? `${koName(cfg.jp, pack[revealed]?.name ?? '')} · ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).ko}`
-                  : `카드를 눌러 넘기세요 (${revealed}/${pack.length})`}
+
+              <p className="mt-3 h-5 text-center text-sm font-semibold text-neutral-600">
+                {phase === 'shown'
+                  ? `${koName(cfg.jp, pack[revealed]?.name ?? '')} · ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).ko} — 카드를 누르면 다음`
+                  : dragY > 40
+                    ? '조금만 더…'
+                    : `위로 밀어서 확인 (${revealed}/${pack.length})`}
               </p>
               <div className="mt-1 text-center">
                 <button
@@ -591,7 +666,6 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                   전체 한번에 공개
                 </button>
               </div>
-              {/* 이미 깐 카드 미리보기 */}
               {revealed > 0 && (
                 <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-1">
                   {pack.slice(0, revealed).map((c, i) => (
@@ -605,29 +679,33 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
           {allDone && (
             <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-sm font-semibold text-neutral-700">
-                앨범에 넣을 카드를 고르세요 <span className="text-neutral-500">({keep.size}장 선택됨)</span>
+                {keptDone ? '이 팩의 결과입니다' : <>앨범에 넣을 카드를 고르세요 <span className="text-neutral-500">({keep.size}장 선택됨)</span></>}
               </p>
-              <button type="button" onClick={() => setKeep(new Set(pack!.map((c) => c.n)))} className="text-xs text-neutral-500 underline">
-                전부 선택
-              </button>
-              <button type="button" onClick={() => setKeep(new Set())} className="text-xs text-neutral-500 underline">
-                전부 해제
-              </button>
+              {!keptDone && (
+                <>
+                  <button type="button" onClick={() => setKeep(new Set(pack!.map((c) => c.n)))} className="text-xs text-neutral-500 underline">
+                    전부 선택
+                  </button>
+                  <button type="button" onClick={() => setKeep(new Set())} className="text-xs text-neutral-500 underline">
+                    전부 해제
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => setShareOpen(true)}
                 disabled={busy || share.shared}
                 className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
-                {share.shared ? '자랑 완료' : '커뮤니티에 자랑하기'}
+                {share.shared ? '자랑 완료' : sim?.canShareBonus ? `커뮤니티에 자랑하기 +${gp(SHARE_BONUS)}` : '커뮤니티에 자랑하기'}
               </button>
               <button
                 type="button"
                 onClick={keepCards}
-                disabled={busy}
+                disabled={busy || keptDone}
                 className="rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
-                {keep.size ? `${keep.size}장 앨범에 넣기` : '넣지 않고 넘기기'}
+                {keptDone ? '앨범에 넣었습니다' : keep.size ? `${keep.size}장 앨범에 넣기` : '넣지 않고 넘기기'}
               </button>
             </div>
           )}
@@ -635,6 +713,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
             <div className="mt-3 rounded-xl border border-neutral-200 p-3">
               <p className="text-xs text-neutral-500">
                 개봉 결과 카드 이미지가 글에 함께 올라갑니다. 하고 싶은 말을 적고 등록해 주세요.
+                {sim?.canShareBonus ? ` 오늘 첫 자랑에는 ${gp(SHARE_BONUS)}를 드립니다.` : ''}
               </p>
               <textarea
                 value={shareText}
@@ -663,7 +742,11 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
               </div>
             </div>
           )}
-          {share.msg && <p className="mt-2 text-sm font-semibold text-indigo-600">{share.msg}</p>}
+          {share.msg && (
+            <p className={`mt-2 text-sm font-semibold ${share.shared ? 'text-indigo-600' : 'text-rose-600'}`}>
+              {share.msg}
+            </p>
+          )}
 
           {pack && (
             <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
@@ -677,7 +760,7 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                   isNext={i === revealed && !allDone}
                   onFlip={revealNext}
                   name={koName(cfg.jp, c.name)}
-                  picking={allDone}
+                  picking={allDone && !keptDone}
                   picked={keep.has(c.n)}
                   onPick={() =>
                     setKeep((prev) => {
@@ -712,8 +795,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-400">쓴 금액</p>
-                    <p className="mt-0.5 text-xl font-bold text-black">{won(sim.spent)}</p>
+                    <p className="text-xs text-neutral-400">쓴 GP</p>
+                    <p className="mt-0.5 text-xl font-bold text-black">{gp(sim.spent)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-neutral-400">예상 가치</p>
@@ -921,8 +1004,8 @@ export function PackSim({ onPickCard }: { onPickCard?: (target: PickTarget) => v
           </div>
 
           <p className="mt-4 text-xs text-neutral-500">
-            표에 없는 자리는 커먼·언커먼·레어로 채웁니다. 예산은 출석하면 하루 {won(DAILY_BUDGET)}, 다음 날로
-            이월되고 최대 {won(MAX_BALANCE)}까지 쌓입니다. {STREAK_DAYS}일 연속 출석하면 {won(STREAK_BONUS)}을 더
+            표에 없는 자리는 커먼·언커먼·레어로 채웁니다. GP는 출석하면 하루 {gp(DAILY_BUDGET)}, 다음 날로
+            이월되고 최대 {gp(MAX_BALANCE)}까지 쌓입니다. {STREAK_DAYS}일 연속 출석하면 {gp(STREAK_BONUS)}을 더
             드립니다.
           </p>
         </div>

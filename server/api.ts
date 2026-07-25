@@ -2504,7 +2504,7 @@ interface PackSimStore {
   packs?: Record<string, number>
   // 방금 연 팩. 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지 못하도록
   // 서버가 마지막 팩을 기억했다가 그 안의 번호만 받아준다. shared는 같은 팩 중복 자랑 방지.
-  last?: { slug: string; ns: string[]; god: boolean; shared?: boolean }
+  last?: { slug: string; ns: string[]; god: boolean; shared?: boolean; kept?: boolean }
   // 자랑 보상을 마지막으로 받은 날(KST). 하루 1번만 준다.
   lastShareDay?: string
 }
@@ -3011,7 +3011,14 @@ function mountAuth(
         const store = await getPacksim(user.id)
         const today = todayKst()
         // admin: 화면이 "예산 쓰기" 스위치(무제한)를 운영자에게만 보여주기 위한 표식.
-        sendJson(res, 200, { ...store, today, canCheckIn: store.lastCheckIn !== today, admin: isAdmin(user) })
+        sendJson(res, 200, {
+          ...store,
+          today,
+          canCheckIn: store.lastCheckIn !== today,
+          // 오늘 첫 자랑 보상(+5,000GP)을 아직 안 받았는지 — 버튼에 "+5,000GP"를 보여줄 근거.
+          canShareBonus: store.lastShareDay !== today,
+          admin: isAdmin(user),
+        })
         return
       }
 
@@ -3207,15 +3214,17 @@ function mountAuth(
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { ns?: unknown }
         const store = await getPacksim(user.id)
-        if (!store.last) {
-          sendJson(res, 400, { error: 'no pack' })
+        // 앨범에 넣어도 last를 지우지 않는다 — 지우면 그 팩을 자랑할 수 없게 된다
+        // (앨범 넣기와 자랑은 독립이어야 한다). 같은 팩을 두 번 넣는 것만 kept로 막는다.
+        if (!store.last || store.last.kept) {
+          sendJson(res, 400, { error: store.last ? 'already kept' : 'no pack' })
           return
         }
         const allowed = new Set(store.last.ns)
         const picked = (Array.isArray(body.ns) ? body.ns : []).map(String).filter((n) => allowed.has(n))
         const cards = await readPackCards(packBySlug.get(store.last.slug)?.src ?? '')
         addToAlbum(store, store.last.slug, cards.filter((c) => picked.includes(c.n)), store.last.god)
-        store.last = undefined
+        store.last.kept = true
         await persistPacksim()
         sendJson(res, 200, { kept: picked.length, album: store.album })
         return
