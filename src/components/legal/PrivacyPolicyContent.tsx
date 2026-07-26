@@ -130,7 +130,12 @@ export function PrivacyPolicyContent() {
 
       <section>
         <h3 className="font-bold text-black mb-1">9. 개인정보 보호책임자</h3>
+        <p>개인정보 보호책임자: pokegre 운영자</p>
         <p>이메일: guk132312@gmail.com</p>
+        <p className="text-neutral-400">
+          개인이 운영하는 서비스라 별도의 전화 상담 창구는 두지 않았습니다. 위 이메일 또는 커뮤니티 건의
+          게시판으로 문의해 주시면 확인 후 답변드립니다.
+        </p>
       </section>
 
       <section>
