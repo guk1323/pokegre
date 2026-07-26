@@ -69,7 +69,14 @@ export async function fetchPost(id: number): Promise<CommunityPost> {
 // 작성자는 서버가 세션에서 가져오므로 보내지 않는다.
 // 사진 한 장을 올리고 주소를 받는다. 글을 저장할 때 이 주소만 같이 보낸다.
 export const MAX_POST_IMAGES = 4;
+// 서버와 같은 한도. 넘는 파일은 보내기 전에 막는다 — 서버는 몸통이 한도를 넘는 순간
+// 메모리를 지키려고 연결을 끊어 버려서, 413이 브라우저까지 오지 않고 그냥 통신 오류가
+// 된다(그러면 "너무 큽니다" 대신 "올리지 못했습니다"가 떠서 이유를 알 수 없다).
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const TOO_LARGE = '사진이 너무 큽니다. 4MB 이하로 올려 주세요.';
+
 export async function uploadPostImage(file: File): Promise<string> {
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error(TOO_LARGE);
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
@@ -82,7 +89,7 @@ export async function uploadPostImage(file: File): Promise<string> {
     body: JSON.stringify({ image: dataUrl }),
   });
   if (res.status === 401) throw new Error(LOGIN_REQUIRED);
-  if (res.status === 413) throw new Error('사진이 너무 큽니다. 4MB 이하로 올려 주세요.');
+  if (res.status === 413) throw new Error(TOO_LARGE);
   if (!res.ok) throw new Error('사진을 올리지 못했습니다.');
   const j = (await res.json()) as { url: string };
   return j.url;
