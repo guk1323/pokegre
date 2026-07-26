@@ -84,6 +84,8 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Misty: '이슬',
   Ash: '지우',
   "Professor's Research": '박사의 연구',
+  "Brock's Scouting": '웅의 스카우트',
+  Levincia: '누룩스시티',
   "Boss's Orders": '보스의 지령',
   // Atticus = シュウメイ = 추명. 효과문이 완전히 같아 확정했다(SV8a シュウメイ:
   // "상대 배틀 포켓몬이 독일 때만 쓸 수 있다 … 패를 덱에 되돌려 섞고 7장 뽑는다"
@@ -358,7 +360,8 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   Maintenance: '메인터넌스',
   'Night Maintenance': '나이트 메인터넌스',
   Revive: '기력의 조각',
-  Judge: '심판꾼',
+  // 일본판 경로는 이미 '저지맨'인데 영문판만 '심판꾼'이었다(사용자 지적).
+  Judge: '저지맨',
   'Choice Band': '구애머리띠',
   'Power Plant': '발전소',
   'Computer Search': '컴퓨터 서치',
