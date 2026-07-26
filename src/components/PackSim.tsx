@@ -15,6 +15,7 @@ const M_LABEL: Record<MirrorFlag, { t: string; cls: string }> = {
 };
 import {
   DAILY_BUDGET,
+  JP_151,
   JP_MEGA,
   livePacks,
   MAX_BOX_STASH,
@@ -138,15 +139,19 @@ const LIVE_TODAY: PackSet[] = livePacks();
 const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profile) => {
   const packs = LIVE_TODAY.filter((p) => p.profile === profile);
   const first = packs[0];
+  // 팩 장수는 프로필에서 계산한다 — 적어 두면 151(7장)처럼 다른 팩이 생겼을 때 틀린다.
+  const size = profile.commons + profile.uncommons + profile.slots.length;
   const kind = first.jp
     ? profile === JP_MEGA
-      ? '일본판 메가 시리즈 (5장)'
-      : '일본판 확장팩 (5장)'
+      ? `일본판 메가 시리즈 (${size}장)`
+      : profile === JP_151
+        ? `일본판 특별세트 (${size}장)`
+        : `일본판 확장팩 (${size}장)`
     : profile === NA_MEGA
-      ? '북미판 메가 시리즈 (10장)'
+      ? `북미판 메가 시리즈 (${size}장)`
       : profile === NA_PRISMATIC || profile === NA_151
-        ? '북미판 특별세트 (10장)'
-        : '북미판 일반 부스터 (10장)';
+        ? `북미판 특별세트 (${size}장)`
+        : `북미판 일반 부스터 (${size}장)`;
   return {
     name: `${kind} — ${packs.length}종`,
     packs: packs.map((p) => p.label.replace(/^\[.+?\]\s*/, '')),
@@ -521,7 +526,19 @@ export function PackSim({
       });
       const d = (await r.json()) as { postId?: number; gained?: number; balance?: number; error?: string };
       if (!r.ok || !d.postId) {
-        setShare({ shared: false, msg: d.error === 'already shared' ? '이미 자랑한 팩입니다.' : '올리지 못했습니다.' });
+        // 서버가 왜 막았는지 그대로 알려 준다 — "올리지 못했습니다"만 뜨면
+        // 닉네임을 정해야 하는 건지 뭔지 알 수가 없다.
+        setShare({
+          shared: false,
+          msg:
+            d.error === 'already shared'
+              ? '이미 자랑한 팩입니다.'
+              : d.error === 'nickname required'
+                ? '닉네임을 먼저 정해야 글을 올릴 수 있습니다. 커뮤니티에서 닉네임을 정해 주세요.'
+                : d.error === 'no pack'
+                  ? '자랑할 개봉 결과가 없습니다.'
+                  : '올리지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        });
         return;
       }
       trackEvent('packsim_share');
@@ -1601,7 +1618,7 @@ export function PackSim({
           <p className="mt-4 text-xs text-neutral-500">
             표에 없는 자리는 커먼·언커먼·레어로 채웁니다. ACE SPEC은 수록된 세트에서만 나오고, 미수록
             세트는 그 확률만큼 레어가 나옵니다. GP는 출석하면 하루 {gp(DAILY_BUDGET)}, 다음 날로
-            이월되고 최대 {gp(MAX_BALANCE)}까지 쌓입니다. {STREAK_DAYS}일 연속 출석하면 {gp(STREAK_BONUS)}을 더
+            이월되고 최대 {gp(MAX_BALANCE)}까지 쌓입니다. {STREAK_DAYS}일 연속 출석하면 {gp(STREAK_BONUS)}를 더
             드립니다.
           </p>
         </div>

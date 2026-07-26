@@ -220,7 +220,12 @@ function PostDetail({
               갓팩입니다. 전부 AR 이상이 나왔습니다.
             </p>
           )}
-          <p className="mb-2 text-xs text-neutral-400">{post.pull.pack}</p>
+          <p className="mb-2 text-xs text-neutral-400">
+            {post.pull.pack}
+            {post.pull.total && post.pull.total > post.pull.cards.length
+              ? ` · 총 ${post.pull.total}장 중 좋은 카드 ${post.pull.cards.length}장`
+              : ''}
+          </p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {post.pull.cards.map((c, i) => (
               <div key={i}>

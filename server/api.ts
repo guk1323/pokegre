@@ -511,7 +511,7 @@ interface CommunityPost {
   viewCount?: number
   // 팩 개봉 자랑글에만 붙는 카드 목록. 커뮤니티 화면이 이걸로 실제 카드 이미지를
   // 그려 준다(스크린샷 업로드 없이도 "그 뽑은 화면"이 그대로 보인다).
-  pull?: { pack: string; god: boolean; cards: { img: string; name: string; r: string }[] }
+  pull?: { pack: string; god: boolean; total?: number; cards: { img: string; name: string; r: string }[] }
   // 운영자가 가린 시각. 지우지 않고 가리는 이유는 두 가지다. 신고가 장난일 수 있어
   // 되돌릴 수 있어야 하고, "왜 내 글 지웠냐"는 항의에 보여줄 원문이 남아야 한다.
   // (정보통신망법이 요구하는 것도 삭제가 아니라 임시조치다.)
@@ -2570,6 +2570,10 @@ async function readPackCards(src: string): Promise<PackCard[]> {
 // names: 번호→영문 카드명. 일본판 카드는 우리 데이터가 일본어 이름뿐이라 "시세 보기"를
 // 눌러도 검색이 안 잡힌다(PPT는 일본판도 영문으로 색인). 시세를 받아올 때 같이 오는
 // 영문 이름을 기억해 두었다가 그 검색어로 쓴다.
+// 자랑글에 싣는 카드 장수 상한. 박스(140장)를 통째로 실으면 글이 너무 무겁고
+// 화면에서도 읽히지 않아, 좋은 등급부터 이만큼만 보여준다.
+const PULL_CARD_LIMIT = 12
+
 type PackPriceEntry = { at: number; prices: Record<string, number>; names?: Record<string, string>; partial?: boolean }
 const packPriceCache = new Map<string, PackPriceEntry>()
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
@@ -3377,8 +3381,12 @@ function mountAuth(
           pull: {
             pack: packName,
             god: last.god,
+            // 박스는 140장이라 전부 실으면 글이 16KB가 되고 화면도 못 읽는다.
+            // 좋은 등급부터 12장만 싣고(마지막이 최고), 총 장수는 따로 알려 준다.
+            total: drawn.length,
             cards: [...drawn]
               .sort((a, b) => (rank[a.r ?? ''] ?? 0) - (rank[b.r ?? ''] ?? 0))
+              .slice(-PULL_CARD_LIMIT)
               .map((c) => ({ img: c.img ?? '', name: koN(c), r: tierKo[c.r ?? ''] ?? c.r ?? '' })),
           },
         }
