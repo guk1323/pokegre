@@ -49,7 +49,9 @@ export interface CommunityComment {
   isHidden: boolean;
 }
 
-export const LOGIN_REQUIRED = 'login_required';
+// 화면에 그대로 뜨는 문구다. 예전엔 'login_required'라는 내부 표시였는데, 이 값을
+// 사람 말로 바꿔 주는 곳이 아무 데도 없어서 사용자에게 영어 그대로 보일 수 있었다.
+export const LOGIN_REQUIRED = '로그인이 필요합니다.';
 
 export async function fetchPosts(category?: PostCategory): Promise<CommunityPost[]> {
   const qs = category ? `?category=${category}` : "";
@@ -163,6 +165,7 @@ export async function reportPost(postId: number, reason?: string): Promise<void>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ reason }),
   });
+  if (res.status === 401) throw new Error(LOGIN_REQUIRED);
   if (!res.ok) throw new Error('신고를 접수하지 못했습니다.');
 }
 
@@ -172,6 +175,7 @@ export async function reportComment(postId: number, commentId: number, reason?: 
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ reason }),
   });
+  if (res.status === 401) throw new Error(LOGIN_REQUIRED);
   if (!res.ok) throw new Error('신고를 접수하지 못했습니다.');
 }
 

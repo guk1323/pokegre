@@ -26,8 +26,11 @@ async function handleReport(action: () => Promise<void>) {
   try {
     await action();
     window.alert('신고가 접수되었습니다.');
-  } catch {
-    window.alert('신고 접수에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  } catch (err) {
+    // 로그인이 필요한 경우까지 "잠시 후 다시 시도"라고 하면 몇 번을 눌러도 안 된다.
+    window.alert(
+      err instanceof Error && err.message ? err.message : '신고 접수에 실패했습니다. 잠시 후 다시 시도해주세요.',
+    );
   }
 }
 

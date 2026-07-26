@@ -623,7 +623,14 @@ interface CommunityReport {
   commentId: number | null
   reason: string
   createdAt: number
+  // 누가 신고했는지. 같은 사람이 같은 글을 반복 신고해 목록을 덮는 것을 막는 데만 쓰고
+  // 운영자 화면에는 내보내지 않는다. 옛 기록에는 없어서 optional이다.
+  reporterId?: string
 }
+
+// 신고는 접수 창구라 지우지 않지만, 무한정 쌓이면 파일이 커져 운영 화면이 느려진다.
+// 오래된 것부터 잘라 최근 것만 남긴다(다른 피드백 저장소와 같은 방식).
+const MAX_REPORTS = 500
 
 // 자유게시판. 읽기는 비로그인도 되지만 쓰기는 로그인이 필요하고, 작성자는 클라이언트가
 // 보낸 값이 아니라 세션에서 가져온다(아니면 남의 닉네임을 사칭할 수 있다).
@@ -698,6 +705,13 @@ function mountCommunity(app: Mountable) {
       reports = []
     }
     return reports!
+  }
+
+  // 오래된 신고부터 잘라 최근 MAX_REPORTS건만 남긴다.
+  function trimReports(list: CommunityReport[]) {
+    if (list.length <= MAX_REPORTS) return
+    list.sort((a, b) => a.createdAt - b.createdAt)
+    list.splice(0, list.length - MAX_REPORTS)
   }
 
   async function persistReports() {
@@ -995,6 +1009,13 @@ function mountCommunity(app: Mountable) {
 
       // /posts/:id/report
       if (segments.length === 3 && segments[0] === 'posts' && segments[2] === 'report' && req.method === 'POST') {
+        // 로그인을 받아야 같은 사람의 반복 신고를 막을 수 있다. 예전엔 검사가 없어서
+        // 누구나 같은 글을 몇 번이고 신고해 운영자 목록을 덮을 수 있었다.
+        const reporter = await currentUser(req)
+        if (!reporter) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
         const postId = Number(segments[1])
         const allPosts = await loadPosts()
         if (!allPosts.some((p) => p.id === postId)) {
@@ -1004,15 +1025,21 @@ function mountCommunity(app: Mountable) {
         const rawBody = await readBody(req)
         const body = (rawBody ? JSON.parse(rawBody) : {}) as { reason?: string }
         const allReports = await loadReports()
-        allReports.push({
-          id: Date.now(),
-          targetType: 'post',
-          postId,
-          commentId: null,
-          reason: body.reason?.trim().slice(0, 500) ?? '',
-          createdAt: Date.now(),
-        })
-        await persistReports()
+        // 이미 신고한 글이면 조용히 접수된 것으로 답한다 — "이미 신고했습니다"라고
+        // 알려 주면 남이 신고했는지까지 떠보는 데 쓸 수 있다.
+        if (!allReports.some((r) => r.reporterId === reporter.id && r.targetType === 'post' && r.postId === postId)) {
+          allReports.push({
+            id: Date.now(),
+            targetType: 'post',
+            postId,
+            commentId: null,
+            reason: body.reason?.trim().slice(0, 500) ?? '',
+            createdAt: Date.now(),
+            reporterId: reporter.id,
+          })
+          trimReports(allReports)
+          await persistReports()
+        }
         sendJson(res, 201, { ok: true })
         return
       }
@@ -1025,6 +1052,11 @@ function mountCommunity(app: Mountable) {
         segments[4] === 'report' &&
         req.method === 'POST'
       ) {
+        const reporter = await currentUser(req)
+        if (!reporter) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
         const postId = Number(segments[1])
         const commentId = Number(segments[3])
         const allComments = await loadComments()
@@ -1035,15 +1067,23 @@ function mountCommunity(app: Mountable) {
         const rawBody = await readBody(req)
         const body = (rawBody ? JSON.parse(rawBody) : {}) as { reason?: string }
         const allReports = await loadReports()
-        allReports.push({
-          id: Date.now(),
-          targetType: 'comment',
-          postId,
-          commentId,
-          reason: body.reason?.trim().slice(0, 500) ?? '',
-          createdAt: Date.now(),
-        })
-        await persistReports()
+        if (
+          !allReports.some(
+            (r) => r.reporterId === reporter.id && r.targetType === 'comment' && r.commentId === commentId,
+          )
+        ) {
+          allReports.push({
+            id: Date.now(),
+            targetType: 'comment',
+            postId,
+            commentId,
+            reason: body.reason?.trim().slice(0, 500) ?? '',
+            createdAt: Date.now(),
+            reporterId: reporter.id,
+          })
+          trimReports(allReports)
+          await persistReports()
+        }
         sendJson(res, 201, { ok: true })
         return
       }
