@@ -57,7 +57,7 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
         </div>
         {/* 처음 온 사람은 "시세"가 최근 기준인지, "신뢰도"가 뭔지 모른다. 한 줄로만 짚어준다. */}
         <p className="mb-2 mt-0.5 text-[11px] leading-snug text-neutral-400">
-          최근 낙찰 기준 현재 시세예요. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 거래가 적어
+          최근 낙찰 기준 현재 시세입니다. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 거래가 적어
           값이 불확실하니 참고만 하세요.
         </p>
         {/* 메인 값은 PPT의 "현재 적정가"(최근 30일 가중)로, 옛 거래에 안 눌린 지금 시세다.

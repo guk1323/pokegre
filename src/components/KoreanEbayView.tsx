@@ -80,7 +80,7 @@ export function KoreanEbayView({ query }: { query: string }) {
           </span>
         </div>
         <p className="mt-1 text-xs text-neutral-500">
-          지금 이베이에 올라온 한글판 매물의 <b>판매 요청가(호가)</b>예요. 실제 체결가(낙찰가)와 다를 수 있습니다.
+          지금 이베이에 올라온 한글판 매물의 <b>판매 요청가(호가)</b>입니다. 실제 체결가(낙찰가)와 다를 수 있습니다.
         </p>
         <p className="mt-2 text-sm text-neutral-700">
           최저 <b className="text-black">${min.toLocaleString()}</b> · 매물 {total.toLocaleString()}건

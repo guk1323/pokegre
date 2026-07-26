@@ -319,7 +319,7 @@ export function SetsView({
         ))}
       </div>
       {tab === 'pocket' && (
-        <p className="-mt-2 mb-4 text-[11px] text-neutral-400">모바일 게임(Pokémon TCG Pocket) 카드예요. 실물 카드가 아니라 시세는 없습니다.</p>
+        <p className="-mt-2 mb-4 text-[11px] text-neutral-400">모바일 게임(Pokémon TCG Pocket) 카드입니다. 실물 카드가 아니라 시세는 없습니다.</p>
       )}
 
       {index === null ? (

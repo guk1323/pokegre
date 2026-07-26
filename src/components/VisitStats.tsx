@@ -220,11 +220,11 @@ export function VisitStats() {
       </p>
 
       <h2 className="text-base font-bold text-black mt-8 mb-1">작가별 조회 순위</h2>
-      <p className="text-xs text-neutral-400 mb-4">일러스트레이터를 눌러 카드 목록을 연 횟수예요. 많이 본 순.</p>
+      <p className="text-xs text-neutral-400 mb-4">일러스트레이터를 눌러 카드 목록을 연 횟수입니다. 많이 본 순.</p>
       <RankList items={artists} emptyText="아직 작가 조회 기록이 없습니다." />
 
       <h2 className="text-base font-bold text-black mt-8 mb-1">세트별 조회 순위</h2>
-      <p className="text-xs text-neutral-400 mb-4">세트별 목록에서 세트를 눌러 수록 카드를 연 횟수예요. 많이 본 순.</p>
+      <p className="text-xs text-neutral-400 mb-4">세트별 목록에서 세트를 눌러 수록 카드를 연 횟수입니다. 많이 본 순.</p>
       <RankList items={sets} emptyText="아직 세트 조회 기록이 없습니다." />
     </div>
   );

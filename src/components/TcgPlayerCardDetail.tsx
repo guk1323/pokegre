@@ -107,7 +107,7 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
 
       <p className="mt-2 text-[11px] leading-snug text-neutral-400">
         판매자 {t?.sellers?.toLocaleString() ?? 0}명{updated ? ` · ${updated} 기준` : ''}. 실제 팔린 값을 반영한
-        시세예요. 감정(PSA·BGS 등) 카드는 값이 다르니 등급 시세는 eBay에서 보세요.
+        시세입니다. 감정(PSA·BGS 등) 카드는 값이 다르니 등급 시세는 eBay에서 확인해 주세요.
       </p>
       <KrwRateNote />
     </div>

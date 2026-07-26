@@ -58,7 +58,7 @@ export function TitleFeedbackList() {
         )}
       </div>
       <p className="text-xs text-neutral-400 mb-4">
-        사용자가 이름이 이상하다고 알려준 카드예요. 원본을 눌러 실제 이름을 확인하고 한글화를 고친 뒤, 처리한 신고는 삭제하세요.
+        사용자가 이름이 이상하다고 알려준 카드입니다. 원본을 눌러 실제 이름을 확인하고 한글화를 고친 뒤, 처리한 신고는 삭제하세요.
       </p>
 
       {loading ? (
@@ -84,7 +84,7 @@ export function TitleFeedbackList() {
                   {fixed ? (
                     <p className="mt-0.5 text-xs text-neutral-400 break-words line-through">{item.title}</p>
                   ) : (
-                    item.raw && <p className="mt-0.5 text-[11px] font-semibold text-amber-600">아직 그대로예요</p>
+                    item.raw && <p className="mt-0.5 text-[11px] font-semibold text-amber-600">아직 그대로입니다</p>
                   )}
                 </div>
                 <button

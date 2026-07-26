@@ -273,7 +273,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold text-black">작가별 카드</h2>
           <p className="mt-1 text-xs text-neutral-400">
-            일러스트레이터로 카드를 모아 봐요. 카드 아트는 일본판도 같은 작가예요. (해외 카드 DB 기준)
+            일러스트레이터로 카드를 모아 봅니다. 카드 아트는 일본판도 같은 작가입니다. (해외 카드 DB 기준)
           </p>
         </div>
         {index && index.length > 0 && (

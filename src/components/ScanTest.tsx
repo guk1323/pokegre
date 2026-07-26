@@ -85,7 +85,7 @@ export function ScanTest() {
         스캔 테스트 <span className="align-middle text-[11px] font-semibold text-amber-600">운영자</span>
       </h2>
       <p className="mt-1 text-xs text-neutral-400">
-        사진을 넣으면 AI가 읽은 값과, 번호+세트로 찾은 "딱 이 카드"를 보여줘요. 공개 사진검색과 별개인 실험용입니다.
+        사진을 넣으면 AI가 읽은 값과, 번호+세트로 찾은 "딱 이 카드"를 보여줍니다. 공개 사진검색과 별개인 실험용입니다.
       </p>
 
       <input
