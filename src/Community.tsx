@@ -14,6 +14,8 @@ import {
   reportComment,
   CATEGORY_LABEL,
   fetchAppConfig,
+  uploadPostImage,
+  MAX_POST_IMAGES,
   type CommunityPost,
   type CommunityComment,
   type PostCategory,
@@ -243,7 +245,17 @@ function PostDetail({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-6">{post.content}</p>
+        <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-3">{post.content}</p>
+      )}
+      {/* 작성자가 올린 사진. 누르면 원본을 새 탭으로 연다. */}
+      {post.images && post.images.length > 0 && (
+        <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {post.images.map((u) => (
+            <a key={u} href={u} target="_blank" rel="noreferrer">
+              <img src={u} alt="" loading="lazy" className="w-full rounded-xl object-contain ring-1 ring-neutral-200" />
+            </a>
+          ))}
+        </div>
       )}
 
       {/* 좋아요. 비로그인이 누르면 로그인 모달을 띄운다 — 버튼을 숨기면 "왜 못 누르지?"
@@ -327,6 +339,7 @@ function PostForm({
   initialCategory,
   initialTitle = '',
   initialContent = '',
+  initialImages = [],
   onCancel,
   onSubmit,
 }: {
@@ -335,20 +348,46 @@ function PostForm({
   initialCategory: PostCategory;
   initialTitle?: string;
   initialContent?: string;
+  initialImages?: string[];
   onCancel: () => void;
-  onSubmit: (input: { title: string; content: string; category: PostCategory }) => Promise<void>;
+  onSubmit: (input: { title: string; content: string; category: PostCategory; images: string[] }) => Promise<void>;
 }) {
   const [category, setCategory] = useState<PostCategory>(initialCategory);
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
+  const [images, setImages] = useState<string[]>(initialImages);
+  const [uploading, setUploading] = useState(false);
+  const [imgErr, setImgErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = ''; // 같은 파일을 다시 골라도 반응하도록 비운다
+    if (!files.length) return;
+    setImgErr('');
+    setUploading(true);
+    try {
+      for (const f of files) {
+        if (images.length >= MAX_POST_IMAGES) {
+          setImgErr(`사진은 최대 ${MAX_POST_IMAGES}장까지 올릴 수 있습니다.`);
+          break;
+        }
+        const url = await uploadPostImage(f);
+        setImages((prev) => (prev.length >= MAX_POST_IMAGES ? prev : [...prev, url]));
+      }
+    } catch (err) {
+      setImgErr(err instanceof Error ? err.message : '사진을 올리지 못했습니다.');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({ title: title.trim(), content: content.trim(), category });
+      await onSubmit({ title: title.trim(), content: content.trim(), category, images });
     } finally {
       setSubmitting(false);
     }
@@ -386,6 +425,36 @@ function PostForm({
           rows={10}
           className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         />
+
+        {/* 사진 첨부 — 올린 뒤 주소만 글에 담는다. */}
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="cursor-pointer rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50">
+              사진 첨부
+              <input type="file" accept="image/*" multiple onChange={handlePick} className="hidden" />
+            </label>
+            <span className="text-xs text-neutral-400">
+              {uploading ? '올리는 중…' : `${images.length}/${MAX_POST_IMAGES}장 · 한 장에 4MB까지`}
+            </span>
+          </div>
+          {imgErr && <p className="mt-1 text-xs font-semibold text-rose-600">{imgErr}</p>}
+          {images.length > 0 && (
+            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {images.map((u) => (
+                <div key={u} className="relative">
+                  <img src={u} alt="" className="aspect-square w-full rounded-lg object-cover ring-1 ring-neutral-200" />
+                  <button
+                    type="button"
+                    onClick={() => setImages((prev) => prev.filter((x) => x !== u))}
+                    className="absolute right-1 top-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white"
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex justify-end gap-2 mt-4">
         <button type="button" onClick={onCancel} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50">
@@ -411,7 +480,7 @@ const CATEGORY_TABS: { key: PostCategory | null; label: string }[] = [
   { key: 'free', label: '자유' },
   { key: 'question', label: '질문' },
   { key: 'suggestion', label: '건의' },
-  { key: 'pulls', label: 'gre 개봉' },
+  { key: 'pulls', label: '오늘의 상점' },
 ];
 
 export function Community({

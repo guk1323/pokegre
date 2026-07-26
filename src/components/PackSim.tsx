@@ -662,7 +662,7 @@ export function PackSim({
   return (
     <div>
       <h2 className="text-base font-bold text-black">
-        카드 개봉
+        오늘의 상점
       </h2>
 
       {/* 현황판: 보유 GP·연속 출석·개봉한 팩을 나란히, 출석 버튼은 오른쪽.

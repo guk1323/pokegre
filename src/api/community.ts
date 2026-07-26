@@ -6,7 +6,7 @@ export const CATEGORY_LABEL: Record<PostCategory, string> = {
   free: "자유",
   question: "질문",
   suggestion: "건의",
-  pulls: "gre 개봉",
+  pulls: "오늘의 상점",
 };
 
 export interface CommunityPost {
@@ -19,6 +19,8 @@ export interface CommunityPost {
   content: string;
   // 팩 개봉 자랑글에만 붙는 카드 목록(서버가 검증한 결과). 이미지 그리드로 그린다.
   pull?: { pack: string; god: boolean; total?: number; cards: { img: string; name: string; r: string }[] };
+  // 작성자가 올린 사진 주소(/uploads/…).
+  images?: string[];
   createdAt: number;
   // 고친 적 있으면 그 시각. 화면에 "(수정됨)"을 붙이는 데만 쓴다.
   editedAt?: number;
@@ -65,7 +67,28 @@ export async function fetchPost(id: number): Promise<CommunityPost> {
 }
 
 // 작성자는 서버가 세션에서 가져오므로 보내지 않는다.
-export async function createPost(input: { title: string; content: string; category: PostCategory }): Promise<CommunityPost> {
+// 사진 한 장을 올리고 주소를 받는다. 글을 저장할 때 이 주소만 같이 보낸다.
+export const MAX_POST_IMAGES = 4;
+export async function uploadPostImage(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error('사진을 읽지 못했습니다.'));
+    r.readAsDataURL(file);
+  });
+  const res = await fetch('/api/local/community/upload', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ image: dataUrl }),
+  });
+  if (res.status === 401) throw new Error(LOGIN_REQUIRED);
+  if (res.status === 413) throw new Error('사진이 너무 큽니다. 4MB 이하로 올려 주세요.');
+  if (!res.ok) throw new Error('사진을 올리지 못했습니다.');
+  const j = (await res.json()) as { url: string };
+  return j.url;
+}
+
+export async function createPost(input: { title: string; content: string; category: PostCategory; images?: string[] }): Promise<CommunityPost> {
   const res = await fetch('/api/local/community/posts', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -78,7 +101,7 @@ export async function createPost(input: { title: string; content: string; catego
 
 export async function updatePost(
   id: number,
-  input: { title: string; content: string; category: PostCategory },
+  input: { title: string; content: string; category: PostCategory; images?: string[] },
 ): Promise<CommunityPost> {
   const res = await fetch(`/api/local/community/posts/${id}`, {
     method: 'PUT',

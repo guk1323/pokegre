@@ -40,22 +40,24 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
         onClick={onEnter}
         className="group block w-full rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:border-neutral-300 hover:shadow"
       >
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {/* 좁은 화면에서는 6칸을 3열로 쪼개면 그림이 너무 작아진다. 2열로 줄여
+            한 칸을 넓게 쓰고 그림 높이도 키운다. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-2 lg:grid-cols-6">
           {packs.map((p) => {
             const img = art[p.slug]?.boxImg || art[p.slug]?.logo;
             return (
               <div key={p.slug} className="px-1 text-center">
-                <div className="flex h-24 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3 sm:h-32">
+                <div className="flex h-36 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3 sm:h-32">
                   {img && (
                     <img
-                      src={thumb(img, 280)}
+                      src={thumb(img, 320)}
                       alt=""
                       loading="lazy"
-                      className="max-h-24 object-contain transition group-hover:-translate-y-0.5 sm:max-h-32"
+                      className="max-h-36 object-contain transition group-hover:-translate-y-0.5 sm:max-h-32"
                     />
                   )}
                 </div>
-                <p className="mt-2 line-clamp-1 text-xs font-semibold text-neutral-700">
+                <p className="mt-2 line-clamp-1 text-sm font-semibold text-neutral-700 sm:text-xs">
                   {p.label.replace(/^\[.+?\]\s*/, '')}
                 </p>
                 <p className="mt-1">

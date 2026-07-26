@@ -472,6 +472,19 @@ function mountKoreanNews(app: Mountable) {
 const POSTS_FILE = dataFile('community-posts.json')
 const COMMENTS_FILE = dataFile('community-comments.json')
 const REPORTS_FILE = dataFile('community-reports.json')
+// ── 게시글 사진 ───────────────────────────────────────────────────────────
+// 사진은 /data/uploads에 파일로 두고 글에는 주소만 담는다(글 JSON에 이미지를 넣으면
+// 목록을 부를 때마다 통째로 딸려와 무거워진다). 볼륨에 쌓이므로 장수·용량을 막는다.
+const UPLOAD_DIR = dataFile('uploads')
+const MAX_POST_IMAGES = 4 // 글 하나에 붙일 수 있는 사진 수
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 // 원본 4MB까지(폰 사진 한 장 여유)
+const UPLOAD_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+}
+
 const MAX_POSTS = 500
 // 글 하나가 볼륨을 채우지 못하게 막는 상한. 게시글 500개가 전부 상한을 채워도
 // 25MB 정도라 1GB 볼륨에 여유가 크다.
@@ -489,6 +502,8 @@ const POST_CATEGORIES: PostCategory[] = ['free', 'question', 'suggestion', 'pull
 interface CommunityPost {
   id: number
   title: string
+  // 작성자가 올린 사진 주소(/uploads/…). 없으면 필드 자체가 없다.
+  images?: string[]
   // 어느 게시판 글인지. 이 필드가 없던 시절 글은 전부 자유게시판으로 본다.
   category: PostCategory
   // 작성자 카카오 회원번호. 화면에는 절대 내보내지 않고, 닉네임 조회와 본인 글 여부
@@ -551,6 +566,7 @@ function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
     title: hidden ? HIDDEN_NOTICE : rest.title,
     content: hidden ? HIDDEN_NOTICE : rest.content,
     pull: hidden ? undefined : rest.pull,
+    images: hidden ? undefined : rest.images,
     author: authorName(authorId, all),
     authorIsAdmin: adminIds.has(authorId),
     isMine: viewer != null && authorId === viewer.id,
@@ -698,6 +714,41 @@ function mountCommunity(app: Mountable) {
         return
       }
 
+      // POST /community/upload — 사진 한 장을 올린다(로그인 필수).
+      // 본문은 data URL(base64) 한 장. 사진 인식(scan-card)과 같은 방식이라
+      // 새 라이브러리 없이 처리한다.
+      if (segments.length === 1 && segments[0] === 'upload' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!user?.nickname) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
+        let raw: string
+        try {
+          raw = await readBody(req, Math.ceil(MAX_UPLOAD_BYTES * 1.4))
+        } catch {
+          sendJson(res, 413, { error: 'too large' })
+          return
+        }
+        const body = JSON.parse(raw || '{}') as { image?: unknown }
+        const m = typeof body.image === 'string' ? body.image.match(/^data:([\w/+.-]+);base64,(.+)$/s) : null
+        const ext = m ? UPLOAD_TYPES[m[1]] : undefined
+        if (!m || !ext) {
+          sendJson(res, 400, { error: 'unsupported type' })
+          return
+        }
+        const buf = Buffer.from(m[2], 'base64')
+        if (buf.length === 0 || buf.length > MAX_UPLOAD_BYTES) {
+          sendJson(res, 413, { error: 'too large' })
+          return
+        }
+        await mkdir(UPLOAD_DIR, { recursive: true })
+        const name = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
+        await writeFile(path.join(UPLOAD_DIR, name), buf)
+        sendJson(res, 201, { url: `/uploads/${name}` })
+        return
+      }
+
       if (segments.length === 1 && segments[0] === 'posts' && req.method === 'POST') {
         // 닉네임까지 정해야 글을 쓸 수 있다(작성자 표시가 닉네임이므로).
         const user = await currentUser(req)
@@ -705,9 +756,19 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        const body = JSON.parse(await readBody(req)) as { title?: string; content?: string; category?: string }
+        const body = JSON.parse(await readBody(req)) as {
+          title?: string
+          content?: string
+          category?: string
+          images?: unknown
+        }
         const title = body.title?.trim()
         const content = body.content?.trim()
+        // 우리 업로드 주소만 받는다. 아무 주소나 받으면 남의 서버 이미지를 글에 심거나
+        // 추적용 주소를 넣을 수 있다.
+        const images = (Array.isArray(body.images) ? body.images : [])
+          .filter((u): u is string => typeof u === 'string' && /^\/uploads\/[\w.-]+$/.test(u))
+          .slice(0, MAX_POST_IMAGES)
         // 클라이언트가 보낸 카테고리를 그대로 믿되, 목록에 없는 값이면 자유로 떨어뜨린다.
         const category: PostCategory = POST_CATEGORIES.includes(body.category as PostCategory)
           ? (body.category as PostCategory)
@@ -733,6 +794,7 @@ function mountCommunity(app: Mountable) {
           // 아무나 남의 닉네임을 사칭해 글을 쓸 수 있다.
           authorId: user.id,
           content,
+          ...(images.length ? { images } : {}),
           createdAt: Date.now(),
           likedBy: [],
           commentCount: 0,
@@ -2183,6 +2245,34 @@ const CARD_SCAN_PROMPT = `이 이미지는 포켓몬 카드다. 등급 케이스
 function mountCardScan(app: Mountable, apiKey: string) {
   const allow = rateLimiter(SCAN_RATE_LIMIT, SCAN_RATE_WINDOW_MS)
 
+  // 커뮤니티에 올린 사진. /data/uploads 안의 파일만 이름으로 찾아 내보낸다
+  // (경로에 슬래시나 ..이 들어오면 거절 — 서버의 다른 파일을 읽히면 안 된다).
+  app.use('/uploads', async (req, res) => {
+    const name = decodeURIComponent((req.url ?? '').split('?')[0].replace(/^\//, ''))
+    if (!/^[\w.-]+$/.test(name) || name.includes('..')) {
+      res.statusCode = 400
+      res.end()
+      return
+    }
+    const ext = name.split('.').pop() ?? ''
+    const type = Object.entries(UPLOAD_TYPES).find(([, e]) => e === ext)?.[0]
+    if (!type) {
+      res.statusCode = 400
+      res.end()
+      return
+    }
+    try {
+      const buf = await readFile(path.join(UPLOAD_DIR, name))
+      res.setHeader('content-type', type)
+      // 파일 이름에 시각+난수가 들어가 내용이 바뀌지 않으므로 오래 캐시해도 된다.
+      res.setHeader('cache-control', 'public, max-age=31536000, immutable')
+      res.end(buf)
+    } catch {
+      res.statusCode = 404
+      res.end()
+    }
+  })
+
   app.use('/api/local/scan-card', async (req, res) => {
     if (req.method !== 'POST') {
       res.statusCode = 405
@@ -2510,7 +2600,8 @@ interface PackSimStore {
   // 방금 연 팩(박스면 전체 카드). 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지
   // 못하도록 서버가 마지막 결과를 기억했다가 그 안의 카드만 받아준다(idx 기준 — 미러와
   // 일반판이 같은 번호일 수 있어 번호로는 구분이 안 된다). shared/kept는 중복 방지.
-  last?: { slug: string; cards: { n: string; r?: string; m?: MirrorFlag }[]; god: boolean; shared?: boolean; kept?: boolean }
+  // box: 박스로 열었으면 그 팩 수. 자랑 기본 문구를 "박스를 열었습니다"로 쓰려고 남긴다.
+  last?: { slug: string; cards: { n: string; r?: string; m?: MirrorFlag }[]; god: boolean; box?: number; shared?: boolean; kept?: boolean }
   // 자랑 보상을 마지막으로 받은 날(KST). 하루 1번만 준다.
   lastShareDay?: string
 }
@@ -3196,6 +3287,7 @@ function mountAuth(
           slug: pack.slug,
           cards: flat.map(({ n, r, m }) => ({ n, r, ...(m ? { m } : {}) })),
           god: box.god,
+          box: pack.boxPacks,
         }
         await persistPacksim()
         sendJson(res, 200, {
@@ -3367,7 +3459,7 @@ function mountAuth(
         // 본문은 이용자가 쓴 글. 카드 목록은 pull(이미지 그리드)로 보여주므로 글이 없으면
         // 짧은 기본 문장만 넣는다.
         const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 1000) : ''
-        const content = comment || `${pack.jp ? '일본판' : '북미판'} ${packName} 팩을 열었습니다.`
+        const content = comment || `${pack.jp ? '일본판' : '북미판'} ${packName} ${last.box ? '박스를' : '팩을'} 열었습니다.`
         const post: CommunityPost = {
           id: Date.now(),
           title,

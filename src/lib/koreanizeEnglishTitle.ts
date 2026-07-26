@@ -84,10 +84,10 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Ash: '지우',
   "Professor's Research": '박사의 연구',
   "Boss's Orders": '보스의 지령',
-  // 한국판 발매 카드 목록에서 확인한 공식 한글명(2026-07-26).
-  // ⚠️ Atticus는 '추명'이 아니다 — 추명은 テラスタルフェスタex의 シュウメイ(Lacey)이고,
-  // Atticus의 한국판 카드는 프로모 036/SV-P '시메모리'다.
-  Atticus: '시메모리',
+  // Atticus = シュウメイ = 추명. 효과문이 완전히 같아 확정했다(SV8a シュウメイ:
+  // "상대 배틀 포켓몬이 독일 때만 쓸 수 있다 … 패를 덱에 되돌려 섞고 7장 뽑는다"
+  // ↔ Atticus: "opponent's Active Pokémon is Poisoned … draw 7 cards").
+  Atticus: '추명',
   'Forest of Vitality': '활력의 숲',
   // 추가 인물(확신하는 공식 표기만). 갈라르 관장 등 불확실한 이름은 넣지 않는다
   // — 틀린 한글보다 영어가 낫다.
