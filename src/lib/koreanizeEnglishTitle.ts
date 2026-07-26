@@ -267,6 +267,15 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
 // 카드명 "전체"가 정확히 일치할 때만 바꾼다.
 const ITEM_EN_TO_KO: Record<string, string> = {
   // ── 사용자가 확인해 준 공식 한글 카드명(2026-07-26) ──────────────────────
+  // 애매했던 것들도 사용자가 하나로 특정해 줬다(2026-07-26).
+  // Cyrano는 블루베리 아카데미 이사장으로 Clavell(클라벨)과 다른 인물이다.
+  Cyrano: '시아노',
+  'Heat Rotom': '히트 로토무',
+  'Buddy-Buddy Poffin': '페포마을포핀',
+  "Daisy's Help": '나나미의 도와주기',
+  'Grand Tree': '그랜드 트리',
+  "Hop's Choice Band": '호프의 구애머리띠',
+  "Team Rocket's Transceiver": '로켓단의 송수신기',
   // 이름 전체가 정확히 일치할 때만 바뀌므로 다른 카드를 깨뜨리지 않는다.
   'Accompanying Flute': '동반의 피리',
   "Acerola's Mischief": '아세로라의 장난',
@@ -282,7 +291,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   "Arven's Sandwich": '페퍼의 샌드위치',
   'Babiri Berry': '바카열매',
   'Big Air Balloon': '커다란 풍선',
-  "Bill's Transfer": '이슬의 전송',
+  "Bill's Transfer": '이수재의 전송',
   "Billy & O'Nare": '브라이어 & 오네어',
   'Binding Mochi': '사슬떡',
   "Black Belt's Training": '태권왕의 특훈',
