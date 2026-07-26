@@ -209,6 +209,8 @@ export function PackSim({
   const liveToday = useMemo(() => livePacks(dayKey), [dayKey]);
   const profileGroups = useMemo(() => buildGroups(liveToday), [liveToday]);
 
+  // 개봉 결과가 그려지는 자리. 열자마자 여기로 화면을 옮긴다.
+  const resultRef = useRef<HTMLDivElement | null>(null);
   const [slug, setSlug] = useState(liveToday[0].slug);
   // 진열이 바뀌었는데 고르고 있던 팩이 빠졌으면 오늘 것으로 옮긴다.
   useEffect(() => {
@@ -478,6 +480,7 @@ export function PackSim({
       setKeptCount(null);
       setRestoredMsg('');
       setShare({ shared: false, msg: '' });
+      focusResult();
       setShareOpen(false);
       setShareText('');
       setShareTitle('');
@@ -537,6 +540,7 @@ export function PackSim({
       setKeptCount(null);
       setRestoredMsg('');
       setShare({ shared: false, msg: '' });
+      focusResult();
       setShareOpen(false);
       setShareText('');
       setSim((s2) =>
@@ -700,6 +704,26 @@ export function PackSim({
   };
   const koName = (jp: boolean, name: string) =>
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
+  // 개봉 직후 결과 자리로 화면을 옮긴다.
+  //
+  // 보관함을 스크롤해 내려가서 열면 결과는 위쪽에 생기는데 화면은 그대로라, 처음 쓰는
+  // 사람은 뭐가 열렸는지 모르고 지나친다.
+  //
+  // ⚠️ useEffect로 하면 안 된다. 결과가 이미 떠 있는 상태에서 또 열면 효과가 다시 돌면서
+  //    정리(cleanup)가 예약해둔 스크롤을 취소해 버린다(실제로 겪었다). 개봉이 성공한
+  //    자리에서 직접 부른다.
+  // 결과가 끼어들면 문서 길이가 확 바뀌고 브라우저가 보던 위치를 유지하려 스크롤을 되돌린다.
+  // 그래서 다음 프레임과 잠시 뒤, 두 번 맞춘다.
+  const focusResult = useCallback(() => {
+    // 부드럽게(smooth) 옮기면 도중에 취소된다 — 결과가 그려지며 문서 길이가 계속 바뀌고
+    // 브라우저가 스크롤을 되돌리는데, 그 과정에서 진행 중이던 부드러운 이동이 끊긴다
+    // (실제로 재현했다). 즉시 옮기면 그런 일이 없다. 화면이 통째로 바뀌는 순간이라
+    // 즉시 이동이 어색하지도 않다.
+    const go = () => resultRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    requestAnimationFrame(() => requestAnimationFrame(go));
+    window.setTimeout(go, 450);
+  }, []);
+
   const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
   const allDone = !!pack && revealed >= pack.length;
   // 지금 덮개 아래에 있는 카드의 등급 힌트(뒷면을 빛나게 할지).
@@ -962,6 +986,10 @@ export function PackSim({
           (구매 탭은 구매만). 아래 보관함 목록 위에 결과가 뜬다. */}
       {tab === 'stash' && !!pack && (
         <>
+          {/* 개봉 결과가 시작되는 자리. 보관함을 스크롤해 내려가서 열면 결과가 위쪽에
+              생기는데 화면은 그대로라, 처음 쓰는 사람은 뭔가 열렸는지 모른다.
+              열자마자 이 자리로 화면을 옮긴다. */}
+          <div ref={resultRef} className="scroll-mt-4" />
           {restoredMsg && (
             <p className="mt-3 rounded-xl border border-neutral-300 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
               {restoredMsg}
