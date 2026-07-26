@@ -1616,6 +1616,16 @@ export function PackSim({
             </p>
           </div>
 
+          <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-sm font-bold text-neutral-800">박스로 열면</p>
+            <p className="mt-1 text-xs text-neutral-600">
+              일본판 박스는 실물과 같은 보장 봉입이 있습니다 — <b>SR 이상 1장 · AR 3장 ·
+              RR 4~5장</b>(ACE 수록 세트는 ACE 1장, 151은 마스터볼 미러 1장)이 반드시
+              들어갑니다. 보장이 있어도 박스 전체 기대치는 위 표와 같습니다. 북미판 박스는
+              실물처럼 보장이 없어 팩마다 위 확률이 따로 굴러갑니다.
+            </p>
+          </div>
+
           <div className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
