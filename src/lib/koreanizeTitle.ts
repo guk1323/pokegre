@@ -56,7 +56,6 @@ export const STRUCTURAL_TERMS: [string, string][] = [
   // M3(니힐제로)의 트레이너·굿즈. 예전에 이 이름들이 포켓몬 별칭 사전에 엉뚱하게
   // 등록돼 있어(ピュール→화염레오, ユカリ→킬리아, コアメモリ→자말라) 전혀 다른
   // 포켓몬 이름으로 표시됐다. 한국판 공식 카드명으로 바로잡는다.
-  ['ピュール', '이노'],
   ['ユカリ', '유카리'],
   ['コアメモリ', '코어 메모리'],
 
@@ -1641,6 +1640,11 @@ export const STRUCTURAL_TERMS: [string, string][] = [
 // ja-VS1(포켓몬 카드 ★VS)의 성도 관장 소유격 표기. 원본 DB가 영어명을 가타카나로
 // 음차해 갖고 있어 사전에 안 잡힌다(フォークナー=Falkner=비상). 검색 역번역을 깨지
 // 않도록 STRUCTURAL_TERMS가 아니라 koreanizeTitle 안에서 한 방향으로만 쓴다.
+// 한글 표기가 짧아(2글자) 역번역에 쓰면 다른 말에 끼어드는 이름. 표시(일→한) 방향만
+// 쓴다 — '이노'를 양방향에 두면 "노로이노하타키" 같은 검색어가 "노로ピュール하타키"로
+// 깨진다(메모리에 적어 둔 "2글자 별칭 금지"와 같은 함정).
+const ONE_WAY_NAMES: [string, string][] = [['ピュール', '이노']];
+
 const VS_TRAINER_PREFIXES: [string, string][] = [
   ['フォークナーの', '비상의 '],
   ['ホイットニーの', '꼭두의 '],
@@ -1717,6 +1721,9 @@ export function koreanizeTitle(title: string): string {
   // STRUCTURAL에 넣으면 "규리의"→ジャスミンの처럼 역번역이 깨져(공식 카드는 ミカン),
   // 검색이 망가지므로 여기서 한쪽 방향으로만 바꾼다.
   for (const [ja, ko] of VS_TRAINER_PREFIXES) {
+    result = result.split(ja).join(ko);
+  }
+  for (const [ja, ko] of ONE_WAY_NAMES) {
     result = result.split(ja).join(ko);
   }
 
