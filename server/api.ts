@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
@@ -485,6 +485,32 @@ const UPLOAD_TYPES: Record<string, string> = {
   'image/gif': 'gif',
 }
 
+// 볼륨은 1GB뿐이라 사진이 무한정 쌓이면 서버가 멈춘다. 두 겹으로 막는다:
+// ① 사람마다 한 시간에 올릴 수 있는 장수 ② 폴더 전체 용량.
+const UPLOAD_PER_HOUR = 20
+const UPLOAD_DIR_MAX_BYTES = 300 * 1024 * 1024
+const uploadLog = new Map<string, number[]>() // 회원 → 최근 업로드 시각
+
+// 글에서 떨어져 나온 사진 파일을 지운다(글 삭제·수정으로 더 안 쓰이는 것).
+async function removeUploads(urls: string[] | undefined) {
+  for (const u of urls ?? []) {
+    const name = u.replace(/^\/uploads\//, '')
+    if (!/^[\w.-]+$/.test(name)) continue
+    await rm(path.join(UPLOAD_DIR, name), { force: true }).catch(() => undefined)
+  }
+}
+
+async function uploadDirBytes(): Promise<number> {
+  try {
+    const files = await readdir(UPLOAD_DIR)
+    let total = 0
+    for (const f of files) total += (await stat(path.join(UPLOAD_DIR, f)).catch(() => null))?.size ?? 0
+    return total
+  } catch {
+    return 0
+  }
+}
+
 const MAX_POSTS = 500
 // 글 하나가 볼륨을 채우지 못하게 막는 상한. 게시글 500개가 전부 상한을 채워도
 // 25MB 정도라 1GB 볼륨에 여유가 크다.
@@ -742,7 +768,20 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 413, { error: 'too large' })
           return
         }
+        // 한 사람이 한 시간에 올릴 수 있는 장수 제한
+        const now = Date.now()
+        const recent = (uploadLog.get(user.id) ?? []).filter((t) => now - t < 3600_000)
+        if (recent.length >= UPLOAD_PER_HOUR) {
+          sendJson(res, 429, { error: 'too many uploads' })
+          return
+        }
         await mkdir(UPLOAD_DIR, { recursive: true })
+        if ((await uploadDirBytes()) + buf.length > UPLOAD_DIR_MAX_BYTES) {
+          sendJson(res, 507, { error: 'storage full' })
+          return
+        }
+        recent.push(now)
+        uploadLog.set(user.id, recent)
         const name = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
         await writeFile(path.join(UPLOAD_DIR, name), buf)
         sendJson(res, 201, { url: `/uploads/${name}` })
@@ -841,6 +880,8 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 403, { error: 'not your post' })
           return
         }
+        // 글이 사라지면 그 사진도 쓸 데가 없다. 안 지우면 볼륨에 영원히 남는다.
+        await removeUploads(post.images)
         posts = all.filter((p) => p.id !== id)
         comments = (await loadComments()).filter((c) => c.postId !== id)
         await persistPosts()
@@ -863,7 +904,12 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 403, { error: 'not your post' })
           return
         }
-        const body = JSON.parse(await readBody(req)) as { title?: string; content?: string; category?: string }
+        const body = JSON.parse(await readBody(req)) as {
+          title?: string
+          content?: string
+          category?: string
+          images?: unknown
+        }
         const title = body.title?.trim()
         const content = body.content?.trim()
         if (!title || !content) {
@@ -875,6 +921,16 @@ function mountCommunity(app: Mountable) {
             error: `title must be <= ${MAX_TITLE_LENGTH} chars and content <= ${MAX_CONTENT_LENGTH} chars`,
           })
           return
+        }
+        // 사진도 함께 고친다. 안 보냈으면 원래 사진을 유지하고, 뺀 사진은 파일까지 지운다
+        // (안 지우면 볼륨에 남는다).
+        if (Array.isArray(body.images)) {
+          const next = body.images
+            .filter((u): u is string => typeof u === 'string' && /^\/uploads\/[\w.-]+$/.test(u))
+            .slice(0, MAX_POST_IMAGES)
+          await removeUploads((post.images ?? []).filter((u) => !next.includes(u)))
+          if (next.length) post.images = next
+          else delete post.images
         }
         post.title = title
         post.content = content
