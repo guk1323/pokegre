@@ -17,7 +17,7 @@ import {
   packBySlug,
   PPT_SET_NAMES,
 } from '../src/lib/packSets.ts'
-import { drawBox, drawPack, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
+import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -3064,13 +3064,17 @@ function mountAuth(
         const first = !store.lastCheckIn
         // 어제 왔으면 연속, 하루라도 건너뛰면 처음부터. 이월은 되지만 연속은 끊긴다.
         store.streak = !first && dayDiff(store.lastCheckIn, today) === 1 ? store.streak + 1 : 1
-        let gained = DAILY_BUDGET
-        if (first) gained += FIRST_BONUS
-        if (store.streak > 0 && store.streak % STREAK_DAYS === 0) gained += STREAK_BONUS
-        store.balance = Math.min(MAX_BALANCE, store.balance + gained)
+        let reward = DAILY_BUDGET
+        if (first) reward += FIRST_BONUS
+        if (store.streak > 0 && store.streak % STREAK_DAYS === 0) reward += STREAK_BONUS
+        // 잔액 상한에 걸리면 준 만큼 다 들어가지 않는다. 실제로 늘어난 만큼만 알린다
+        // (안 들어온 GP를 "받았습니다"라고 하면 숫자가 안 맞아 보인다).
+        const before = store.balance
+        store.balance = Math.min(MAX_BALANCE, store.balance + reward)
+        const gained = store.balance - before
         store.lastCheckIn = today
         await persistPacksim()
-        sendJson(res, 200, { ...store, today, canCheckIn: false, gained })
+        sendJson(res, 200, { ...store, today, canCheckIn: false, gained, reward, capped: gained < reward })
         return
       }
 
@@ -3134,6 +3138,12 @@ function mountAuth(
           sendJson(res, 400, { error: 'unknown pack' })
           return
         }
+        // 카드 데이터를 먼저 읽는다(/open과 같은 이유 — 검사와 차감 사이에 await 금지).
+        const cards = await readPackCards(pack.src)
+        if (cards.length === 0) {
+          sendJson(res, 500, { error: 'pack data missing' })
+          return
+        }
         const store = await getPacksim(user.id)
         const unlimited = isAdmin(user) && !(body.spend === true)
         const boxPrice = pack.price * pack.boxPacks
@@ -3154,11 +3164,6 @@ function mountAuth(
             sendJson(res, 400, { error: 'not enough', balance: store.balance, price: boxPrice })
             return
           }
-        }
-        const cards = await readPackCards(pack.src)
-        if (cards.length === 0) {
-          sendJson(res, 500, { error: 'pack data missing' })
-          return
         }
         const guarantee = pack.jp ? (pack.mirror === 'jp151' ? ('jp151' as const) : ('jp' as const)) : null
         const box = drawBox(cards, pack.profile, {
@@ -3212,6 +3217,14 @@ function mountAuth(
           sendJson(res, 400, { error: 'unknown pack' })
           return
         }
+        // ⚠️ 카드 데이터는 검사보다 먼저 읽는다. 검사와 차감 사이에 await가 끼면 그
+        // 틈에 같은 요청이 또 들어와(빠른 두 번 클릭) 보관함 1팩으로 두 팩을 열거나
+        // GP가 한 번만 빠질 수 있다. 아래로는 await 없이 검사→뽑기→차감을 끝낸다.
+        const cards = await readPackCards(pack.src)
+        if (cards.length === 0) {
+          sendJson(res, 500, { error: 'pack data missing' })
+          return
+        }
         const store = await getPacksim(user.id)
         // 무제한은 운영자 전용 — 보관함·GP 없이도 바로 열어 점검할 수 있다.
         const unlimited = isAdmin(user) && !(body.spend === true)
@@ -3233,11 +3246,6 @@ function mountAuth(
             sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
             return
           }
-        }
-        const cards = await readPackCards(pack.src)
-        if (cards.length === 0) {
-          sendJson(res, 500, { error: 'pack data missing' })
-          return
         }
         const drawn = drawPack(cards, pack.profile, pack.godRate ?? 0, pack.mirror)
         if (!unlimited) {
@@ -3281,6 +3289,32 @@ function mountAuth(
           sendJson(res, 500, { error: 'unavailable' })
           return
         }
+        if (!last.cards) {
+          sendJson(res, 400, { error: 'no pack' })
+          return
+        }
+        // 아래로는 await가 여러 번 나온다. 그 사이에 같은 요청이 또 들어오면(등록 버튼
+        // 두 번 클릭) 글이 두 개 올라가고 보상도 두 번 나간다. 그래서 자리를 먼저
+        // 잡아 두고, 등록에 실패하면 되돌린다.
+        last.shared = true
+        const today = todayKst()
+        const prevShareDay = store.lastShareDay
+        // 상한에 걸리면 실제로 늘어난 만큼만 보상으로 알리고, 되돌릴 때도 그만큼만 뺀다
+        // (준 금액 그대로 빼면 상한에 걸렸을 때 있던 GP까지 사라진다).
+        let gained = 0
+        if (prevShareDay !== today) {
+          const before = store.balance
+          store.balance = Math.min(MAX_BALANCE, store.balance + SHARE_BONUS)
+          gained = store.balance - before
+          store.lastShareDay = today
+        }
+        const rollback = () => {
+          last.shared = false
+          if (prevShareDay !== today) {
+            store.balance -= gained
+            store.lastShareDay = prevShareDay
+          }
+        }
         // 카드·등급·갓팩 여부는 서버가 기억하는 값만 쓴다(조작 불가). 한글 이름 표기만
         // 화면이 보내준다 — 서버에 번역기를 들이는 것보다 가볍고, 이름은 표기일 뿐이라
         // 속여도 자기 자랑글이 이상해질 뿐이다. 길이만 자르고 줄바꿈은 뗀다.
@@ -3291,18 +3325,23 @@ function mountAuth(
             if (typeof v === 'string') nameOf.set(String(k), v.replace(/\s+/g, ' ').trim().slice(0, 60))
           }
         }
-        if (!last.cards) {
-          sendJson(res, 400, { error: 'no pack' })
-          return
-        }
         const cards = await readPackCards(pack.src)
         const byN = new Map(cards.map((c) => [c.n, c]))
+        // 자랑글에 쓸 등급 약칭. 일본판은 풀아트를 SR, 금색을 UR이라 부르고 북미판은
+        // UR·HR이라 부른다 — 어느 판 팩인지 알고 있으니 그 판 이름으로 적는다.
         const tierKo: Record<string, string> = {
           Common: '커먼', Uncommon: '언커먼', Rare: '레어', 'Double rare': 'RR',
-          'ACE SPEC Rare': 'ACE', 'Illustration rare': 'AR', 'Ultra Rare': 'UR',
-          'Special illustration rare': 'SAR', 'Hyper rare': 'HR',
+          'ACE SPEC Rare': 'ACE',
+          'Illustration rare': pack.jp ? 'AR' : 'IR',
+          'Ultra Rare': pack.jp ? 'SR' : 'UR',
+          'Special illustration rare': pack.jp ? 'SAR' : 'SIR',
+          'Hyper rare': pack.jp ? 'UR' : 'HR',
+          'Mega Ultra Rare': 'MUR',
+          'Mega Hyper Rare': 'MHR',
         }
-        const rank: Record<string, number> = { Common: 0, Uncommon: 1, Rare: 2, 'Double rare': 3, 'ACE SPEC Rare': 4, 'Illustration rare': 5, 'Ultra Rare': 6, 'Special illustration rare': 7, 'Hyper rare': 8 }
+        // 순위는 뽑기 로직과 같은 표를 쓴다(따로 적어 두면 새 등급이 생길 때 빠진다 —
+        // 실제로 MUR·MHR이 빠져 최고 등급으로 안 뽑히던 문제가 있었다).
+        const rank = RARITY_RANK
         const drawn = last.cards
           .map((lc) => {
             const base = byN.get(lc.n)
@@ -3340,14 +3379,12 @@ function mountAuth(
               .map((c) => ({ img: c.img ?? '', name: koN(c), r: tierKo[c.r ?? ''] ?? c.r ?? '' })),
           },
         }
-        await appendCommunityPost(post)
-        last.shared = true
-        const today = todayKst()
-        let gained = 0
-        if (store.lastShareDay !== today) {
-          gained = SHARE_BONUS
-          store.balance = Math.min(MAX_BALANCE, store.balance + gained)
-          store.lastShareDay = today
+        try {
+          await appendCommunityPost(post)
+        } catch {
+          rollback()
+          sendJson(res, 500, { error: 'unavailable' })
+          return
         }
         await persistPacksim()
         sendJson(res, 200, { postId: post.id, gained, balance: store.balance })

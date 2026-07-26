@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { livePacks } from '../lib/packSets';
 
-// 카드 시세 홈(인기 검색어 ↓ 포켓몬 뉴스 ↑ 사이)에 놓는 "오늘의 팩" — 카드 뽑기 입구.
+// 홈(인기 검색어 ↓ 포켓몬 뉴스 ↑ 사이)에 놓는 "오늘의 상점" — 카드 개봉 입구.
 // 다른 섹션(인기 검색어·뉴스)과 같은 기본 톤(흰 바탕·neutral 테두리)을 따른다.
-// 튀는 색·이모지·라벨은 쓰지 않는다(사용자 지침). 진열은 뽑기 화면과 같은 계산이라
+// 튀는 색·이모지·라벨은 쓰지 않는다(사용자 지침). 진열은 개봉 화면과 같은 계산이라
 // 매일 자정(KST)에 함께 바뀐다.
 
 const thumb = (url: string, w: number) => `/api/img?u=${encodeURIComponent(url)}&w=${w}`;

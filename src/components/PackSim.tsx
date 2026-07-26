@@ -46,7 +46,9 @@ type SimState = {
   album: AlbumCard[];
   today: string;
   canCheckIn: boolean;
-  gained?: number;
+  gained?: number; // 실제로 늘어난 GP(잔액 상한에 걸리면 reward보다 적다)
+  reward?: number; // 원래 주기로 한 금액
+  capped?: boolean; // 상한에 걸려 일부만 들어갔는지
   admin?: boolean; // 무제한 스위치는 운영자에게만 보인다
   canShareBonus?: boolean; // 오늘 첫 자랑 보상(+5,000GP)이 남아 있는지
   packs?: Record<string, number>; // 사서 아직 안 연 팩(보관함)
@@ -290,9 +292,14 @@ export function PackSim({
       const r = await fetch('/api/local/auth/packsim/checkin', { method: 'POST', credentials: 'include' });
       const d = (await r.json()) as SimState;
       setSim(d);
-      if (d.gained) {
+      // 잔액이 상한이면 실제로 들어간 금액이 준 금액보다 적다(서버가 capped로 알려준다).
+      if (d.gained || d.capped) {
         trackEvent('packsim_checkin');
-        setCheckinMsg(`출석 보상 ${gp(d.gained)}을 받았습니다. (연속 ${d.streak}일)`);
+        setCheckinMsg(
+          d.capped
+            ? `출석했습니다. 보유 GP가 상한(${gp(MAX_BALANCE)})이라 ${gp(d.reward ?? 0)} 중 ${gp(d.gained ?? 0)}만 쌓였습니다. (연속 ${d.streak}일)`
+            : `출석 보상 ${gp(d.gained ?? 0)}을 받았습니다. (연속 ${d.streak}일)`,
+        );
       }
     } finally {
       setBusy(false);
@@ -491,7 +498,7 @@ export function PackSim({
     }
   }
 
-  // 방금 연 팩을 커뮤니티 "뽑기 자랑"에 올린다. 카드·등급은 서버가 기억하는 값으로
+  // 방금 연 팩을 커뮤니티 "gre 개봉" 게시판에 올린다. 카드·등급은 서버가 기억하는 값으로
   // 쓰고, 여기선 한글 이름 표기만 보내준다. 보상은 하루 1번.
   async function shareToCommunity() {
     if (!pack) return;
@@ -862,7 +869,7 @@ export function PackSim({
           )}
           {god && !boxQueue && (
             <div className="mt-4 animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-3 text-center text-base font-black text-black">
-              ✨ 갓팩! 전부 AR 이상입니다 ✨
+              갓팩 — 전부 AR 이상입니다
             </div>
           )}
 
@@ -876,7 +883,7 @@ export function PackSim({
               </p>
               {boxQueue.gods[boxQueue.idx] && (
                 <div className="mx-auto mt-2 max-w-md animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-2 text-center text-sm font-black text-black">
-                  ✨ 갓팩! 전부 AR 이상입니다 ✨
+                  갓팩 — 전부 AR 이상입니다
                 </div>
               )}
               <div key={boxQueue.idx} className="mx-auto mt-3 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
@@ -1422,7 +1429,7 @@ export function PackSim({
                         </p>
                         <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>
                           {rarityKo(a.r, !!cfgA?.jp)}
-                          {a.g ? ' ✨' : ''}
+                          {a.g ? <span className="ml-1 text-amber-600">갓팩</span> : null}
                         </p>
                         {a.m && <p className={`text-[10px] ${M_LABEL[a.m].cls}`}>{M_LABEL[a.m].t}</p>}
                         {usdOf(a) > 0 && (
