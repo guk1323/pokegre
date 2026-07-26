@@ -6,7 +6,7 @@ import { useState } from 'react';
 // 뒤 날짜도 함께 바꾸면(예: _v20260726 → _v20260810) 닫았던 사람에게도 다시 뜬다.
 const DISMISS_KEY = 'pokegre_notice_dismissed_v20260726';
 const TITLE = '오늘의 상점 업데이트';
-const NOTICE_DATE = '2026년 7월 26일';
+const NOTICE_DATE = '2026년 7월 27일';
 const BODY = `안녕하세요. pokegre 운영자입니다.
 
 문을 연 지 열흘이 지났습니다. 그동안 서비스를 더 단단하게 다듬느라 점검이 길어졌습니다. 이용에 불편을 드려 죄송합니다.
