@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox, type ExchangeRates } from '../api/exchangeRate';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
@@ -135,9 +135,14 @@ function ratesOf(pack: PackSet): { ko: string; pct: number; per: number }[] {
 
 // 확률은 "팩 종류"마다 정해져 있고 같은 종류면 세트가 달라도 같다. 팩을 하나씩
 // 바꿔가며 봐야 하면 불편하니, 종류별로 묶어 한 화면에 다 보여준다.
-const LIVE_TODAY: PackSet[] = livePacks();
-const RAW_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profile) => {
-  const packs = LIVE_TODAY.filter((p) => p.profile === profile);
+// ⚠️ 진열은 한국시간 자정에 바뀐다. 예전에는 이 목록을 파일이 처음 읽힐 때 한 번만
+// 계산해서, 화면을 열어 둔 채 자정을 넘기면 어제 진열이 그대로 보였다. 그 상태에서
+// 사자마자 서버는 "오늘 진열이 아니다"라며 거절한다(서버는 매번 다시 계산한다).
+// 그래서 날짜를 지켜보다가 바뀌면 다시 계산한다.
+type RateGroup = { name: string; kind: string; noAce: boolean; packs: string[]; rates: ReturnType<typeof ratesOf>; godRate: number };
+function buildGroups(live: PackSet[]): RateGroup[] {
+  const raw = [...new Set(live.map((p) => p.profile))].map((profile) => {
+  const packs = live.filter((p) => p.profile === profile);
   const first = packs[0];
   // 팩 장수는 프로필에서 계산한다 — 적어 두면 151(7장)처럼 다른 팩이 생겼을 때 틀린다.
   const size = profile.commons + profile.uncommons + profile.slots.length;
@@ -160,12 +165,16 @@ const RAW_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profile) 
     rates: ratesOf(first),
     godRate: first.godRate ?? 0,
   };
-});
-// 제목이 똑같은 묶음이 둘로 갈릴 때만 "ACE SPEC 미수록"을 붙인다 — 안 그러면 왜 두 개인지 알 수 없다.
-const PROFILE_GROUPS = RAW_GROUPS.map((g) => ({
-  ...g,
-  name: `${g.kind}${g.noAce && RAW_GROUPS.some((o) => o.kind === g.kind && !o.noAce) ? ' · ACE SPEC 미수록' : ''} — ${g.packs.length}종`,
-}));
+  });
+  // 제목이 똑같은 묶음이 둘로 갈릴 때만 "ACE SPEC 미수록"을 붙인다 — 안 그러면 왜 두 개인지 알 수 없다.
+  return raw.map((g) => ({
+    ...g,
+    name: `${g.kind}${g.noAce && raw.some((o) => o.kind === g.kind && !o.noAce) ? ' · ACE SPEC 미수록' : ''} — ${g.packs.length}종`,
+  }));
+}
+
+// 지금이 며칠인지(한국시간). 이 값이 바뀌면 진열도 바뀐다.
+const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
 // "시세 보기"가 넘기는 목표. 앨범에 보여주는 값이 TCGplayer 마켓가이므로 눌렀을 때도
 // TCGplayer 화면으로 간다(보여준 숫자와 다른 시장으로 보내면 헷갈린다). 검색어는
@@ -182,7 +191,29 @@ export function PackSim({
 }) {
   const [tab, setTab] = useState<'open' | 'stash' | 'album' | 'rates'>('open');
   const [sim, setSim] = useState<SimState | null>(null);
-  const [slug, setSlug] = useState(LIVE_TODAY[0].slug);
+  // 한국시간 날짜. 자정을 넘기면 바뀌고, 그때 진열을 다시 계산한다.
+  const [dayKey, setDayKey] = useState(todayKst);
+  useEffect(() => {
+    // 30초마다 확인하고, 다른 화면에 다녀왔을 때도 확인한다(폰은 화면이 꺼져 있으면
+    // 타이머가 안 돌아 자정을 놓친다).
+    const check = () => setDayKey((prev) => (prev === todayKst() ? prev : todayKst()));
+    const timer = setInterval(check, 30_000);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
+  const liveToday = useMemo(() => livePacks(dayKey), [dayKey]);
+  const profileGroups = useMemo(() => buildGroups(liveToday), [liveToday]);
+
+  const [slug, setSlug] = useState(liveToday[0].slug);
+  // 진열이 바뀌었는데 고르고 있던 팩이 빠졌으면 오늘 것으로 옮긴다.
+  useEffect(() => {
+    if (!liveToday.some((p) => p.slug === slug)) setSlug(liveToday[0].slug);
+  }, [liveToday, slug]);
   const [pack, setPack] = useState<UiCard[] | null>(null);
   const [boxInfo, setBoxInfo] = useState<number | null>(null); // 박스 개봉이면 팩 수
   // 박스는 실제 개봉처럼 한 팩씩 넘겨 가며 깐다. groups=팩별 카드, idx=지금 보는 팩.
@@ -244,7 +275,7 @@ export function PackSim({
   // GP가 깎이고 모자라면 못 연다(그 흐름도 확인해야 하니 스위치로 뒀다).
   const [spend, setSpend] = useState(false);
 
-  const cfg = packBySlug.get(slug) ?? LIVE_TODAY[0];
+  const cfg = packBySlug.get(slug) ?? liveToday[0];
 
   const load = useCallback(async () => {
     try {
@@ -804,8 +835,8 @@ export function PackSim({
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
-            { label: '일본판', dot: 'bg-rose-500', packs: LIVE_TODAY.filter((p) => p.jp) },
-            { label: '북미판', dot: 'bg-blue-500', packs: LIVE_TODAY.filter((p) => !p.jp) },
+            { label: '일본판', dot: 'bg-rose-500', packs: liveToday.filter((p) => p.jp) },
+            { label: '북미판', dot: 'bg-blue-500', packs: liveToday.filter((p) => !p.jp) },
           ].map((row) => (
             <div key={row.label} className="mt-5">
               <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-neutral-600">
@@ -1612,7 +1643,7 @@ export function PackSim({
             같습니다. 공식 발표가 없어 커뮤니티 실측 집계를 쓴 근사치라 실제 봉입률과는 다릅니다.
           </p>
 
-          {PROFILE_GROUPS.map((g) => (
+          {profileGroups.map((g) => (
             <div key={g.name} className="mt-5">
               <h3 className="text-sm font-bold text-black">{g.name}</h3>
               <p className="mt-0.5 text-[11px] text-neutral-400">{g.packs.join(' · ')}</p>
