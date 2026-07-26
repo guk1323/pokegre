@@ -1606,13 +1606,22 @@ export function PackSim({
             </p>
           </div>
 
+          <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-sm font-bold text-neutral-800">박스 개봉</p>
+            <p className="mt-1 text-xs text-neutral-600">
+              일본판 박스는 실물과 같은 봉입 구조입니다 — <b>SR 이상 1장 · AR 3장 · RR 4~5장</b>
+              (ACE 수록 세트는 ACE 1장)이 확정으로 들어가고, 나머지 팩은 커먼·언커먼·레어로
+              채웁니다. 그래서 박스 한 개의 기대값이 위 표와 정확히 맞습니다. 낱팩은 팩마다 위
+              표의 확률을 따로 굴립니다. 북미판 박스는 실물처럼 보장이 없어 순수 확률입니다.
+            </p>
+          </div>
+
           <div className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
               메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금색이고, 일본판은 MUR(세트당
               1종·약 3,000팩 = 박스 100개에 1장꼴), 북미판은 MHR(세트당 2종)로 부릅니다. 메가
-              시리즈에는 일반 금색 UR 대신 이 등급이 들어갑니다. 다만 박스로 열면 "SR 이상
-              1장" 보장이 이 등급에도 나뉘어, 실제로는 박스 50개쯤에 1장 나옵니다.
+              시리즈에는 일반 금색 UR 대신 이 등급이 들어갑니다.
             </p>
           </div>
 

@@ -97,6 +97,10 @@ type BuildOpts = {
   // 미러 종류. jp151이면 미러 1장(master 지정 시 마스터볼), na면 리버스 2장.
   mirror?: MirrorKind;
   master?: boolean;
+  // 박스 개봉 전용. 보장으로 지정되지 않은 자리는 확률을 굴리지 않고 fallback(커먼~레어)
+  // 으로 채운다. 실물 박스는 "30팩에 AR 3장"처럼 박스 단위로 짜여 있어서, 보장을 주면서
+  // 팩마다 또 확률을 굴리면 같은 걸 두 번 세게 된다(박스가 표보다 2배 후해졌던 원인).
+  plain?: boolean;
 };
 
 // 한 팩을 만든다. 미러/리버스는 커먼 자리 일부를 대체해 팩 장수를 지킨다:
@@ -143,6 +147,10 @@ function buildPack(cards: PackCard[], profile: RateProfile, opts: BuildOpts = {}
       card = forceTier('Illustration rare', pools, fb, taken);
     } else if (isLast && opts.forceLast) {
       card = forceTier(opts.forceLast, pools, fb, taken);
+    } else if (opts.plain) {
+      // 보장 자리가 아닌 팩 — 상위 등급 없이 fallback 풀에서만 뽑는다.
+      const left = fb.filter((c) => !taken.has(c.n));
+      card = randOf(left.length ? left : fb);
     } else {
       card = rollSlot(slot.rolls, pools, fb, taken);
     }
@@ -266,6 +274,8 @@ export function drawBox(
         forceA: arIdx.has(i),
         mirror: opts.mirror,
         master: i === masterIdx,
+        // 보장으로 배정된 자리만 상위 등급이 나온다. 나머지는 확률을 굴리지 않는다.
+        plain: true,
       }),
     );
   }
