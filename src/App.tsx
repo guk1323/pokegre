@@ -805,7 +805,7 @@ function App() {
                     view === 'cards' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
-                  카드 시세
+                  홈
                 </button>
                 {/* 더보기: "카드를 다른 각도로 보는" 도구 묶음(작가별·세트별 목록, 센터링 측정).
                     앞으로 도구가 늘어도 여기로만 쌓인다. */}

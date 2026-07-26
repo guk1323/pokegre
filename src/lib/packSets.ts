@@ -19,6 +19,19 @@ export const NA_REGULAR: RateProfile = {
     { rolls: [['Ultra Rare', 0.0556], ['Double rare', 0.1806], ['ACE SPEC Rare', 0.0333]], fb: 'rare' },
   ],
 };
+// 북미판 메가 시리즈(Mega Evolution) 전용 — 세트 데이터로 직접 확인(2026-07-26):
+// 금장 HR·ACE가 없고, 대신 일본판 MUR에 해당하는 MHR(메가 하이퍼레어) 2장이 최상위다.
+// MHR 확률은 일본판 MUR과 같은 희소성(약 40박스당 1장)으로 잡은 추정치 — 실측 자료가
+// 생기면 이 숫자만 바꾸면 된다.
+export const NA_MEGA: RateProfile = {
+  commons: 5,
+  uncommons: 3,
+  slots: [
+    { rolls: [['Mega Hyper Rare', 0.0007], ['Special illustration rare', 0.025], ['Illustration rare', 0.0694]], fb: 'cu' },
+    { rolls: [['Ultra Rare', 0.0556], ['Double rare', 0.1806]], fb: 'rare' },
+  ],
+};
+
 // 북미판 특별세트는 둘이 구성이 달라 프로필을 나눈다(세트 데이터로 직접 확인, 2026-07-26):
 // Prismatic은 IR이 아예 없고(0장) ACE 6장 수록, 북미 151은 IR 16장 수록·ACE 없음.
 // 확률은 사용자 조사 자료(2026-07, TCGplayer 실측 집계) 기준.
@@ -166,15 +179,16 @@ export const PACK_SETS: PackSet[] = [
   JP('SV3', '흑염의 지배자'),
   JP('SV2a', '포켓몬 카드 151', 2600, { profile: JP_151, godRate: 1 / 750, mirror: 'jp151', boxPacks: 20 }), // 특수팩: 290엔·7장·20팩 박스·갓팩 존재
   // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
-  NA('me01', 'Mega Evolution'),
-  NA('sv10', 'Destined Rivals'),
-  NA('sv09', 'Journey Together'),
-  NA('sv08.5', 'Prismatic Evolutions', NA_PRISMATIC, 6500, { godRate: 1 / 1000, boxPacks: 0, mirror: 'prismatic' }), // 특별세트(36팩 박스 없음), 갓팩 존재
-  NA('sv08', 'Surging Sparks'),
-  NA('sv07', 'Stellar Crown'),
-  NA('sv06', 'Twilight Masquerade'),
+  // 이름은 정식 한글명이 따로 없어(한국판은 일본판 이름 체계) 영어명 음역을 쓴다.
+  NA('me01', '메가 에볼루션', NA_MEGA),
+  NA('sv10', '데스티니드 라이벌'),
+  NA('sv09', '저니 투게더'),
+  NA('sv08.5', '프리즈매틱 에볼루션', NA_PRISMATIC, 6500, { godRate: 1 / 1000, boxPacks: 0, mirror: 'prismatic' }), // 특별세트(36팩 박스 없음), 갓팩 존재
+  NA('sv08', '서징 스파크'),
+  NA('sv07', '스텔라 크라운'),
+  NA('sv06', '트와일라잇 마스커레이드'),
   NA('sv03.5', '151', NA_151, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트, 갓팩 존재
-  NA('sv03', 'Obsidian Flames'),
+  NA('sv03', '옵시디언 플레임'),
   // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
 ];
@@ -268,12 +282,15 @@ export const SHARE_BONUS = 5000;
 
 // 보관함(사놓고 안 연 팩) 상한. 데이터는 가벼워도 무한 사재기는 이상한 메타를 만든다.
 export const MAX_STASH = 50;
+// 보관함의 박스 상한(팩과 별도로 센다).
+export const MAX_BOX_STASH = 10;
 
 // ── 갓팩 ──────────────────────────────────────────────────────────────────
 // 갓팩에 들어가는 등급(높은 것부터). 세트에 없는 등급은 건너뛴다.
 // 확률은 팩별 godRate(위 PACK_SETS)로 정한다 — 실물처럼 151류 특수팩에만 있다.
 export const GOD_TIERS = [
   'Mega Ultra Rare',
+  'Mega Hyper Rare',
   'Hyper rare',
   'Special illustration rare',
   'Ultra Rare',

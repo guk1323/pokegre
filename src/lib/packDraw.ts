@@ -20,7 +20,8 @@ export const RARITY_RANK: Record<string, number> = {
   'Ultra Rare': 6,
   'Special illustration rare': 7,
   'Hyper rare': 8,
-  'Mega Ultra Rare': 9, // 메가 시리즈 전용 최상위(카드 전체 금박) — 세트당 1장
+  'Mega Ultra Rare': 9, // 일본판 메가 시리즈 전용 최상위(카드 전체 금박) — 세트당 1장
+  'Mega Hyper Rare': 9, // 북미판 메가 시리즈의 같은 등급(MHR) — 세트당 2장
 };
 export const rankOf = (r?: string) => RARITY_RANK[r ?? ''] ?? 0;
 export const usableCards = (cards: PackCard[]) => cards.filter((c) => c.r && c.r in RARITY_RANK);

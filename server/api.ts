@@ -8,6 +8,7 @@ import {
   DAILY_BUDGET,
   FIRST_BONUS,
   MAX_BALANCE,
+  MAX_BOX_STASH,
   MAX_STASH,
   SHARE_BONUS,
   STREAK_BONUS,
@@ -2504,6 +2505,8 @@ interface PackSimStore {
   album: AlbumCard[]
   // 사서 아직 안 연 팩(슬러그→개수). "모아뒀다가 나중에 깐다"용 보관함.
   packs?: Record<string, number>
+  // 사서 아직 안 연 박스(슬러그→개수). 팩과 따로 센다(상한 MAX_BOX_STASH).
+  boxes?: Record<string, number>
   // 방금 연 팩(박스면 전체 카드). 앨범에는 "고른 카드"만 넣기 때문에, 아무 카드나 넣지
   // 못하도록 서버가 마지막 결과를 기억했다가 그 안의 카드만 받아준다(idx 기준 — 미러와
   // 일반판이 같은 번호일 수 있어 번호로는 구분이 안 된다). shared/kept는 중복 방지.
@@ -3055,39 +3058,48 @@ function mountAuth(
         return
       }
 
-      // POST /packsim/buy — 팩을 사서 보관함에 담는다(바로 열지 않는다).
-      // 구매만 오늘 진열(isLive) 기준이고, 보관함에 있는 팩은 진열이 바뀌어도 열 수 있다.
+      // POST /packsim/buy — 팩(기본)이나 박스(kind='box')를 사서 보관함에 담는다.
+      // 개봉은 보관함에서 한다. 구매만 오늘 진열(isLive) 기준이고, 보관함에 있는
+      // 것은 진열이 바뀌어도 열 수 있다.
       if (segments[0] === 'packsim' && segments[1] === 'buy' && req.method === 'POST') {
         const user = await currentUser(req)
         if (!user) {
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown; kind?: unknown }
         const pack = packBySlug.get(String(body.slug ?? ''))
-        if (!pack || !isLive(pack.slug)) {
+        const isBox = body.kind === 'box'
+        if (!pack || !isLive(pack.slug) || (isBox && !(pack.boxPacks && pack.boxPacks > 0))) {
           sendJson(res, 400, { error: 'unknown pack' })
           return
         }
         const store = await getPacksim(user.id)
         const unlimited = isAdmin(user) && !(body.spend === true)
-        if (!unlimited && store.balance < pack.price) {
-          sendJson(res, 400, { error: 'not enough', balance: store.balance, price: pack.price })
+        const price = isBox ? pack.price * (pack.boxPacks ?? 0) : pack.price
+        if (!unlimited && store.balance < price) {
+          sendJson(res, 400, { error: 'not enough', balance: store.balance, price })
           return
         }
-        if (!unlimited) {
-          store.balance -= pack.price
-          store.spent += pack.price
-        }
         store.packs ??= {}
-        const total = Object.values(store.packs).reduce((a, b) => a + b, 0)
-        if (total >= MAX_STASH) {
+        store.boxes ??= {}
+        if (isBox) {
+          if (Object.values(store.boxes).reduce((a, b) => a + b, 0) >= MAX_BOX_STASH) {
+            sendJson(res, 400, { error: 'stash full', max: MAX_BOX_STASH })
+            return
+          }
+        } else if (Object.values(store.packs).reduce((a, b) => a + b, 0) >= MAX_STASH) {
           sendJson(res, 400, { error: 'stash full', max: MAX_STASH })
           return
         }
-        store.packs[pack.slug] = (store.packs[pack.slug] ?? 0) + 1
+        if (!unlimited) {
+          store.balance -= price
+          store.spent += price
+        }
+        if (isBox) store.boxes[pack.slug] = (store.boxes[pack.slug] ?? 0) + 1
+        else store.packs[pack.slug] = (store.packs[pack.slug] ?? 0) + 1
         await persistPacksim()
-        sendJson(res, 200, { balance: store.balance, packs: store.packs })
+        sendJson(res, 200, { balance: store.balance, packs: store.packs, boxes: store.boxes })
         return
       }
 
@@ -3100,18 +3112,32 @@ function mountAuth(
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown }
+        const body = JSON.parse((await readBody(req)) || '{}') as { slug?: unknown; spend?: unknown; from?: unknown }
         const pack = packBySlug.get(String(body.slug ?? ''))
-        if (!pack || !(pack.boxPacks && pack.boxPacks > 0) || !isLive(pack.slug)) {
+        if (!pack || !(pack.boxPacks && pack.boxPacks > 0)) {
           sendJson(res, 400, { error: 'unknown pack' })
           return
         }
         const store = await getPacksim(user.id)
         const unlimited = isAdmin(user) && !(body.spend === true)
         const boxPrice = pack.price * pack.boxPacks
-        if (!unlimited && store.balance < boxPrice) {
-          sendJson(res, 400, { error: 'not enough', balance: store.balance, price: boxPrice })
-          return
+        // from='stash'면 보관함의 박스를 꺼내 연다(진열이 바뀌어도 됨, GP 안 나감).
+        // 아니면 그 자리 구매+개봉(오늘 진열 + GP 차감) — 운영자 무제한 점검용으로만 남긴다.
+        const fromStash = body.from === 'stash'
+        const haveBox = store.boxes?.[pack.slug] ?? 0
+        if (!unlimited) {
+          if (fromStash) {
+            if (haveBox < 1) {
+              sendJson(res, 400, { error: 'no box in stash' })
+              return
+            }
+          } else if (!isLive(pack.slug)) {
+            sendJson(res, 400, { error: 'unknown pack' })
+            return
+          } else if (store.balance < boxPrice) {
+            sendJson(res, 400, { error: 'not enough', balance: store.balance, price: boxPrice })
+            return
+          }
         }
         const cards = await readPackCards(pack.src)
         if (cards.length === 0) {
@@ -3126,8 +3152,13 @@ function mountAuth(
           mirror: pack.mirror,
         })
         if (!unlimited) {
-          store.balance -= boxPrice
-          store.spent += boxPrice
+          if (fromStash && store.boxes) {
+            if (haveBox <= 1) delete store.boxes[pack.slug]
+            else store.boxes[pack.slug] = haveBox - 1
+          } else {
+            store.balance -= boxPrice
+            store.spent += boxPrice
+          }
         }
         store.opened += pack.boxPacks
         const godCount = box.packs.filter((p) => p.god).length
@@ -3147,6 +3178,7 @@ function mountAuth(
           balance: store.balance,
           opened: store.opened,
           packsLeft: store.packs ?? {},
+          boxes: store.boxes ?? {},
         })
         return
       }

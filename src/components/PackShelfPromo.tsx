@@ -25,7 +25,7 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
   return (
     <section className="mt-8">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <p className="text-base font-bold text-neutral-900">오늘의 팩</p>
+        <p className="text-base font-bold text-neutral-900">오늘의 상점</p>
         <p className="text-xs text-neutral-400">매일 자정에 진열이 바뀝니다</p>
         <button
           type="button"

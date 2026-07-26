@@ -6,7 +6,7 @@ export const CATEGORY_LABEL: Record<PostCategory, string> = {
   free: "자유",
   question: "질문",
   suggestion: "건의",
-  pulls: "개봉 자랑",
+  pulls: "gre 개봉",
 };
 
 export interface CommunityPost {

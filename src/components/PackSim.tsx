@@ -17,7 +17,10 @@ import {
   DAILY_BUDGET,
   JP_MEGA,
   livePacks,
+  MAX_BOX_STASH,
+  MAX_STASH,
   NA_151,
+  NA_MEGA,
   NA_PRISMATIC,
   MAX_BALANCE,
   STREAK_BONUS,
@@ -47,6 +50,7 @@ type SimState = {
   admin?: boolean; // 무제한 스위치는 운영자에게만 보인다
   canShareBonus?: boolean; // 오늘 첫 자랑 보상(+5,000GP)이 남아 있는지
   packs?: Record<string, number>; // 사서 아직 안 연 팩(보관함)
+  boxes?: Record<string, number>; // 사서 아직 안 연 박스(보관함)
 };
 
 // 등급 표기(한글·약칭)와 색.
@@ -61,7 +65,22 @@ const RARITY: Record<string, { ko: string; cls: string }> = {
   'Special illustration rare': { ko: '스페셜아트레어 SAR', cls: 'text-amber-500 ring-amber-400' },
   'Hyper rare': { ko: '하이퍼레어 HR', cls: 'text-yellow-500 ring-yellow-400' },
   'Mega Ultra Rare': { ko: '메가 울트라레어 MUR', cls: 'text-yellow-600 ring-yellow-500' },
+  'Mega Hyper Rare': { ko: '메가 하이퍼레어 MHR', cls: 'text-yellow-600 ring-yellow-500' },
 };
+
+// 등급 이름은 판마다 다르다 — 일본판은 AR·SAR, 북미판은 IR·SIR로 부른다(사용자 지침).
+// 색·순위는 같고 표기만 다르므로 표기 함수 하나로 가른다.
+const NA_KO: Record<string, string> = {
+  'Illustration rare': '일러스트레어 IR',
+  'Special illustration rare': '스페셜일러스트레어 SIR',
+};
+const rarityKo = (r: string | undefined, jp: boolean) => {
+  const base = (RARITY[r ?? ''] ?? RARITY.Common).ko;
+  return jp ? base : NA_KO[r ?? ''] ?? base;
+};
+// 앨범 필터 칩은 일본판·북미판 카드가 섞여 있어 두 표기를 같이 쓴다.
+const chipLabel = (r: string) =>
+  r === 'Illustration rare' ? 'AR·IR' : r === 'Special illustration rare' ? 'SAR·SIR' : (RARITY[r]?.ko ?? r).split(' ').pop();
 
 // TCGdex는 확장자 없는 베이스 주소라 /high.webp를 붙여야 한다. limitless는 이미 .png다.
 const cardImg = (base: string) => (!base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`);
@@ -79,7 +98,7 @@ function ratesOf(pack: PackSet): { ko: string; pct: number; per: number }[] {
   for (const slot of pack.profile.slots) for (const [tier, p] of slot.rolls) sum[tier] = (sum[tier] ?? 0) + p;
   return Object.entries(sum)
     .sort((a, b) => rankOf(b[0]) - rankOf(a[0]))
-    .map(([tier, p]) => ({ ko: RARITY[tier]?.ko ?? tier, pct: p * 100, per: Math.round(1 / p) }));
+    .map(([tier, p]) => ({ ko: rarityKo(tier, pack.jp), pct: p * 100, per: Math.round(1 / p) }));
 }
 
 // 확률은 "팩 종류"마다 정해져 있고 같은 종류면 세트가 달라도 같다. 팩을 하나씩
@@ -92,9 +111,11 @@ const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profi
     ? profile === JP_MEGA
       ? '일본판 메가 시리즈 (5장)'
       : '일본판 확장팩 (5장)'
-    : profile === NA_PRISMATIC || profile === NA_151
-      ? '북미판 특별세트 (10장)'
-      : '북미판 일반 부스터 (10장)';
+    : profile === NA_MEGA
+      ? '북미판 메가 시리즈 (10장)'
+      : profile === NA_PRISMATIC || profile === NA_151
+        ? '북미판 특별세트 (10장)'
+        : '북미판 일반 부스터 (10장)';
   return {
     name: `${kind} — ${packs.length}종`,
     packs: packs.map((p) => p.label.replace(/^\[.+?\]\s*/, '')),
@@ -136,8 +157,8 @@ export function PackSim({
   const [value, setValue] = useState<{ prices: Record<string, Record<string, number>>; totalUsd: number; priced: number; pending?: string[] } | null>(null);
   // 앨범 선택 삭제 모드. 켜면 카드를 눌러 고르고, 한 번에 지운다.
   const [delMode, setDelMode] = useState(false);
-  // 앨범 정렬: 등급순(같은 등급끼리 묶임) · 가격순 · 최근 획득순
-  const [albumSort, setAlbumSort] = useState<'rarity' | 'price' | 'recent'>('rarity');
+  // 앨범 정렬: 등급·가격은 높은순/낮은순 각각(사용자 요청) + 최근 획득순
+  const [albumSort, setAlbumSort] = useState<'rarity' | 'rarityAsc' | 'price' | 'priceAsc' | 'recent'>('rarity');
   // 앨범이 수백 종으로 커져도 보고 싶은 등급만 추릴 수 있게.
   const [albumFilter, setAlbumFilter] = useState<string>('all'); // 'all' 또는 등급 키
   const [delPick, setDelPick] = useState<Set<string>>(new Set());
@@ -214,19 +235,53 @@ export function PackSim({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: slug2, spend }),
       });
-      const d = (await r.json()) as { balance?: number; packs?: Record<string, number>; error?: string };
+      const d = (await r.json()) as { balance?: number; packs?: Record<string, number>; boxes?: Record<string, number>; error?: string };
       if (!r.ok) {
         setErr(
           d.error === 'not enough'
             ? 'GP가 부족합니다.'
             : d.error === 'stash full'
-              ? '보관함이 가득 찼습니다. (최대 50팩)'
+              ? `보관함이 가득 찼습니다. (최대 ${MAX_STASH}팩)`
               : '구매하지 못했습니다.',
         );
         return;
       }
-      setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
+      setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
       setKeptMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 보관함에 담았습니다. (${gp(target.price)} 차감)`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 박스 구매: 팩과 같은 흐름 — 보관함에 담고, 개봉은 보관함에서 한다.
+  async function buyBox(slug2: string) {
+    const target = packBySlug.get(slug2);
+    if (!sim || !target?.boxPacks) return;
+    const price = target.price * target.boxPacks;
+    if (spend && sim.balance < price) return;
+    setErr('');
+    setBusy(true);
+    try {
+      const r = await fetch('/api/local/auth/packsim/buy', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: slug2, spend, kind: 'box' }),
+      });
+      const d = (await r.json()) as { balance?: number; packs?: Record<string, number>; boxes?: Record<string, number>; error?: string };
+      if (!r.ok) {
+        setErr(
+          d.error === 'not enough'
+            ? 'GP가 부족합니다.'
+            : d.error === 'stash full'
+              ? `보관함의 박스가 가득 찼습니다. (최대 ${MAX_BOX_STASH}박스)`
+              : '구매하지 못했습니다.',
+        );
+        return;
+      }
+      setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
+      setKeptMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1박스(${target.boxPacks}팩)를 보관함에 담았습니다. (${gp(price)} 차감)`);
+      trackEvent('packsim', `${target.label} 박스 구매`);
     } finally {
       setBusy(false);
     }
@@ -281,7 +336,7 @@ export function PackSim({
   }
 
   // 박스 개봉: 일본판은 보장 봉입, 북미판은 독립시행. 결과는 한 팩씩 넘겨 가며 공개한다.
-  async function openBox(slug2: string) {
+  async function openBox(slug2: string, from?: 'stash') {
     const target = packBySlug.get(slug2);
     if (!sim || !target?.boxPacks) return;
     setErr('');
@@ -294,7 +349,7 @@ export function PackSim({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: slug2, spend }),
+        body: JSON.stringify({ slug: slug2, spend, from }),
       });
       const d = (await r.json()) as {
         packs?: { cards: PackCard[]; god: boolean }[];
@@ -302,6 +357,7 @@ export function PackSim({
         godCount?: number;
         boxPacks?: number;
         balance?: number;
+        boxes?: Record<string, number>;
         error?: string;
       };
       if (!r.ok || !d.packs) {
@@ -327,7 +383,9 @@ export function PackSim({
       setShare({ shared: false, msg: '' });
       setShareOpen(false);
       setShareText('');
-      setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, opened: (s2.opened ?? 0) + (d.boxPacks ?? 0) } : s2));
+      setSim((s2) =>
+        s2 ? { ...s2, balance: d.balance ?? s2.balance, boxes: d.boxes ?? s2.boxes, opened: (s2.opened ?? 0) + (d.boxPacks ?? 0) } : s2,
+      );
     } finally {
       setBusy(false);
     }
@@ -481,7 +539,7 @@ export function PackSim({
               <p className="mt-0.5 text-xl font-bold text-black">{sim?.streak ?? 0}일</p>
             </div>
             <div>
-              <p className="text-xs text-neutral-400">연 팩</p>
+              <p className="text-xs text-neutral-400">현재까지 개봉한 팩</p>
               <p className="mt-0.5 text-xl font-bold text-black">
                 {sim?.opened ?? 0}팩
                 {sim?.god ? <span className="ml-1 align-middle text-xs font-semibold text-amber-600">갓팩 {sim.god}</span> : null}
@@ -510,8 +568,16 @@ export function PackSim({
       {/* 탭 */}
       <div className="mt-4 flex gap-1">
         {([
-          ['open', '팩 열기'],
-          ['stash', `팩 보관함${sim?.packs && Object.values(sim.packs).reduce((a, b) => a + b, 0) > 0 ? ` (${Object.values(sim.packs).reduce((a, b) => a + b, 0)})` : ''}`],
+          ['open', '쇼핑'],
+          [
+            'stash',
+            `보관함${(() => {
+              const n =
+                Object.values(sim?.packs ?? {}).reduce((a, b) => a + b, 0) +
+                Object.values(sim?.boxes ?? {}).reduce((a, b) => a + b, 0);
+              return n > 0 ? ` (${n})` : '';
+            })()}`,
+          ],
           ['album', `내 앨범${sim?.album.length ? ` (${sim.album.length})` : ''}`],
           ['rates', '확률표'],
         ] as const).map(([v, label]) => (
@@ -591,37 +657,27 @@ export function PackSim({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              void open(s2.slug);
+                              void buy(s2.slug);
                             }}
                             disabled={busy || !can}
                             className="w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                           >
-                            {busy ? '여는 중…' : can ? `바로 개봉 · ${gp(s2.price)}` : 'GP가 부족합니다'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void buy(s2.slug);
-                            }}
-                            disabled={busy || !can}
-                            className="w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-40"
-                          >
-                            보관함에 담기 · {gp(s2.price)}
+                            {busy ? '구매 중…' : can ? `1팩 구매 · ${gp(s2.price)} 차감` : 'GP가 부족합니다'}
                           </button>
                           {(s2.boxPacks ?? 0) > 0 && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void openBox(s2.slug);
+                                void buyBox(s2.slug);
                               }}
                               disabled={busy || !sim || (spend && sim.balance < s2.price * (s2.boxPacks ?? 0))}
                               className="w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-40"
                             >
-                              박스 개봉({s2.boxPacks}팩) · {gp(s2.price * (s2.boxPacks ?? 0))}
+                              1박스 구매({s2.boxPacks}팩) · {gp(s2.price * (s2.boxPacks ?? 0))} 차감
                             </button>
                           )}
+                          <p className="text-[11px] text-neutral-400">구매하면 보관함에 담기고, 개봉은 보관함에서 합니다.</p>
                         </div>
                       ) : (
                         <p className="mt-2 py-1.5">
@@ -693,7 +749,7 @@ export function PackSim({
                         {c.img && <img src={thumb(c.img, 240)} alt="" className="h-full w-full object-contain" />}
                       </div>
                       <p className={`mt-0.5 truncate text-center text-[10px] font-semibold ${meta.cls.split(' ')[0]}`}>
-                        {meta.ko.split(' ').pop()}
+                        {rarityKo(c.r, cfg.jp).split(' ').pop()}
                       </p>
                     </div>
                   );
@@ -825,7 +881,7 @@ export function PackSim({
 
               <p className="mt-3 h-5 text-center text-sm font-semibold text-neutral-600">
                 {phase === 'shown'
-                  ? `${koName(cfg.jp, pack[revealed]?.name ?? '')} · ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).ko} — 카드를 누르면 다음`
+                  ? `${koName(cfg.jp, pack[revealed]?.name ?? '')} · ${rarityKo(pack[revealed]?.r, cfg.jp)} — 카드를 누르면 다음`
                   : dragY > 40
                     ? '조금만 더…'
                     : `위로 밀어서 확인 (${revealed}/${pack.length})`}
@@ -935,6 +991,7 @@ export function PackSim({
                 <CardSlot
                   key={i}
                   card={c}
+                  jp={cfg.jp}
                   index={i}
                   isLast={i === pack.length - 1}
                   flipped={i < revealed}
@@ -1011,13 +1068,15 @@ export function PackSim({
                         albumFilter === v ? 'bg-neutral-200 text-black' : 'text-neutral-500 hover:bg-neutral-100'
                       }`}
                     >
-                      {v === 'all' ? '전체' : (RARITY[v]?.ko ?? v).split(' ').pop()}
+                      {v === 'all' ? '전체' : chipLabel(v)}
                     </button>
                   ))}
                   <span className="text-neutral-200">|</span>
                   {([
-                    ['rarity', '등급순'],
-                    ['price', '가격순'],
+                    ['rarity', '등급 높은순'],
+                    ['rarityAsc', '등급 낮은순'],
+                    ['price', '가격 높은순'],
+                    ['priceAsc', '가격 낮은순'],
                     ['recent', '최근 획득순'],
                   ] as const).map(([v, label]) => (
                     <button
@@ -1085,7 +1144,9 @@ export function PackSim({
                   .filter((a) => albumFilter === 'all' || a.r === albumFilter)
                   .sort((a, b) => {
                     if (albumSort === 'price') return usdOf(b) - usdOf(a);
+                    if (albumSort === 'priceAsc') return usdOf(a) - usdOf(b);
                     if (albumSort === 'recent') return sim.album.indexOf(b) - sim.album.indexOf(a);
+                    if (albumSort === 'rarityAsc') return rankOf(a.r) - rankOf(b.r);
                     return rankOf(b.r) - rankOf(a.r);
                   })
                   .map((a) => {
@@ -1125,7 +1186,7 @@ export function PackSim({
                           {name} {a.c > 1 && <span className="text-neutral-400">×{a.c}</span>}
                         </p>
                         <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>
-                          {meta.ko}
+                          {rarityKo(a.r, !!cfgA?.jp)}
                           {a.g ? ' ✨' : ''}
                         </p>
                         {a.m && <p className={`text-[10px] ${M_LABEL[a.m].cls}`}>{M_LABEL[a.m].t}</p>}
@@ -1162,17 +1223,44 @@ export function PackSim({
 
       {tab === 'stash' && (
         <div className="mt-4">
-          {!sim?.packs || Object.values(sim.packs).reduce((a, b) => a + b, 0) === 0 ? (
-            <p className="text-sm text-neutral-400">
-              보관 중인 팩이 없습니다. 팩 열기에서 "보관함에 담기"로 모아둘 수 있습니다.
-            </p>
+          {Object.values(sim?.packs ?? {}).reduce((a, b) => a + b, 0) + Object.values(sim?.boxes ?? {}).reduce((a, b) => a + b, 0) ===
+          0 ? (
+            <p className="text-sm text-neutral-400">보관 중인 팩·박스가 없습니다. 쇼핑에서 구매하면 여기에 담깁니다.</p>
           ) : (
             <>
               <p className="mb-3 text-xs text-neutral-400">
-                모아둔 팩은 진열이 바뀐 뒤에도 열 수 있습니다. (최대 50팩)
+                구매한 팩·박스는 여기서 개봉합니다. 진열이 바뀐 뒤에도 열 수 있습니다. (팩 최대 {MAX_STASH}개 · 박스 최대{' '}
+                {MAX_BOX_STASH}개)
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {Object.entries(sim.packs).map(([s3, cnt]) => {
+                {Object.entries(sim?.boxes ?? {}).map(([s3, cnt]) => {
+                  const p3 = packBySlug.get(s3);
+                  if (!p3 || cnt < 1) return null;
+                  const img3 = art[s3]?.boxImg || art[s3]?.logo;
+                  return (
+                    <div key={`box-${s3}`} className="rounded-2xl border border-neutral-200 p-3 text-center shadow-sm">
+                      <div className="flex h-28 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3">
+                        {img3 && <img src={thumb(img3, 240)} alt="" className="max-h-24 object-contain" />}
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-neutral-800">
+                        {p3.label.replace(/^\[.+?\]\s*/, '')} <span className="text-xs text-neutral-500">박스({p3.boxPacks}팩)</span>{' '}
+                        <span className="text-neutral-400">×{cnt}</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTab('open');
+                          void openBox(s3, 'stash');
+                        }}
+                        disabled={busy}
+                        className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                      >
+                        박스 개봉
+                      </button>
+                    </div>
+                  );
+                })}
+                {Object.entries(sim?.packs ?? {}).map(([s3, cnt]) => {
                   const p3 = packBySlug.get(s3);
                   if (!p3 || cnt < 1) return null;
                   const img3 = art[s3]?.boxImg || art[s3]?.logo;
@@ -1255,14 +1343,15 @@ export function PackSim({
           <div className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
-              일본판 메가 시리즈(메가브레이브 이후) 전용 최상위 등급입니다. 카드 전체가 금박이고
-              세트당 1장만 있습니다. 약 3,000팩(박스 50개)에 1장 수준으로, 메가 시리즈에는 금장
-              UR 대신 이 등급이 들어갑니다.
+              메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금박이고, 일본판은 MUR(세트당
+              1장·약 3,000팩=박스 50개에 1장), 북미판은 MHR(세트당 2장)로 부릅니다. 메가
+              시리즈에는 금장 UR·HR 대신 이 등급이 들어갑니다.
             </p>
           </div>
 
           <p className="mt-4 text-xs text-neutral-500">
-            표에 없는 자리는 커먼·언커먼·레어로 채웁니다. GP는 출석하면 하루 {gp(DAILY_BUDGET)}, 다음 날로
+            표에 없는 자리는 커먼·언커먼·레어로 채웁니다. ACE SPEC은 수록된 세트에서만 나오고, 미수록
+            세트는 그 확률만큼 레어가 나옵니다. GP는 출석하면 하루 {gp(DAILY_BUDGET)}, 다음 날로
             이월되고 최대 {gp(MAX_BALANCE)}까지 쌓입니다. {STREAK_DAYS}일 연속 출석하면 {gp(STREAK_BONUS)}을 더
             드립니다.
           </p>
@@ -1322,6 +1411,7 @@ export function PackSim({
 
 function CardSlot({
   card,
+  jp,
   index,
   isLast,
   flipped,
@@ -1333,6 +1423,7 @@ function CardSlot({
   onPick,
 }: {
   card: PackCard;
+  jp: boolean;
   index: number;
   isLast: boolean;
   flipped: boolean;
@@ -1373,7 +1464,7 @@ function CardSlot({
         </p>
       )}
       <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{flipped ? name : ' '}</p>
-      <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>{flipped ? meta.ko : ' '}</p>
+      <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>{flipped ? rarityKo(card.r, jp) : ' '}</p>
       {flipped && card.m && <p className={`text-[10px] ${M_LABEL[card.m].cls}`}>{M_LABEL[card.m].t}</p>}
     </div>
   );
