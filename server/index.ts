@@ -2,6 +2,7 @@ import express from 'express'
 import compression from 'compression'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
+import { access } from 'node:fs/promises'
 import { backupDataFiles, isAdminRequest, maintenanceOn, mountApi } from './api.ts'
 
 // 프로덕션 진입점. 개발은 vite가 API(server/api.ts)와 프론트를 함께 띄우지만,
@@ -13,6 +14,8 @@ const app = express()
 app.use(compression())
 const PORT = Number(process.env.PORT ?? 3000)
 const DIST = path.resolve(process.cwd(), 'dist')
+const DATA_DIR = process.env.POKEGRE_DATA_DIR ?? path.resolve(process.cwd(), 'data')
+const accessData = () => access(DATA_DIR)
 
 // ── 점검 모드 ────────────────────────────────────────────────────────────────
 // /data/maintenance.on 파일이 있으면 일반 방문자에겐 점검 안내만 보여준다. 운영자
@@ -27,6 +30,19 @@ a{color:#666;font-size:.8rem;text-decoration:none}</style></head><body><div clas
 <h1>서비스 점검 중입니다</h1><p>안녕하세요, pokegre 운영자입니다.<br>
 더 나은 서비스를 위해 잠시 점검하고 있습니다.<br>최대한 빠르게 마치겠습니다. 조금만 기다려 주세요!</p>
 <p><a href="/api/local/auth/kakao">운영자 로그인</a></p></div></body></html>`
+
+// 건강 검사 통로. Fly가 30초마다 두드려서 응답이 없으면 기계를 다시 세운다.
+// ⚠️ 점검 모드보다 반드시 앞에 둬야 한다 — 점검 중에는 모든 경로가 503이라, 이 통로가
+// 뒤에 있으면 Fly가 "죽었다"고 보고 멀쩡한 기계를 계속 재시작한다.
+// 데이터 폴더까지 확인한다. 볼륨이 안 붙으면 서버는 떠 있어도 아무것도 저장 못 한다.
+app.get('/healthz', async (_req, res) => {
+  try {
+    await accessData()
+    res.status(200).type('text/plain').send('ok')
+  } catch {
+    res.status(503).type('text/plain').send('data volume unavailable')
+  }
+})
 
 app.use(async (req, res, next) => {
   if (!(await maintenanceOn())) return next()

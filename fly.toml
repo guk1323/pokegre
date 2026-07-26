@@ -27,6 +27,16 @@ primary_region = "nrt"
   auto_start_machines = true
   min_machines_running = 1
 
+  # 건강 검사. 이게 없으면 Fly는 "포트가 열려 있는가"만 본다 — 서버가 떠 있지만 아무것도
+  # 못 하는 상태(볼륨이 안 붙었다든가)를 정상으로 보고 그대로 둔다. 배포한 새 버전이
+  # 고장났을 때도 이 검사가 있어야 배포가 실패로 끝나고 옛 버전이 살아남는다.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
 # 데이터가 JSON 파일이라 볼륨이 없으면 배포할 때마다 회원과 게시글이 전부 사라진다.
 # 머신 한 대에 붙는 로컬 디스크라, 나중에 여러 대로 늘리려면 그때 DB로 옮겨야 한다.
 [mounts]
