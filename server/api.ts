@@ -2756,10 +2756,12 @@ async function warmPackPrices(apiKey: string) {
     for (const slug of Object.keys(PPT_SET_NAMES)) {
       const hit = packPriceCache.get(slug)
       if (hit && packPriceFresh(hit)) continue
-      await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 70_000 })
+      await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 5_000 })
       await savePackPriceFile()
-      // 페이지 하나가 크레딧 200, 분당 한도가 500이라 세트 사이도 70초씩 띄운다.
-      await new Promise((r) => setTimeout(r, 70_000))
+      // ⚠️ 분당 한도는 "크레딧 500"이 아니라 "요청 60번"이다(응답 헤더 x-ratelimit-
+      // minute-limit로 확인). 5초씩 띄우면 분당 12번이라 넉넉히 안전하고, 22세트를
+      // 채우는 데 50분이 아니라 몇 분이면 끝난다(서버가 새로 뜬 직후 시세 빈 시간 단축).
+      await new Promise((r) => setTimeout(r, 5_000))
     }
   } finally {
     warming = false

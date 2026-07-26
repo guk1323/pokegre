@@ -30,7 +30,8 @@
 - **시세 마켓**: TCGplayer(미국) + eBay 등급 낙찰 + **Cardmarket(EUR, Pro/Business)**.
 - **등급 시세(PSA·CGC·BGS·SGC)**: 모든 유료 티어(우리 $10 포함). eBay 낙찰 기반.
 - **팝수(Population)**: **GemRate 기반 → PSA·CGC·BGS·SGC 등 여러 회사** (PSA 전용 아님!). **Business($99) 전용**, `/population` 엔드포인트(파라미터 `tcgPlayerId`), 카드당 2크레딧. 우리 $10 키는 403.
-- **요금제**: Free 100/일 · **API $10 = 20,000/일** · Business $99 = 200,000/일 · Enterprise $300 = 100만/일. (per-minute: 60/500/1000)
+- **요금제**: Free 100/일 · **API $10 = 20,000/일** · Business $99 = 200,000/일 · Enterprise $300 = 100만/일.
+- **한도는 응답 헤더로 확인할 것**(추측 금지): `x-ratelimit-daily-limit/remaining/reset`, `x-ratelimit-minute-limit/remaining`. **분당은 "요청 60번"이지 크레딧이 아니다**(예전에 '분당 크레딧 500'이라 적어둔 건 오류). 일일은 크레딧이며 `limit=200` 한 번이 200크레딧. **초기화는 매일 UTC 0시 = 한국시간 오전 9시.**
 - **크레딧 규칙**: `limit`(기본 50)에 과금 — 단건은 `limit=1`이나 `tcgPlayerId`로. history/ebay/cardmarket 각 +1/카드. **`page` 없음, `offset`은 됨**. limit을 크게 줘도 **한 번에 200행까지만** 준다 — 세트가 200행을 넘으면 offset=200,400…으로 이어받아야 앞번호 카드가 안 잘린다(2026-07-25 실측, 리자몽 6번이 이걸로 빠졌었다).
 - 이미지: `imageCdnUrl` 200/400/800(tcgplayer-cdn).
 - Scrydex와 비교: 팝수까지 PPT가 다회사로 커버하므로, 우리(포켓몬 전용)엔 Scrydex 고유 이점은 사진인식(이미 Claude로 있음)·멀티게임(불필요)뿐 → **갈 이유 없음**.
