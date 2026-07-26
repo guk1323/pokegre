@@ -120,6 +120,8 @@ function App() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [exhausted, setExhausted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 실패했을 때 "다시 시도"를 누르면 이 값이 바뀌면서 아래 검색 효과가 다시 돈다.
+  const [retryTick, setRetryTick] = useState(0);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [popularSearches, setPopularSearches] = useState<PopularSearch[]>([]);
   const [popularAsOf, setPopularAsOf] = useState<number | null>(null);
@@ -447,7 +449,7 @@ function App() {
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [query, source]);
+  }, [query, source, retryTick]);
 
   // 이베이 쪽은 검색당 크레딧이 소모돼서 스니덩크(350ms)보다 디바운스를 여유 있게 뒀다.
   useEffect(() => {
@@ -676,7 +678,17 @@ function App() {
       {loading && <p className="text-sm text-neutral-500 mb-3">검색 중...</p>}
 
       {error ? (
-        <p className="text-sm text-rose-500 py-12 text-center">{error}</p>
+        <div className="py-12 text-center">
+          <p className="text-sm text-rose-500">{error}</p>
+          {/* 버튼이 없으면 검색어를 지웠다 다시 쳐야 한다 — 인터넷이 잠깐 끊긴 것뿐인데도. */}
+          <button
+            type="button"
+            onClick={() => setRetryTick((n) => n + 1)}
+            className="mt-4 rounded-full bg-black px-5 py-2 text-sm font-semibold text-white"
+          >
+            다시 시도
+          </button>
+        </div>
       ) : !loading && items.length === 0 ? (
         <p className="text-sm text-neutral-400 py-12 text-center">검색 결과가 없습니다.</p>
       ) : (
