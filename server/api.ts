@@ -2756,7 +2756,7 @@ async function warmPackPrices(apiKey: string) {
     for (const slug of Object.keys(PPT_SET_NAMES)) {
       const hit = packPriceCache.get(slug)
       if (hit && packPriceFresh(hit)) continue
-      await getSetPrices(slug, apiKey, { pages: 3, pauseMs: 70_000 })
+      await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 70_000 })
       await savePackPriceFile()
       // 페이지 하나가 크레딧 200, 분당 한도가 500이라 세트 사이도 70초씩 띄운다.
       await new Promise((r) => setTimeout(r, 70_000))
@@ -2805,7 +2805,10 @@ async function getSetPrices(
   // 앞번호 카드가 빠진 채 하루 동안 굳는다(Destined Rivals가 45번부터 시작하던 문제).
   if (hit && packPriceFresh(hit)) return hit.prices
   const lang = slug.startsWith('ja-') ? 'japanese' : 'english'
-  const pages = opts.pages ?? 2
+  // 한 번에 200행까지만 오므로, 행이 많은 세트는 여러 번 이어받아야 앞번호가 안 잘린다
+  // (SV2a 151은 변형판까지 516행이라 2페이지=400행으로는 1~42번이 통째로 빠졌다).
+  // 짧은 페이지가 오면 바로 멈추므로 작은 세트는 여전히 1페이지만 쓴다.
+  const pages = opts.pages ?? 5
   try {
     const prices: Record<string, number> = {}
     const names: Record<string, string> = {}
