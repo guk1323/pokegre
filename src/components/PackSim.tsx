@@ -711,6 +711,14 @@ export function PackSim({
             쓰이는 포인트로 현금 가치가 없습니다. 확률은 재미용 근사치라 실제 봉입률과 다릅니다.
           </p>
           {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
+        </>
+      )}
+
+      {/* 개봉 연출·결과·앨범 담기·자랑 — 개봉은 보관함에서 하므로 보관함 탭에 그린다
+          (쇼핑 탭은 구매만). 아래 보관함 목록 위에 결과가 뜬다. */}
+      {tab === 'stash' && !!pack && (
+        <>
+          {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
 
           {boxInfo && pack && !boxQueue && (
             <p className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
@@ -1248,10 +1256,7 @@ export function PackSim({
                       </p>
                       <button
                         type="button"
-                        onClick={() => {
-                          setTab('open');
-                          void openBox(s3, 'stash');
-                        }}
+                        onClick={() => void openBox(s3, 'stash')}
                         disabled={busy}
                         className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                       >
@@ -1274,10 +1279,7 @@ export function PackSim({
                       </p>
                       <button
                         type="button"
-                        onClick={() => {
-                          setTab('open');
-                          void open(s3, 'stash');
-                        }}
+                        onClick={() => void open(s3, 'stash')}
                         disabled={busy}
                         className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                       >
