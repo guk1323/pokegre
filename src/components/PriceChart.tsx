@@ -111,11 +111,16 @@ export function PriceChart({
 
       {/* 등급을 안 고르면 PSA10과 생카가 한 줄에 섞여 그려진다. 박스는 등급이 없어서
           API가 빈 배열을 주고, 그때는 선택기 자체를 띄우지 않는다. */}
+      {/* 라벨 없이 "A"만 떠 있으면 무엇을 고르는 칸인지 알 수 없다(지적받음). A·B·C·D가
+          각각 어느 정도 상태인지는 스니커덩크가 밝히지 않아 우리가 풀어 쓰지 않고,
+          "무엇을 고르는 칸인지"만 적는다. */}
       {conditions.length > 0 && (
+        <label className="mb-2 block">
+          <span className="mb-1 block text-[11px] font-semibold text-neutral-400">카드 상태·감정 등급</span>
         <select
           value={condition}
           onChange={(e) => onConditionChange(e.target.value)}
-          className="mb-2 w-full rounded-lg border border-neutral-200 px-2 py-1 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-1 focus:ring-black"
+          className="w-full rounded-lg border border-neutral-200 px-2 py-1 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-1 focus:ring-black"
         >
           {conditions.map((c) => (
             <option key={c.code} value={c.code}>
@@ -123,6 +128,7 @@ export function PriceChart({
             </option>
           ))}
         </select>
+        </label>
       )}
 
       {loading ? (

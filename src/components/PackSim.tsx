@@ -717,14 +717,29 @@ export function PackSim({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={checkIn}
-            disabled={busy || !sim?.canCheckIn}
-            className="w-full rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40 sm:ml-auto sm:w-auto"
-          >
-            {sim?.canCheckIn ? `출석하고 ${gp(DAILY_BUDGET)} 받기` : '오늘 출석 완료'}
-          </button>
+          {/* 잔액이 상한이면 눌러도 한 푼도 안 들어온다. 버튼을 그대로 열어 두면 눌러 보고
+              아무 일도 안 일어나는 것처럼 보이므로, 미리 이유를 적어 준다. */}
+          {(() => {
+            const full = (sim?.balance ?? 0) >= MAX_BALANCE;
+            const label = !sim?.canCheckIn ? '오늘 출석 완료' : full ? `GP가 가득 찼습니다` : `출석하고 ${gp(DAILY_BUDGET)} 받기`;
+            return (
+              <div className="w-full sm:ml-auto sm:w-auto">
+                <button
+                  type="button"
+                  onClick={checkIn}
+                  disabled={busy || !sim?.canCheckIn || full}
+                  className="w-full rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40 sm:w-auto"
+                >
+                  {label}
+                </button>
+                {sim?.canCheckIn && full && (
+                  <p className="mt-1 text-[11px] text-neutral-400 sm:text-right">
+                    보유 GP가 상한({gp(MAX_BALANCE)})이라 지금 받으면 사라집니다. 팩을 열어 GP를 쓰면 다시 받을 수 있습니다.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
         {sim?.admin && (
           <label className="mt-3 flex items-center justify-end gap-1.5 text-xs text-neutral-400">
@@ -841,7 +856,8 @@ export function PackSim({
                       </p>
                       {on ? (
                         <div className="mt-2 space-y-1.5">
-                          {/* 낱팩·박스 모두 "GP 주고 사서 보관함에 담기"로 똑같으므로 버튼도 같은 크기·같은 모양이다 */}
+                          {/* 낱팩이 기본 행동이라 검정(꽉 찬) 버튼, 박스는 테두리 버튼으로 낮춘다.
+                              둘 다 검정이면 30배 비싼 박스를 실수로 누르기 쉽다(지적받음). */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -865,7 +881,7 @@ export function PackSim({
                                     void buyBox(s2.slug);
                                   }}
                                   disabled={busy || !canBox}
-                                  className="w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                                  className="w-full rounded-lg border-2 border-neutral-800 bg-white py-2 text-sm font-bold text-neutral-900 hover:bg-neutral-50 disabled:opacity-40"
                                 >
                                   {busy
                                     ? '구매 중…'
@@ -891,7 +907,7 @@ export function PackSim({
                             e.stopPropagation();
                             onOpenSet(s2.slug);
                           }}
-                          className="mt-1.5 w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600"
+                          className="mt-1.5 w-full rounded-lg py-1.5 text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-black"
                         >
                           수록 카드 전체 보기
                         </button>
