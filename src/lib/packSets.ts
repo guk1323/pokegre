@@ -20,8 +20,8 @@ export const NA_REGULAR: RateProfile = {
 };
 // 북미판 메가 시리즈(Mega Evolution) 전용 — 세트 데이터로 직접 확인(2026-07-26):
 // 금색 HR·ACE가 없고, 대신 일본판 MUR에 해당하는 MHR(메가 하이퍼레어) 2장이 최상위다.
-// MHR 확률은 일본판 MUR과 같은 희소성(약 40박스당 1장)으로 잡은 추정치 — 실측 자료가
-// 생기면 이 숫자만 바꾸면 된다.
+// MHR 0.07%(약 1,430팩당 1장)는 사용자 검증 완료(2026-07-26) — 해외 실측 집계가
+// 1,200~1,500팩당 1장(0.067~0.083%)이라 이 값이 그 한가운데다.
 export const NA_MEGA: RateProfile = {
   commons: 5,
   uncommons: 3,
@@ -79,6 +79,8 @@ export const JP_REGULAR: RateProfile = {
 // MUR 봉입률: 사용자 조사 자료(2026-07) 기준 50~60박스당 1장, 전 세트 동일 →
 // 팩당 0.00033으로 박스 환산 약 1/50(박스 SR+ 보장 배분 포함, 시뮬레이션 검증).
 // ACE는 메가 세트에 수록이 없어 뺐다.
+// MUR 0.03%(약 3,333팩 = 박스 111개당 1장)는 사용자 검증 완료(2026-07-26).
+// 실물은 세트에 따라 50~60박스~100박스당 1장 수준이라 그 하한(가장 드문 쪽)을 쓴다.
 export const JP_MEGA: RateProfile = {
   commons: 3,
   uncommons: 1,
@@ -122,6 +124,10 @@ export const JP_151: RateProfile = {
 // 없는 등급을 광고하게 된다 — 실제 뽑기에서는 그 등급 풀이 비어 fallback으로 빠진다.
 // ACE 자리를 빼도 나머지 등급의 확률은 그대로고(각 등급이 자기 몫만 차지한다) 빠진
 // 몫은 fallback으로 가므로, 뽑기 결과는 한 치도 안 바뀌고 표시만 정직해진다.
+//
+// ⚠️ 빠진 몫을 "일반 레어"로 채우는 것이 맞다는 것은 사용자 검증 완료(2026-07-26).
+// 실물 팩에서 ACE 자리는 트레이너스·일반 레어 슬롯을 대체해 들어가는 구조라,
+// ACE가 없는 세트라고 RR·AR 같은 상위 등급이 반사이익으로 늘지는 않는다.
 const withoutAce = (p: RateProfile): RateProfile => ({
   ...p,
   slots: p.slots.map((s) => ({ ...s, rolls: s.rolls.filter(([tier]) => tier !== 'ACE SPEC Rare') })),
