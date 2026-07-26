@@ -643,11 +643,14 @@ function App() {
   const homeMain = (
     <>
       <OnboardingBanner />
+      {/* 오늘의 상점을 인기 검색어보다 위에 둔다(2026-07-26 사용자 결정). 상점은 팩 사진이
+          있어 첫인상을 만들고 매일 진열이 바뀌어 다시 올 이유가 되는데, 아래에 두면 폰에서
+          제목만 걸치고 사진이 잘렸다. 인기 검색어는 아직 항목이 적고, 검색하러 온 사람은
+          맨 위 검색창을 바로 쓴다. */}
+      <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
       <div className="mb-6">
         <PopularSearches items={popularSearches} asOf={popularAsOf} loading={popularLoading} onSelect={setQuery} />
       </div>
-      {/* 오늘의 팩 — 카드 뽑기 입구. 인기 검색어와 뉴스 사이(사용자 지정 위치). */}
-      <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
       <PokemonNews items={news} loading={newsLoading} />
     </>
   );
