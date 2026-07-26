@@ -42,6 +42,7 @@ const MyPage = lazy(() => import('./components/MyPage').then((m) => ({ default: 
 const ReportInbox = lazy(() => import('./components/ReportInbox').then((m) => ({ default: m.ReportInbox })));
 const VisitStats = lazy(() => import('./components/VisitStats').then((m) => ({ default: m.VisitStats })));
 const ScanTest = lazy(() => import('./components/ScanTest').then((m) => ({ default: m.ScanTest })));
+const FleaAdmin = lazy(() => import('./components/FleaAdmin').then((m) => ({ default: m.FleaAdmin })));
 const PackSim = lazy(() => import('./components/PackSim').then((m) => ({ default: m.PackSim })));
 const SetsView = lazy(() => import('./components/SetsView').then((m) => ({ default: m.SetsView })));
 const TitleFeedbackList = lazy(() => import('./components/TitleFeedbackList').then((m) => ({ default: m.TitleFeedbackList })));
@@ -61,7 +62,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
 type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
@@ -367,7 +368,8 @@ function App() {
     // 운영자가 로그아웃했는데 운영자 전용 화면이 그대로 열려 있으면 빈 화면만 남는다.
     // (세트별 목록은 공개 화면이라 제외 — 로그아웃해도 그대로 볼 수 있다.)
     // packsim은 이제 이용자 화면이지만 로그인 필요라, 로그아웃하면 홈으로 보낸다.
-    if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'packsim') setView('cards');
+    if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'packsim')
+      setView('cards');
   }
 
   useEffect(() => {
@@ -888,7 +890,7 @@ function App() {
                       type="button"
                       onClick={() => setOpenMenu(openMenu === 'admin' ? null : 'admin')}
                       className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
-                        view === 'reports' || view === 'stats' || view === 'scantest'
+                        view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea'
                           ? 'bg-black text-white'
                           : 'text-neutral-600 hover:bg-neutral-100'
                       }`}
@@ -900,6 +902,7 @@ function App() {
                         {([
                           { v: 'reports', label: '신고함' },
                           { v: 'stats', label: '통계' },
+                          { v: 'flea', label: '플리마켓' },
                           { v: 'scantest', label: '스캔 테스트' },
                         ] as { v: MainView; label: string }[]).map((it) => (
                           <button
@@ -950,6 +953,8 @@ function App() {
             </div>
           ) : view === 'stats' ? (
             <VisitStats />
+          ) : view === 'flea' ? (
+            <FleaAdmin />
           ) : view === 'scantest' ? (
             <ScanTest />
           ) : view === 'packsim' ? (

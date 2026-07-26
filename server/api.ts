@@ -1394,6 +1394,12 @@ const MAX_SCAN_FEEDBACK = 300
 const TRANSLATION_FEEDBACK_FILE = dataFile('translation-feedback.json')
 // 번역 오류 신고도 사전(translateQuery) 보정 참고용이라 최근 것만 남긴다.
 const MAX_TRANSLATION_FEEDBACK = 300
+// 플리마켓(회원끼리 카드 거래) 운영 설정. 기능을 만들기 전에 스위치부터 둔다 —
+// 문제가 생겼을 때 배포 없이 바로 닫을 수 있어야 하기 때문이다.
+const FLEA_CONFIG_FILE = dataFile('flea-config.json')
+// 매물·거래 기록. 아직 만들지 않은 기능이라 파일이 없는 게 정상이다(없으면 0건).
+const FLEA_LISTINGS_FILE = dataFile('flea-listings.json')
+const FLEA_DEALS_FILE = dataFile('flea-deals.json')
 const EVENT_STATS_FILE = dataFile('event-stats.json')
 // 작가별 조회 횟수(누적). "작가별 조회" 이벤트에 딸려 온 작가 이름으로 센다.
 const ARTIST_STATS_FILE = dataFile('artist-stats.json')
@@ -2329,6 +2335,128 @@ function mountTranslationFeedback(app: Mountable) {
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify({ items: [...all].reverse() }))
+  })
+}
+
+// ── 플리마켓 ────────────────────────────────────────────────────────────────
+// 회원끼리 실물 카드를 거래하고, 그 거래가로 우리 자체 시세를 만드는 기능.
+// 아직 화면은 없고 운영 설정만 있다. 순서를 이렇게 잡은 이유:
+//   기능을 만든 뒤에 스위치를 붙이면, 문제가 터졌을 때 배포(약 7초 정지)를 해야 닫힌다.
+//   스위치를 먼저 두면 화면에서 즉시 닫을 수 있다.
+//
+// 우리는 돈을 만지지 않는다(송금·배송은 당사자끼리). 전자상거래법상 '통신판매중개'라
+// 제20조 제1항 고지("저희는 거래 당사자가 아닙니다")가 필수다 — noticeShown이 그 확인이다.
+export type FleaConfig = {
+  // 0 준비중(닫힘) · 1 매물+쪽지 · 2 거래기록까지 · 3 시세 공개
+  stage: 0 | 1 | 2 | 3
+  // 단계와 별개인 즉시 차단 스위치. false면 단계가 몇이든 닫힌다.
+  open: boolean
+  // 같은 카드·같은 등급으로 이만큼 모여야 시세로 보여준다.
+  minSamples: number
+  // 외부 시세(스니커덩크·이베이) 대비 이 배수 밖이면 시세 집계에서 뺀다.
+  outlierLow: number
+  outlierHigh: number
+  // 제20조 제1항 고지문을 화면에 붙였는지. 이걸 안 켜면 3단계로 못 간다.
+  noticeShown: boolean
+  updatedAt: number
+}
+
+const FLEA_DEFAULT: FleaConfig = {
+  stage: 0,
+  open: false,
+  minSamples: 3,
+  outlierLow: 0.3,
+  outlierHigh: 3,
+  noticeShown: false,
+  updatedAt: 0,
+}
+
+function normalizeFleaConfig(raw: unknown): FleaConfig {
+  const b = (raw ?? {}) as Partial<FleaConfig>
+  const stage = [0, 1, 2, 3].includes(Number(b.stage)) ? (Number(b.stage) as FleaConfig['stage']) : 0
+  const num = (v: unknown, fallback: number, min: number, max: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n >= min && n <= max ? n : fallback
+  }
+  return {
+    stage,
+    open: b.open === true,
+    minSamples: Math.round(num(b.minSamples, FLEA_DEFAULT.minSamples, 1, 100)),
+    outlierLow: num(b.outlierLow, FLEA_DEFAULT.outlierLow, 0.01, 1),
+    outlierHigh: num(b.outlierHigh, FLEA_DEFAULT.outlierHigh, 1, 100),
+    noticeShown: b.noticeShown === true,
+    updatedAt: typeof b.updatedAt === 'number' ? b.updatedAt : 0,
+  }
+}
+
+function mountFleaMarket(app: Mountable) {
+  let config: FleaConfig | null = null
+
+  async function load(): Promise<FleaConfig> {
+    if (config) return config
+    return firstReadOnce('flea-config', async () => {
+      if (config) return config
+      try {
+        config = normalizeFleaConfig(JSON.parse(await readFile(FLEA_CONFIG_FILE, 'utf-8')))
+      } catch {
+        config = { ...FLEA_DEFAULT }
+      }
+      return config!
+    })
+  }
+
+  // 매물·거래 건수. 아직 기능이 없어 파일이 없는 게 정상이므로 없으면 0으로 둔다.
+  async function countOf(file: string): Promise<number> {
+    try {
+      const parsed = JSON.parse(await readFile(file, 'utf-8'))
+      return Array.isArray(parsed) ? parsed.length : 0
+    } catch {
+      return 0
+    }
+  }
+
+  app.use('/api/local/flea/config', async (req, res) => {
+    const viewer = await currentUser(req)
+    // 운영자가 아니면 이 경로가 있다는 것 자체를 알리지 않는다(다른 운영 경로와 같은 방식).
+    if (!isAdmin(viewer)) {
+      res.statusCode = 404
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: 'not found' }))
+      return
+    }
+
+    if (req.method === 'PUT') {
+      try {
+        const next = normalizeFleaConfig(JSON.parse(await readBody(req)))
+        // 고지문을 안 붙였으면 시세 공개(3단계)로 못 간다. 화면에서도 막지만
+        // 서버에서 한 번 더 막는다 — 여기가 진짜 잠금이다.
+        if (next.stage === 3 && !next.noticeShown) {
+          res.statusCode = 400
+          res.setHeader('content-type', 'application/json')
+          res.end(JSON.stringify({ error: '고지문을 붙인 뒤에 시세를 공개할 수 있습니다.' }))
+          return
+        }
+        next.updatedAt = Date.now()
+        config = next
+        await writeJsonFile(FLEA_CONFIG_FILE, next)
+        res.statusCode = 200
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify(next))
+      } catch {
+        res.statusCode = 400
+        res.end()
+      }
+      return
+    }
+
+    const [current, listings, deals] = await Promise.all([
+      load(),
+      countOf(FLEA_LISTINGS_FILE),
+      countOf(FLEA_DEALS_FILE),
+    ])
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ config: current, counts: { listings, deals } }))
   })
 }
 
@@ -4249,6 +4377,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountVisitStats(app)
   mountScanFeedback(app)
   mountTranslationFeedback(app)
+  mountFleaMarket(app)
   mountEventStats(app)
   mountKoreanNews(app)
   mountExchangeRate(app)
