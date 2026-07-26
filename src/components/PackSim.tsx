@@ -648,21 +648,23 @@ export function PackSim({
         카드 개봉
       </h2>
 
-      {/* 현황판: 보유 금액·연속 출석·연 팩 수를 나란히, 출석 버튼은 오른쪽 */}
+      {/* 현황판: 보유 GP·연속 출석·개봉한 팩을 나란히, 출석 버튼은 오른쪽.
+          좁은 화면에서는 셋을 한 줄에 두고 버튼을 아래 줄 전체 폭으로 내린다 —
+          한 줄에 다 넣으면 칸이 눌려 숫자가 겹쳐 보였다. */}
       <div className="mt-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-y-4">
-          <div className="grid flex-1 grid-cols-3 gap-2 sm:max-w-md">
-            <div>
+        <div className="flex flex-wrap items-center gap-y-3">
+          <div className="grid w-full grid-cols-3 gap-2 sm:w-auto sm:max-w-md sm:flex-1">
+            <div className="min-w-0">
               <p className="text-xs text-neutral-400">보유 GP</p>
-              <p className="mt-0.5 text-xl font-bold text-black">{gp(sim?.balance ?? 0)}</p>
+              <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">{(sim?.balance ?? 0).toLocaleString()}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs text-neutral-400">연속 출석</p>
-              <p className="mt-0.5 text-xl font-bold text-black">{sim?.streak ?? 0}일</p>
+              <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">{sim?.streak ?? 0}일</p>
             </div>
-            <div>
-              <p className="text-xs text-neutral-400">현재까지 개봉한 팩</p>
-              <p className="mt-0.5 text-xl font-bold text-black">
+            <div className="min-w-0">
+              <p className="text-xs text-neutral-400">개봉한 팩</p>
+              <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">
                 {sim?.opened ?? 0}팩
                 {sim?.god ? <span className="ml-1 align-middle text-xs font-semibold text-amber-600">갓팩 {sim.god}</span> : null}
               </p>
@@ -672,7 +674,7 @@ export function PackSim({
             type="button"
             onClick={checkIn}
             disabled={busy || !sim?.canCheckIn}
-            className="ml-auto rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+            className="w-full rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40 sm:ml-auto sm:w-auto"
           >
             {sim?.canCheckIn ? `출석하고 ${gp(DAILY_BUDGET)} 받기` : '오늘 출석 완료'}
           </button>
@@ -1066,25 +1068,25 @@ export function PackSim({
           )}
 
           {allDone && (
-            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <div className="mt-3 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:flex-wrap sm:items-center">
               <p className="text-sm font-semibold text-neutral-700">
                 {keptDone ? '이 팩의 결과입니다' : <>앨범에 넣을 카드를 고르세요 <span className="text-neutral-500">({keep.size}장 선택됨)</span></>}
               </p>
               {!keptDone && (
-                <>
+                <div className="flex gap-3">
                   <button type="button" onClick={() => setKeep(new Set(pack!.map((c) => c.i)))} className="text-xs text-neutral-500 underline">
                     전부 선택
                   </button>
                   <button type="button" onClick={() => setKeep(new Set())} className="text-xs text-neutral-500 underline">
                     전부 해제
                   </button>
-                </>
+                </div>
               )}
               <button
                 type="button"
                 onClick={() => setShareOpen(true)}
                 disabled={busy || share.shared}
-                className="ml-auto rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+                className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40 sm:ml-auto sm:w-auto"
               >
                 {share.shared ? '자랑 완료' : sim?.canShareBonus ? `커뮤니티에 자랑하기 +${gp(SHARE_BONUS)}` : '커뮤니티에 자랑하기'}
               </button>
@@ -1092,7 +1094,7 @@ export function PackSim({
                 type="button"
                 onClick={keepCards}
                 disabled={busy || keptDone}
-                className="rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+                className="w-full rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40 sm:w-auto"
               >
                 {keptDone
                   ? keptCount
@@ -1402,7 +1404,10 @@ export function PackSim({
                   .map((a) => {
                     const cfgA = packBySlug.get(a.s);
                     const card = setCards[a.s]?.find((c) => c.n === a.n);
-                    const name = card ? koName(!!cfgA?.jp, card.name) : '';
+                    // 세트 목록에서 빠진 팩(진열에서 뺀 세트)의 카드는 이름·이미지를 못 찾는다.
+                    // 그때 빈 칸으로 두면 뭘 모았는지도 알 수 없으니 번호라도 보여준다.
+                    // (아직 불러오는 중이면 잠깐 비워 둔다 — 번호가 깜빡이면 지저분하다.)
+                    const name = card ? koName(!!cfgA?.jp, card.name) : cfgA ? '' : `#${a.n}`;
                     const meta = RARITY[a.r] ?? RARITY.Common;
                     const dk = `${a.s}|${a.n}|${a.m ?? ''}`;
                     const picked = delPick.has(dk);
@@ -1708,7 +1713,7 @@ function CardSlot({
       </div>
       {picking && (
         <p className={`mt-1 text-center text-[11px] font-bold ${picked ? 'text-emerald-600' : 'text-neutral-300'}`}>
-          {picked ? '✓ 앨범에 넣기' : '안 넣음'}
+          {picked ? '✓ 담음' : '안 담음'}
         </p>
       )}
       <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{flipped ? name : ' '}</p>
