@@ -555,6 +555,13 @@ export const CARD_NAME_KO_TO_EN_LONG: [string, string][] = koToEnEntries
   .filter(([ko]) => ko.replace(/\s/g, '').length >= 3)
   .sort((a, b) => b[0].length - a[0].length);
 
+// 대소문자를 무시하되 앞뒤가 알파벳이면 건너뛴다. 그냥 대소문자만 풀면
+// "Aaron's Collection"의 aron이 가보리(Aron)로 잡혀 "A가보리's"가 된다.
+const pokemonEnPatterns = sortedPokemonEnKo.map((entry) => ({
+  re: new RegExp(`(?<![A-Za-z])${entry.en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z])`, 'gi'),
+  ko: entry.ko,
+}));
+
 export function koreanizeEnglishCardName(name: string): string {
   // 트레이너·인물·아이템 카드는 이름 전체가 일치할 때만 통째로 바꾼다(부분 치환 사고 방지).
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
@@ -593,9 +600,12 @@ export function koreanizeEnglishCardName(name: string): string {
       result = result.split(en).join(ko);
     }
   }
-  for (const entry of sortedPokemonEnKo) {
-    if (result.includes(entry.en)) {
-      result = result.split(entry.en).join(entry.ko);
+  // 세트에 따라 "slowpoke"·"REMORAID"처럼 대소문자가 제각각이라, 대소문자를 무시하고 맞춘다.
+  for (const entry of pokemonEnPatterns) {
+    entry.re.lastIndex = 0;
+    if (entry.re.test(result)) {
+      entry.re.lastIndex = 0;
+      result = result.replace(entry.re, entry.ko);
     }
   }
 
