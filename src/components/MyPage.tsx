@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SnkrdunkCard } from '../api/snkrdunk';
 import {
+  deleteAccount,
   PROVIDER_LABEL,
   UNLINK_LAST,
   nicknameErrorMessage,
@@ -256,6 +257,68 @@ function AccountCard({
 
 // 관심 카드는 localStorage에 있어서 로그인과 무관하게 동작한다. 그래서 마이페이지를
 // 로그인 전용으로 막지 않고, 계정 카드만 로그인 여부에 따라 바꾼다.
+// 회원 탈퇴. 로그아웃 옆에 두면 잘못 누르므로 페이지 맨 아래에 따로 두고, 무엇이
+// 지워지고 무엇이 남는지 먼저 밝힌다.
+function DeleteAccount({ loggedIn, onDone }: { loggedIn: boolean; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  if (!loggedIn) return null;
+
+  async function run() {
+    if (!window.confirm('정말 탈퇴하시겠습니까? 되돌릴 수 없습니다.')) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await deleteAccount();
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '탈퇴 처리에 실패했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-10 border-t border-neutral-200 pt-5">
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)} className="text-xs text-neutral-400 underline underline-offset-2">
+          회원 탈퇴
+        </button>
+      ) : (
+        <div className="rounded-xl border border-neutral-200 p-4">
+          <p className="text-sm font-bold text-black">회원 탈퇴</p>
+          <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-neutral-600">
+            <li>회원 기록, 로그인 연결, 닉네임이 지워집니다.</li>
+            <li>즐겨찾기·최근 본 카드가 지워집니다.</li>
+            <li>오늘의 상점의 GP·보관함·앨범이 모두 지워집니다.</li>
+            <li>이미 쓴 글과 댓글은 남고, 작성자만 알 수 없게 표시됩니다. 먼저 지우고 싶으시면 탈퇴 전에 직접 지워 주세요.</li>
+            <li>백업본에 남은 기록은 최대 7일 안에 함께 사라집니다.</li>
+          </ul>
+          {err && <p className="mt-2 text-xs text-rose-500">{err}</p>}
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={run}
+              disabled={busy}
+              className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40"
+            >
+              {busy ? '처리 중…' : '탈퇴하기'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-600"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function MyPage({
   loggedIn,
   nickname,
@@ -324,6 +387,7 @@ export function MyPage({
         onToggleFavorite={onToggleFavorite}
         onClear={onClearFavorites}
       />
+      <DeleteAccount loggedIn={nickname !== null || providers.length > 0} onDone={() => window.location.replace('/')} />
     </>
   );
 }

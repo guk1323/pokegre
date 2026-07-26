@@ -5,13 +5,16 @@ import { nicknameErrorMessage, setNickname } from '../api/auth';
 // 많아서 게시판에 그대로 노출되면 곤란하기 때문(애초에 동의항목에서 요청하지도 않는다).
 export function NicknameSetup({ onDone }: { onDone: (nickname: string) => void }) {
   const [value, setValue] = useState('');
+  // 만 14세 미만은 법정대리인 동의가 필요하다. 우리는 대리인 동의를 받을 방법이 없으므로,
+  // 가입 문턱에서 나이를 스스로 확인하게 하고 그 아래면 가입을 진행하지 않는다.
+  const [ageOk, setAgeOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = value.trim();
-    if (!trimmed) return;
+    if (!trimmed || !ageOk) return;
     setSaving(true);
     setError(null);
     try {
@@ -42,9 +45,25 @@ export function NicknameSetup({ onDone }: { onDone: (nickname: string) => void }
         />
         {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
 
+        <label className="mt-3 flex items-start gap-2 text-xs text-neutral-600">
+          <input
+            type="checkbox"
+            checked={ageOk}
+            onChange={(e) => setAgeOk(e.target.checked)}
+            className="mt-0.5 flex-shrink-0"
+          />
+          <span>
+            <b className="text-black">만 14세 이상</b>입니다. (필수)
+            <br />
+            <span className="text-neutral-400">
+              만 14세 미만은 법정대리인 동의가 필요해 지금은 가입할 수 없습니다.
+            </span>
+          </span>
+        </label>
+
         <button
           type="submit"
-          disabled={saving || !value.trim()}
+          disabled={saving || !value.trim() || !ageOk}
           className="mt-4 w-full rounded-lg bg-black py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-50"
         >
           {saving ? '저장 중...' : '시작하기'}

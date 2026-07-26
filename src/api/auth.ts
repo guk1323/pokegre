@@ -27,6 +27,13 @@ export async function logout(): Promise<void> {
   await fetch('/api/local/auth/logout', { method: 'POST' });
 }
 
+// 회원 탈퇴. 회원 기록·로그인 수단·즐겨찾기·오늘의 상점 기록이 지워진다.
+// 이미 쓴 글·댓글은 남고 작성자만 알 수 없게 된다(화면에서 미리 안내한다).
+export async function deleteAccount(): Promise<void> {
+  const res = await fetch('/api/local/auth/me', { method: 'DELETE' });
+  if (!res.ok) throw new Error('탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+}
+
 export const NICKNAME_TAKEN = 'nickname_taken';
 export const NICKNAME_RESERVED = 'nickname_reserved';
 export const NICKNAME_BANNED = 'nickname_banned';

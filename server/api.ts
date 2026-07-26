@@ -3359,6 +3359,40 @@ function mountAuth(
 
     try {
       // GET /me — 로그인 상태 확인
+      // DELETE /me — 회원 탈퇴. 가입은 클릭 한 번인데 탈퇴만 이메일로 받으면 안 된다.
+      //
+      // 지우는 것: 회원 기록·로그인 수단·세션·즐겨찾기·오늘의 상점(GP·앨범).
+      // 남기는 것: 이미 쓴 글·댓글. 다른 사람이 주고받은 대화가 통째로 사라지면 흐름이
+      // 끊기므로 글은 두되 작성자를 알 수 없게 한다(회원 기록이 사라지면 이름 자리가
+      // "알 수 없음"으로 표시된다). 이 점은 탈퇴 전에 화면에서 안내한다.
+      // 백업본에는 최대 7일 남는다 — 개인정보처리방침에 밝혀 두었다.
+      if (segments[0] === 'me' && req.method === 'DELETE') {
+        const user = await currentUser(req)
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
+        const all = await loadUsers()
+        const idx = all.findIndex((u) => u.id === user.id)
+        if (idx >= 0) all.splice(idx, 1)
+        await persistUsers()
+
+        sessions = (await loadSessions()).filter((sn) => sn.userId !== user.id)
+        await persistSessions()
+
+        const cols = await loadCollections()
+        delete cols[user.id]
+        await persistCollections()
+
+        const store = await loadPacksim()
+        delete store[user.id]
+        await persistPacksim()
+
+        res.setHeader('set-cookie', sessionCookie(req, '', 0))
+        sendJson(res, 200, { ok: true })
+        return
+      }
+
       if (segments[0] === 'me') {
         const user = await currentUser(req)
         // kakaoId는 내려주지 않는다 — 회원번호가 클라이언트로 새면 추적에 쓰일 수 있다.
