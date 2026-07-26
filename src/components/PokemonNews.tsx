@@ -20,7 +20,7 @@ export function PokemonNews({ items, loading }: { items: KoreanNewsItem[]; loadi
   const nextCount = Math.min(PAGE_SIZE, remaining);
 
   return (
-    <div className="mt-8 mb-6">
+    <div className="">
       <p className="mb-3 text-base font-bold text-neutral-900">
         포켓몬 뉴스 <span className="align-middle text-xs font-normal text-neutral-400">출처: 포켓몬코리아</span>
       </p>

@@ -640,19 +640,23 @@ function App() {
   const hasMore = !exhausted;
   const isHome = query.trim().length === 0;
 
+  // 홈의 세로 간격은 여기 한 곳에서만 정한다(space-y-8 = 32px).
+  //
+  // 예전에는 구역마다 자기 바깥 여백을 들고 있었다(배너 mb-6, 상점 mt-8, 뉴스 mt-8 mb-6…).
+  // 그래서 순서를 바꾸자마자 간격이 32/0/32로 어긋났다 — 상점 아래에 여백이 없고 인기
+  // 검색어 위에도 없어서 둘이 딱 붙어 버렸다. 간격을 컨테이너가 쥐고 있으면 순서를 어떻게
+  // 바꿔도 항상 같은 간격이 나온다. 구역 컴포넌트에는 바깥 여백을 넣지 말 것.
   const homeMain = (
-    <>
+    <div className="space-y-8">
       <OnboardingBanner />
       {/* 오늘의 상점을 인기 검색어보다 위에 둔다(2026-07-26 사용자 결정). 상점은 팩 사진이
           있어 첫인상을 만들고 매일 진열이 바뀌어 다시 올 이유가 되는데, 아래에 두면 폰에서
           제목만 걸치고 사진이 잘렸다. 인기 검색어는 아직 항목이 적고, 검색하러 온 사람은
           맨 위 검색창을 바로 쓴다. */}
       <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
-      <div className="mb-6">
-        <PopularSearches items={popularSearches} asOf={popularAsOf} loading={popularLoading} onSelect={setQuery} />
-      </div>
+      <PopularSearches items={popularSearches} asOf={popularAsOf} loading={popularLoading} onSelect={setQuery} />
       <PokemonNews items={news} loading={newsLoading} />
-    </>
+    </div>
   );
 
   const myPageMain = (

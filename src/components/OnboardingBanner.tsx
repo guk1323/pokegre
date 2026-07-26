@@ -60,7 +60,7 @@ export function OnboardingBanner() {
   }
 
   return (
-    <div className="relative mb-6 rounded-xl border border-neutral-200 bg-neutral-50 p-4 pr-10 sm:p-5 sm:pr-12">
+    <div className="relative rounded-xl border border-neutral-200 bg-neutral-50 p-4 pr-10 sm:p-5 sm:pr-12">
       <button
         type="button"
         aria-label="공지 닫기"
