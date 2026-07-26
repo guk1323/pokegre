@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
 import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
@@ -919,6 +920,9 @@ function App() {
         <main className="px-4 py-6">
           {/* 부화면(커뮤니티·센터링·작가·세트 등)은 눌렀을 때 내려받는다(lazy).
               첫 화면(카드 시세)이 그만큼 가벼워진다. */}
+          {/* 화면별로도 한 겹 더 감싼다. 안쪽에서 터졌을 때 상단 메뉴까지 사라지면
+              다른 화면으로 옮겨갈 방법이 없어진다. */}
+          <ErrorBoundary>
           <Suspense fallback={<p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>}>
           {view === 'reports' ? (
             <div className="space-y-10">
@@ -1129,6 +1133,7 @@ function App() {
             </>
           )}
         </Suspense>
+          </ErrorBoundary>
         </main>
 
         <Footer />
