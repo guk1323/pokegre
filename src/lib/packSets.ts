@@ -117,6 +117,18 @@ export const JP_151: RateProfile = {
 };
 
 // jp=true면 일본판(카드명 일본어·5장) · false면 북미판.
+// ACE SPEC은 시대에 따라 수록되지 않은 세트가 있다(북미 옵시디언 플레임처럼 부활 전,
+// 블랙볼트·화이트플레어처럼 종료 후). 그런 세트에도 ACE를 확률표에 두면 절대 나올 수
+// 없는 등급을 광고하게 된다 — 실제 뽑기에서는 그 등급 풀이 비어 fallback으로 빠진다.
+// ACE 자리를 빼도 나머지 등급의 확률은 그대로고(각 등급이 자기 몫만 차지한다) 빠진
+// 몫은 fallback으로 가므로, 뽑기 결과는 한 치도 안 바뀌고 표시만 정직해진다.
+const withoutAce = (p: RateProfile): RateProfile => ({
+  ...p,
+  slots: p.slots.map((s) => ({ ...s, rolls: s.rolls.filter(([tier]) => tier !== 'ACE SPEC Rare') })),
+});
+export const JP_REGULAR_NO_ACE = withoutAce(JP_REGULAR);
+export const NA_REGULAR_NO_ACE = withoutAce(NA_REGULAR);
+
 // price는 한 팩 정가(원). "비싼 팩 하나 vs 싼 팩 여러 개"를 고르는 기준이라 실제 정가를 쓴다.
 // 기준: 포켓몬센터 공식 정가(사용자 확인, 2026-07) —
 //   일본판 일반팩 180엔(2026-04까지 출시작)·200엔(2026-05부터) ≈ 1,600원·1,800원
@@ -168,26 +180,26 @@ export const PACK_SETS: PackSet[] = [
   JP('M3', '니힐제로', 1600, { profile: JP_MEGA }),
   JP('M1L', '메가브레이브', 1600, { profile: JP_MEGA }),
   JP('M1S', '메가심포니아', 1600, { profile: JP_MEGA }),
-  JP('SV11B', '블랙볼트'),
-  JP('SV11W', '화이트플레어'),
-  JP('SV10', '로켓단의 영광'),
-  JP('SV9', '배틀파트너즈'),
+  JP('SV11B', '블랙볼트', 1600, { profile: JP_REGULAR_NO_ACE }), // ACE 수록 없음(세트 데이터 확인)
+  JP('SV11W', '화이트플레어', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV10', '로켓단의 영광', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV9', '배틀파트너즈', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV8', '초전브레이커'),
   JP('SV7', '스텔라미라클'),
   JP('SV6', '변환의 가면'),
-  JP('SV3', '흑염의 지배자'),
+  JP('SV3', '흑염의 지배자', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV2a', '포켓몬 카드 151', 2600, { profile: JP_151, godRate: 1 / 750, mirror: 'jp151', boxPacks: 20 }), // 특수팩: 290엔·7장·20팩 박스·갓팩 존재
   // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
   // 이름은 정식 한글명이 따로 없어(한국판은 일본판 이름 체계) 영어명 음역을 쓴다.
   NA('me01', '메가 에볼루션', NA_MEGA),
-  NA('sv10', '데스티니드 라이벌'),
-  NA('sv09', '저니 투게더'),
+  NA('sv10', '데스티니드 라이벌', NA_REGULAR_NO_ACE), // ACE 수록 없음(세트 데이터 확인)
+  NA('sv09', '저니 투게더', NA_REGULAR_NO_ACE),
   NA('sv08.5', '프리즈매틱 에볼루션', NA_PRISMATIC, 6500, { godRate: 1 / 1000, boxPacks: 0, mirror: 'prismatic' }), // 특별세트(36팩 박스 없음), 갓팩 존재
   NA('sv08', '서징 스파크'),
   NA('sv07', '스텔라 크라운'),
   NA('sv06', '트와일라잇 마스커레이드'),
   NA('sv03.5', '151', NA_151, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트, 갓팩 존재
-  NA('sv03', '옵시디언 플레임'),
+  NA('sv03', '옵시디언 플레임', NA_REGULAR_NO_ACE), // ACE 부활 이전 세트
   // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
 ];

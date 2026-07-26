@@ -136,7 +136,7 @@ function ratesOf(pack: PackSet): { ko: string; pct: number; per: number }[] {
 // 확률은 "팩 종류"마다 정해져 있고 같은 종류면 세트가 달라도 같다. 팩을 하나씩
 // 바꿔가며 봐야 하면 불편하니, 종류별로 묶어 한 화면에 다 보여준다.
 const LIVE_TODAY: PackSet[] = livePacks();
-const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profile) => {
+const RAW_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profile) => {
   const packs = LIVE_TODAY.filter((p) => p.profile === profile);
   const first = packs[0];
   // 팩 장수는 프로필에서 계산한다 — 적어 두면 151(7장)처럼 다른 팩이 생겼을 때 틀린다.
@@ -153,12 +153,19 @@ const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profi
         ? `북미판 특별세트 (${size}장)`
         : `북미판 메인 부스터 (${size}장)`;
   return {
-    name: `${kind} — ${packs.length}종`,
+    kind,
+    // 같은 종류라도 ACE SPEC 수록 여부로 확률이 갈린다.
+    noAce: !profile.slots.some((s) => s.rolls.some(([tier]) => tier === 'ACE SPEC Rare')),
     packs: packs.map((p) => p.label.replace(/^\[.+?\]\s*/, '')),
     rates: ratesOf(first),
     godRate: first.godRate ?? 0,
   };
 });
+// 제목이 똑같은 묶음이 둘로 갈릴 때만 "ACE SPEC 미수록"을 붙인다 — 안 그러면 왜 두 개인지 알 수 없다.
+const PROFILE_GROUPS = RAW_GROUPS.map((g) => ({
+  ...g,
+  name: `${g.kind}${g.noAce && RAW_GROUPS.some((o) => o.kind === g.kind && !o.noAce) ? ' · ACE SPEC 미수록' : ''} — ${g.packs.length}종`,
+}));
 
 // "시세 보기"가 넘기는 목표. 앨범에 보여주는 값이 TCGplayer 마켓가이므로 눌렀을 때도
 // TCGplayer 화면으로 간다(보여준 숫자와 다른 시장으로 보내면 헷갈린다). 검색어는
@@ -1607,22 +1614,13 @@ export function PackSim({
           </div>
 
           <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-            <p className="text-sm font-bold text-neutral-800">박스 개봉</p>
-            <p className="mt-1 text-xs text-neutral-600">
-              일본판 박스는 실물과 같은 봉입 구조입니다 — <b>SR 이상 1장 · AR 3장 · RR 4~5장</b>
-              (ACE 수록 세트는 ACE 1장)이 확정으로 들어가고, 나머지 팩은 커먼·언커먼·레어로
-              채웁니다. 그래서 박스 한 개의 기대값이 위 표와 정확히 맞습니다. 낱팩은 팩마다 위
-              표의 확률을 따로 굴립니다. 북미판 박스는 실물처럼 보장이 없어 순수 확률입니다.
-            </p>
-          </div>
-
-          <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
             <p className="text-sm font-bold text-neutral-800">박스로 열면</p>
             <p className="mt-1 text-xs text-neutral-600">
-              일본판 박스는 실물과 같은 보장 봉입이 있습니다 — <b>SR 이상 1장 · AR 3장 ·
-              RR 4~5장</b>(ACE 수록 세트는 ACE 1장, 151은 마스터볼 미러 1장)이 반드시
-              들어갑니다. 보장이 있어도 박스 전체 기대치는 위 표와 같습니다. 북미판 박스는
-              실물처럼 보장이 없어 팩마다 위 확률이 따로 굴러갑니다.
+              일본판 박스는 실물과 같은 보장 봉입이 있습니다 — <b>SR 이상 1장 · AR 3장 · RR 4~5장</b>
+              (ACE 수록 세트는 ACE 1장, 151은 마스터볼 미러 1장)이 반드시 들어가고, 나머지 팩은
+              커먼·언커먼·레어로 채웁니다. 보장이 있어도 박스 한 개의 기대값은 위 표와 같습니다.
+              낱팩은 팩마다 위 표의 확률을 따로 굴립니다. 북미판 박스는 실물처럼 보장이 없어
+              순수 확률입니다.
             </p>
           </div>
 
