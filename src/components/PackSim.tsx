@@ -527,11 +527,16 @@ export function PackSim({
   }, [tab, value, loadValue]);
 
   // 카드 한 장을 정확히 가리키는 검색 목표를 만든다. 앨범이 보여주는 값이 TCGplayer
-  // 마켓가라 눌렀을 때도 TCGplayer 화면으로 간다. 검색어는 "이름 번호" — 한글 이름은
-  // 기존 번역 파이프라인이 영문으로 바꿔 준다(번호는 039처럼 0 붙은 그대로가 정확).
+  // 마켓가라 눌렀을 때도 TCGplayer 화면으로 간다. 검색어는 "이름 번호"(번호는 039처럼
+  // 0 붙은 그대로가 정확).
+  // ⚠️ 북미판은 원본 이름이 이미 TCGplayer 표기(영문)라 그대로 보낸다. 한글로 바꿨다
+  // 되돌리면 "Team Rocket's" 같은 트레이너 접두어가 한글로 남아("로켓단의 Mewtwo ex")
+  // 검색이 빗나간다 — 실제로 231번 뮤츠가 "매물 없음"으로 나왔다.
+  // 일본판은 원본이 일본어이고 PPT는 영문으로 색인돼 있어, 한글을 거쳐 영문으로
+  // 번역하는 기존 경로를 그대로 쓴다.
   const pickTarget = (slug2: string, n: string, rawName: string): PickTarget => {
     const jp = !!packBySlug.get(slug2)?.jp;
-    return { query: `${koName(jp, rawName)} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
+    return { query: `${jp ? koName(true, rawName) : rawName} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
   };
 
     const usdOf = (a: AlbumCard) => {

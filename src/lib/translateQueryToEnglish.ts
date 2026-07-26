@@ -27,6 +27,24 @@ const pokemonKoSet = new Set(sortedPokemonKoEn.map((e) => e.ko));
 const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['메가', 'Mega '],
   ['찬란한', 'Radiant '], // "찬란한 리자몽"으로 검색하면 Radiant Charizard가 잡히게.
+  // 소유격 트레이너 접두어(로켓단의 영광 이후 세트). koreanizeEnglishTitle의 반대 방향이다 —
+  // 이게 없으면 "로켓단의 뮤츠 ex"가 "로켓단의 Mewtwo ex"로 반만 번역돼 검색이 빗나간다.
+  // 어포스트로피는 TCGplayer 표기대로 곧은 것(')을 쓴다.
+  ['로켓단의', "Team Rocket's "],
+  ['심향의', "Ethan's "],
+  ['이슬의', "Misty's "],
+  ['난천의', "Cynthia's "],
+  ['성호의', "Steven's "],
+  ['페퍼의', "Arven's "],
+  ['마리의', "Marnie's "],
+  ['릴리에의', "Lillie's "],
+  ['모야모의', "Iono's "],
+  ['호프의', "Hop's "],
+  // 지역폼 접두사도 같은 이유로 되돌린다.
+  ['가라르', 'Galarian '],
+  ['알로라', 'Alolan '],
+  ['히스이', 'Hisuian '],
+  ['팔데아', 'Paldean '],
 ];
 
 // 북미판(english) 전용. 한글(일본판) 팩 이름 → 영문판 세트명. 일본판과 영문판은
@@ -139,5 +157,7 @@ export function translateSearchQueryToEnglish(
       result = result.split(entry.ko).join(entry.en);
     }
   }
-  return result.trim();
+  // 접두어를 바꾸면 "Team Rocket's  Mewtwo"처럼 공백이 겹칠 수 있다(한글 쪽 띄어쓰기가
+  // 그대로 남아서). 검색어에 겹친 공백은 매칭을 방해하므로 한 칸으로 줄인다.
+  return result.replace(/\s+/g, ' ').trim();
 }
