@@ -7,16 +7,15 @@
 export type Slot = { rolls: [string, number][]; fb: 'cu' | 'rare' };
 export type RateProfile = { commons: number; uncommons: number; slots: Slot[] };
 
-// 북미판 일반 부스터(10장) — 최신 SV 세트 실측(pullrates.com, TCGplayer 8,000팩+):
-// DR 1/6 · UR 1/15 · AR 1/13 · ACE 1/20 · SAR ~1/88 · HR ~1/180. 세트 불문 거의 동일.
+// 북미판 메인 부스터(10장·박스 36팩, 박스 보장 없음) — 사용자 제공 최종 확률표(2026-07-26).
+// HR 1/140 · SIR 1/86 · UR 1/15 · IR 1/13 · ACE 1/20 · RR 1/6.
+// HR·SIR은 예전 값(1/60·1/40)보다 실측이 훨씬 짜서 낮췄다.
 export const NA_REGULAR: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    // 36팩 박스 기대치(사용자 제공 실측): IR 2~3장, SIR 1장(32~48팩당), HR 1장(50~70팩당)
-    { rolls: [['Hyper rare', 0.0167], ['Special illustration rare', 0.025], ['Illustration rare', 0.0694]], fb: 'cu' },
-    // UR(풀아트) 2장/박스, RR(ex) 6~7장/박스
-    { rolls: [['Ultra Rare', 0.0556], ['Double rare', 0.1806], ['ACE SPEC Rare', 0.0333]], fb: 'rare' },
+    { rolls: [['Hyper rare', 0.007], ['Special illustration rare', 0.0115], ['Illustration rare', 0.077]], fb: 'cu' },
+    { rolls: [['Ultra Rare', 0.066], ['Double rare', 0.169], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
   ],
 };
 // 북미판 메가 시리즈(Mega Evolution) 전용 — 세트 데이터로 직접 확인(2026-07-26):
@@ -27,8 +26,8 @@ export const NA_MEGA: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    { rolls: [['Mega Hyper Rare', 0.0007], ['Special illustration rare', 0.025], ['Illustration rare', 0.0694]], fb: 'cu' },
-    { rolls: [['Ultra Rare', 0.0556], ['Double rare', 0.1806]], fb: 'rare' },
+    { rolls: [['Mega Hyper Rare', 0.0007], ['Special illustration rare', 0.0115], ['Illustration rare', 0.077]], fb: 'cu' },
+    { rolls: [['Ultra Rare', 0.066], ['Double rare', 0.169]], fb: 'rare' },
   ],
 };
 
@@ -63,9 +62,9 @@ export const JP_REGULAR: RateProfile = {
   slots: [
     {
       rolls: [
-        ['Hyper rare', 0.00278],
+        ['Hyper rare', 0.0028],
         ['Special illustration rare', 0.007],
-        ['Ultra Rare', 0.02355],
+        ['Ultra Rare', 0.0235],
         ['Illustration rare', 0.1],
         ['ACE SPEC Rare', 0.0333],
         ['Double rare', 0.15],
@@ -86,9 +85,9 @@ export const JP_MEGA: RateProfile = {
   slots: [
     {
       rolls: [
-        ['Mega Ultra Rare', 0.00033],
+        ['Mega Ultra Rare', 0.0003],
         ['Special illustration rare', 0.007],
-        ['Ultra Rare', 0.02355],
+        ['Ultra Rare', 0.0235],
         ['Illustration rare', 0.1],
         ['Double rare', 0.15],
       ],

@@ -143,15 +143,15 @@ const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profi
   const size = profile.commons + profile.uncommons + profile.slots.length;
   const kind = first.jp
     ? profile === JP_MEGA
-      ? `일본판 메가 시리즈 (${size}장)`
+      ? `일본판 메가 시리즈 확장팩 (${size}장)`
       : profile === JP_151
-        ? `일본판 특별세트 (${size}장)`
-        : `일본판 확장팩 (${size}장)`
+        ? `일본판 강화 확장팩 (${size}장)`
+        : `일본판 정규 확장팩 (${size}장)`
     : profile === NA_MEGA
-      ? `북미판 메가 시리즈 (${size}장)`
+      ? `북미판 메가 시리즈 부스터 (${size}장)`
       : profile === NA_PRISMATIC || profile === NA_151
         ? `북미판 특별세트 (${size}장)`
-        : `북미판 일반 부스터 (${size}장)`;
+        : `북미판 메인 부스터 (${size}장)`;
   return {
     name: `${kind} — ${packs.length}종`,
     packs: packs.map((p) => p.label.replace(/^\[.+?\]\s*/, '')),
@@ -1600,7 +1600,7 @@ export function PackSim({
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <p className="text-sm font-bold text-amber-700">갓팩</p>
             <p className="mt-1 text-xs text-neutral-600">
-              실물과 같게 151류 특수팩에만 있습니다 — 일본판 151은 750팩에 1번, 북미판
+              실물과 같게 151류 강화 확장팩에 있습니다 — 일본판 151은 750팩에 1번, 북미판
               특별세트(Prismatic·151)는 1,000팩에 1번. 걸리면 팩 전체가 아트레어(AR) 이상으로
               나옵니다. 일반 확장팩에는 갓팩이 없습니다.
             </p>
@@ -1610,8 +1610,9 @@ export function PackSim({
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
               메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금색이고, 일본판은 MUR(세트당
-              1장·약 3,000팩=박스 50개에 1장), 북미판은 MHR(세트당 2장)로 부릅니다. 메가
-              시리즈에는 금색 UR·HR 대신 이 등급이 들어갑니다.
+              1종·약 3,000팩 = 박스 100개에 1장꼴), 북미판은 MHR(세트당 2종)로 부릅니다. 메가
+              시리즈에는 일반 금색 UR 대신 이 등급이 들어갑니다. 다만 박스로 열면 "SR 이상
+              1장" 보장이 이 등급에도 나뉘어, 실제로는 박스 50개쯤에 1장 나옵니다.
             </p>
           </div>
 
