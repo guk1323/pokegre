@@ -193,7 +193,6 @@ export function PackSim({
   const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<number>>(new Set());
-  const [keptMsg, setKeptMsg] = useState('');
   // 구매 완료 알림. 쇼핑 탭 맨 위에 눈에 띄게 띄우고 보관함으로 바로 갈 수 있게 한다
   // (작은 초록 글씨가 진열대 아래에 떠서 안 보인다는 피드백).
   const [buyMsg, setBuyMsg] = useState('');
@@ -399,7 +398,6 @@ export function PackSim({
       setBoxQueue(null);
       // 아트레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.i)));
-      setKeptMsg('');
       setOpenGroups(new Set());
       setKeptDone(false);
       setKeptCount(null);
@@ -459,7 +457,6 @@ export function PackSim({
       setBoxInfo(d.boxPacks ?? d.packs.length);
       setGod(!!d.god);
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5 || c.m === 'master').map((c) => c.i)));
-      setKeptMsg('');
       setOpenGroups(new Set());
       setKeptDone(false);
       setKeptCount(null);
@@ -486,7 +483,6 @@ export function PackSim({
       });
       const d = (await r.json()) as { kept?: number; album?: AlbumCard[] };
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
-      setKeptMsg(d.kept ? `${d.kept}장을 앨범에 넣었습니다.` : '앨범에 넣지 않고 넘겼습니다.');
       setKeptCount(d.kept ?? 0);
       setKeptDone(true);
       setRestoredMsg('');
@@ -748,13 +744,11 @@ export function PackSim({
                       onClick={() => {
                         setSlug(s2.slug);
                         setPack(null);
-                        setKeptMsg('');
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           setSlug(s2.slug);
                           setPack(null);
-                          setKeptMsg('');
                         }
                       }}
                       className={`group cursor-pointer rounded-2xl border p-3 text-center shadow-sm transition ${
@@ -855,9 +849,6 @@ export function PackSim({
           (쇼핑 탭은 구매만). 아래 보관함 목록 위에 결과가 뜬다. */}
       {tab === 'stash' && !!pack && (
         <>
-          {keptMsg && (
-            <p className="mt-3 rounded-xl border border-neutral-900 bg-neutral-900 p-3 text-sm font-bold text-white">{keptMsg}</p>
-          )}
           {restoredMsg && (
             <p className="mt-3 rounded-xl border border-neutral-300 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
               {restoredMsg}
@@ -1312,25 +1303,6 @@ export function PackSim({
                       {v === 'all' ? '전체' : chipLabel(v)}
                     </button>
                   ))}
-                  <span className="text-neutral-200">|</span>
-                  {([
-                    ['rarity', '등급 높은순'],
-                    ['rarityAsc', '등급 낮은순'],
-                    ['price', '가격 높은순'],
-                    ['priceAsc', '가격 낮은순'],
-                    ['recent', '최근 획득순'],
-                  ] as const).map(([v, label]) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setAlbumSort(v)}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        albumSort === v ? 'bg-black text-white' : 'text-neutral-500 hover:bg-neutral-100'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
                   <div className="ml-auto flex items-center gap-2">
                     {!delMode ? (
                       <button
@@ -1378,6 +1350,28 @@ export function PackSim({
                       </>
                     )}
                   </div>
+                </div>
+                {/* 정렬은 등급 칩과 한 줄에 두면 칸이 모자라 밀린다. 아래 줄로 뺀다. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-neutral-400">정렬</span>
+                  {([
+                    ['rarity', '등급 높은순'],
+                    ['rarityAsc', '등급 낮은순'],
+                    ['price', '가격 높은순'],
+                    ['priceAsc', '가격 낮은순'],
+                    ['recent', '최근 획득순'],
+                  ] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setAlbumSort(v)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        albumSort === v ? 'bg-black text-white' : 'text-neutral-500 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
