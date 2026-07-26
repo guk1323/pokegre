@@ -86,6 +86,16 @@
 ## 신고함 처리
 `/data/translation-feedback.json`(번역 신고), `/data/community-reports.json`(게시글 신고). 운영자만 GET/DELETE. 서버 접근: `fly ssh console -a pokegre -C "..."`.
 
+## 배포 이미지 파일 검사 (2026-07-26)
+배포 이미지에는 `dist`와 `server`만 들어가고, server가 `src`에서 가져다 쓰는 파일은
+Dockerfile에 손으로 적어 복사한다. 목록이 어긋나면 빌드도 배포도 성공한 것처럼 보이는데
+서버가 뜨자마자 ERR_MODULE_NOT_FOUND로 죽어 502가 된다(2026-07-25 실제 사고).
+
+이제 `npm run build`가 먼저 `scripts/check-deploy-files.mjs`를 돌린다 — server에서
+import를 따라가며 필요한 src 파일을 모아 Dockerfile COPY 목록과 대조하고, 빠진 게
+있으면 추가할 줄까지 알려주며 빌드를 멈춘다. Dockerfile의 builder 단계도 이 build를
+쓰므로 **잘못된 이미지는 아예 만들어지지 않는다.**
+
 ## 데이터 보관 · 복구 (2026-07-26)
 `/data`의 JSON이 이 서비스의 전부다(회원·세션·앨범/GP·게시글·통계). 세 겹으로 지킨다.
 
