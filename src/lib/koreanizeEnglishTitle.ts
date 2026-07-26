@@ -64,7 +64,8 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Iono: '모야모', // ナンジャモ. 난자모는 흔한 오표기, 공식은 모야모
   Nemona: '네모',
   Arven: '페퍼',
-  Penny: '보탄',
+  // Penny(ボタン)의 공식 한글명은 '모란'이다. '보탄'은 일본 이름 음역이라 틀렸다.
+  Penny: '모란',
   Clavell: '클라벨', // クラベル (청목은 Larry 이름이라 오류)
   Bianca: '벨',
   Cheren: '체렌',
@@ -198,6 +199,13 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Ryme: '라임',
   Tulip: '리파',
   Rika: '칠리',
+  // 아래는 일본어 사전에서 이미 확인된 공식 한글명을 영문판 경로에도 맞춘 것.
+  // (영문 카드에서 이름이 영어 그대로 뜨던 인물들)
+  Melony: '멜론',
+  Raihan: '금랑',
+  Jacq: '지니어',
+  Miriam: '미모사',
+  Saguaro: '사구아로',
   Poppy: '뽀삐',
   Hassel: '팔자크',
   Geeta: '테사',
