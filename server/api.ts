@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
@@ -157,6 +157,35 @@ export class TtlCache<T> {
 // 돈이 나간다. 로그인을 걸어 막는 방법도 있지만, 카드 시세 조회는 비로그인도 되는 게
 // 이 서비스의 의도라 그 대신 횟수로 제한한다.
 //
+// 저장 도중에 서버가 죽어도 파일이 반토막 나지 않게 한다.
+//
+// 지금까지는 파일에 곧바로 덮어썼다. Fly는 배포할 때마다 기계를 새로 띄우는데, 하필
+// 쓰는 중에 끊기면 JSON이 잘린 채 남는다. 그러면 다음 기동 때 읽기가 실패하고, 로더는
+// 빈 값으로 시작한 뒤 첫 저장에서 그 빈 값을 그대로 덮어쓴다 — 앨범·GP·게시글이
+// 통째로, 되돌릴 수 없이 사라진다.
+//
+// 임시 파일에 다 쓴 뒤 이름만 바꾼다. 이름 바꾸기는 같은 디스크 안에서 쪼개지지 않아,
+// 파일은 "이전 것" 아니면 "새 것"이지 반쪽인 상태가 없다.
+async function writeJsonFile(file: string, value: unknown): Promise<void> {
+  await mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  await writeFile(tmp, JSON.stringify(value))
+  await rename(tmp, file)
+}
+
+// 파일이 있는데 못 읽는 경우(내용이 깨졌을 때). 그냥 빈 값으로 시작하면 다음 저장에
+// 덮여 영영 사라지므로, 옆으로 치워 두고 이름을 남긴다 — 나중에 손으로 복구할 수 있다.
+async function rescueCorrupt(file: string): Promise<void> {
+  try {
+    await stat(file)
+  } catch {
+    return // 파일이 아예 없는 것은 정상(첫 실행)
+  }
+  const moved = `${file}.corrupt-${Date.now()}`
+  await rename(file, moved).catch(() => undefined)
+  console.error(`[pokegre] ${file}을(를) 읽지 못해 ${moved}로 옮겨 두었습니다. 확인이 필요합니다.`)
+}
+
 // 저장소 파일의 "첫 읽기"를 하나로 묶는다.
 //
 // 지연 로더는 보통 `if (캐시) return 캐시` 뒤에서 파일을 읽는데, 서버가 막 뜬 직후
@@ -682,6 +711,7 @@ function mountCommunity(app: Mountable) {
           likedBy: (p.likedBy ?? []).map(migrateId),
         }))
       } catch {
+        await rescueCorrupt(POSTS_FILE)
         posts = []
       }
       return posts!
@@ -690,7 +720,7 @@ function mountCommunity(app: Mountable) {
 
   async function persistPosts() {
     await mkdir(path.dirname(POSTS_FILE), { recursive: true })
-    await writeFile(POSTS_FILE, JSON.stringify(posts))
+    await writeJsonFile(POSTS_FILE, posts)
   }
 
   // 카드 뽑기 자랑글 등록 훅(위 모듈 변수 참조). 글 수 상한도 일반 글쓰기와 같게 지킨다.
@@ -712,6 +742,7 @@ function mountCommunity(app: Mountable) {
           authorId: migrateId(c.authorId),
         }))
       } catch {
+        await rescueCorrupt(COMMENTS_FILE)
         comments = []
       }
       return comments!
@@ -720,7 +751,7 @@ function mountCommunity(app: Mountable) {
 
   async function persistComments() {
     await mkdir(path.dirname(COMMENTS_FILE), { recursive: true })
-    await writeFile(COMMENTS_FILE, JSON.stringify(comments))
+    await writeJsonFile(COMMENTS_FILE, comments)
   }
 
   async function loadReports(): Promise<CommunityReport[]> {
@@ -731,6 +762,7 @@ function mountCommunity(app: Mountable) {
       try {
         reports = JSON.parse(await readFile(REPORTS_FILE, 'utf-8'))
       } catch {
+        await rescueCorrupt(REPORTS_FILE)
         reports = []
       }
       return reports!
@@ -746,7 +778,7 @@ function mountCommunity(app: Mountable) {
 
   async function persistReports() {
     await mkdir(path.dirname(REPORTS_FILE), { recursive: true })
-    await writeFile(REPORTS_FILE, JSON.stringify(reports))
+    await writeJsonFile(REPORTS_FILE, reports)
   }
 
   function sendJson(res: import('node:http').ServerResponse, status: number, data: unknown) {
@@ -1504,7 +1536,7 @@ function mountSearchTracker(app: Mountable) {
 
   async function persistCounts() {
     await mkdir(path.dirname(SEARCH_COUNTS_FILE), { recursive: true })
-    await writeFile(SEARCH_COUNTS_FILE, JSON.stringify(buckets))
+    await writeJsonFile(SEARCH_COUNTS_FILE, buckets)
   }
 
   async function loadSnapshot(): Promise<Snapshot | null> {
@@ -1520,7 +1552,7 @@ function mountSearchTracker(app: Mountable) {
   async function persistSnapshot(next: Snapshot) {
     snapshot = next
     await mkdir(path.dirname(SNAPSHOT_FILE), { recursive: true })
-    await writeFile(SNAPSHOT_FILE, JSON.stringify(next))
+    await writeJsonFile(SNAPSHOT_FILE, next)
   }
 
   function rankTerms(current: Record<string, number>) {
@@ -1865,7 +1897,7 @@ function mountVisitStats(app: Mountable) {
 
   async function persist() {
     await mkdir(path.dirname(VISIT_STATS_FILE), { recursive: true })
-    await writeFile(VISIT_STATS_FILE, JSON.stringify(visits))
+    await writeJsonFile(VISIT_STATS_FILE, visits)
   }
 
   function prune() {
@@ -1968,7 +2000,7 @@ function mountScanFeedback(app: Mountable) {
         })
         if (all.length > MAX_SCAN_FEEDBACK) all.splice(0, all.length - MAX_SCAN_FEEDBACK)
         await mkdir(path.dirname(SCAN_FEEDBACK_FILE), { recursive: true })
-        await writeFile(SCAN_FEEDBACK_FILE, JSON.stringify(items))
+        await writeJsonFile(SCAN_FEEDBACK_FILE, items)
         res.statusCode = 204
         res.end()
       } catch {
@@ -2107,14 +2139,14 @@ function mountEventStats(app: Mountable) {
         day[ev] = (day[ev] ?? 0) + 1
         foldOldDays()
         await mkdir(path.dirname(EVENT_STATS_FILE), { recursive: true })
-        await writeFile(EVENT_STATS_FILE, JSON.stringify(buckets))
+        await writeJsonFile(EVENT_STATS_FILE, buckets)
         // 작가별 조회는 어떤 작가를 봤는지도 따로 센다(라벨이 있을 때만).
         const label = typeof b.label === 'string' ? b.label.trim().slice(0, 80) : ''
         if (ev === 'artist' && label) {
           const tally = await loadArtists()
           if (label in tally || Object.keys(tally).length < MAX_ARTIST_KEYS) {
             tally[label] = (tally[label] ?? 0) + 1
-            await writeFile(ARTIST_STATS_FILE, JSON.stringify(tally))
+            await writeJsonFile(ARTIST_STATS_FILE, tally)
           }
         }
         // 세트별 목록도 어떤 세트를 열었는지 라벨(세트 한글명)로 따로 센다.
@@ -2122,7 +2154,7 @@ function mountEventStats(app: Mountable) {
           const tally = await loadSets()
           if (label in tally || Object.keys(tally).length < MAX_SET_KEYS) {
             tally[label] = (tally[label] ?? 0) + 1
-            await writeFile(SET_STATS_FILE, JSON.stringify(tally))
+            await writeJsonFile(SET_STATS_FILE, tally)
           }
         }
         res.statusCode = 204
@@ -2205,7 +2237,7 @@ function mountTranslationFeedback(app: Mountable) {
         all.push({ title, raw: (b.raw ?? '').slice(0, 200), link: (b.link ?? '').slice(0, 200), at: Date.now() })
         if (all.length > MAX_TRANSLATION_FEEDBACK) all.splice(0, all.length - MAX_TRANSLATION_FEEDBACK)
         await mkdir(path.dirname(TRANSLATION_FEEDBACK_FILE), { recursive: true })
-        await writeFile(TRANSLATION_FEEDBACK_FILE, JSON.stringify(items))
+        await writeJsonFile(TRANSLATION_FEEDBACK_FILE, items)
         res.statusCode = 204
         res.end()
       } catch {
@@ -2228,7 +2260,7 @@ function mountTranslationFeedback(app: Mountable) {
         const all = await load()
         items = b.all ? [] : all.filter((x) => x.at !== b.at)
         await mkdir(path.dirname(TRANSLATION_FEEDBACK_FILE), { recursive: true })
-        await writeFile(TRANSLATION_FEEDBACK_FILE, JSON.stringify(items))
+        await writeJsonFile(TRANSLATION_FEEDBACK_FILE, items)
         res.statusCode = 204
         res.end()
       } catch {
@@ -2490,7 +2522,7 @@ function mountCardScan(app: Mountable, apiKey: string) {
     if (scanUsage!.day !== today) scanUsage = { day: today, count: 0 }
     scanUsage!.count += 1
     await mkdir(path.dirname(SCAN_USAGE_FILE), { recursive: true }).catch(() => undefined)
-    await writeFile(SCAN_USAGE_FILE, JSON.stringify(scanUsage)).catch(() => undefined)
+    await writeJsonFile(SCAN_USAGE_FILE, scanUsage).catch(() => undefined)
     return scanUsage!.count
   }
 
@@ -2779,6 +2811,7 @@ async function loadUsers(): Promise<User[]> {
     try {
       users = (JSON.parse(await readFile(USERS_FILE, 'utf-8')) as User[]).map(migrateUser)
     } catch {
+      await rescueCorrupt(USERS_FILE)
       users = []
     }
     return users!
@@ -2787,7 +2820,7 @@ async function loadUsers(): Promise<User[]> {
 
 async function persistUsers() {
   await mkdir(path.dirname(USERS_FILE), { recursive: true })
-  await writeFile(USERS_FILE, JSON.stringify(users))
+  await writeJsonFile(USERS_FILE, users)
 }
 
 async function loadSessions(): Promise<Session[]> {
@@ -2798,6 +2831,7 @@ async function loadSessions(): Promise<Session[]> {
     try {
       sessions = (JSON.parse(await readFile(SESSIONS_FILE, 'utf-8')) as Session[]).map(migrateSession)
     } catch {
+      await rescueCorrupt(SESSIONS_FILE)
       sessions = []
     }
     return sessions!
@@ -2808,7 +2842,7 @@ async function persistSessions() {
   // 만료된 세션은 쌓이기만 하므로 저장할 때마다 걸러낸다.
   sessions = (sessions ?? []).filter((s) => s.expiresAt > Date.now())
   await mkdir(path.dirname(SESSIONS_FILE), { recursive: true })
-  await writeFile(SESSIONS_FILE, JSON.stringify(sessions))
+  await writeJsonFile(SESSIONS_FILE, sessions)
 }
 
 // 카카오 회원번호 → 컬렉션. 즐겨찾기/최근 본 카드를 계정에 묶어 기기가 바뀌거나
@@ -2826,6 +2860,7 @@ async function loadCollections(): Promise<Record<string, Collections>> {
       // 즐겨찾기가 통째로 빈 것처럼 보인다.
       collections = Object.fromEntries(Object.entries(raw).map(([id, c]) => [migrateId(id), c]))
     } catch {
+      await rescueCorrupt(COLLECTIONS_FILE)
       collections = {}
     }
     return collections!
@@ -2834,7 +2869,7 @@ async function loadCollections(): Promise<Record<string, Collections>> {
 
 async function persistCollections() {
   await mkdir(path.dirname(COLLECTIONS_FILE), { recursive: true })
-  await writeFile(COLLECTIONS_FILE, JSON.stringify(collections))
+  await writeJsonFile(COLLECTIONS_FILE, collections)
 }
 
 async function getCollections(id: string): Promise<Collections> {
@@ -2889,6 +2924,7 @@ async function loadPacksim(): Promise<Record<string, PackSimStore>> {
     try {
       packsim = JSON.parse(await readFile(PACKSIM_FILE, 'utf-8')) as Record<string, PackSimStore>
     } catch {
+      await rescueCorrupt(PACKSIM_FILE)
       packsim = {}
     }
     return packsim
@@ -2896,7 +2932,7 @@ async function loadPacksim(): Promise<Record<string, PackSimStore>> {
 }
 async function persistPacksim() {
   await mkdir(path.dirname(PACKSIM_FILE), { recursive: true })
-  await writeFile(PACKSIM_FILE, JSON.stringify(packsim))
+  await writeJsonFile(PACKSIM_FILE, packsim)
 }
 async function getPacksim(id: string): Promise<PackSimStore> {
   const all = await loadPacksim()
@@ -2967,7 +3003,7 @@ async function loadPackPriceFile() {
 }
 async function savePackPriceFile() {
   await mkdir(path.dirname(PACK_PRICE_FILE), { recursive: true })
-  await writeFile(PACK_PRICE_FILE, JSON.stringify(Object.fromEntries(packPriceCache)))
+  await writeJsonFile(PACK_PRICE_FILE, Object.fromEntries(packPriceCache))
 }
 
 let warming = false
