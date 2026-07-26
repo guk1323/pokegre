@@ -68,19 +68,37 @@ const RARITY: Record<string, { ko: string; cls: string }> = {
   'Mega Hyper Rare': { ko: '메가 하이퍼레어 MHR', cls: 'text-yellow-600 ring-yellow-500' },
 };
 
-// 등급 이름은 판마다 다르다 — 일본판은 AR·SAR, 북미판은 IR·SIR로 부른다(사용자 지침).
-// 색·순위는 같고 표기만 다르므로 표기 함수 하나로 가른다.
+// ⚠️ 같은 카드라도 판마다 등급 이름이 다르다. 데이터 키(위 RARITY)는 북미판 이름을
+// 쓰고 있으므로, 일본판은 아래 표로 바꿔 부른다:
+//   풀아트 = 일본판 SR(슈퍼레어) / 북미판 UR  ·  금박 = 일본판 UR(울트라레어) / 북미판 HR
+//   일러스트 = 일본판 AR·SAR / 북미판 IR·SIR
+const JP_KO: Record<string, string> = {
+  'Ultra Rare': '슈퍼레어 SR',
+  'Hyper rare': '울트라레어 UR',
+};
 const NA_KO: Record<string, string> = {
   'Illustration rare': '일러스트레어 IR',
   'Special illustration rare': '스페셜일러스트레어 SIR',
 };
-const rarityKo = (r: string | undefined, jp: boolean) => {
-  const base = (RARITY[r ?? ''] ?? RARITY.Common).ko;
-  return jp ? base : NA_KO[r ?? ''] ?? base;
+const rarityKo = (r: string | undefined, jp: boolean) =>
+  (jp ? JP_KO[r ?? ''] : NA_KO[r ?? '']) ?? (RARITY[r ?? ''] ?? RARITY.Common).ko;
+// 앨범에는 두 판의 카드가 섞이므로 필터 칩은 두 이름을 같이 쓴다.
+const CHIP_KO: Record<string, string> = {
+  'Illustration rare': 'AR·IR',
+  'Special illustration rare': 'SAR·SIR',
+  'Ultra Rare': '풀아트 SR·UR',
+  'Hyper rare': '금박 UR·HR',
 };
-// 앨범 필터 칩은 일본판·북미판 카드가 섞여 있어 두 표기를 같이 쓴다.
-const chipLabel = (r: string) =>
-  r === 'Illustration rare' ? 'AR·IR' : r === 'Special illustration rare' ? 'SAR·SIR' : (RARITY[r]?.ko ?? r).split(' ').pop();
+const chipLabel = (r: string) => CHIP_KO[r] ?? (RARITY[r]?.ko ?? r).split(' ').pop();
+
+// 개봉 결과를 정리할 때 쓰는 묶음. 박스는 150장이라 한 줄로 늘어놓으면 고를 수가 없어서
+// 등급별로 묶고, 미러·리버스는 등급이 커먼이어도 따로 뗀다(마스터볼이 커먼 더미에
+// 섞이면 찾지 못한다).
+const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
+const groupRank = (k: string) =>
+  k === 'm:master' ? 8.5 : k === 'm:poke' ? 2.6 : k === 'm:rev' ? 2.5 : rankOf(k.slice(2));
+const groupLabel = (k: string, jp: boolean) =>
+  k.startsWith('m:') ? M_LABEL[k.slice(2) as MirrorFlag].t : rarityKo(k.slice(2), jp);
 
 // TCGdex는 확장자 없는 베이스 주소라 /high.webp를 붙여야 한다. limitless는 이미 .png다.
 const cardImg = (base: string) => (!base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`);
@@ -166,6 +184,11 @@ export function PackSim({
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<number>>(new Set());
   const [keptMsg, setKeptMsg] = useState('');
+  // 구매 완료 알림. 쇼핑 탭 맨 위에 눈에 띄게 띄우고 보관함으로 바로 갈 수 있게 한다
+  // (작은 초록 글씨가 진열대 아래에 떠서 안 보인다는 피드백).
+  const [buyMsg, setBuyMsg] = useState('');
+  // 결과 정리에서 펼쳐 둔 등급 묶음(커먼류는 기본으로 접혀 있다).
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   // 앨범에 넣기와 자랑하기는 서로 독립 — 넣었다고 자랑 기회가 사라지면 안 된다.
   const [keptDone, setKeptDone] = useState(false);
   const [share, setShare] = useState<ShareState>({ shared: false, msg: '' });
@@ -247,7 +270,7 @@ export function PackSim({
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
-      setKeptMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 보관함에 담았습니다. (${gp(target.price)} 차감)`);
+      setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 구매했습니다. ${gp(target.price)}이 차감되었습니다.`);
     } finally {
       setBusy(false);
     }
@@ -280,7 +303,7 @@ export function PackSim({
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
-      setKeptMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1박스(${target.boxPacks}팩)를 보관함에 담았습니다. (${gp(price)} 차감)`);
+      setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1박스(${target.boxPacks}팩)를 구매했습니다. ${gp(price)}이 차감되었습니다.`);
       trackEvent('packsim', `${target.label} 박스 구매`);
     } finally {
       setBusy(false);
@@ -322,6 +345,7 @@ export function PackSim({
       // 아트레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.i)));
       setKeptMsg('');
+      setOpenGroups(new Set());
       setKeptDone(false);
       setShare({ shared: false, msg: '' });
       setShareOpen(false);
@@ -379,6 +403,7 @@ export function PackSim({
       setGod(!!d.god);
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5 || c.m === 'master').map((c) => c.i)));
       setKeptMsg('');
+      setOpenGroups(new Set());
       setKeptDone(false);
       setShare({ shared: false, msg: '' });
       setShareOpen(false);
@@ -520,6 +545,21 @@ export function PackSim({
   const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
   const allDone = !!pack && revealed >= pack.length;
 
+  // 결과 정리용 등급 묶음(좋은 등급이 위로).
+  const resultGroups = (() => {
+    if (!pack) return [] as { k: string; cards: UiCard[] }[];
+    const by = new Map<string, UiCard[]>();
+    for (const c of pack) {
+      const k = groupKeyOf(c);
+      const list = by.get(k);
+      if (list) list.push(c);
+      else by.set(k, [c]);
+    }
+    return [...by.entries()]
+      .map(([k, cards]) => ({ k, cards }))
+      .sort((a, b) => groupRank(b.k) - groupRank(a.k));
+  })();
+
   return (
     <div>
       <h2 className="text-base font-bold text-black">
@@ -596,6 +636,25 @@ export function PackSim({
 
       {tab === 'open' && (
         <>
+          {buyMsg && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-900 bg-neutral-900 p-3">
+              <p className="text-sm font-bold text-white">{buyMsg}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setBuyMsg('');
+                  setTab('stash');
+                }}
+                className="ml-auto rounded-lg bg-white px-4 py-1.5 text-sm font-bold text-black"
+              >
+                보관함에서 개봉하기 →
+              </button>
+              <button type="button" onClick={() => setBuyMsg('')} className="text-xs text-neutral-400 underline">
+                닫기
+              </button>
+            </div>
+          )}
+
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
@@ -653,6 +712,7 @@ export function PackSim({
                       </p>
                       {on ? (
                         <div className="mt-2 space-y-1.5">
+                          {/* 낱팩·박스 모두 "GP 주고 사서 보관함에 담기"로 똑같으므로 버튼도 같은 크기·같은 모양이다 */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -664,19 +724,28 @@ export function PackSim({
                           >
                             {busy ? '구매 중…' : can ? `1팩 구매 · ${gp(s2.price)} 차감` : 'GP가 부족합니다'}
                           </button>
-                          {(s2.boxPacks ?? 0) > 0 && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void buyBox(s2.slug);
-                              }}
-                              disabled={busy || !sim || (spend && sim.balance < s2.price * (s2.boxPacks ?? 0))}
-                              className="w-full rounded-lg border border-neutral-300 py-1.5 text-xs font-semibold text-neutral-600 disabled:opacity-40"
-                            >
-                              1박스 구매({s2.boxPacks}팩) · {gp(s2.price * (s2.boxPacks ?? 0))} 차감
-                            </button>
-                          )}
+                          {(s2.boxPacks ?? 0) > 0 &&
+                            (() => {
+                              const boxPrice = s2.price * (s2.boxPacks ?? 0);
+                              const canBox = !!sim && (!spend || sim.balance >= boxPrice);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void buyBox(s2.slug);
+                                  }}
+                                  disabled={busy || !canBox}
+                                  className="w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                                >
+                                  {busy
+                                    ? '구매 중…'
+                                    : canBox
+                                      ? `1박스(${s2.boxPacks}팩) 구매 · ${gp(boxPrice)} 차감`
+                                      : 'GP가 부족합니다'}
+                                </button>
+                              );
+                            })()}
                           <p className="text-[11px] text-neutral-400">구매하면 보관함에 담기고, 개봉은 보관함에서 합니다.</p>
                         </div>
                       ) : (
@@ -710,7 +779,6 @@ export function PackSim({
             비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, GP는 pokegre 안에서만
             쓰이는 포인트로 현금 가치가 없습니다. 확률은 재미용 근사치라 실제 봉입률과 다릅니다.
           </p>
-          {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
         </>
       )}
 
@@ -718,7 +786,9 @@ export function PackSim({
           (쇼핑 탭은 구매만). 아래 보관함 목록 위에 결과가 뜬다. */}
       {tab === 'stash' && !!pack && (
         <>
-          {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
+          {keptMsg && (
+            <p className="mt-3 rounded-xl border border-neutral-900 bg-neutral-900 p-3 text-sm font-bold text-white">{keptMsg}</p>
+          )}
 
           {boxInfo && pack && !boxQueue && (
             <p className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
@@ -993,7 +1063,8 @@ export function PackSim({
             </p>
           )}
 
-          {pack && !boxQueue && (
+          {/* 아직 다 안 뒤집은 낱팩: 한 장씩 뒤집는 그대로 */}
+          {pack && !boxQueue && !allDone && (
             <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
               {pack.map((c, i) => (
                 <CardSlot
@@ -1003,21 +1074,102 @@ export function PackSim({
                   index={i}
                   isLast={i === pack.length - 1}
                   flipped={i < revealed}
-                  isNext={i === revealed && !allDone}
+                  isNext={i === revealed}
                   onFlip={revealNext}
                   name={koName(cfg.jp, c.name)}
-                  picking={allDone && !keptDone}
-                  picked={keep.has(c.i)}
-                  onPick={() =>
-                    setKeep((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(c.i)) next.delete(c.i);
-                      else next.add(c.i);
-                      return next;
-                    })
-                  }
                 />
               ))}
+            </div>
+          )}
+
+          {/* 결과 정리: 등급별로 묶어서 고른다. 박스(150장)도 여기서 앨범에 담고 자랑할 수 있다 */}
+          {pack && !boxQueue && allDone && (
+            <div className="mt-4 space-y-5">
+              {resultGroups.map(({ k, cards }) => {
+                const big = groupRank(k) >= 3;
+                // 커먼·언커먼·레어·리버스는 장수가 많아 기본으로 접어 둔다(박스일 때만).
+                const foldable = !big && pack.length > 20;
+                const opened = !foldable || openGroups.has(k);
+                const allPicked = cards.every((c) => keep.has(c.i));
+                return (
+                  <div key={k}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-bold text-neutral-800">
+                        {groupLabel(k, cfg.jp)} <span className="font-normal text-neutral-400">{cards.length}장</span>
+                      </p>
+                      {!keptDone && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setKeep((prev) => {
+                              const next = new Set(prev);
+                              for (const c of cards) {
+                                if (allPicked) next.delete(c.i);
+                                else next.add(c.i);
+                              }
+                              return next;
+                            })
+                          }
+                          className="text-xs text-neutral-500 underline"
+                        >
+                          {allPicked ? '이 등급 전부 해제' : '이 등급 전부 선택'}
+                        </button>
+                      )}
+                      {foldable && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenGroups((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(k)) next.delete(k);
+                              else next.add(k);
+                              return next;
+                            })
+                          }
+                          className="ml-auto text-xs text-neutral-400 underline"
+                        >
+                          {opened ? '접기' : '펼쳐서 한 장씩 고르기'}
+                        </button>
+                      )}
+                    </div>
+                    {opened ? (
+                      <div
+                        className={`mt-2 grid ${
+                          big ? 'grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7' : 'grid-cols-4 gap-2 sm:grid-cols-8 lg:grid-cols-12'
+                        }`}
+                      >
+                        {cards.map((c, i) => (
+                          <CardSlot
+                            key={c.i}
+                            card={c}
+                            jp={cfg.jp}
+                            index={i}
+                            isLast={false}
+                            flipped
+                            isNext={false}
+                            onFlip={revealNext}
+                            name={koName(cfg.jp, c.name)}
+                            picking={!keptDone}
+                            picked={keep.has(c.i)}
+                            onPick={() =>
+                              setKeep((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(c.i)) next.delete(c.i);
+                                else next.add(c.i);
+                                return next;
+                              })
+                            }
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-neutral-400">
+                        접어 두었습니다. 펼쳐서 한 장씩 고르거나, 위 "이 등급 전부 선택"으로 한 번에 담을 수 있습니다.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
@@ -1441,7 +1593,7 @@ function CardSlot({
   return (
     <div>
       <div
-        style={{ animationDelay: `${index * 70}ms` }}
+        style={{ animationDelay: `${Math.min(index, 12) * 70}ms` }}
         className={`flip deal ${isNext ? (isLast ? 'flip-next flip-last' : 'flip-next') : ''} ${picking && picked ? 'card-picked' : ''}`}
         onClick={isNext ? onFlip : picking ? onPick : undefined}
         role={isNext || picking ? 'button' : undefined}
