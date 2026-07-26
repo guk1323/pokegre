@@ -157,6 +157,24 @@ export class TtlCache<T> {
 // 돈이 나간다. 로그인을 걸어 막는 방법도 있지만, 카드 시세 조회는 비로그인도 되는 게
 // 이 서비스의 의도라 그 대신 횟수로 제한한다.
 //
+// 저장소 파일의 "첫 읽기"를 하나로 묶는다.
+//
+// 지연 로더는 보통 `if (캐시) return 캐시` 뒤에서 파일을 읽는데, 서버가 막 뜬 직후
+// 같은 요청이 여러 개 겹치면 전부 그 검사를 통과해 각자 파일을 읽는다. 그러면 서로
+// 다른 사본을 하나씩 들고 각자 고친 뒤 저장하므로, 마지막에 저장한 것만 남고 앞선
+// 변경은 소리 없이 사라진다(출석을 동시에 8번 누르면 8번 다 "받았습니다"라고
+// 답하면서 실제로는 한 번만 들어가는 것을 재현해 확인했다).
+//
+// 첫 읽기를 약속(Promise) 하나로 묶어 두면 겹쳐 들어온 요청이 모두 같은 결과를 쓴다.
+const firstReads = new Map<string, Promise<unknown>>()
+function firstReadOnce<T>(key: string, read: () => Promise<T>): Promise<T> {
+  const running = firstReads.get(key) as Promise<T> | undefined
+  if (running) return running
+  const started = read().finally(() => firstReads.delete(key))
+  firstReads.set(key, started)
+  return started
+}
+
 // 클라이언트 IP는 프록시(Fly) 뒤에서는 소켓 주소가 아니라 fly-client-ip로 온다.
 // 헤더는 위조할 수 있지만, 위조하려면 어차피 요청마다 값을 바꿔야 하고 그건 이 제한이
 // 막으려는 "실수로/스크립트로 몰아치는" 경우와는 다른 수준의 공격이다.
@@ -648,22 +666,26 @@ function mountCommunity(app: Mountable) {
 
   async function loadPosts(): Promise<CommunityPost[]> {
     if (posts) return posts
-    try {
-      // authorId도 회원번호라 접두어를 붙인다. 안 그러면 옛 글의 작성자를 못 찾아
-      // 전부 "알 수 없음"이 되고, 본인 글인데도 삭제 버튼이 안 뜬다.
-      posts = (JSON.parse(await readFile(POSTS_FILE, 'utf-8')) as CommunityPost[]).map((p) => ({
-        ...p,
-        authorId: migrateId(p.authorId),
-        // 카테고리가 없던 시절 글은 자유게시판으로 본다.
-        category: p.category ?? 'free',
-        // 좋아요가 없던 시절 글은 빈 목록으로 시작한다. 여기 담긴 회원번호도 접두어를
-        // 붙여줘야 지금 회원과 대조돼 "내가 눌렀는지"가 맞게 나온다.
-        likedBy: (p.likedBy ?? []).map(migrateId),
-      }))
-    } catch {
-      posts = []
-    }
-    return posts!
+    return firstReadOnce('posts', async () => {
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+      if (posts) return posts
+      try {
+        // authorId도 회원번호라 접두어를 붙인다. 안 그러면 옛 글의 작성자를 못 찾아
+        // 전부 "알 수 없음"이 되고, 본인 글인데도 삭제 버튼이 안 뜬다.
+        posts = (JSON.parse(await readFile(POSTS_FILE, 'utf-8')) as CommunityPost[]).map((p) => ({
+          ...p,
+          authorId: migrateId(p.authorId),
+          // 카테고리가 없던 시절 글은 자유게시판으로 본다.
+          category: p.category ?? 'free',
+          // 좋아요가 없던 시절 글은 빈 목록으로 시작한다. 여기 담긴 회원번호도 접두어를
+          // 붙여줘야 지금 회원과 대조돼 "내가 눌렀는지"가 맞게 나온다.
+          likedBy: (p.likedBy ?? []).map(migrateId),
+        }))
+      } catch {
+        posts = []
+      }
+      return posts!
+    })
   }
 
   async function persistPosts() {
@@ -681,15 +703,19 @@ function mountCommunity(app: Mountable) {
 
   async function loadComments(): Promise<CommunityComment[]> {
     if (comments) return comments
-    try {
-      comments = (JSON.parse(await readFile(COMMENTS_FILE, 'utf-8')) as CommunityComment[]).map((c) => ({
-        ...c,
-        authorId: migrateId(c.authorId),
-      }))
-    } catch {
-      comments = []
-    }
-    return comments!
+    return firstReadOnce('comments', async () => {
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+      if (comments) return comments
+      try {
+        comments = (JSON.parse(await readFile(COMMENTS_FILE, 'utf-8')) as CommunityComment[]).map((c) => ({
+          ...c,
+          authorId: migrateId(c.authorId),
+        }))
+      } catch {
+        comments = []
+      }
+      return comments!
+    })
   }
 
   async function persistComments() {
@@ -699,12 +725,16 @@ function mountCommunity(app: Mountable) {
 
   async function loadReports(): Promise<CommunityReport[]> {
     if (reports) return reports
-    try {
-      reports = JSON.parse(await readFile(REPORTS_FILE, 'utf-8'))
-    } catch {
-      reports = []
-    }
-    return reports!
+    return firstReadOnce('reports', async () => {
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+      if (reports) return reports
+      try {
+        reports = JSON.parse(await readFile(REPORTS_FILE, 'utf-8'))
+      } catch {
+        reports = []
+      }
+      return reports!
+    })
   }
 
   // 오래된 신고부터 잘라 최근 MAX_REPORTS건만 남긴다.
@@ -1413,21 +1443,31 @@ function mountSearchTracker(app: Mountable) {
 
   async function loadCounts(): Promise<DayBuckets> {
     if (buckets) return buckets
-    try {
-      const raw = JSON.parse(await readFile(SEARCH_COUNTS_FILE, 'utf-8')) as Record<string, unknown>
-      // 옛 형식은 { 검색어: 횟수 } 평면 구조였다(날짜 구분 없이 영원히 누적). 값이 숫자면
-      // 옛 형식으로 보고, 창에서 가장 오래된 날짜 칸에 통째로 넣는다 — 오늘 하루는 예전
-      // 목록이 그대로 보이다가 내일이면 창 밖으로 밀려나 자연스럽게 최근 기준으로 바뀐다.
-      if (Object.values(raw).some((v) => typeof v === 'number')) {
-        const oldestKey = kstDayKey(Date.now() - (POPULAR_RECENT_DAYS - 1) * DAY_MS)
-        buckets = { [oldestKey]: raw as Record<string, number> }
-      } else {
-        buckets = raw as DayBuckets
+
+    return firstReadOnce('buckets:1442', async () => {
+
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+
+      if (buckets) return buckets
+      try {
+        const raw = JSON.parse(await readFile(SEARCH_COUNTS_FILE, 'utf-8')) as Record<string, unknown>
+        // 옛 형식은 { 검색어: 횟수 } 평면 구조였다(날짜 구분 없이 영원히 누적). 값이 숫자면
+        // 옛 형식으로 보고, 창에서 가장 오래된 날짜 칸에 통째로 넣는다 — 오늘 하루는 예전
+        // 목록이 그대로 보이다가 내일이면 창 밖으로 밀려나 자연스럽게 최근 기준으로 바뀐다.
+        if (Object.values(raw).some((v) => typeof v === 'number')) {
+          const oldestKey = kstDayKey(Date.now() - (POPULAR_RECENT_DAYS - 1) * DAY_MS)
+          buckets = { [oldestKey]: raw as Record<string, number> }
+        } else {
+          buckets = raw as DayBuckets
+        }
+      } catch {
+        buckets = {}
       }
-    } catch {
-      buckets = {}
-    }
-    return buckets!
+      return buckets!
+  
+
+    })
+
   }
 
   // 예비 채움 기간(30일)보다 오래된 칸은 버린다. 안 버리면 파일이 날마다 커진다.
@@ -1805,12 +1845,22 @@ function mountVisitStats(app: Mountable) {
 
   async function load(): Promise<Record<string, number>> {
     if (visits) return visits
-    try {
-      visits = JSON.parse(await readFile(VISIT_STATS_FILE, 'utf-8'))
-    } catch {
-      visits = {}
-    }
-    return visits!
+
+    return firstReadOnce('visit-stats:1834', async () => {
+
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+
+      if (visits) return visits
+      try {
+        visits = JSON.parse(await readFile(VISIT_STATS_FILE, 'utf-8'))
+      } catch {
+        visits = {}
+      }
+      return visits!
+  
+
+    })
+
   }
 
   async function persist() {
@@ -1882,12 +1932,22 @@ function mountScanFeedback(app: Mountable) {
 
   async function load() {
     if (items) return items
-    try {
-      items = JSON.parse(await readFile(SCAN_FEEDBACK_FILE, 'utf-8'))
-    } catch {
-      items = []
-    }
-    return items!
+
+    return firstReadOnce('items:1931', async () => {
+
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+
+      if (items) return items
+      try {
+        items = JSON.parse(await readFile(SCAN_FEEDBACK_FILE, 'utf-8'))
+      } catch {
+        items = []
+      }
+      return items!
+  
+
+    })
+
   }
 
   app.use('/api/local/scan-feedback', async (req, res) => {
@@ -1946,38 +2006,68 @@ function mountEventStats(app: Mountable) {
 
   async function loadArtists() {
     if (artists) return artists
-    try {
-      artists = JSON.parse(await readFile(ARTIST_STATS_FILE, 'utf-8')) as Record<string, number>
-    } catch {
-      artists = {}
-    }
-    return artists!
+
+    return firstReadOnce('artist-stats:1985', async () => {
+
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+
+      if (artists) return artists
+      try {
+        artists = JSON.parse(await readFile(ARTIST_STATS_FILE, 'utf-8')) as Record<string, number>
+      } catch {
+        artists = {}
+      }
+      return artists!
+  
+
+    })
+
   }
 
   async function loadSets() {
     if (sets) return sets
-    try {
-      sets = JSON.parse(await readFile(SET_STATS_FILE, 'utf-8')) as Record<string, number>
-    } catch {
-      sets = {}
-    }
-    return sets!
+
+    return firstReadOnce('set-stats:2005', async () => {
+
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+
+      if (sets) return sets
+      try {
+        sets = JSON.parse(await readFile(SET_STATS_FILE, 'utf-8')) as Record<string, number>
+      } catch {
+        sets = {}
+      }
+      return sets!
+  
+
+    })
+
   }
 
   async function load() {
     if (buckets) return buckets
-    try {
-      const raw = JSON.parse(await readFile(EVENT_STATS_FILE, 'utf-8')) as Record<string, unknown>
-      // 옛 형식은 { 이벤트: 횟수 } 평면 구조. 값이 숫자면 legacy 칸으로 접는다.
-      if (Object.values(raw).some((v) => typeof v === 'number')) {
-        buckets = { [EVENT_LEGACY_KEY]: raw as Record<string, number> }
-      } else {
-        buckets = raw as Record<string, Record<string, number>>
+
+    return firstReadOnce('buckets:2045', async () => {
+
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+
+      if (buckets) return buckets
+      try {
+        const raw = JSON.parse(await readFile(EVENT_STATS_FILE, 'utf-8')) as Record<string, unknown>
+        // 옛 형식은 { 이벤트: 횟수 } 평면 구조. 값이 숫자면 legacy 칸으로 접는다.
+        if (Object.values(raw).some((v) => typeof v === 'number')) {
+          buckets = { [EVENT_LEGACY_KEY]: raw as Record<string, number> }
+        } else {
+          buckets = raw as Record<string, Record<string, number>>
+        }
+      } catch {
+        buckets = {}
       }
-    } catch {
-      buckets = {}
-    }
-    return buckets!
+      return buckets!
+  
+
+    })
+
   }
 
   // 오래된 날짜 칸은 legacy로 접어 파일이 무한정 크지 않게 한다(합계는 보존).
@@ -2079,12 +2169,22 @@ function mountTranslationFeedback(app: Mountable) {
 
   async function load() {
     if (items) return items
-    try {
-      items = JSON.parse(await readFile(TRANSLATION_FEEDBACK_FILE, 'utf-8'))
-    } catch {
-      items = []
-    }
-    return items!
+
+    return firstReadOnce('items:2168', async () => {
+
+      // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+
+      if (items) return items
+      try {
+        items = JSON.parse(await readFile(TRANSLATION_FEEDBACK_FILE, 'utf-8'))
+      } catch {
+        items = []
+      }
+      return items!
+  
+
+    })
+
   }
 
   app.use('/api/local/translation-feedback', async (req, res) => {
@@ -2673,12 +2773,16 @@ let sessions: Session[] | null = null
 
 async function loadUsers(): Promise<User[]> {
   if (users) return users
-  try {
-    users = (JSON.parse(await readFile(USERS_FILE, 'utf-8')) as User[]).map(migrateUser)
-  } catch {
-    users = []
-  }
-  return users!
+  return firstReadOnce('users', async () => {
+    // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+    if (users) return users
+    try {
+      users = (JSON.parse(await readFile(USERS_FILE, 'utf-8')) as User[]).map(migrateUser)
+    } catch {
+      users = []
+    }
+    return users!
+  })
 }
 
 async function persistUsers() {
@@ -2688,12 +2792,16 @@ async function persistUsers() {
 
 async function loadSessions(): Promise<Session[]> {
   if (sessions) return sessions
-  try {
-    sessions = (JSON.parse(await readFile(SESSIONS_FILE, 'utf-8')) as Session[]).map(migrateSession)
-  } catch {
-    sessions = []
-  }
-  return sessions!
+  return firstReadOnce('sessions', async () => {
+    // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+    if (sessions) return sessions
+    try {
+      sessions = (JSON.parse(await readFile(SESSIONS_FILE, 'utf-8')) as Session[]).map(migrateSession)
+    } catch {
+      sessions = []
+    }
+    return sessions!
+  })
 }
 
 async function persistSessions() {
@@ -2709,15 +2817,19 @@ let collections: Record<string, Collections> | null = null
 
 async function loadCollections(): Promise<Record<string, Collections>> {
   if (collections) return collections
-  try {
-    const raw = JSON.parse(await readFile(COLLECTIONS_FILE, 'utf-8')) as Record<string, Collections>
-    // 키가 회원번호라 여기도 접두어를 붙여야 한다. 안 그러면 로그인은 되는데
-    // 즐겨찾기가 통째로 빈 것처럼 보인다.
-    collections = Object.fromEntries(Object.entries(raw).map(([id, c]) => [migrateId(id), c]))
-  } catch {
-    collections = {}
-  }
-  return collections!
+  return firstReadOnce('collections', async () => {
+    // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+    if (collections) return collections
+    try {
+      const raw = JSON.parse(await readFile(COLLECTIONS_FILE, 'utf-8')) as Record<string, Collections>
+      // 키가 회원번호라 여기도 접두어를 붙여야 한다. 안 그러면 로그인은 되는데
+      // 즐겨찾기가 통째로 빈 것처럼 보인다.
+      collections = Object.fromEntries(Object.entries(raw).map(([id, c]) => [migrateId(id), c]))
+    } catch {
+      collections = {}
+    }
+    return collections!
+  })
 }
 
 async function persistCollections() {
@@ -2771,12 +2883,16 @@ interface PackSimStore {
 let packsim: Record<string, PackSimStore> | null = null
 async function loadPacksim(): Promise<Record<string, PackSimStore>> {
   if (packsim) return packsim
-  try {
-    packsim = JSON.parse(await readFile(PACKSIM_FILE, 'utf-8')) as Record<string, PackSimStore>
-  } catch {
-    packsim = {}
-  }
-  return packsim
+  return firstReadOnce('packsim', async () => {
+    // 겹쳐 들어온 다른 요청이 이미 채웠으면 그것을 그대로 쓴다.
+    if (packsim) return packsim
+    try {
+      packsim = JSON.parse(await readFile(PACKSIM_FILE, 'utf-8')) as Record<string, PackSimStore>
+    } catch {
+      packsim = {}
+    }
+    return packsim
+  })
 }
 async function persistPacksim() {
   await mkdir(path.dirname(PACKSIM_FILE), { recursive: true })
