@@ -77,14 +77,55 @@ export const MAX_POST_IMAGES = 4;
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const TOO_LARGE = '사진이 너무 큽니다. 4MB 이하로 올려 주세요.';
 
-export async function uploadPostImage(file: File): Promise<string> {
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error(TOO_LARGE);
-  const dataUrl = await new Promise<string>((resolve, reject) => {
+function fileToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
     r.onerror = () => reject(new Error('사진을 읽지 못했습니다.'));
-    r.readAsDataURL(file);
+    r.readAsDataURL(blob);
   });
+}
+
+// 폰으로 찍은 사진에는 촬영 위치(GPS)·기기·시각이 EXIF로 박혀 있다. 올린 사진은
+// /uploads/… 주소로 누구나 볼 수 있으므로, 그대로 보내면 집 좌표가 딸려 나간다.
+// 캔버스에 다시 그리면 화면에 보이는 점만 남고 그런 정보는 사라진다(카드 스캔도 같은 방식).
+// 긴 변을 1600px로 줄여 용량도 함께 낮춘다 — 글에 붙는 사진은 이 정도면 충분하다.
+//
+// GIF만 예외다. 다시 그리면 움직임이 사라지는데, GIF에는 위치 정보가 들어가지 않는다.
+const MAX_IMAGE_SIDE = 1600;
+async function stripMetadata(file: File): Promise<string> {
+  if (file.type === 'image/gif') return fileToDataUrl(file);
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error('decode failed'));
+      im.src = url;
+    });
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no canvas ctx');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // PNG는 투명한 부분이 있을 수 있어 PNG로 그대로 내보낸다. 나머지(폰 사진 등)는 JPEG.
+    const asPng = file.type === 'image/png';
+    const blob = await new Promise<Blob | null>((r) =>
+      canvas.toBlob(r, asPng ? 'image/png' : 'image/jpeg', asPng ? undefined : 0.85),
+    );
+    if (!blob) throw new Error('encode failed');
+    return fileToDataUrl(blob);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function uploadPostImage(file: File): Promise<string> {
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error(TOO_LARGE);
+  // 다시 그리기가 실패하면(특이한 형식 등) 원본으로 보낸다 — 못 올리는 것보다는 낫다.
+  const dataUrl = await stripMetadata(file).catch(() => fileToDataUrl(file));
   const res = await fetch('/api/local/community/upload', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
