@@ -357,7 +357,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
               onClick={() => openCamera(side)}
               className="w-full rounded-xl bg-black py-4 text-sm font-semibold text-white hover:opacity-90"
             >
-              📷 {SIDE_LABEL[side]} 촬영 (수평계 지원)
+              {SIDE_LABEL[side]} 촬영 (수평계 지원)
             </button>
             <button
               type="button"
@@ -375,7 +375,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
                 onClick={() => openCamera(side)}
                 className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
               >
-                📷 다시
+                다시
               </button>
               <button
                 type="button"
@@ -396,7 +396,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
                 onClick={() => saveResult(side)}
                 className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
               >
-                📥 저장
+                저장
               </button>
               <span className="ml-auto inline-flex items-center gap-1">
                 <button
@@ -545,7 +545,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
                 className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
               >
                 {scanning && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-                {scanning ? '카드 인식 중…' : '📈 이 카드 시세 보러 가기'}
+                {scanning ? '카드 인식 중…' : '이 카드 시세 보러 가기'}
               </button>
             )}
             <button

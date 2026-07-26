@@ -58,13 +58,12 @@ function SearchInput({
 }) {
   return (
     <div className={`relative ${className}`}>
-      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">🔍</span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-full border border-neutral-200 bg-white py-2.5 pl-10 pr-9 text-sm outline-none focus:border-neutral-400"
+        className="w-full rounded-full border border-neutral-200 bg-white py-2.5 pl-4 pr-9 text-sm outline-none focus:border-neutral-400"
       />
       {value && (
         <button

@@ -56,7 +56,7 @@ export function OnboardingBanner() {
         ✕
       </button>
       <div className="flex items-baseline gap-2">
-        <p className="text-sm font-bold text-black">📢 새로워진 기능</p>
+        <p className="text-sm font-bold text-black">새로워진 기능</p>
         <span className="text-[11px] font-semibold text-neutral-400">{UPDATE_DATE}</span>
       </div>
       <ul className="mt-2.5 space-y-2">

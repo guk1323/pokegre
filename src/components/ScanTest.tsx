@@ -106,7 +106,7 @@ export function ScanTest() {
         disabled={busy || !index}
         className="mt-4 w-full rounded-xl bg-black py-3 text-sm font-bold text-white disabled:opacity-40"
       >
-        {busy ? '읽는 중…' : '📷 카드 사진 찍기 / 올리기'}
+        {busy ? '읽는 중…' : '카드 사진 찍기 / 올리기'}
       </button>
 
       {err && <p className="mt-3 text-sm text-rose-500">{err}</p>}

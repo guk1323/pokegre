@@ -276,13 +276,12 @@ export function SetsView({
         </div>
         {index && index.length > 0 && (
           <div className="relative w-full flex-shrink-0 sm:w-60 md:w-72">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">🔍</span>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="세트 찾기"
-              className="w-full rounded-full border border-neutral-200 bg-white py-2.5 pl-10 pr-9 text-sm outline-none focus:border-neutral-400"
+              className="w-full rounded-full border border-neutral-200 bg-white py-2.5 pl-4 pr-9 text-sm outline-none focus:border-neutral-400"
             />
             {query && (
               <button
@@ -335,7 +334,6 @@ export function SetsView({
         </div>
       ) : list.length === 0 ? (
         <div className="py-20 text-center">
-          <p className="text-3xl">🔍</p>
           <p className="mt-2 text-sm font-semibold text-neutral-500">검색 결과가 없습니다</p>
           <p className="mt-1 text-xs text-neutral-400">다른 이름으로 찾아보세요.</p>
         </div>
