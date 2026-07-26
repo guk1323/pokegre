@@ -67,10 +67,14 @@ const shortDate = (d: string) => (d ? d.slice(0, 7).replace('-', '.') : '');
 export function SetsView({
   onPickCard,
   initialSlug,
+  onInitialSlugDone,
 }: {
   onPickCard: (name: string) => void;
   // 팩 개봉 화면의 "수록 카드 보기"가 특정 세트를 바로 열 때 쓴다.
   initialSlug?: string | null;
+  // 위 이동을 한 번 적용한 뒤 App의 기억을 지운다 — 안 지우면 세트별 목록에
+  // 들어올 때마다 그 세트로 강제 이동돼 목록을 볼 수 없게 된다(실제 겪은 버그).
+  onInitialSlugDone?: () => void;
 }) {
   const [index, setIndex] = useState<SetIndexEntry[] | null>(null);
   // 일본판 / 북미판 / 모바일 포켓 3분류. Pocket은 실물 아닌 디지털 게임(Pokémon TCG Pocket)이라
@@ -84,12 +88,13 @@ export function SetsView({
   const initialApplied = useRef(false);
   useEffect(() => {
     if (!initialSlug || !index || initialApplied.current) return;
+    initialApplied.current = true;
     const hit = index.find((e) => e.slug === initialSlug);
     if (hit) {
-      initialApplied.current = true;
       setTab(hit.slug.startsWith('en-') ? 'en' : 'ja');
       showSet(hit);
     }
+    onInitialSlugDone?.();
     // showSet은 렌더마다 새로 만들어지는 일반 함수라 의존성에 넣지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSlug, index]);

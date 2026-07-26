@@ -936,6 +936,7 @@ function App() {
           ) : view === 'sets' ? (
             <SetsView
               initialSlug={setsInitialSlug}
+              onInitialSlugDone={() => setSetsInitialSlug(null)}
               onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
             />
           ) : view === 'community' ? (
