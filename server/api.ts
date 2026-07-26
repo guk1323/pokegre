@@ -574,6 +574,16 @@ const UPLOAD_TYPES: Record<string, string> = {
 const UPLOAD_PER_HOUR = 20
 const UPLOAD_DIR_MAX_BYTES = 300 * 1024 * 1024
 const uploadLog = new Map<string, number[]>() // 회원 → 최근 업로드 시각
+// 이 표는 한 시간짜리 기록인데 회원 칸 자체는 지워지지 않아, 사진을 한 번이라도 올린
+// 사람이 늘어나는 만큼 계속 쌓인다(512MB짜리 작은 기계라 새는 곳은 다 막는 게 낫다).
+// 칸이 많아지면 오래된 기록만 남은 칸을 통째로 지운다.
+const UPLOAD_LOG_SWEEP_AT = 500
+function sweepUploadLog(now: number) {
+  if (uploadLog.size < UPLOAD_LOG_SWEEP_AT) return
+  for (const [id, times] of uploadLog) {
+    if (times.every((t) => now - t >= 3600_000)) uploadLog.delete(id)
+  }
+}
 
 // 글에서 떨어져 나온 사진 파일을 지운다(글 삭제·수정으로 더 안 쓰이는 것).
 async function removeUploads(urls: string[] | undefined) {
@@ -883,6 +893,7 @@ function mountCommunity(app: Mountable) {
         }
         // 한 사람이 한 시간에 올릴 수 있는 장수 제한
         const now = Date.now()
+        sweepUploadLog(now)
         const recent = (uploadLog.get(user.id) ?? []).filter((t) => now - t < 3600_000)
         if (recent.length >= UPLOAD_PER_HOUR) {
           sendJson(res, 429, { error: 'too many uploads' })

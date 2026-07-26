@@ -86,6 +86,15 @@
 ## 신고함 처리
 `/data/translation-feedback.json`(번역 신고), `/data/community-reports.json`(게시글 신고). 운영자만 GET/DELETE. 서버 접근: `fly ssh console -a pokegre -C "..."`.
 
+## 배포가 잘못됐을 때 되돌리기
+```bash
+fly releases -a pokegre                 # 버전 목록(v숫자)
+fly deploy -a pokegre --image <이전 버전 이미지>   # 또는 아래
+fly releases rollback -a pokegre        # 버전 지원 시 바로 직전으로
+```
+`/healthz` 검사가 붙어 있어 고장난 새 버전은 배포 단계에서 실패하고 옛 버전이 살아남는다.
+그래도 이미 올라간 뒤 문제가 보이면 위로 되돌린 뒤, 데이터가 상했으면 백업에서 복구한다.
+
 ## 배포 이미지 파일 검사 (2026-07-26)
 배포 이미지에는 `dist`와 `server`만 들어가고, server가 `src`에서 가져다 쓰는 파일은
 Dockerfile에 손으로 적어 복사한다. 목록이 어긋나면 빌드도 배포도 성공한 것처럼 보이는데
