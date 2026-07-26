@@ -545,6 +545,16 @@ const ITEM_EN_TO_KO: Record<string, string> = {
 // PokemonPriceTracker는 일본판 DB도 TCGPlayer 영문 표기로 내려준다("Charizard ex").
 // SNKRDUNK 쪽 koreanizeTitle이 일본어 전용이라 여기엔 못 쓰므로, 영문 카드명을
 // 한글 포켓몬 이름으로 치환하는 별도 경로를 둔다.
+// 검색용 역방향 사전(한글 → 영문). 위 두 표는 "영문 카드명 → 한글"이라 화면 표시에만
+// 쓰였고, 한글로 검색하면 영문 시세(eBay·TCGplayer)에서 아무것도 안 나왔다.
+// ⚠️ 2글자 이하 이름(추명·이슬·모란 …)은 다른 말에 끼어들어 검색을 깨뜨리므로,
+//    통째로 일치할 때만 쓰고 부분 치환에는 3글자 이상만 넣는다.
+const koToEnEntries: [string, string][] = Object.entries({ ...TRAINER_EN_TO_KO, ...ITEM_EN_TO_KO }).map(([en, ko]) => [ko, en]);
+export const CARD_NAME_KO_TO_EN = new Map<string, string>(koToEnEntries);
+export const CARD_NAME_KO_TO_EN_LONG: [string, string][] = koToEnEntries
+  .filter(([ko]) => ko.replace(/\s/g, '').length >= 3)
+  .sort((a, b) => b[0].length - a[0].length);
+
 export function koreanizeEnglishCardName(name: string): string {
   // 트레이너·인물·아이템 카드는 이름 전체가 일치할 때만 통째로 바꾼다(부분 치환 사고 방지).
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
@@ -552,6 +562,20 @@ export function koreanizeEnglishCardName(name: string): string {
   const exactKey = name.trim().replace(/[’]/g, "'");
   const exact = TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey];
   if (exact) return exact;
+
+  // PokemonPriceTracker는 "Levincia - 092/063"처럼 이름 뒤에 카드 번호를 붙여 준다.
+  // 번호를 뗀 뒤 찾고, 번호는 그대로 뒤에 다시 붙인다(안 그러면 영문 그대로 남는다).
+  const numbered = exactKey.match(/^(.+?)\s+-\s+([A-Za-z0-9/-]+)$/);
+  if (numbered) {
+    const found = TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]];
+    if (found) return `${found} - ${numbered[2]}`;
+  }
+  // "Judge (Mirror Holo)"처럼 괄호로 인쇄 방식이 붙는 것도 같은 방식으로 처리한다.
+  const suffixed = exactKey.match(/^(.+?)\s+(\([^()]+\))$/);
+  if (suffixed) {
+    const found = TRAINER_EN_TO_KO[suffixed[1]] ?? ITEM_EN_TO_KO[suffixed[1]];
+    if (found) return `${found} ${suffixed[2]}`;
+  }
 
   // 북미판 세트인데 원본 DB가 "ナッシー[Exeggutor]"처럼 일본어 이름에 영어 이름을
   // 대괄호로 덧붙여 둔 경우가 있다. 대괄호 안이 진짜 이름이라 그것만 남긴다.

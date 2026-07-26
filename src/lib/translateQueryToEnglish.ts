@@ -1,3 +1,4 @@
+import { CARD_NAME_KO_TO_EN, CARD_NAME_KO_TO_EN_LONG } from './koreanizeEnglishTitle';
 import pokemonNames from '../data/pokemonNames.json';
 import packNames from '../data/packNames.json';
 
@@ -23,6 +24,15 @@ const sortedPokemonKoEn = (pokemonNames as PokemonName[])
 // 월드챔피언 프로모)를 팩 매칭에서 걸러내는 데 쓴다. 그런 팩은 검색 의도가 십중팔구
 // "그 포켓몬 카드"라, 팩 코드로 보내면 엉뚱한 결과가 나온다.
 const pokemonKoSet = new Set(sortedPokemonKoEn.map((e) => e.ko));
+
+// "메가디안시"처럼 메가 진화 이름이 붙어 오면 통째로 바꿔야 한다. 그냥 두면 안쪽의
+// "가디안"(Gardevoir)이 먼저 걸려 "메Gardevoir시"가 된다. 반대로 메가자리(Yanmega)·
+// 메가니움(Meganium)은 이름 자체가 메가로 시작하므로, 원래 이름을 먼저 놓고
+// 긴 것부터 맞춘다.
+const pokemonWithMega = [
+  ...sortedPokemonKoEn.map((e) => ({ ko: e.ko, en: e.en })),
+  ...sortedPokemonKoEn.map((e) => ({ ko: `메가${e.ko}`, en: `Mega ${e.en}` })),
+].sort((a, b) => b.ko.length - a.ko.length);
 
 const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['메가', 'Mega '],
@@ -136,6 +146,10 @@ export function translateSearchQueryToEnglish(
   // (팩 이름과 같은 이름이어도 포켓몬 카드 검색이 우선이다.)
   const exact = sortedPokemonKoEn.find((e) => e.ko === trimmed);
   if (exact) return exact.en;
+  // 트레이너·굿즈·스타디움 한글 카드명이 통째로 들어오면 그대로 영문명으로 바꾼다.
+  // 짧은 이름(추명·이슬 등)도 여기서는 안전하다 — 전체가 일치할 때만이라서.
+  const exactCard = CARD_NAME_KO_TO_EN.get(trimmed);
+  if (exactCard) return exactCard;
 
   let result = trimmed;
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. 짧은 일반어를 먼저 바꾸면 팩 이름이
@@ -147,16 +161,28 @@ export function translateSearchQueryToEnglish(
       result = result.replace(re, en);
     }
   }
+  // 카드명이 문장 일부로 들어온 경우("벽록의 가면 오거폰 SAR")도 바꿔 준다.
+  // 긴 이름부터 처리해야 짧은 이름이 먼저 걸려 조각나지 않는다.
+  for (const [ko, en] of CARD_NAME_KO_TO_EN_LONG) {
+    if (result.includes(ko)) {
+      result = result.split(ko).join(en);
+    }
+  }
+  // 포켓몬 이름이 구조어보다 먼저다. "메가"를 먼저 떼면 메가자리(Yanmega)·메가니움
+  // (Meganium)이 "Mega 자리"처럼 반쪽이 나서 검색이 안 된다.
+  for (const entry of pokemonWithMega) {
+    if (result.includes(entry.ko)) {
+      result = result.split(entry.ko).join(entry.en);
+    }
+  }
   for (const [ko, en] of STRUCTURAL_EN_TERMS) {
     if (result.includes(ko)) {
       result = result.split(ko).join(en);
     }
   }
-  for (const entry of sortedPokemonKoEn) {
-    if (result.includes(entry.ko)) {
-      result = result.split(entry.ko).join(entry.en);
-    }
-  }
+  // 남은 소유격 "의"를 영문식으로 바꾼다. "N의 조로아크", "모야모의 찌리비"처럼 이름만
+  // 영문으로 바뀌고 "의"가 남으면 검색이 빗나간다(N의 Zoroark → N's Zoroark).
+  result = result.replace(/([A-Za-z][A-Za-z0-9.&'-]*(?: [A-Za-z0-9.&'-]+)*)의(?=\s|$)/g, "$1's");
   // 접두어를 바꾸면 "Team Rocket's  Mewtwo"처럼 공백이 겹칠 수 있다(한글 쪽 띄어쓰기가
   // 그대로 남아서). 검색어에 겹친 공백은 매칭을 방해하므로 한 칸으로 줄인다.
   return result.replace(/\s+/g, ' ').trim();
