@@ -308,6 +308,21 @@ export function PackSim({
       .catch(() => undefined);
   }, [sim]);
 
+// 서버가 돌려준 사유를 사람 말로 바꾼다. 전부 "열지 못했습니다"로만 뜨면 로그인이
+  // 풀린 것인지, 보관함이 빈 것인지, 진열이 바뀐 것인지 알 수가 없다.
+  const openErrorText = (code: string | undefined, unit: '팩' | '박스') =>
+    code === 'not enough'
+      ? 'GP가 부족합니다.'
+      : code === 'login required'
+        ? '로그인이 필요합니다. 다시 로그인해 주세요.'
+        : code === `no ${unit === '팩' ? 'pack' : 'box'} in stash`
+          ? `보관함에 ${unit}이 없습니다.`
+          : code === 'unknown pack'
+            ? '오늘 진열에 없는 상품입니다. 보관함에서 열어 주세요.'
+            : code === 'pack data missing'
+              ? '카드 자료를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
+              : `${unit}을 열지 못했습니다.`;
+
   async function checkIn() {
     setBusy(true);
     try {
@@ -414,7 +429,7 @@ export function PackSim({
       });
       const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string };
       if (!r.ok || !d.cards) {
-        setErr(d.error === 'not enough' ? 'GP가 부족합니다.' : '팩을 열지 못했습니다.');
+        setErr(openErrorText(d.error, '팩'));
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
@@ -469,7 +484,7 @@ export function PackSim({
         error?: string;
       };
       if (!r.ok || !d.packs) {
-        setErr(d.error === 'not enough' ? 'GP가 부족합니다.' : '박스를 열지 못했습니다.');
+        setErr(openErrorText(d.error, '박스'));
         return;
       }
       if (d.godCount) trackEvent('packsim_godpack', `${target.label} 박스`);
