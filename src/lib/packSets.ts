@@ -19,14 +19,26 @@ export const NA_REGULAR: RateProfile = {
     { rolls: [['Ultra Rare', 0.0556], ['Double rare', 0.1806], ['ACE SPEC Rare', 0.0333]], fb: 'rare' },
   ],
 };
-// 북미판 특별세트(프리즈매틱·151 등, 10장) — SAR가 일반의 2배가량 후함(1/45).
-export const NA_SPECIAL: RateProfile = {
+// 북미판 특별세트는 둘이 구성이 달라 프로필을 나눈다(세트 데이터로 직접 확인, 2026-07-26):
+// Prismatic은 IR이 아예 없고(0장) ACE 6장 수록, 북미 151은 IR 16장 수록·ACE 없음.
+// 확률은 사용자 조사 자료(2026-07, TCGplayer 실측 집계) 기준.
+// Prismatic Evolutions: SIR 1/45, HR 1/180, UR 1/13, ACE 1/21. 리버스 대신
+// 몬스터볼 포일 1/3팩·마스터볼 포일 1/20팩(mirror 'prismatic'으로 처리).
+export const NA_PRISMATIC: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    // 북미 151 실측(사용자 제공): IR 1/12~13, SIR 1/32~35, HR 1/50~60
-    { rolls: [['Hyper rare', 0.018], ['Special illustration rare', 0.03], ['Illustration rare', 0.08]], fb: 'cu' },
-    { rolls: [['Ultra Rare', 0.083], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.0333]], fb: 'rare' },
+    { rolls: [['Hyper rare', 0.00556], ['Special illustration rare', 0.0222]], fb: 'cu' },
+    { rolls: [['Ultra Rare', 0.0769], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.0476]], fb: 'rare' },
+  ],
+};
+// 북미판 151: IR 1/12, SIR 1/32, HR 1/51, UR 1/16. ACE 수록 없음, 리버스 2장은 일반과 같다.
+export const NA_151: RateProfile = {
+  commons: 5,
+  uncommons: 3,
+  slots: [
+    { rolls: [['Hyper rare', 0.0196], ['Special illustration rare', 0.03125], ['Illustration rare', 0.0833]], fb: 'cu' },
+    { rolls: [['Ultra Rare', 0.0625], ['Double rare', 0.1667]], fb: 'rare' },
   ],
 };
 // 일본판 일반 부스터(5장) — 박스(30팩) 보장 스펙(사용자 제공, 2026-07)을 팩당으로 환산:
@@ -52,8 +64,8 @@ export const JP_REGULAR: RateProfile = {
 
 // 일본판 메가 시리즈(M1~M4) 전용 — SV 일반팩과 같지만 최상위가 다르다:
 // 금장 UR 대신 신등급 MUR(메가 울트라레어, 카드 전체 금박·세트당 1장)이 들어간다.
-// MUR 실측(해외 개봉 데이터, 2026-03): 팩 1,500개당 1장 ≈ 박스 25개당 1장 수준
-// (보고 범위 10~50박스로 넓다 — M1 계열은 1/50까지, M3·M4는 1/15~20 보고도 있음).
+// MUR 봉입률: 사용자 조사 자료(2026-07) 기준 50~60박스당 1장, 전 세트 동일 →
+// 팩당 0.00033으로 박스 환산 약 1/50(박스 SR+ 보장 배분 포함, 시뮬레이션 검증).
 // ACE는 메가 세트에 수록이 없어 뺐다.
 export const JP_MEGA: RateProfile = {
   commons: 3,
@@ -61,7 +73,7 @@ export const JP_MEGA: RateProfile = {
   slots: [
     {
       rolls: [
-        ['Mega Ultra Rare', 0.00067],
+        ['Mega Ultra Rare', 0.00033],
         ['Special illustration rare', 0.007],
         ['Ultra Rare', 0.02355],
         ['Illustration rare', 0.1],
@@ -109,8 +121,9 @@ export type PackSet = {
   // 갓팩 확률. 실물에서 갓팩은 151류 특수팩에만 있으므로(일본 151 약 1/700~800팩,
   // 북미 특별세트 약 1/1000팩) 해당 팩에만 넣는다. 없으면 0.
   godRate?: number;
-  // 반짝이 변형판: jp151 = 팩당 미러 1장(박스당 마스터볼 1장), na = 팩당 리버스 홀로 2장.
-  mirror?: 'jp151' | 'na';
+  // 반짝이 변형판: jp151 = 팩당 미러 1장(박스당 마스터볼 1장), na = 팩당 리버스 홀로 2장,
+  // prismatic = 몬스터볼 포일 1/3팩 + 마스터볼 포일 1/20팩(리버스 없음).
+  mirror?: 'jp151' | 'na' | 'prismatic';
   // 박스 구성 팩 수. 0이면 박스 판매 없음(북미 특별세트 — 실물에도 36팩 박스가 없다).
   // 일본판 박스는 보장 봉입(drawBox), 북미판 박스는 순수 독립시행이다.
   boxPacks?: number;
@@ -156,11 +169,11 @@ export const PACK_SETS: PackSet[] = [
   NA('me01', 'Mega Evolution'),
   NA('sv10', 'Destined Rivals'),
   NA('sv09', 'Journey Together'),
-  NA('sv08.5', 'Prismatic Evolutions', NA_SPECIAL, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트(36팩 박스 없음), 갓팩 존재
+  NA('sv08.5', 'Prismatic Evolutions', NA_PRISMATIC, 6500, { godRate: 1 / 1000, boxPacks: 0, mirror: 'prismatic' }), // 특별세트(36팩 박스 없음), 갓팩 존재
   NA('sv08', 'Surging Sparks'),
   NA('sv07', 'Stellar Crown'),
   NA('sv06', 'Twilight Masquerade'),
-  NA('sv03.5', '151', NA_SPECIAL, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트, 갓팩 존재
+  NA('sv03.5', '151', NA_151, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트, 갓팩 존재
   NA('sv03', 'Obsidian Flames'),
   // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.

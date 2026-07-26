@@ -17,7 +17,8 @@ import {
   DAILY_BUDGET,
   JP_MEGA,
   livePacks,
-  NA_SPECIAL,
+  NA_151,
+  NA_PRISMATIC,
   MAX_BALANCE,
   STREAK_BONUS,
   STREAK_DAYS,
@@ -91,7 +92,7 @@ const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profi
     ? profile === JP_MEGA
       ? '일본판 메가 시리즈 (5장)'
       : '일본판 확장팩 (5장)'
-    : profile === NA_SPECIAL
+    : profile === NA_PRISMATIC || profile === NA_151
       ? '북미판 특별세트 (10장)'
       : '북미판 일반 부스터 (10장)';
   return {
@@ -1255,7 +1256,7 @@ export function PackSim({
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
               일본판 메가 시리즈(메가브레이브 이후) 전용 최상위 등급입니다. 카드 전체가 금박이고
-              세트당 1장만 있습니다. 약 1,500팩(박스 25개)에 1장 수준으로, 메가 시리즈에는 금장
+              세트당 1장만 있습니다. 약 3,000팩(박스 50개)에 1장 수준으로, 메가 시리즈에는 금장
               UR 대신 이 등급이 들어갑니다.
             </p>
           </div>

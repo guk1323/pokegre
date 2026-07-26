@@ -6,7 +6,7 @@ import { GOD_TIERS, type RateProfile } from './packSets.ts';
 // (일본판 151 팩당 1장), rev=리버스 홀로(북미판 팩당 2장).
 export type MirrorFlag = 'master' | 'poke' | 'rev';
 export type PackCard = { n: string; name: string; img?: string; r?: string; m?: MirrorFlag };
-export type MirrorKind = 'jp151' | 'na';
+export type MirrorKind = 'jp151' | 'na' | 'prismatic';
 
 // 화면에 등급을 표시할 때 쓰는 순위표. 여기 없는 등급(샤이니 등)은 확률 계산이
 // 어긋나므로 아예 뽑기 대상에서 뺀다.
@@ -105,7 +105,17 @@ function buildPack(cards: PackCard[], profile: RateProfile, opts: BuildOpts = {}
   const commons = pools['Common'] ?? cards;
   const uncommons = pools['Uncommon'] ?? commons;
   const cu = [...commons, ...uncommons];
-  const mirrorCount = opts.mirror === 'jp151' ? 1 : opts.mirror === 'na' ? 2 : 0;
+  // 이 팩에 넣을 변형판 목록. jp151=미러 1장 · na=리버스 2장 ·
+  // prismatic=몬스터볼 포일 1/3팩 + 마스터볼 포일 1/20팩(팩마다 있을 수도 없을 수도).
+  const mirrorFlags: MirrorFlag[] =
+    opts.mirror === 'jp151'
+      ? [opts.master ? 'master' : 'poke']
+      : opts.mirror === 'na'
+        ? ['rev', 'rev']
+        : opts.mirror === 'prismatic'
+          ? [...(Math.random() < 1 / 20 ? (['master'] as const) : []), ...(Math.random() < 1 / 3 ? (['poke'] as const) : [])]
+          : [];
+  const mirrorCount = mirrorFlags.length;
 
   const out: PackCard[] = [
     ...drawDistinct(commons, Math.max(0, profile.commons - mirrorCount)),
@@ -113,15 +123,14 @@ function buildPack(cards: PackCard[], profile: RateProfile, opts: BuildOpts = {}
   ];
   const taken = new Set(out.map((c) => c.n));
 
-  // 미러/리버스: 커먼~레어 풀에서 뽑아 변형판 표시를 붙인다.
+  // 미러/리버스/포일: 커먼~레어 풀에서 뽑아 변형판 표시를 붙인다.
   if (mirrorCount > 0) {
     const mirrorPool = [...cu, ...(pools['Rare'] ?? [])];
     for (let i = 0; i < mirrorCount; i++) {
       const base = drawDistinct(mirrorPool, 1, taken)[0];
       if (!base) break;
       taken.add(base.n);
-      const flag: MirrorFlag = opts.mirror === 'na' ? 'rev' : opts.master && i === 0 ? 'master' : 'poke';
-      out.push({ ...base, m: flag });
+      out.push({ ...base, m: mirrorFlags[i] });
     }
   }
 
