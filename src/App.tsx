@@ -831,7 +831,7 @@ function App() {
                         { v: 'artists', label: '작가별 목록' },
                         { v: 'sets', label: '세트별 목록', beta: true },
                         { v: 'centering', label: '센터링 측정', beta: true },
-                        { v: 'packsim', label: '팩 개봉' },
+                        { v: 'packsim', label: '카드 개봉' },
                       ] as { v: MainView; label: string; beta?: boolean }[]).map((it) => (
                         <button
                           key={it.v}
