@@ -1359,6 +1359,9 @@ interface Snapshot {
 }
 
 // 검색창에 입력된 검색어를 로컬 파일에 날짜별로 집계해서 "인기 검색어" 홈 화면에 쓴다.
+// ⚠️ 한 사람(IP)이 같은 말을 10분 안에 여러 번 쳐도 한 번만 센다 — 그래서 이 숫자는
+// "검색된 횟수"보다 "몇 사람이 찾았나"에 가깝다. 반복 요청으로 순위를 올리는 것을
+// 막으려면 이 방법뿐이고, 인기 순위로서도 이쪽이 더 정직하다.
 // 스니커덩크 자체 추천/인기 알고리즘은 기준이 불투명해서, 우리 사이트 안에서
 // 실제로 사용자가 최근 며칠간 몇 번 검색했는지를 직접 세는 방식으로 대체한다.
 //
@@ -1487,10 +1490,25 @@ function mountSearchTracker(app: Mountable) {
       .map(([term, count], i) => ({ term, count, rank: i + 1 }))
   }
 
+  // 인기 검색어는 홈 첫 화면에 그대로 뜨는데 이 엔드포인트는 로그인이 필요 없다.
+  // 막지 않으면 한 사람이 반복 요청만으로 아무 말이나 1위에 올릴 수 있다(실제로
+  // 200번 보내 1위가 되는 걸 확인했다). 두 겹으로 막는다:
+  //  ① 분당 요청 수 — 다른 집계 엔드포인트와 같은 방식
+  //  ② 같은 사람이 같은 말을 반복해도 창 하나에 한 번만 센다. 순위를 올리려면
+  //     결국 이 겹을 넘어야 하므로 ①만으로는 부족하다.
+  // 둘 다 메모리에만 두고 파일에는 안 남긴다 — IP를 저장하지 않는다는 원칙 그대로다.
+  const allowSearchTrack = rateLimiter(30, 60 * 1000)
+  const SEARCH_DEDUPE_MS = 10 * 60 * 1000
+  const searchSeen = new TtlCache<true>(SEARCH_DEDUPE_MS, 20_000)
+
   app.use('/api/local/track-search', async (req, res) => {
     if (req.method !== 'POST') {
       res.statusCode = 405
       res.end()
+      return
+    }
+    if (!allowSearchTrack(req)) {
+      tooManyRequests(res)
       return
     }
     // 운영자(본인) 검색은 인기 검색어·검색 통계 집계에서 뺀다.
@@ -1505,7 +1523,16 @@ function mountSearchTracker(app: Mountable) {
       // 검색어가 그대로 JSON 키가 되어 파일에 쌓인다. MAX_TRACKED_TERMS는 개수만 막지
       // 크기는 안 막아서, 길이를 안 자르면 500개로도 볼륨을 넘길 수 있다. 이 엔드포인트는
       // 로그인도 필요 없다.
+      // 같은 사람이 같은 말을 또 보내면 집계하지 않는다. 사용자에겐 성공으로 답한다 —
+      // 검색 자체는 이미 끝났고, 집계 여부를 알려 줄 이유가 없다.
+      const dedupeKey = term ? `${clientIp(req)}\u0000${term}` : ''
+      if (term && searchSeen.get(dedupeKey)) {
+        res.statusCode = 204
+        res.end()
+        return
+      }
       if (term && term.length <= MAX_TERM_LENGTH) {
+        searchSeen.set(dedupeKey, true)
         const all = await loadCounts()
         const hour = kstHourKey(Date.now())
         const bucket = (all[hour] ??= {})
