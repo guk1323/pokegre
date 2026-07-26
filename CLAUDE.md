@@ -85,3 +85,22 @@
 
 ## 신고함 처리
 `/data/translation-feedback.json`(번역 신고), `/data/community-reports.json`(게시글 신고). 운영자만 GET/DELETE. 서버 접근: `fly ssh console -a pokegre -C "..."`.
+
+## 데이터 보관 · 복구 (2026-07-26)
+`/data`의 JSON이 이 서비스의 전부다(회원·세션·앨범/GP·게시글·통계). 세 겹으로 지킨다.
+
+1. **안전 저장** — `writeJsonFile()`이 임시 파일에 쓴 뒤 이름만 바꾼다. 쓰는 중에 기계가
+   죽어도 파일이 반토막 나지 않는다. 임시 이름에는 프로세스 번호+일련번호가 붙어 저장이
+   겹쳐도 섞이지 않는다. **JSON 저장은 반드시 이 함수를 쓸 것**(`writeFile` 직접 금지).
+2. **깨진 파일 보존** — 읽기에 실패하면 `rescueCorrupt()`가 `X.json.corrupt-<시각>`으로
+   옮기고 로그를 남긴다. 예전처럼 빈 값으로 시작해 그대로 덮어쓰는 일이 없다.
+3. **백업** — 기동할 때 한 번 + 하루 한 번 `/data/backups/<날짜>/`에 통째로 복사(7일치).
+   배포마다 기계가 새로 뜨므로 "배포 직전 상태"가 늘 남는다.
+
+**복구 절차(실제로 해보고 확인함):**
+```bash
+fly ssh console -a pokegre -C "ls /data/backups"          # 날짜 확인
+fly ssh console -a pokegre -C "cp /data/backups/2026-07-26/packsim.json /data/packsim.json"
+fly apps restart pokegre                                   # 메모리 캐시를 비워야 반영된다
+```
+⚠️ 서버는 파일을 메모리에 들고 있으므로 **되돌린 뒤 반드시 재시작**해야 한다.
