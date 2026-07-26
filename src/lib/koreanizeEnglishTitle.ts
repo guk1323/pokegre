@@ -266,6 +266,49 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
 // 아이템·에너지·화석·일반 역할 카드(영어 → 한글). 공식 한국 포켓몬 카드 표기.
 // 카드명 "전체"가 정확히 일치할 때만 바꾼다.
 const ITEM_EN_TO_KO: Record<string, string> = {
+  // ── 되물어서 하나로 특정한 이름(2026-07-26) ────────────────────────────
+  // 이름이 겹치거나 한글이 아니어서 보류했던 것들을 사용자가 공식명으로 다시
+  // 확인해 줬다. 같은 한글을 쓰는 쌍은 실제로 같은 이름으로 발매된 것이다.
+  Zisu: '금주',
+  Arezu: '성화',
+  Iscan: '억새',
+  'Choice Belt': '구애머리띠', // Choice Band와 같은 이름으로 발매됐다(사용자 확인)
+  Charity: '자선',
+  'Energy Restore': '에너지 재활용',
+  Fisher: '낚시꾼', // Fisherman의 옛 이름, 같은 카드(사용자 확인)
+  'Focus Band': '기합의 머리띠',
+  'Focus Sash': '기합의 띠',
+  'Muscle Band': '힘의 머리띠',
+  'Expert Belt': '달인의 띠',
+  'Impact Energy': '임팩트 에너지',
+  'Single Strike Energy': '일격 에너지',
+  Peonia: '피오니', // 피오니의 딸이지만 한글판은 둘 다 "피오니"로 나왔다(사용자 확인)
+  Peony: '피오니', // Peonia와 같은 이름(사용자 확인)
+  'Acro Bike': '더트자전거',
+  Bicycle: '자전거',
+  Hiker: '등산가',
+  'Poké Maniac': '애호가',
+  'Roller Skater': '롤러스케이트',
+  'Roller Skates': '롤러스케이트', // 트레이너 Roller Skater와 같은 이름(사용자 확인)
+  'Ultra Forest Kartenvoy': '울트라조무래기',
+  'Ultra Recon Squad': '울트라조사대',
+  'Cara Liss': '복원 연구원',
+  Fieldworker: '필드연구원',
+  Dan: '단', // 한 글자라 검색은 이름 전체가 일치할 때만 걸린다
+  'Pokémon Breeder': '포켓몬 브리더',
+  'Double Gust': '더블 돌풍',
+  'Gust of Wind': '돌풍',
+  'Superior Energy Retrieval': '슈퍼 에너지 회수',
+  'Super Energy Retrieval': '하이퍼 에너지 회수',
+  'Dowsing Machine': '다우징머신',
+  'Item Finder': '다우징머신', // Dowsing Machine의 옛 이름(사용자 확인)
+  'Moomoo Milk': '튼튼밀크',
+  'Moo-Moo Milk': '튼튼밀크', // Moomoo Milk의 옛 표기(사용자 확인)
+  Picnicker: '피크닉걸',
+  'Technical Machine: Devolution': '기술머신 퇴화',
+  'Technical Machine: Evolution': '기술머신 진화',
+  'Sweet Honey': '달콤한꿀',
+
   // ── 사용자가 확인해 준 공식 한글 카드명 621개(2026-07-26) ────────────────
   // 한국 공식 포켓몬 카드 게임 데이터베이스 기준. SV·SWSH·SM·XY·BW·구세대의
   // 트레이너스·스타디움·굿즈·특수에너지가 섞여 있다(둘 다 같은 방식으로 쓰이므로
