@@ -68,6 +68,21 @@ export async function scanCard(file: File): Promise<CardScanResult> {
     body: JSON.stringify(payload),
   });
 
+  if (res.status === 429) {
+    // 사람마다 걸리는 제한(시간당)과 사이트 전체 하루 제한을 구분해서 알려 준다 —
+    // "잠시 후"라고만 하면 하루치가 끝난 날에도 계속 다시 눌러 보게 된다.
+    const daily = await res
+      .clone()
+      .json()
+      .then((d: { error?: string }) => d.error === 'daily_limit')
+      .catch(() => false);
+    throw new Error(
+      daily
+        ? '오늘 카드 인식을 쓸 수 있는 횟수를 다 썼습니다. 내일 다시 시도해 주세요.'
+        : '카드 인식을 너무 자주 요청했습니다. 잠시 후 다시 시도해 주세요.',
+    );
+  }
+  if (res.status === 415) throw new Error('이 사진 형식은 읽을 수 없습니다. JPG나 PNG로 올려 주세요.');
   if (!res.ok) throw new Error('카드 인식에 실패했습니다.');
   return (await res.json()) as CardScanResult;
 }

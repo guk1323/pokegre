@@ -2348,6 +2348,13 @@ const MAX_IMAGE_BODY_BYTES = 8 * 1024 * 1024
 // 카드를 몇 장 찍어보는 건 넉넉히 되면서, 스크립트로 몰아쳐서 요금을 태우진 못하는 선.
 const SCAN_RATE_LIMIT = 10
 const SCAN_RATE_WINDOW_MS = 60 * 60 * 1000
+// 사람마다 시간당 10번을 막아도, 사람 수에는 상한이 없다. 방문자가 늘거나 여러 곳에서
+// 몰아치면 요금이 끝없이 올라가므로 하루 전체 상한을 따로 둔다. 이걸 넘으면 그날은
+// 스캔을 멈추고 안내만 한다 — 사이트의 다른 기능은 그대로 쓸 수 있다.
+const SCAN_DAILY_LIMIT = 300
+// Claude 비전이 받는 형식만 보낸다. 안 받는 형식을 그대로 넘기면 요금을 쓰고
+// 실패만 돌아온다(HEIC 원본이 그대로 오는 경우가 실제로 있다).
+const SCAN_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 // 홀로(반짝이) 카드는 빛 반사로 작은 글씨가 잘 안 읽힌다. 제일 약한 Haiku 대신 눈이
 // 좋은 Sonnet을 써서 반사·작은 글씨 판독률을 올린다(스캔 한 번당 비용은 여전히 1센트 미만).
 const CARD_SCAN_MODEL = 'claude-sonnet-5'
@@ -2367,6 +2374,25 @@ const CARD_SCAN_PROMPT = `이 이미지는 포켓몬 카드다. 등급 케이스
 // 대신, 카드에 이미 인쇄되어 있는 텍스트를 읽는 방식이라 훨씬 가볍고 정확하다.
 function mountCardScan(app: Mountable, apiKey: string) {
   const allow = rateLimiter(SCAN_RATE_LIMIT, SCAN_RATE_WINDOW_MS)
+  // 하루 사용량. 파일에 남긴다 — 메모리에만 두면 배포할 때마다 0으로 돌아가서
+  // 상한이 사실상 없는 것과 같아진다.
+  const SCAN_USAGE_FILE = dataFile('scan-usage.json')
+  let scanUsage: { day: string; count: number } | null = null
+  async function bumpScanUsage(): Promise<number> {
+    const today = kstDayKey(Date.now())
+    if (!scanUsage) {
+      try {
+        scanUsage = JSON.parse(await readFile(SCAN_USAGE_FILE, 'utf-8'))
+      } catch {
+        scanUsage = { day: today, count: 0 }
+      }
+    }
+    if (scanUsage!.day !== today) scanUsage = { day: today, count: 0 }
+    scanUsage!.count += 1
+    await mkdir(path.dirname(SCAN_USAGE_FILE), { recursive: true }).catch(() => undefined)
+    await writeFile(SCAN_USAGE_FILE, JSON.stringify(scanUsage)).catch(() => undefined)
+    return scanUsage!.count
+  }
 
   // 커뮤니티에 올린 사진. /data/uploads 안의 파일만 이름으로 찾아 내보낸다
   // (경로에 슬래시나 ..이 들어오면 거절 — 서버의 다른 파일을 읽히면 안 된다).
@@ -2426,6 +2452,19 @@ function mountCardScan(app: Mountable, apiKey: string) {
         res.statusCode = 400
         res.setHeader('content-type', 'application/json')
         res.end(JSON.stringify({ error: 'image and mediaType are required' }))
+        return
+      }
+      if (!SCAN_MEDIA_TYPES.includes(body.mediaType)) {
+        res.statusCode = 415
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ error: 'unsupported image type' }))
+        return
+      }
+      // 요금이 나가기 직전에 하루 상한을 확인한다.
+      if ((await bumpScanUsage()) > SCAN_DAILY_LIMIT) {
+        res.statusCode = 429
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ error: 'daily_limit' }))
         return
       }
 
