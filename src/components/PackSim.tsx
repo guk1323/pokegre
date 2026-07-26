@@ -193,7 +193,7 @@ export function PackSim({
   const [rates, setRates] = useState<ExchangeRates | null>(null);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<number>>(new Set());
-  // 구매 완료 알림. 쇼핑 탭 맨 위에 눈에 띄게 띄우고 보관함으로 바로 갈 수 있게 한다
+  // 구매 완료 알림. 구매 탭 맨 위에 눈에 띄게 띄우고 보관함으로 바로 갈 수 있게 한다
   // (작은 초록 글씨가 진열대 아래에 떠서 안 보인다는 피드백).
   const [buyMsg, setBuyMsg] = useState('');
   // 결과 정리에서 펼쳐 둔 등급 묶음(커먼류는 기본으로 접혀 있다).
@@ -673,7 +673,7 @@ export function PackSim({
       {/* 탭 */}
       <div className="mt-4 flex gap-1">
         {([
-          ['open', '쇼핑'],
+          ['open', '구매'],
           [
             'stash',
             `보관함${(() => {
@@ -846,7 +846,7 @@ export function PackSim({
       )}
 
       {/* 개봉 연출·결과·앨범 담기·자랑 — 개봉은 보관함에서 하므로 보관함 탭에 그린다
-          (쇼핑 탭은 구매만). 아래 보관함 목록 위에 결과가 뜬다. */}
+          (구매 탭은 구매만). 아래 보관함 목록 위에 결과가 뜬다. */}
       {tab === 'stash' && !!pack && (
         <>
           {restoredMsg && (
@@ -1460,7 +1460,7 @@ export function PackSim({
         <div className="mt-4">
           {Object.values(sim?.packs ?? {}).reduce((a, b) => a + b, 0) + Object.values(sim?.boxes ?? {}).reduce((a, b) => a + b, 0) ===
           0 ? (
-            <p className="text-sm text-neutral-400">보관 중인 팩·박스가 없습니다. 쇼핑에서 구매하면 여기에 담깁니다.</p>
+            <p className="text-sm text-neutral-400">보관 중인 팩·박스가 없습니다. 구매 탭에서 사면 여기에 담깁니다.</p>
           ) : (
             <>
               <p className="mb-3 text-xs text-neutral-400">

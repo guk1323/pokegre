@@ -32,7 +32,7 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
           onClick={onEnter}
           className="ml-auto rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white"
         >
-          팩 개봉 →
+          구매하기 →
         </button>
       </div>
       <button
