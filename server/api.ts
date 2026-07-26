@@ -166,11 +166,19 @@ export class TtlCache<T> {
 //
 // 임시 파일에 다 쓴 뒤 이름만 바꾼다. 이름 바꾸기는 같은 디스크 안에서 쪼개지지 않아,
 // 파일은 "이전 것" 아니면 "새 것"이지 반쪽인 상태가 없다.
+let writeSeq = 0
 async function writeJsonFile(file: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true })
-  const tmp = `${file}.tmp`
-  await writeFile(tmp, JSON.stringify(value))
-  await rename(tmp, file)
+  // 임시 파일 이름은 매번 달라야 한다. 같은 이름을 쓰면 저장이 겹칠 때 두 요청이
+  // 한 파일에 뒤섞여 써서, 정작 그 뒤섞인 내용이 본 파일이 되어 버린다.
+  const tmp = `${file}.${process.pid}.${++writeSeq}.tmp`
+  try {
+    await writeFile(tmp, JSON.stringify(value))
+    await rename(tmp, file)
+  } catch (err) {
+    await rm(tmp, { force: true }).catch(() => undefined)
+    throw err
+  }
 }
 
 // 파일이 있는데 못 읽는 경우(내용이 깨졌을 때). 그냥 빈 값으로 시작하면 다음 저장에
@@ -184,6 +192,35 @@ async function rescueCorrupt(file: string): Promise<void> {
   const moved = `${file}.corrupt-${Date.now()}`
   await rename(file, moved).catch(() => undefined)
   console.error(`[pokegre] ${file}을(를) 읽지 못해 ${moved}로 옮겨 두었습니다. 확인이 필요합니다.`)
+}
+
+// 하루 한 번 데이터 파일을 통째로 복사해 둔다.
+//
+// 안전 저장(writeJsonFile)은 "쓰다 죽는" 경우를 막아줄 뿐, 잘못된 배포나 실수로 지운
+// 것까지는 못 막는다. 이 사이트의 데이터는 다 합쳐 몇백 KB이고 볼륨은 900MB가 남아
+// 있으므로, 며칠치를 통째로 들고 있는 게 가장 싸고 확실한 보험이다.
+const BACKUP_KEEP_DAYS = 7
+export async function backupDataFiles(): Promise<void> {
+  const dir = path.join(DATA_DIR, 'backups')
+  const today = kstDayKey(Date.now())
+  const target = path.join(dir, today)
+  try {
+    await mkdir(target, { recursive: true })
+    const names = (await readdir(DATA_DIR)).filter((n) => n.endsWith('.json'))
+    for (const name of names) {
+      const body = await readFile(path.join(DATA_DIR, name), 'utf-8').catch(() => null)
+      if (body == null) continue
+      await writeFile(path.join(target, name), body)
+    }
+    // 오래된 날짜 폴더 정리.
+    const days = (await readdir(dir)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort()
+    for (const old of days.slice(0, Math.max(0, days.length - BACKUP_KEEP_DAYS))) {
+      await rm(path.join(dir, old), { recursive: true, force: true }).catch(() => undefined)
+    }
+  } catch (err) {
+    // 백업 실패로 서비스가 멈추면 안 된다. 남겨만 두고 계속 간다.
+    console.error('[pokegre] 백업에 실패했습니다.', err)
+  }
 }
 
 // 저장소 파일의 "첫 읽기"를 하나로 묶는다.

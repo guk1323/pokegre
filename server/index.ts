@@ -2,7 +2,7 @@ import express from 'express'
 import compression from 'compression'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
-import { isAdminRequest, maintenanceOn, mountApi } from './api.ts'
+import { backupDataFiles, isAdminRequest, maintenanceOn, mountApi } from './api.ts'
 
 // 프로덕션 진입점. 개발은 vite가 API(server/api.ts)와 프론트를 함께 띄우지만,
 // 배포에서는 이 프로세스가 둘 다 맡는다 — 같은 mountApi를 부르므로 라우팅은 개발과
@@ -45,6 +45,11 @@ app.use(async (req, res, next) => {
 // API가 정적 파일보다 먼저다. 순서가 뒤집히면 SPA 폴백이 /api/* 요청까지 삼켜서
 // index.html을 돌려주고, 클라이언트는 JSON 대신 HTML을 받아 파싱 에러를 낸다.
 mountApi(app, process.env)
+
+// 데이터 백업: 기동할 때 한 번, 그 뒤로는 하루에 한 번. 배포마다 기계가 새로 뜨므로
+// 기동 시점 백업만으로도 "배포 직전 상태"가 늘 남는다.
+void backupDataFiles()
+setInterval(() => void backupDataFiles(), 24 * 60 * 60 * 1000).unref()
 
 // ── 카드 공유 링크(/c/<id>) ───────────────────────────────────────────────────
 // 카드 상세 링크를 카톡·카페에 붙이면 뜨는 미리보기(제목·시세·이미지)를 서버가 주입한다.
