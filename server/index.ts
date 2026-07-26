@@ -24,7 +24,7 @@ const MAINT_HTML = `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 font-family:-apple-system,'Apple SD Gothic Neo',sans-serif;background:#111;color:#eee;text-align:center}
 .b{padding:2rem}h1{font-size:1.4rem}p{color:#aaa;font-size:.95rem;line-height:1.6}
 a{color:#666;font-size:.8rem;text-decoration:none}</style></head><body><div class="b">
-<h1>🔧 서비스 점검 중입니다</h1><p>안녕하세요, pokegre 운영자입니다.<br>
+<h1>서비스 점검 중입니다</h1><p>안녕하세요, pokegre 운영자입니다.<br>
 더 나은 서비스를 위해 잠시 점검하고 있습니다.<br>최대한 빠르게 마치겠습니다. 조금만 기다려 주세요!</p>
 <p><a href="/api/local/auth/kakao">운영자 로그인</a></p></div></body></html>`
 
@@ -141,6 +141,13 @@ app.use(
     },
   }),
 )
+
+// /api 아래에서 아무도 받지 못한 요청은 여기서 끝낸다. 아래 SPA 폴백까지 흘러가면
+// JSON을 기다리는 쪽에 HTML이 돌아가서, 주소를 잘못 적은 것뿐인데 "JSON 파싱 실패"
+// 같은 엉뚱한 오류로 보인다.
+app.use('/api', (_req, res) => {
+  res.status(404).set('content-type', 'application/json').send(JSON.stringify({ error: 'not found' }))
+})
 
 // SPA 폴백. 위에서 API도 정적 파일도 처리하지 못한 GET은 전부 index.html로 넘겨
 // 클라이언트 라우팅이 이어받게 한다. express 5는 '*' 경로 문법이 바뀌어서
