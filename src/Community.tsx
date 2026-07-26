@@ -252,7 +252,10 @@ function PostDetail({
         <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {post.images.map((u) => (
             <a key={u} href={u} target="_blank" rel="noreferrer">
-              <img src={u} alt="" loading="lazy" className="w-full rounded-xl object-contain ring-1 ring-neutral-200" />
+              {/* ⚠️ loading="lazy"를 쓰면 안 된다. 높이를 정해 두지 않은 이미지라 불러오기
+                  전 높이가 0인데, 그러면 브라우저가 "화면 밖"으로 보고 영영 안 불러와
+                  사진이 통째로 안 뜬다(실제로 그랬다). 글 하나에 최대 4장이라 바로 부른다. */}
+              <img src={u} alt="" className="min-h-24 w-full rounded-xl bg-neutral-50 object-contain ring-1 ring-neutral-200" />
             </a>
           ))}
         </div>
