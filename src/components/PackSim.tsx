@@ -15,6 +15,7 @@ const M_LABEL: Record<MirrorFlag, { t: string; cls: string }> = {
 };
 import {
   DAILY_BUDGET,
+  JP_MEGA,
   livePacks,
   NA_SPECIAL,
   MAX_BALANCE,
@@ -58,6 +59,7 @@ const RARITY: Record<string, { ko: string; cls: string }> = {
   'Ultra Rare': { ko: '울트라레어 UR', cls: 'text-fuchsia-600 ring-fuchsia-300' },
   'Special illustration rare': { ko: '스페셜아트레어 SAR', cls: 'text-amber-500 ring-amber-400' },
   'Hyper rare': { ko: '하이퍼레어 HR', cls: 'text-yellow-500 ring-yellow-400' },
+  'Mega Ultra Rare': { ko: '메가 울트라레어 MUR', cls: 'text-yellow-600 ring-yellow-500' },
 };
 
 // TCGdex는 확장자 없는 베이스 주소라 /high.webp를 붙여야 한다. limitless는 이미 .png다.
@@ -85,7 +87,13 @@ const LIVE_TODAY: PackSet[] = livePacks();
 const PROFILE_GROUPS = [...new Set(LIVE_TODAY.map((p) => p.profile))].map((profile) => {
   const packs = LIVE_TODAY.filter((p) => p.profile === profile);
   const first = packs[0];
-  const kind = first.jp ? '일본판 확장팩 (5장)' : profile === NA_SPECIAL ? '북미판 특별세트 (10장)' : '북미판 일반 부스터 (10장)';
+  const kind = first.jp
+    ? profile === JP_MEGA
+      ? '일본판 메가 시리즈 (5장)'
+      : '일본판 확장팩 (5장)'
+    : profile === NA_SPECIAL
+      ? '북미판 특별세트 (10장)'
+      : '북미판 일반 부스터 (10장)';
   return {
     name: `${kind} — ${packs.length}종`,
     packs: packs.map((p) => p.label.replace(/^\[.+?\]\s*/, '')),
@@ -112,6 +120,8 @@ export function PackSim({
   const [slug, setSlug] = useState(LIVE_TODAY[0].slug);
   const [pack, setPack] = useState<UiCard[] | null>(null);
   const [boxInfo, setBoxInfo] = useState<number | null>(null); // 박스 개봉이면 팩 수
+  // 박스는 실제 개봉처럼 한 팩씩 넘겨 가며 깐다. groups=팩별 카드, idx=지금 보는 팩.
+  const [boxQueue, setBoxQueue] = useState<{ groups: UiCard[][]; gods: boolean[]; idx: number } | null>(null);
   const [god, setGod] = useState(false);
   const [revealed, setRevealed] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -252,6 +262,7 @@ export function PackSim({
       const sorted = [...withI].sort((a, b) => rankOf(a.r) - rankOf(b.r));
       setPack(sorted);
       setBoxInfo(null);
+      setBoxQueue(null);
       // 아트레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.i)));
       setKeptMsg('');
@@ -268,7 +279,7 @@ export function PackSim({
     }
   }
 
-  // 박스 개봉: 일본판은 보장 봉입, 북미판은 독립시행. 결과는 전 카드 그리드로 한 번에.
+  // 박스 개봉: 일본판은 보장 봉입, 북미판은 독립시행. 결과는 한 팩씩 넘겨 가며 공개한다.
   async function openBox(slug2: string) {
     const target = packBySlug.get(slug2);
     if (!sim || !target?.boxPacks) return;
@@ -297,11 +308,16 @@ export function PackSim({
         return;
       }
       if (d.godCount) trackEvent('packsim_godpack', `${target.label} 박스`);
+      // i는 서버가 기억하는 순서(팩 순서 그대로) — 앨범 골라 담기가 이 번호를 쓴다.
+      // 팩 안에서만 등급 낮은 순으로 정렬해, 팩마다 마지막 장에서 터지게 한다.
       let k = 0;
-      const flat: UiCard[] = d.packs.flatMap((p) => p.cards.map((c) => ({ ...c, i: k++ })));
-      const sorted = [...flat].sort((a, b) => rankOf(a.r) - rankOf(b.r));
+      const groups: UiCard[][] = d.packs.map((p) =>
+        p.cards.map((c) => ({ ...c, i: k++ })).sort((a, b) => rankOf(a.r) - rankOf(b.r)),
+      );
+      const sorted = groups.flat().sort((a, b) => rankOf(a.r) - rankOf(b.r));
       setPack(sorted);
-      setRevealed(sorted.length); // 박스는 장수가 많아 스택 없이 바로 전체 그리드
+      setRevealed(0);
+      setBoxQueue({ groups, gods: d.packs.map((p) => p.god), idx: 0 });
       setBoxInfo(d.boxPacks ?? d.packs.length);
       setGod(!!d.god);
       setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5 || c.m === 'master').map((c) => c.i)));
@@ -639,12 +655,12 @@ export function PackSim({
           </p>
           {keptMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{keptMsg}</p>}
 
-          {boxInfo && pack && (
+          {boxInfo && pack && !boxQueue && (
             <p className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
               박스 개봉 결과 — {boxInfo}팩 · {pack.length}장{cfg.jp ? ' (박스 보장 봉입 적용)' : ' (북미판은 보장 없음)'}
             </p>
           )}
-          {god && (
+          {god && !boxQueue && (
             <div className="mt-4 animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-3 text-center text-base font-black text-black">
               ✨ 갓팩! 전부 AR 이상입니다 ✨
             </div>
@@ -652,7 +668,87 @@ export function PackSim({
 
           {/* 겹쳐 놓인 팩. 덮개를 위로 드래그하면 아래 카드가 조금씩 드러난다 —
               색·이름을 슬쩍 보다가 충분히 밀면 덮개가 날아가고 카드가 공개된다. */}
-          {pack && !allDone && (
+          {/* 박스: 한 팩씩 촤르륵 공개하고 "다음 팩"으로 넘긴다 */}
+          {boxQueue && pack && (
+            <div className="mt-6">
+              <p className="text-center text-sm font-semibold text-neutral-600">
+                팩 {boxQueue.idx + 1} / {boxQueue.groups.length}
+              </p>
+              {boxQueue.gods[boxQueue.idx] && (
+                <div className="mx-auto mt-2 max-w-md animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-2 text-center text-sm font-black text-black">
+                  ✨ 갓팩! 전부 AR 이상입니다 ✨
+                </div>
+              )}
+              <div key={boxQueue.idx} className="mx-auto mt-3 grid max-w-md grid-cols-4 gap-2 sm:grid-cols-5">
+                {boxQueue.groups[boxQueue.idx].map((c, i2) => {
+                  const meta = RARITY[c.r ?? ''] ?? RARITY.Common;
+                  const hit = rankOf(c.r) >= 5 || c.m === 'master';
+                  return (
+                    <div key={c.i} className="deal" style={{ animationDelay: `${i2 * 90}ms` }}>
+                      <div
+                        className={`overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${hit ? 'card-hit card-shine' : ''}`}
+                        style={{ aspectRatio: '5 / 7' }}
+                      >
+                        {c.img && <img src={thumb(c.img, 240)} alt="" className="h-full w-full object-contain" />}
+                      </div>
+                      <p className={`mt-0.5 truncate text-center text-[10px] font-semibold ${meta.cls.split(' ')[0]}`}>
+                        {meta.ko.split(' ').pop()}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (boxQueue.idx >= boxQueue.groups.length - 1) {
+                      setRevealed(pack.length);
+                      setBoxQueue(null);
+                    } else {
+                      setBoxQueue({ ...boxQueue, idx: boxQueue.idx + 1 });
+                    }
+                  }}
+                  className="rounded-lg bg-black px-5 py-2 text-sm font-bold text-white"
+                >
+                  {boxQueue.idx >= boxQueue.groups.length - 1
+                    ? '결과 정리하기'
+                    : `다음 팩 (${boxQueue.idx + 2}/${boxQueue.groups.length})`}
+                </button>
+                {boxQueue.idx < boxQueue.groups.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRevealed(pack.length);
+                      setBoxQueue(null);
+                    }}
+                    className="text-xs text-neutral-400 underline"
+                  >
+                    남은 팩 전부 공개
+                  </button>
+                )}
+              </div>
+              {(() => {
+                const tops = boxQueue.groups
+                  .slice(0, boxQueue.idx + 1)
+                  .flat()
+                  .filter((c) => rankOf(c.r) >= 5 || c.m === 'master');
+                if (!tops.length) return null;
+                return (
+                  <div className="mx-auto mt-4 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-2">
+                    <p className="text-center text-xs font-semibold text-amber-700">지금까지 나온 상위 카드</p>
+                    <div className="mt-1 flex flex-wrap justify-center gap-1">
+                      {tops.map((c) => (
+                        <img key={c.i} src={thumb(c.img ?? '', 80)} alt="" className="h-14 rounded ring-1 ring-amber-200" />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {pack && !allDone && !boxQueue && (
             <div className="mt-6 select-none">
               <div className="relative mx-auto h-72 w-52 touch-none sm:h-80 sm:w-56">
                 {pack.length - revealed > 2 && (
@@ -832,7 +928,7 @@ export function PackSim({
             </p>
           )}
 
-          {pack && (
+          {pack && !boxQueue && (
             <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
               {pack.map((c, i) => (
                 <CardSlot
@@ -1152,6 +1248,15 @@ export function PackSim({
               실물과 같게 151류 특수팩에만 있습니다 — 일본판 151은 750팩에 1번, 북미판
               특별세트(Prismatic·151)는 1,000팩에 1번. 걸리면 팩 전체가 아트레어(AR) 이상으로
               나옵니다. 일반 확장팩에는 갓팩이 없습니다.
+            </p>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
+            <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
+            <p className="mt-1 text-xs text-neutral-600">
+              일본판 메가 시리즈(메가브레이브 이후) 전용 최상위 등급입니다. 카드 전체가 금박이고
+              세트당 1장만 있습니다. 약 1,500팩(박스 25개)에 1장 수준으로, 메가 시리즈에는 금장
+              UR 대신 이 등급이 들어갑니다.
             </p>
           </div>
 

@@ -50,6 +50,28 @@ export const JP_REGULAR: RateProfile = {
   ],
 };
 
+// 일본판 메가 시리즈(M1~M4) 전용 — SV 일반팩과 같지만 최상위가 다르다:
+// 금장 UR 대신 신등급 MUR(메가 울트라레어, 카드 전체 금박·세트당 1장)이 들어간다.
+// MUR 실측(해외 개봉 데이터, 2026-03): 팩 1,500개당 1장 ≈ 박스 25개당 1장 수준
+// (보고 범위 10~50박스로 넓다 — M1 계열은 1/50까지, M3·M4는 1/15~20 보고도 있음).
+// ACE는 메가 세트에 수록이 없어 뺐다.
+export const JP_MEGA: RateProfile = {
+  commons: 3,
+  uncommons: 1,
+  slots: [
+    {
+      rolls: [
+        ['Mega Ultra Rare', 0.00067],
+        ['Special illustration rare', 0.007],
+        ['Ultra Rare', 0.02355],
+        ['Illustration rare', 0.1],
+        ['Double rare', 0.15],
+      ],
+      fb: 'rare',
+    },
+  ],
+};
+
 // 일본판 151(SV2a) 전용 — 특수팩이다: 팩당 7장, 박스 20팩(사용자 제공 공식 스펙).
 // 박스 보장: AR 3장 = 15%/팩 · RR 4~5장 = 22.5%/팩 · SR이상 1장 = 5%/팩
 // (그중 SAR은 5~6박스당 1장 = 0.9%/팩, 금장 UR은 더 드묾)
@@ -117,10 +139,10 @@ const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500, extra:
 
 export const PACK_SETS: PackSet[] = [
   // 일본판 5장팩 — limitless에서 받은 데이터(시크릿 포함). scripts/gen-packsim.mjs
-  JP('M4', '닌자스피너', 1800), // 2026-05 세대부터 200엔
-  JP('M3', '니힐제로'),
-  JP('M1L', '메가브레이브'),
-  JP('M1S', '메가심포니아'),
+  JP('M4', '닌자스피너', 1800, { profile: JP_MEGA }), // 2026-05 세대부터 200엔
+  JP('M3', '니힐제로', 1600, { profile: JP_MEGA }),
+  JP('M1L', '메가브레이브', 1600, { profile: JP_MEGA }),
+  JP('M1S', '메가심포니아', 1600, { profile: JP_MEGA }),
   JP('SV11B', '블랙볼트'),
   JP('SV11W', '화이트플레어'),
   JP('SV10', '로켓단의 영광'),
@@ -238,6 +260,7 @@ export const MAX_STASH = 50;
 // 갓팩에 들어가는 등급(높은 것부터). 세트에 없는 등급은 건너뛴다.
 // 확률은 팩별 godRate(위 PACK_SETS)로 정한다 — 실물처럼 151류 특수팩에만 있다.
 export const GOD_TIERS = [
+  'Mega Ultra Rare',
   'Hyper rare',
   'Special illustration rare',
   'Ultra Rare',

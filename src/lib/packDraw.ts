@@ -20,6 +20,7 @@ export const RARITY_RANK: Record<string, number> = {
   'Ultra Rare': 6,
   'Special illustration rare': 7,
   'Hyper rare': 8,
+  'Mega Ultra Rare': 9, // 메가 시리즈 전용 최상위(카드 전체 금박) — 세트당 1장
 };
 export const rankOf = (r?: string) => RARITY_RANK[r ?? ''] ?? 0;
 export const usableCards = (cards: PackCard[]) => cards.filter((c) => c.r && c.r in RARITY_RANK);
@@ -200,7 +201,9 @@ export function drawBox(
 
   // SR이상 1장 — 내부 배분은 확률표 비율 그대로(SAR ≈ 4.8박스당 1장, 금UR ≈ 12박스당 1장).
   const lastRolls = profile.slots[profile.slots.length - 1].rolls;
-  const srRolls = lastRolls.filter(([t]) => ['Hyper rare', 'Special illustration rare', 'Ultra Rare'].includes(t));
+  const srRolls = lastRolls.filter(([t]) =>
+    ['Mega Ultra Rare', 'Hyper rare', 'Special illustration rare', 'Ultra Rare'].includes(t),
+  );
   const srTotal = srRolls.reduce((a, [, p]) => a + p, 0);
   let x = Math.random() * srTotal;
   let srTier = 'Ultra Rare';

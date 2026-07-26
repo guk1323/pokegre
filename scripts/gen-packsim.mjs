@@ -33,6 +33,12 @@ const RARITY_MAP = {
   Promo: 'Rare',
 }
 
+// 메가 시리즈(M~)의 최상위 금박 카드는 금장 UR이 아니라 신등급 MUR(메가 울트라레어)다.
+// limitless는 이걸 그냥 'Ultra Rare'로 표기하므로 M 세트에서만 MUR로 바꿔 준다.
+// (M 세트에는 기존 금장 UR이 아예 없다 — 세트당 MUR 1장이 최상위.)
+const fixMega = (code, rarity, mapped) =>
+  /^M/.test(code) && rarity === 'Ultra Rare' ? 'Mega Ultra Rare' : mapped
+
 const strip = (s) => s.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 
 async function fetchSet(code) {
@@ -57,7 +63,7 @@ async function genSet(code) {
     // limitless 일본판 목록은 ACE SPEC의 레어도 칸을 비워 둔다(트레이너스류만 해당).
     // 일반 확장팩에서 빈 레어도 + Item/Tool/Stadium/Supporter = ACE 스펙이다.
     const isAceBlank = rarity === '' && /(Item|Tool|Stadium|Supporter)/.test(typeCol ?? '')
-    const r = isAceBlank ? 'ACE SPEC Rare' : RARITY_MAP[rarity]
+    const r = isAceBlank ? 'ACE SPEC Rare' : fixMega(code, rarity, RARITY_MAP[rarity])
     // 레어도를 모르는 카드는 넣지 않는다 — 뽑기 확률 계산이 어긋난다.
     if (!r) continue
     cards.push({ n: String(n).padStart(3, '0'), name: cardName, img: hover.replace('_XS.png', '_SM.png'), r })
