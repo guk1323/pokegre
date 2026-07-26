@@ -224,6 +224,8 @@ export function PackSim({
   const [keptDone, setKeptDone] = useState(false);
   // 실제로 앨범에 넣은 장수(0이면 "넘김"). 버튼 문구를 결과에 맞게 쓰려고 따로 둔다.
   const [keptCount, setKeptCount] = useState<number | null>(null);
+  // 앨범이 가득 차 못 넣은 장수 안내.
+  const [keepFullMsg, setKeepFullMsg] = useState('');
   // 지난번에 열어 두고 안 고른 결과를 되살렸을 때 띄우는 안내.
   const [restoredMsg, setRestoredMsg] = useState('');
   const [share, setShare] = useState<ShareState>({ shared: false, msg: '' });
@@ -508,9 +510,15 @@ export function PackSim({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idxs: [...keep] }),
       });
-      const d = (await r.json()) as { kept?: number; album?: AlbumCard[] };
+      const d = (await r.json()) as { kept?: number; dropped?: number; albumLimit?: number; album?: AlbumCard[] };
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
       setKeptCount(d.kept ?? 0);
+      // 앨범이 가득 차면 새 종류는 못 들어간다. 예전엔 말없이 버려서 들어간 줄 알았다.
+      setKeepFullMsg(
+        d.dropped
+          ? `앨범이 가득 차서 ${d.dropped}장은 넣지 못했습니다. (최대 ${(d.albumLimit ?? 0).toLocaleString()}종) 앨범에서 카드를 지우면 자리가 생깁니다.`
+          : '',
+      );
       setKeptDone(true);
       setRestoredMsg('');
     } finally {
@@ -1128,6 +1136,7 @@ export function PackSim({
                     ? `${keep.size}장 앨범에 넣기`
                     : '넣지 않고 넘기기'}
               </button>
+              {keepFullMsg && <p className="mt-2 text-xs font-semibold text-rose-600">{keepFullMsg}</p>}
             </div>
           )}
           {shareOpen && !share.shared && (

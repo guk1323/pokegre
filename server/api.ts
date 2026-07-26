@@ -3176,16 +3176,31 @@ async function getSetPrices(
 }
 
 // 앨범에 넣는다. 같은 카드는 장수만 올린다(미러 여부까지 같아야 같은 카드).
-function addToAlbum(store: PackSimStore, slug: string, cards: { n: string; r?: string; m?: MirrorFlag }[], god: boolean) {
+// 넣은 장수와, 자리가 없어 못 넣은 장수를 돌려준다. 예전엔 상한을 넘으면 아무 말 없이
+// 버렸는데, 화면은 "넣었습니다"라고 답해서 이용자는 들어간 줄 알고 넘어간다.
+// (이미 앨범에 있는 종류는 자리를 더 쓰지 않으므로 가득 찼어도 장수는 계속 올라간다.)
+function addToAlbum(
+  store: PackSimStore,
+  slug: string,
+  cards: { n: string; r?: string; m?: MirrorFlag }[],
+  god: boolean,
+): { added: number; dropped: number } {
+  let added = 0
+  let dropped = 0
   for (const c of cards) {
     const found = store.album.find((a) => a.s === slug && a.n === c.n && (a.m ?? '') === (c.m ?? ''))
     if (found) {
       found.c++
       if (god) found.g = 1
+      added++
     } else if (store.album.length < ALBUM_LIMIT) {
       store.album.push({ s: slug, n: c.n, r: c.r ?? 'Common', c: 1, ...(c.m ? { m: c.m } : {}), ...(god ? { g: 1 as const } : {}) })
+      added++
+    } else {
+      dropped++
     }
   }
+  return { added, dropped }
 }
 
 // 클라이언트가 보낸 값을 그대로 믿지 않는다. 카드 참조 외의 필드를 끼워넣거나
@@ -3881,10 +3896,12 @@ function mountAuth(
         const picked = [...new Set((Array.isArray(body.idxs) ? body.idxs : []).map(Number))].filter(
           (i) => Number.isInteger(i) && i >= 0 && i < max,
         )
-        addToAlbum(store, store.last.slug, picked.map((i) => store.last!.cards[i]), store.last.god)
+        const put = addToAlbum(store, store.last.slug, picked.map((i) => store.last!.cards[i]), store.last.god)
         store.last.kept = true
         await persistPacksim()
-        sendJson(res, 200, { kept: picked.length, album: store.album })
+        // kept는 "고른 장수"가 아니라 "실제로 들어간 장수"다. 자리가 모자라 못 넣은
+        // 장수도 같이 알려 준다(화면이 그대로 안내한다).
+        sendJson(res, 200, { kept: put.added, dropped: put.dropped, albumLimit: ALBUM_LIMIT, album: store.album })
         return
       }
 
