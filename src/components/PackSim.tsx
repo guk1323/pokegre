@@ -99,6 +99,14 @@ const chipLabel = (r: string) => CHIP_KO[r] ?? (RARITY[r]?.ko ?? r).split(' ').p
 // 개봉 결과를 정리할 때 쓰는 묶음. 박스는 150장이라 한 줄로 늘어놓으면 고를 수가 없어서
 // 등급별로 묶고, 미러·리버스는 등급이 커먼이어도 따로 뗀다(마스터볼이 커먼 더미에
 // 섞이면 찾지 못한다).
+// 뒤집기 전 "오, 좋은 카드인가?" 하는 맛. 덮개 아래 카드가 좋은 등급이면 뒷면이
+// 은은하게 빛난다. 예전에는 등급과 상관없이 "마지막 장"이면 무조건 빛나서 신호가
+// 아니라 장식이었다 — 이제 빛나면 실제로 ACE·AR 이상이다.
+const hintOf = (r?: string) => {
+  const k = rankOf(r);
+  return k >= 7 ? 'hint-strong' : k >= 4 ? 'hint-soft' : '';
+};
+
 const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
 const groupRank = (k: string) =>
   k === 'm:master' ? 8.5 : k === 'm:poke' ? 2.6 : k === 'm:rev' ? 2.5 : rankOf(k.slice(2));
@@ -616,6 +624,8 @@ export function PackSim({
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
   const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
   const allDone = !!pack && revealed >= pack.length;
+  // 지금 덮개 아래에 있는 카드의 등급 힌트(뒷면을 빛나게 할지).
+  const nextHint = pack && !allDone ? hintOf(pack[revealed]?.r) : '';
 
   // 결과 정리용 등급 묶음(좋은 등급이 위로).
   const resultGroups = (() => {
@@ -1016,7 +1026,7 @@ export function PackSim({
                       }
                     }}
                     className={`absolute inset-0 cursor-grab active:cursor-grabbing ${
-                      !dragging && revealed === pack.length - 1 ? 'flip-last rounded-xl' : ''
+                      !dragging && nextHint ? `${nextHint} rounded-xl` : ''
                     }`}
                     style={{
                       transform: phase === 'leaving' ? 'translateY(-460px)' : `translateY(${-dragY}px)`,
@@ -1151,7 +1161,6 @@ export function PackSim({
                   card={c}
                   jp={cfg.jp}
                   index={i}
-                  isLast={i === pack.length - 1}
                   flipped={i < revealed}
                   isNext={i === revealed}
                   onFlip={revealNext}
@@ -1223,7 +1232,6 @@ export function PackSim({
                             card={c}
                             jp={cfg.jp}
                             index={i}
-                            isLast={false}
                             flipped
                             isNext={false}
                             onFlip={revealNext}
@@ -1615,11 +1623,17 @@ export function PackSim({
           from { opacity: 0; transform: translateY(16px) scale(0.92); }
           to { opacity: 1; transform: none; }
         }
-        /* 마지막 한 장(제일 좋은 카드)은 금빛으로 더 세게 고동친다 */
-        .flip-last { animation: lastPulse 0.9s ease-in-out infinite; }
-        @keyframes lastPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.75); }
-          60% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0), 0 0 26px 6px rgba(245, 158, 11, 0.55); }
+        /* 덮개 아래가 좋은 등급이면 뒷면이 은은하게 빛난다("이거 좋은 카드인가?").
+           ACE·AR·UR은 약하게, SAR 이상은 더 세고 빠르게 — 빛의 세기가 곧 기대치다. */
+        .hint-soft { animation: hintSoft 1.7s ease-in-out infinite; }
+        @keyframes hintSoft {
+          0%, 100% { box-shadow: 0 0 6px 1px rgba(245, 158, 11, 0.18); }
+          50% { box-shadow: 0 0 18px 4px rgba(245, 158, 11, 0.5); }
+        }
+        .hint-strong { animation: hintStrong 1s ease-in-out infinite; }
+        @keyframes hintStrong {
+          0%, 100% { box-shadow: 0 0 10px 2px rgba(245, 158, 11, 0.45); }
+          50% { box-shadow: 0 0 30px 9px rgba(245, 158, 11, 0.9); }
         }
         /* AR 이상을 뒤집으면 빛이 한 번 쓸고 지나간다 */
         .card-shine { position: relative; }
@@ -1637,7 +1651,7 @@ export function PackSim({
         }
         @media (prefers-reduced-motion: reduce) {
           .flip-inner { transition: none; }
-          .flip-next, .flip-last, .deal { animation: none; }
+          .flip-next, .hint-soft, .hint-strong, .deal { animation: none; }
           .card-shine::after { animation: none; opacity: 0; }
         }
       `}</style>
@@ -1649,7 +1663,6 @@ function CardSlot({
   card,
   jp,
   index,
-  isLast,
   flipped,
   isNext,
   onFlip,
@@ -1661,7 +1674,6 @@ function CardSlot({
   card: PackCard;
   jp: boolean;
   index: number;
-  isLast: boolean;
   flipped: boolean;
   isNext: boolean;
   onFlip: () => void;
@@ -1676,7 +1688,7 @@ function CardSlot({
     <div>
       <div
         style={{ animationDelay: `${Math.min(index, 12) * 70}ms` }}
-        className={`flip deal ${isNext ? (isLast ? 'flip-next flip-last' : 'flip-next') : ''} ${picking && picked ? 'card-picked' : ''}`}
+        className={`flip deal ${isNext ? `flip-next ${flipped ? '' : hintOf(card.r)}` : ''} ${picking && picked ? 'card-picked' : ''}`}
         onClick={isNext ? onFlip : picking ? onPick : undefined}
         role={isNext || picking ? 'button' : undefined}
         aria-label={isNext ? '카드 뒤집기' : picking ? '앨범에 넣기 선택' : undefined}
