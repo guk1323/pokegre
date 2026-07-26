@@ -56,6 +56,11 @@ const packPatterns = sortedPackKo.map((e) => ({ re: spaceInsensitivePattern(e.ko
 const reverseStructuralTerms = new Map<string, string>();
 for (const [ja, ko] of STRUCTURAL_TERMS) {
   if (!reverseStructuralTerms.has(ko)) reverseStructuralTerms.set(ko, ja);
+  // 지역폼 접두사처럼 한글 쪽에 띄어쓰기가 붙은 말("가라르 ")은 붙여 쓴 검색어
+  // ("가라르야도란")에 안 걸린다. 그러면 남은 "가"가 엉뚱한 한자 규칙에 잡혀
+  // "家라르ヤドラン"이 되어 검색이 통째로 망가진다. 공백 뺀 형태도 같이 등록한다.
+  const tight = ko.trim();
+  if (tight !== ko && tight && !reverseStructuralTerms.has(tight)) reverseStructuralTerms.set(tight, ja);
 }
 const sortedStructuralKo = [...reverseStructuralTerms.entries()].sort((a, b) => b[0].length - a[0].length);
 
