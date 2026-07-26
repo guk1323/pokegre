@@ -1759,5 +1759,18 @@ export function koreanizeTitle(title: string): string {
   // 단독 "シールド"가 먼저 걸려 戦만 남는다. 어떤 맥락이든 "전"이라 한쪽 방향으로 마무리.
   result = result.split('戦').join('전');
 
-  return kanaToHangul(result);
+  return spaceCardSuffix(kanaToHangul(result));
+}
+
+// 공식 한국 카드명은 꼬리표를 띄어 쓴다("리자몽 ex"·"리자몽 GX"·"리자몽 VSTAR" —
+// pokemoncard.co.kr 확인). 일본어 원문은 띄어쓰기가 없어 "리자몽ex"로 붙어 나왔는데,
+// 영문판 경로(koreanizeEnglishCardName)는 이미 띄어 써서 같은 카드가 판에 따라 다르게
+// 보였다. 여기서 일본판도 공식 표기에 맞춘다.
+//   · 앞이 한글일 때만 띄운다 — "폴리곤Z"처럼 꼬리표가 아니라 이름의 일부인 경우가 있다.
+//   · 뒤에 영문자가 이어지면 건드리지 않는다("위루노exeggutor"처럼 한 단어인 경우).
+//   · 메가 X·Y형은 영문 공식명("Mega Charizard X ex")과 같게 "메가리자몽 X ex"로.
+function spaceCardSuffix(name: string): string {
+  return name
+    .replace(/([가-힣])([XY])(ex|EX)(?![A-Za-z])/g, '$1 $2 $3')
+    .replace(/([가-힣])(VMAX|VSTAR|GX|EX|Ex|ex|V)(?![A-Za-z])/g, '$1 $2');
 }
