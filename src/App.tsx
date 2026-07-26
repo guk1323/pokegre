@@ -150,6 +150,8 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   // 팩 개봉의 "수록 카드 보기" → 세트 목록에서 그 세트를 바로 연다.
   const [setsInitialSlug, setSetsInitialSlug] = useState<string | null>(null);
+  // 팩 개봉 앨범에서 시세 화면으로 넘어왔는지. 맞으면 "앨범으로 돌아가기"를 띄운다.
+  const [backToPacksim, setBackToPacksim] = useState(false);
   // 카드 비교. 최대 2장을 담아 나란히 본다. 베타로 모두에게 공개(2026-07-20).
   const showCompare = true;
   const [compareCards, setCompareCards] = useState<SnkrdunkCard[]>([]);
@@ -275,6 +277,8 @@ function App() {
       edition: next.edition ?? edition,
     };
     const same = snap.view === view && snap.query === query && snap.source === source && snap.edition === edition;
+    // 시세 화면을 떠나면 "앨범으로 돌아가기" 안내도 거둔다.
+    if (next.view !== undefined && next.view !== 'cards') setBackToPacksim(false);
     if (next.view !== undefined) setView(snap.view);
     if (next.query !== undefined) setQuery(snap.query);
     if (next.source !== undefined) setSource(snap.source);
@@ -927,7 +931,10 @@ function App() {
             <ScanTest />
           ) : view === 'packsim' ? (
             <PackSim
-              onPickCard={(t) => navigate({ view: 'cards', source: t.source, query: t.query, edition: t.edition })}
+              onPickCard={(t) => {
+                setBackToPacksim(true);
+                navigate({ view: 'cards', source: t.source, query: t.query, edition: t.edition });
+              }}
               onOpenSet={(slug) => {
                 setSetsInitialSlug(slug);
                 navigate({ view: 'sets' });
@@ -955,6 +962,17 @@ function App() {
             />
           ) : (
             <>
+              {/* 팩 개봉 앨범에서 "시세 보기"로 넘어온 경우, 되돌아갈 길을 만들어 준다
+                  (브라우저 뒤로가기만으론 앨범으로 돌아가는 걸 모르는 사람이 많다). */}
+              {backToPacksim && (
+                <button
+                  type="button"
+                  onClick={() => navigate({ view: 'packsim' })}
+                  className="mb-3 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+                >
+                  ← 앨범으로 돌아가기
+                </button>
+              )}
               <div className="mb-4 max-w-xl">
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1">

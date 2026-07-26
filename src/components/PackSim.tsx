@@ -51,6 +51,9 @@ type SimState = {
   canShareBonus?: boolean; // 오늘 첫 자랑 보상(+5,000GP)이 남아 있는지
   packs?: Record<string, number>; // 사서 아직 안 연 팩(보관함)
   boxes?: Record<string, number>; // 사서 아직 안 연 박스(보관함)
+  // 마지막으로 연 결과. kept=false면 아직 "앨범에 넣기/넘기기"를 안 고른 것이라
+  // 화면을 다시 열 때 그대로 되살린다.
+  last?: { slug: string; cards: { n: string; r?: string; m?: MirrorFlag }[]; god: boolean; shared?: boolean; kept?: boolean };
 };
 
 // 등급 표기(한글·약칭)와 색.
@@ -172,7 +175,14 @@ export function PackSim({
   // 팩 진열용 이미지(박스 사진·로고). public/sets/index.json에 이미 들어 있다.
   const [art, setArt] = useState<Record<string, { boxImg?: string; logo?: string }>>({});
   // 앨범 시세(세트→번호→USD). 합계와 카드별 표시에 쓴다.
-  const [value, setValue] = useState<{ prices: Record<string, Record<string, number>>; totalUsd: number; priced: number; pending?: string[] } | null>(null);
+  const [value, setValue] = useState<{
+    prices: Record<string, Record<string, number>>;
+    // 번호→영문 카드명. 일본판 "시세 보기"의 검색어로 쓴다(서버가 시세와 함께 받아 둔 것).
+    names?: Record<string, Record<string, string>>;
+    totalUsd: number;
+    priced: number;
+    pending?: string[];
+  } | null>(null);
   // 앨범 선택 삭제 모드. 켜면 카드를 눌러 고르고, 한 번에 지운다.
   const [delMode, setDelMode] = useState(false);
   // 앨범 정렬: 등급·가격은 높은순/낮은순 각각(사용자 요청) + 최근 획득순
@@ -191,6 +201,10 @@ export function PackSim({
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   // 앨범에 넣기와 자랑하기는 서로 독립 — 넣었다고 자랑 기회가 사라지면 안 된다.
   const [keptDone, setKeptDone] = useState(false);
+  // 실제로 앨범에 넣은 장수(0이면 "넘김"). 버튼 문구를 결과에 맞게 쓰려고 따로 둔다.
+  const [keptCount, setKeptCount] = useState<number | null>(null);
+  // 지난번에 열어 두고 안 고른 결과를 되살렸을 때 띄우는 안내.
+  const [restoredMsg, setRestoredMsg] = useState('');
   const [share, setShare] = useState<ShareState>({ shared: false, msg: '' });
   // 자랑 작성 폼(바로 올리지 않고 글을 쓴 뒤 직접 등록한다).
   const [shareOpen, setShareOpen] = useState(false);
@@ -229,6 +243,47 @@ export function PackSim({
       )
       .catch(() => undefined);
   }, [load]);
+
+  // 열어 놓고 "앨범에 넣기 / 넘기기"를 아직 안 고른 결과는 서버가 기억하고 있다(last.kept).
+  // 새로고침하거나 다른 화면에 다녀와도 그대로 되살린다 — 실수로 창이 닫혔다고 결과가
+  // 날아가면 억울하다. 서버는 번호·등급만 기억하므로 이름·이미지는 세트 파일에서 채운다.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    const last = sim?.last;
+    if (!last || last.kept || restoredRef.current) return;
+    const cfg2 = packBySlug.get(last.slug);
+    if (!cfg2) return;
+    restoredRef.current = true;
+    void fetch(cfg2.src)
+      .then((r) => r.json())
+      .then((d: { cards: PackCard[] }) => {
+        const byNum = new Map(d.cards.map((c) => [c.n, c]));
+        const cards: UiCard[] = last.cards.map((c, i) => ({
+          n: c.n,
+          name: byNum.get(c.n)?.name ?? '',
+          img: byNum.get(c.n)?.img,
+          r: c.r,
+          m: c.m,
+          i,
+        }));
+        const sorted = [...cards].sort((a, b) => rankOf(a.r) - rankOf(b.r));
+        const size = cfg2.profile.commons + cfg2.profile.uncommons + cfg2.profile.slots.length;
+        setSlug(last.slug);
+        setPack(sorted);
+        setRevealed(sorted.length); // 이미 본 결과라 정리 화면으로 바로 보낸다
+        setBoxInfo(cards.length > size ? Math.round(cards.length / size) : null);
+        setBoxQueue(null);
+        setGod(last.god);
+        setOpenGroups(new Set());
+        setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5 || c.m === 'master').map((c) => c.i)));
+        setKeptDone(false);
+        setKeptCount(null);
+        setShare({ shared: !!last.shared, msg: '' });
+        setRestoredMsg('지난번에 연 결과입니다. 앨범에 넣을지 고르지 않아 그대로 두었습니다.');
+        setTab('stash');
+      })
+      .catch(() => undefined);
+  }, [sim]);
 
   async function checkIn() {
     setBusy(true);
@@ -347,6 +402,8 @@ export function PackSim({
       setKeptMsg('');
       setOpenGroups(new Set());
       setKeptDone(false);
+      setKeptCount(null);
+      setRestoredMsg('');
       setShare({ shared: false, msg: '' });
       setShareOpen(false);
       setShareText('');
@@ -405,6 +462,8 @@ export function PackSim({
       setKeptMsg('');
       setOpenGroups(new Set());
       setKeptDone(false);
+      setKeptCount(null);
+      setRestoredMsg('');
       setShare({ shared: false, msg: '' });
       setShareOpen(false);
       setShareText('');
@@ -428,7 +487,9 @@ export function PackSim({
       const d = (await r.json()) as { kept?: number; album?: AlbumCard[] };
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
       setKeptMsg(d.kept ? `${d.kept}장을 앨범에 넣었습니다.` : '앨범에 넣지 않고 넘겼습니다.');
+      setKeptCount(d.kept ?? 0);
       setKeptDone(true);
+      setRestoredMsg('');
     } finally {
       setBusy(false);
     }
@@ -529,14 +590,17 @@ export function PackSim({
   // 카드 한 장을 정확히 가리키는 검색 목표를 만든다. 앨범이 보여주는 값이 TCGplayer
   // 마켓가라 눌렀을 때도 TCGplayer 화면으로 간다. 검색어는 "이름 번호"(번호는 039처럼
   // 0 붙은 그대로가 정확).
-  // ⚠️ 북미판은 원본 이름이 이미 TCGplayer 표기(영문)라 그대로 보낸다. 한글로 바꿨다
-  // 되돌리면 "Team Rocket's" 같은 트레이너 접두어가 한글로 남아("로켓단의 Mewtwo ex")
-  // 검색이 빗나간다 — 실제로 231번 뮤츠가 "매물 없음"으로 나왔다.
-  // 일본판은 원본이 일본어이고 PPT는 영문으로 색인돼 있어, 한글을 거쳐 영문으로
-  // 번역하는 기존 경로를 그대로 쓴다.
+  // ⚠️ 검색어는 반드시 영문(TCGplayer 표기)이어야 한다. 한글로 바꿨다 되돌리면
+  // "Team Rocket's"가 "로켓단의"로 남거나 트레이너 이름이 아예 안 바뀌어 검색이
+  // 빗나간다 — 실제로 231번 뮤츠가 "매물 없음"으로 나왔다.
+  //   북미판: 원본 이름이 이미 영문이라 그대로 쓴다.
+  //   일본판: 원본이 일본어라, 시세를 받을 때 함께 저장해 둔 영문 이름을 쓴다.
+  //           (아직 못 받았으면 한글→영문 번역으로 최선을 다한다)
   const pickTarget = (slug2: string, n: string, rawName: string): PickTarget => {
     const jp = !!packBySlug.get(slug2)?.jp;
-    return { query: `${jp ? koName(true, rawName) : rawName} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
+    const en = value?.names?.[slug2]?.[n.replace(/^0+/, '') || '0'];
+    const name = en || (jp ? koName(true, rawName) : rawName);
+    return { query: `${name} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
   };
 
     const usdOf = (a: AlbumCard) => {
@@ -794,6 +858,11 @@ export function PackSim({
           {keptMsg && (
             <p className="mt-3 rounded-xl border border-neutral-900 bg-neutral-900 p-3 text-sm font-bold text-white">{keptMsg}</p>
           )}
+          {restoredMsg && (
+            <p className="mt-3 rounded-xl border border-neutral-300 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
+              {restoredMsg}
+            </p>
+          )}
 
           {boxInfo && pack && !boxQueue && (
             <p className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
@@ -819,7 +888,7 @@ export function PackSim({
                   ✨ 갓팩! 전부 AR 이상입니다 ✨
                 </div>
               )}
-              <div key={boxQueue.idx} className="mx-auto mt-3 grid max-w-md grid-cols-4 gap-2 sm:grid-cols-5">
+              <div key={boxQueue.idx} className="mx-auto mt-3 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
                 {boxQueue.groups[boxQueue.idx].map((c, i2) => {
                   const meta = RARITY[c.r ?? ''] ?? RARITY.Common;
                   const hit = rankOf(c.r) >= 5 || c.m === 'master';
@@ -1017,7 +1086,13 @@ export function PackSim({
                 disabled={busy || keptDone}
                 className="rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
               >
-                {keptDone ? '앨범에 넣었습니다' : keep.size ? `${keep.size}장 앨범에 넣기` : '넣지 않고 넘기기'}
+                {keptDone
+                  ? keptCount
+                    ? `${keptCount}장 넣었습니다`
+                    : '넘겼습니다'
+                  : keep.size
+                    ? `${keep.size}장 앨범에 넣기`
+                    : '넣지 않고 넘기기'}
               </button>
             </div>
           )}
@@ -1068,9 +1143,10 @@ export function PackSim({
             </p>
           )}
 
-          {/* 아직 다 안 뒤집은 낱팩: 한 장씩 뒤집는 그대로 */}
+          {/* 아직 다 안 뒤집은 낱팩: 한 장씩 뒤집는 그대로.
+              실물 팩처럼 한 줄에 5장씩, 가운데 정렬(10장이면 5+5 두 줄). */}
           {pack && !boxQueue && !allDone && (
-            <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
+            <div className="mx-auto mt-4 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
               {pack.map((c, i) => (
                 <CardSlot
                   key={i}
@@ -1140,7 +1216,7 @@ export function PackSim({
                     {opened ? (
                       <div
                         className={`mt-2 grid ${
-                          big ? 'grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7' : 'grid-cols-4 gap-2 sm:grid-cols-8 lg:grid-cols-12'
+                          big ? 'max-w-2xl grid-cols-5 gap-2 sm:gap-3' : 'grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-12'
                         }`}
                       >
                         {cards.map((c, i) => (

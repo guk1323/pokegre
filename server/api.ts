@@ -2567,7 +2567,13 @@ async function readPackCards(src: string): Promise<PackCard[]> {
 // 세트 하나의 카드 시세(TCGplayer 마켓가, USD)를 PPT에서 받아 하루 캐시한다.
 // PPT는 분당 제한이 빡빡해서(연속 2~3콜에 429) 세트 단위로 한 번에 받고(limit=250),
 // 캐시가 있으면 크레딧을 아예 안 쓴다. 카드번호는 "174/086" 꼴이라 앞자리만 쓴다.
-const packPriceCache = new Map<string, { at: number; prices: Record<string, number>; partial?: boolean }>()
+// names: 번호→영문 카드명. 일본판 카드는 우리 데이터가 일본어 이름뿐이라 "시세 보기"를
+// 눌러도 검색이 안 잡힌다(PPT는 일본판도 영문으로 색인). 시세를 받아올 때 같이 오는
+// 영문 이름을 기억해 두었다가 그 검색어로 쓴다.
+const packPriceCache = new Map<
+  string,
+  { at: number; prices: Record<string, number>; names?: Record<string, string>; partial?: boolean }
+>()
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 const PACK_PRICE_FILE = dataFile('pack-prices.json')
 const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
@@ -2648,6 +2654,7 @@ async function getSetPrices(
   const pages = opts.pages ?? 2
   try {
     const prices: Record<string, number> = {}
+    const names: Record<string, string> = {}
     const basePriced = new Set<string>() // 기본판 값을 이미 받은 번호
     let complete = false
     for (let p = 0; p < pages; p++) {
@@ -2669,6 +2676,9 @@ async function getSetPrices(
         // 마스터볼 값 $18를 받았던 문제)
         const nm = String(c.name ?? '')
         const isBase = !nm.includes('(')
+        // 검색어로 쓸 영문 이름. PPT는 "Team Rocket's Mewtwo ex - 231/182"처럼 번호를
+        // 꼬리에 붙여 주므로 떼어 낸다. 기본판 이름을 우선한다.
+        if (nm && (isBase || !names[num])) names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
         if (isBase) {
           prices[num] = basePriced.has(num) ? Math.min(prices[num], market) : market
           basePriced.add(num)
@@ -2687,7 +2697,13 @@ async function getSetPrices(
     }
     // 이전 값이 더 많으면(부분 수집이 이전보다 후퇴) 합쳐서 잃지 않는다.
     const merged = { ...(hit?.prices ?? {}), ...prices }
-    packPriceCache.set(slug, { at: Date.now(), prices: merged, ...(complete ? {} : { partial: true }) })
+    const mergedNames = { ...(hit?.names ?? {}), ...names }
+    packPriceCache.set(slug, {
+      at: Date.now(),
+      prices: merged,
+      names: mergedNames,
+      ...(complete ? {} : { partial: true }),
+    })
     return merged
   } catch {
     return hit?.prices ?? null
@@ -3407,6 +3423,7 @@ function mountAuth(
         const store = await getPacksim(user.id)
         const slugs = [...new Set(store.album.map((a) => a.s))]
         const prices: Record<string, Record<string, number>> = {}
+        const names: Record<string, Record<string, string>> = {}
         const pending: string[] = []
         // PPT는 분당 크레딧 500인데 세트 하나 받는 데 250이 든다. 한 요청에 두 세트를
         // 받으면 그 분의 남은 호출이 전부 429라, 업스트림은 요청당 1세트만 부르고
@@ -3417,15 +3434,22 @@ function mountAuth(
           const fresh = cached && !cached.partial && Date.now() - cached.at < PACK_PRICE_TTL_MS
           if (fresh) {
             prices[slug] = cached.prices
+            if (cached.names) names[slug] = cached.names
             continue
           }
           if (!fetched && !warming && PPT_SET_NAMES[slug]) {
             fetched = true
             const p = await getSetPrices(slug, pptApiKey)
-            if (p && packPriceCache.get(slug)) prices[slug] = p
-            else if (PPT_SET_NAMES[slug]) pending.push(slug)
+            const after = packPriceCache.get(slug)
+            if (p && after) {
+              prices[slug] = p
+              if (after.names) names[slug] = after.names
+            } else if (PPT_SET_NAMES[slug]) pending.push(slug)
           } else if (PPT_SET_NAMES[slug]) {
-            if (cached) prices[slug] = cached.prices // 만료·부분이어도 있으면 일단 보여준다
+            if (cached) {
+              prices[slug] = cached.prices // 만료·부분이어도 있으면 일단 보여준다
+              if (cached.names) names[slug] = cached.names
+            }
             pending.push(slug)
           }
         }
@@ -3440,7 +3464,14 @@ function mountAuth(
             priced++
           }
         }
-        sendJson(res, 200, { prices, pending, totalUsd: Math.round(totalUsd * 100) / 100, priced, totalKinds: store.album.length })
+        sendJson(res, 200, {
+          prices,
+          names,
+          pending,
+          totalUsd: Math.round(totalUsd * 100) / 100,
+          priced,
+          totalKinds: store.album.length,
+        })
         return
       }
 
