@@ -2570,11 +2570,14 @@ async function readPackCards(src: string): Promise<PackCard[]> {
 // names: 번호→영문 카드명. 일본판 카드는 우리 데이터가 일본어 이름뿐이라 "시세 보기"를
 // 눌러도 검색이 안 잡힌다(PPT는 일본판도 영문으로 색인). 시세를 받아올 때 같이 오는
 // 영문 이름을 기억해 두었다가 그 검색어로 쓴다.
-const packPriceCache = new Map<
-  string,
-  { at: number; prices: Record<string, number>; names?: Record<string, string>; partial?: boolean }
->()
+type PackPriceEntry = { at: number; prices: Record<string, number>; names?: Record<string, string>; partial?: boolean }
+const packPriceCache = new Map<string, PackPriceEntry>()
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
+// 캐시를 그대로 써도 되는지. partial(뒤 페이지를 못 받음)이거나 names(영문 카드명)가
+// 없으면 다시 받는다 — names는 나중에 추가한 항목이라, 이전에 저장된 캐시에는 없다.
+// 그대로 두면 24시간마다 갱신돼도 영원히 안 채워져 일본판 "시세 보기"가 계속 빗나간다.
+const packPriceFresh = (hit: PackPriceEntry) =>
+  !hit.partial && !!hit.names && Date.now() - hit.at < PACK_PRICE_TTL_MS
 const PACK_PRICE_FILE = dataFile('pack-prices.json')
 const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
 
@@ -2601,7 +2604,7 @@ async function warmPackPrices(apiKey: string) {
   try {
     for (const slug of Object.keys(PPT_SET_NAMES)) {
       const hit = packPriceCache.get(slug)
-      if (hit && !hit.partial && Date.now() - hit.at < PACK_PRICE_TTL_MS) continue
+      if (hit && packPriceFresh(hit)) continue
       await getSetPrices(slug, apiKey, { pages: 3, pauseMs: 70_000 })
       await savePackPriceFile()
       // 페이지 하나가 크레딧 200, 분당 한도가 500이라 세트 사이도 70초씩 띄운다.
@@ -2649,7 +2652,7 @@ async function getSetPrices(
   const hit = packPriceCache.get(slug)
   // partial(뒤 페이지를 못 받은 것)은 신선한 걸로 치지 않는다 — 안 그러면 429 한 번에
   // 앞번호 카드가 빠진 채 하루 동안 굳는다(Destined Rivals가 45번부터 시작하던 문제).
-  if (hit && !hit.partial && Date.now() - hit.at < PACK_PRICE_TTL_MS) return hit.prices
+  if (hit && packPriceFresh(hit)) return hit.prices
   const lang = slug.startsWith('ja-') ? 'japanese' : 'english'
   const pages = opts.pages ?? 2
   try {
@@ -3468,7 +3471,7 @@ function mountAuth(
         let fetched = false
         for (const slug of slugs) {
           const cached = packPriceCache.get(slug)
-          const fresh = cached && !cached.partial && Date.now() - cached.at < PACK_PRICE_TTL_MS
+          const fresh = !!cached && packPriceFresh(cached)
           if (fresh) {
             prices[slug] = cached.prices
             if (cached.names) names[slug] = cached.names
