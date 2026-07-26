@@ -73,7 +73,7 @@ const RARITY: Record<string, { ko: string; cls: string }> = {
 
 // ⚠️ 같은 카드라도 판마다 등급 이름이 다르다. 데이터 키(위 RARITY)는 북미판 이름을
 // 쓰고 있으므로, 일본판은 아래 표로 바꿔 부른다:
-//   풀아트 = 일본판 SR(슈퍼레어) / 북미판 UR  ·  금박 = 일본판 UR(울트라레어) / 북미판 HR
+//   풀아트 = 일본판 SR(슈퍼레어) / 북미판 UR  ·  금색 = 일본판 UR(울트라레어) / 북미판 HR
 //   일러스트 = 일본판 AR·SAR / 북미판 IR·SIR
 const JP_KO: Record<string, string> = {
   'Ultra Rare': '슈퍼레어 SR',
@@ -90,7 +90,7 @@ const CHIP_KO: Record<string, string> = {
   'Illustration rare': 'AR·IR',
   'Special illustration rare': 'SAR·SIR',
   'Ultra Rare': '풀아트 SR·UR',
-  'Hyper rare': '금박 UR·HR',
+  'Hyper rare': '금색 UR·HR',
 };
 const chipLabel = (r: string) => CHIP_KO[r] ?? (RARITY[r]?.ko ?? r).split(' ').pop();
 
@@ -1510,7 +1510,7 @@ export function PackSim({
                         disabled={busy}
                         className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                       >
-                        개봉
+                        팩 개봉
                       </button>
                     </div>
                   );
@@ -1572,9 +1572,9 @@ export function PackSim({
           <div className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
-              메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금박이고, 일본판은 MUR(세트당
+              메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금색이고, 일본판은 MUR(세트당
               1장·약 3,000팩=박스 50개에 1장), 북미판은 MHR(세트당 2장)로 부릅니다. 메가
-              시리즈에는 금장 UR·HR 대신 이 등급이 들어갑니다.
+              시리즈에는 금색 UR·HR 대신 이 등급이 들어갑니다.
             </p>
           </div>
 
