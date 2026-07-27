@@ -37,6 +37,14 @@ const sortedAliasEntries = (pokemonNameAliases as { ja: string; ko: string; en: 
 // 바꾼다. 새로 넣기 전에 scripts/card-name-audit.mts의 ⑤ 검사로 끼어드는지 확인할 것.
 const EXACT_ONLY_ALIASES = new Set(['ベリー', 'メアリー']);
 
+// 카드 이름이 통째로 이것일 때만 바꾸는 것들. 짧아서 부분 치환에 올리면 다른 이름을
+// 파먹는다 — 'グリ'를 그냥 넣으면 グリガー(글라이거)·モグリュー(두더류)·スグリ(카지)가
+// 전부 깨진다. 전체가 일치할 때만 바꾸면 그런 사고가 원천적으로 안 난다.
+const EXACT_TITLES = new Map<string, string>([
+  ['グリ', '그리'], // M-P 099
+  ['マサキ', '이수재'], // PMCG1 074. 「マサキの転送」은 이미 '이수재의 전송'으로 나간다
+]);
+
 // pokecardmon.com이 정리해둔 세트 코드별 한글 팩 이름. 커뮤니티가 이미 쓰고
 // 있는 표기라 우리 자체 가나 음역보다 정확하다(예: "닌자스피나"가 아니라
 // "닌자스피너"). 박스 상품명에는 "[M4 114/083]" 같은 카드번호 표기가 없어
@@ -1766,6 +1774,9 @@ function replaceKnownPackNames(title: string): string {
 // 없는 경우에만 가나 발음을 한글로 옮기는 음역으로 대체한다(장음부호·촉음
 // 생략하는 간이 규칙이라 실제 정식 표기와는 다를 수 있음).
 export function koreanizeTitle(title: string): string {
+  const whole = EXACT_TITLES.get(title.trim());
+  if (whole) return whole;
+
   let result = replaceKnownPackNames(title);
 
   for (const entry of sortedPokemonEntries) {
