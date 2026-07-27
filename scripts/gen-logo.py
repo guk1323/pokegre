@@ -12,9 +12,12 @@
 #   icon-192.png         PWA
 #   icon-512.png         PWA
 #   apple-touch-icon.png 아이폰 홈화면
-#   naver-logo.png       네이버 로그인 로고 등록칸용 (140x140, 권장 규격)
+#
+# 네이버 개발자센터에 올릴 로고(140x140)는 사이트가 쓰지 않으므로 여기서 만들지 않는다.
+# 필요하면 --naver 를 붙여 scratchpad 로 뽑는다.
 
 import os
+import sys
 from fontTools.ttLib import TTFont
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
@@ -108,6 +111,10 @@ make_png(192, 'icon-192.png')
 make_png(512, 'icon-512.png')
 # 아이폰 홈화면은 OS가 알아서 모서리를 깎으므로 사각형 그대로 채운다.
 make_png(180, 'apple-touch-icon.png', radius_ratio=0)
-# 네이버 로그인 개발자센터 로고 등록칸.
+# 네이버 개발자센터 로고 등록칸에 올릴 파일. 사이트는 이걸 쓰지 않으므로 public/ 에
+# 두지 않는다 — 안 쓰는 파일이 배포 이미지에 섞이면 나중에 헷갈린다.
 # 안내: "권장 크기는 140x140 이며 500KB 이하의 jpg, png, gif만 등록 가능합니다."
-make_png(140, 'naver-logo.png')
+if '--naver' in sys.argv:
+    OUT = os.path.expanduser('~/Downloads/pokegre-로고')
+    os.makedirs(OUT, exist_ok=True)
+    make_png(140, '네이버-로고-140.png')
