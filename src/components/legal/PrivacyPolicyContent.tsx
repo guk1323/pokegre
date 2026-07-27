@@ -10,7 +10,7 @@ export function PrivacyPolicyContent() {
         <h3 className="font-bold text-black mb-1">1. 수집하는 개인정보 항목</h3>
         <ul className="list-disc list-inside space-y-0.5">
           <li>
-            <strong>소셜 로그인 이용 시: 회원번호(해당 사업자가 발급한 식별자)</strong>. 서비스는 카카오톡
+            <strong>소셜 로그인 이용 시: 회원번호(해당 사업자가 발급한 식별자)</strong>. 서비스는 카카오·네이버의
             닉네임·프로필 사진·이메일 주소를 <strong>수집하지 않습니다</strong> — 해당 동의 항목을 요청하지
             않습니다.
           </li>
