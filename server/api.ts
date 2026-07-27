@@ -643,9 +643,13 @@ interface CommunityPost {
   // 절대 내보내지 않는다.
   likedBy: string[]
   commentCount: number
-  // 글을 열어 본 횟수. 상세를 GET할 때마다 1씩 오른다(운영자 조회는 빼서 부풀지 않게).
-  // 없던 시절 글은 0으로 본다.
+  // 글을 열어 본 횟수. 한 사람이 여러 번 봐도 한 번만 센다(운영자 조회는 빼서 부풀지
+  // 않게). 없던 시절 글은 0으로 본다.
   viewCount?: number
+  // 이 글을 이미 본 회원번호 목록. 새로고침이나 재방문으로 조회수가 부풀지 않게 하려면
+  // 누가 봤는지를 알아야 한다. likedBy·authorId와 마찬가지로 회원번호라 화면에는 절대
+  // 내보내지 않는다(toPublicPost에서 뺀다).
+  viewedBy?: string[]
   // 팩 개봉 자랑글에만 붙는 카드 목록. 커뮤니티 화면이 이걸로 실제 카드 이미지를
   // 그려 준다(스크린샷 업로드 없이도 "그 뽑은 화면"이 그대로 보인다).
   pull?: { pack: string; god: boolean; total?: number; cards: { img: string; name: string; r: string }[] }
@@ -681,7 +685,7 @@ const HIDDEN_NOTICE = '신고로 가려진 글입니다.'
 function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
   // likedBy는 회원번호 목록이라 authorId와 마찬가지로 응답에서 빼고, 개수와 "내가
   // 눌렀는지"만 내보낸다.
-  const { authorId, hiddenAt, likedBy, pinnedAt, ...rest } = post
+  const { authorId, hiddenAt, likedBy, pinnedAt, viewedBy: _viewedBy, ...rest } = post
   const hidden = hiddenAt != null && !isAdmin(viewer)
   return {
     ...rest,
@@ -738,6 +742,17 @@ const MAX_REPORTS = 500
 let appendCommunityPost: ((post: CommunityPost) => Promise<void>) | null = null
 
 function mountCommunity(app: Mountable) {
+  // 비로그인 손님의 조회 중복 방지. 로그인 회원은 회원번호를 글에 적어 두면 영구히
+  // 한 번만 세지지만, 손님은 신원을 남길 수 없어(남기면 안 되고) IP를 메모리에만 잠깐
+  // 들고 있는다. 파일에 안 남으므로 배포로 서버가 다시 뜨면 초기화된다 — 손님이 반나절
+  // 뒤에 다시 보면 한 번 더 세지는데, 조회수를 "정확한 사람 수"가 아니라 "부풀지 않은
+  // 대략치"로 두는 선택이다.
+  const GUEST_VIEW_TTL_MS = 12 * 60 * 60 * 1000
+  const guestViews = new TtlCache<true>(GUEST_VIEW_TTL_MS, 50_000)
+  // 글 하나가 들고 있을 조회자 회원번호의 상한. 넘으면 오래된 것부터 버린다(그 사람이
+  // 다시 보면 한 번 더 세진다). 파일이 무한정 커지는 것보다 낫다.
+  const MAX_VIEWERS_PER_POST = 3000
+
   let posts: CommunityPost[] | null = null
   let comments: CommunityComment[] | null = null
   let reports: CommunityReport[] | null = null
@@ -982,11 +997,26 @@ function mountCommunity(app: Mountable) {
           return
         }
         // 운영자·집계 제외(notrack) 조회는 빼서 조회수가 부풀지 않게 한다.
-        // 그 외에는 열 때마다 1씩 올린다.
+        // 같은 사람이 다시 봐도 세지 않는다 — 안 그러면 새로고침만으로 조회수가 오른다.
         const notrack = url.searchParams.get('notrack') === '1'
         if (!isAdmin(viewer) && !notrack) {
-          post.viewCount = (post.viewCount ?? 0) + 1
-          await persistPosts()
+          let first: boolean
+          if (viewer) {
+            const seen = (post.viewedBy ??= [])
+            first = !seen.includes(viewer.id)
+            if (first) {
+              seen.push(viewer.id)
+              if (seen.length > MAX_VIEWERS_PER_POST) seen.splice(0, seen.length - MAX_VIEWERS_PER_POST)
+            }
+          } else {
+            const key = `${clientIp(req)} ${id}`
+            first = !guestViews.get(key)
+            if (first) guestViews.set(key, true)
+          }
+          if (first) {
+            post.viewCount = (post.viewCount ?? 0) + 1
+            await persistPosts()
+          }
         }
         sendJson(res, 200, toPublicPost(post, viewer, await loadUsers()))
         return
