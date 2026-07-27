@@ -1,0 +1,1251 @@
+{
+ "series": "MEGA",
+ "code": "M2a",
+ "cards": [
+  {
+   "n": "001",
+   "name": "심향의 쁘사이저",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_001.png"
+  },
+  {
+   "n": "002",
+   "name": "왕자리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_002.png"
+  },
+  {
+   "n": "003",
+   "name": "메가자리 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_003.png"
+  },
+  {
+   "n": "004",
+   "name": "개무소",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_004.png"
+  },
+  {
+   "n": "005",
+   "name": "실쿤",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_005.png"
+  },
+  {
+   "n": "006",
+   "name": "뷰티플라이",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_006.png"
+  },
+  {
+   "n": "007",
+   "name": "카스쿤",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_007.png"
+  },
+  {
+   "n": "008",
+   "name": "독케일",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_008.png"
+  },
+  {
+   "n": "009",
+   "name": "난천의 로젤리아",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_009.png"
+  },
+  {
+   "n": "010",
+   "name": "난천의 로즈레이드",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_010.png"
+  },
+  {
+   "n": "011",
+   "name": "꼬몽울",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_011.png"
+  },
+  {
+   "n": "012",
+   "name": "쉐이미",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_012.png"
+  },
+  {
+   "n": "013",
+   "name": "돌살이",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_013.png"
+  },
+  {
+   "n": "014",
+   "name": "암팰리스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_014.png"
+  },
+  {
+   "n": "015",
+   "name": "로켓단의 타랜툴라",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_015.png"
+  },
+  {
+   "n": "016",
+   "name": "로켓단의 트래피더",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_016.png"
+  },
+  {
+   "n": "017",
+   "name": "오거폰 벽록의 가면 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_017.png"
+  },
+  {
+   "n": "018",
+   "name": "심향의 마그마그",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_018.png"
+  },
+  {
+   "n": "019",
+   "name": "심향의 마그카르고",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_019.png"
+  },
+  {
+   "n": "020",
+   "name": "앤테이",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_020.png"
+  },
+  {
+   "n": "021",
+   "name": "심향의 칠색조 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_021.png"
+  },
+  {
+   "n": "022",
+   "name": "둔타",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_022.png"
+  },
+  {
+   "n": "023",
+   "name": "폭타",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_023.png"
+  },
+  {
+   "n": "024",
+   "name": "뚜꾸리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_024.png"
+  },
+  {
+   "n": "025",
+   "name": "차오꿀",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_025.png"
+  },
+  {
+   "n": "026",
+   "name": "염무왕",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_026.png"
+  },
+  {
+   "n": "027",
+   "name": "N의 달막화",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_027.png"
+  },
+  {
+   "n": "028",
+   "name": "N의 불비달마",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_028.png"
+  },
+  {
+   "n": "029",
+   "name": "레시라무 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_029.png"
+  },
+  {
+   "n": "030",
+   "name": "카르본",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_030.png"
+  },
+  {
+   "n": "031",
+   "name": "파라블레이즈 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_031.png"
+  },
+  {
+   "n": "032",
+   "name": "고라파덕",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_032.png"
+  },
+  {
+   "n": "033",
+   "name": "골덕",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_033.png"
+  },
+  {
+   "n": "034",
+   "name": "로켓단의 프리져",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_034.png"
+  },
+  {
+   "n": "035",
+   "name": "눈꼬마",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_035.png"
+  },
+  {
+   "n": "036",
+   "name": "메가눈여아 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_036.png"
+  },
+  {
+   "n": "037",
+   "name": "N의 바닐프티",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_037.png"
+  },
+  {
+   "n": "038",
+   "name": "N의 바닐리치",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_038.png"
+  },
+  {
+   "n": "039",
+   "name": "N의 배바닐라",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_039.png"
+  },
+  {
+   "n": "040",
+   "name": "누니머기",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_040.png"
+  },
+  {
+   "n": "041",
+   "name": "모스노우",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_041.png"
+  },
+  {
+   "n": "042",
+   "name": "블리자포스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_042.png"
+  },
+  {
+   "n": "043",
+   "name": "파오젠",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_043.png"
+  },
+  {
+   "n": "044",
+   "name": "피카츄 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_044.png"
+  },
+  {
+   "n": "045",
+   "name": "코일",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_045.png"
+  },
+  {
+   "n": "046",
+   "name": "레어코일",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_046.png"
+  },
+  {
+   "n": "047",
+   "name": "저리어",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_047.png"
+  },
+  {
+   "n": "048",
+   "name": "저리릴",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_048.png"
+  },
+  {
+   "n": "049",
+   "name": "메가저리더프 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_049.png"
+  },
+  {
+   "n": "050",
+   "name": "메더",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_050.png"
+  },
+  {
+   "n": "051",
+   "name": "제크로무 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_051.png"
+  },
+  {
+   "n": "052",
+   "name": "목도리키텔",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_052.png"
+  },
+  {
+   "n": "053",
+   "name": "일레도리자드",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_053.png"
+  },
+  {
+   "n": "054",
+   "name": "카푸꼬꼬꼭",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_054.png"
+  },
+  {
+   "n": "055",
+   "name": "제라오라",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_055.png"
+  },
+  {
+   "n": "056",
+   "name": "모야모의 빈나두",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_056.png"
+  },
+  {
+   "n": "057",
+   "name": "모야모의 찌리배리 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_057.png"
+  },
+  {
+   "n": "058",
+   "name": "모야모의 찌리비",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_058.png"
+  },
+  {
+   "n": "059",
+   "name": "모야모의 찌리비크",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_059.png"
+  },
+  {
+   "n": "060",
+   "name": "릴리에의 삐삐 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_060.png"
+  },
+  {
+   "n": "061",
+   "name": "로켓단의 아라리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_061.png"
+  },
+  {
+   "n": "062",
+   "name": "로켓단의 나시",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_062.png"
+  },
+  {
+   "n": "063",
+   "name": "로켓단의 뮤츠 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_063.png"
+  },
+  {
+   "n": "064",
+   "name": "토게피",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_064.png"
+  },
+  {
+   "n": "065",
+   "name": "토게틱",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_065.png"
+  },
+  {
+   "n": "066",
+   "name": "토게키스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_066.png"
+  },
+  {
+   "n": "067",
+   "name": "무우마",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_067.png"
+  },
+  {
+   "n": "068",
+   "name": "무우마직",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_068.png"
+  },
+  {
+   "n": "069",
+   "name": "랄토스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_069.png"
+  },
+  {
+   "n": "070",
+   "name": "킬리아",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_070.png"
+  },
+  {
+   "n": "071",
+   "name": "메가가디안 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_071.png"
+  },
+  {
+   "n": "072",
+   "name": "해골몽",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_072.png"
+  },
+  {
+   "n": "073",
+   "name": "미라몽",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_073.png"
+  },
+  {
+   "n": "074",
+   "name": "야느와르몽",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_074.png"
+  },
+  {
+   "n": "075",
+   "name": "라티아스 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_075.png"
+  },
+  {
+   "n": "076",
+   "name": "로토무",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_076.png"
+  },
+  {
+   "n": "077",
+   "name": "호브의 나목령",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_077.png"
+  },
+  {
+   "n": "078",
+   "name": "호브의 대로트",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_078.png"
+  },
+  {
+   "n": "079",
+   "name": "로켓단의 따라큐",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_079.png"
+  },
+  {
+   "n": "080",
+   "name": "레이스포스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_080.png"
+  },
+  {
+   "n": "081",
+   "name": "이야후",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_081.png"
+  },
+  {
+   "n": "082",
+   "name": "로켓단의 디그다",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_082.png"
+  },
+  {
+   "n": "083",
+   "name": "로켓단의 닥트리오",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_083.png"
+  },
+  {
+   "n": "084",
+   "name": "요가랑",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_084.png"
+  },
+  {
+   "n": "085",
+   "name": "요가램",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_085.png"
+  },
+  {
+   "n": "086",
+   "name": "루나톤",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_086.png"
+  },
+  {
+   "n": "087",
+   "name": "솔록",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_087.png"
+  },
+  {
+   "n": "088",
+   "name": "난천의 딥상어동",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_088.png"
+  },
+  {
+   "n": "089",
+   "name": "난천의 한바이트",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_089.png"
+  },
+  {
+   "n": "090",
+   "name": "난천의 한카리아스 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_090.png"
+  },
+  {
+   "n": "091",
+   "name": "리오르",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_091.png"
+  },
+  {
+   "n": "092",
+   "name": "메가루카리오 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_092.png"
+  },
+  {
+   "n": "093",
+   "name": "판짱",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_093.png"
+  },
+  {
+   "n": "094",
+   "name": "메가루차불 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_094.png"
+  },
+  {
+   "n": "095",
+   "name": "탄동",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_095.png"
+  },
+  {
+   "n": "096",
+   "name": "탄차곤",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_096.png"
+  },
+  {
+   "n": "097",
+   "name": "석탄산",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_097.png"
+  },
+  {
+   "n": "098",
+   "name": "조타구",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_098.png"
+  },
+  {
+   "n": "099",
+   "name": "로켓단의 주뱃",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_099.png"
+  },
+  {
+   "n": "100",
+   "name": "로켓단의 골뱃",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_100.png"
+  },
+  {
+   "n": "101",
+   "name": "로켓단의 크로뱃 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_101.png"
+  },
+  {
+   "n": "102",
+   "name": "로켓단의 니로우",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_102.png"
+  },
+  {
+   "n": "103",
+   "name": "로켓단의 돈크로우",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_103.png"
+  },
+  {
+   "n": "104",
+   "name": "로켓단의 포푸니",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_104.png"
+  },
+  {
+   "n": "105",
+   "name": "가라르 지그제구리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_105.png"
+  },
+  {
+   "n": "106",
+   "name": "가라르 직구리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_106.png"
+  },
+  {
+   "n": "107",
+   "name": "가라르 가로막구리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_107.png"
+  },
+  {
+   "n": "108",
+   "name": "난천의 화강돌",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_108.png"
+  },
+  {
+   "n": "109",
+   "name": "곤율랭",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_109.png"
+  },
+  {
+   "n": "110",
+   "name": "메가곤율거니 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_110.png"
+  },
+  {
+   "n": "111",
+   "name": "N의 조로아",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_111.png"
+  },
+  {
+   "n": "112",
+   "name": "N의 조로아크 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_112.png"
+  },
+  {
+   "n": "113",
+   "name": "부란다",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_113.png"
+  },
+  {
+   "n": "114",
+   "name": "기로치 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_114.png"
+  },
+  {
+   "n": "115",
+   "name": "복숭악동",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_115.png"
+  },
+  {
+   "n": "116",
+   "name": "자망칼",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_116.png"
+  },
+  {
+   "n": "117",
+   "name": "절각참",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_117.png"
+  },
+  {
+   "n": "118",
+   "name": "대도각참",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_118.png"
+  },
+  {
+   "n": "119",
+   "name": "게노세크트 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_119.png"
+  },
+  {
+   "n": "120",
+   "name": "마기아나",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_120.png"
+  },
+  {
+   "n": "121",
+   "name": "두랄루돈",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_121.png"
+  },
+  {
+   "n": "122",
+   "name": "브리두라스 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_122.png"
+  },
+  {
+   "n": "123",
+   "name": "호브의 자시안 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_123.png"
+  },
+  {
+   "n": "124",
+   "name": "미뇽",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_124.png"
+  },
+  {
+   "n": "125",
+   "name": "신뇽",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_125.png"
+  },
+  {
+   "n": "126",
+   "name": "메가망나뇽 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_126.png"
+  },
+  {
+   "n": "127",
+   "name": "레쿠쟈",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_127.png"
+  },
+  {
+   "n": "128",
+   "name": "N의 레시라무",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_128.png"
+  },
+  {
+   "n": "129",
+   "name": "N의 제크로무",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_129.png"
+  },
+  {
+   "n": "130",
+   "name": "음뱃",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_130.png"
+  },
+  {
+   "n": "131",
+   "name": "음번",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_131.png"
+  },
+  {
+   "n": "132",
+   "name": "드라꼰",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_132.png"
+  },
+  {
+   "n": "133",
+   "name": "드래런치",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_133.png"
+  },
+  {
+   "n": "134",
+   "name": "드래펄트 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_134.png"
+  },
+  {
+   "n": "135",
+   "name": "싸리용",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_135.png"
+  },
+  {
+   "n": "136",
+   "name": "호브의 잠만보",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_136.png"
+  },
+  {
+   "n": "137",
+   "name": "부우부",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_137.png"
+  },
+  {
+   "n": "138",
+   "name": "야부엉",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_138.png"
+  },
+  {
+   "n": "139",
+   "name": "스핀로토무",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_139.png"
+  },
+  {
+   "n": "140",
+   "name": "버프론",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_140.png"
+  },
+  {
+   "n": "141",
+   "name": "호브의 우르",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_141.png"
+  },
+  {
+   "n": "142",
+   "name": "호브의 배우르",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_142.png"
+  },
+  {
+   "n": "143",
+   "name": "호브의 윽우지",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_143.png"
+  },
+  {
+   "n": "144",
+   "name": "테라파고스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_144.png"
+  },
+  {
+   "n": "145",
+   "name": "테라파고스 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_145.png"
+  },
+  {
+   "n": "146",
+   "name": "N의 포인트업",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_146.png"
+  },
+  {
+   "n": "147",
+   "name": "개조해머",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_147.png"
+  },
+  {
+   "n": "148",
+   "name": "곤충채집세트",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_148.png"
+  },
+  {
+   "n": "149",
+   "name": "로켓단의 리시버",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_149.png"
+  },
+  {
+   "n": "150",
+   "name": "메가시그널",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_150.png"
+  },
+  {
+   "n": "151",
+   "name": "밤의 들것",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_151.png"
+  },
+  {
+   "n": "152",
+   "name": "성스러운분말",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_152.png"
+  },
+  {
+   "n": "153",
+   "name": "에너지 리사이클",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_153.png"
+  },
+  {
+   "n": "154",
+   "name": "유리나팔",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_154.png"
+  },
+  {
+   "n": "155",
+   "name": "절친 포핀",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_155.png"
+  },
+  {
+   "n": "156",
+   "name": "테라스탈오브",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_156.png"
+  },
+  {
+   "n": "157",
+   "name": "툴스크래퍼",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_157.png"
+  },
+  {
+   "n": "158",
+   "name": "파워프로틴",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_158.png"
+  },
+  {
+   "n": "159",
+   "name": "파이팅공",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_159.png"
+  },
+  {
+   "n": "160",
+   "name": "호브의 가방",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_160.png"
+  },
+  {
+   "n": "161",
+   "name": "난천의 파워웨이트",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_161.png"
+  },
+  {
+   "n": "162",
+   "name": "두꺼운비늘",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_162.png"
+  },
+  {
+   "n": "163",
+   "name": "브레이브뱅글",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_163.png"
+  },
+  {
+   "n": "164",
+   "name": "전기구슬",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_164.png"
+  },
+  {
+   "n": "165",
+   "name": "카운터 게인",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_165.png"
+  },
+  {
+   "n": "166",
+   "name": "풍선",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_166.png"
+  },
+  {
+   "n": "167",
+   "name": "호브의 구애머리띠",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_167.png"
+  },
+  {
+   "n": "168",
+   "name": "로켓단의 람다",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_168.png"
+  },
+  {
+   "n": "169",
+   "name": "로켓단의 랜스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_169.png"
+  },
+  {
+   "n": "170",
+   "name": "로켓단의 비주기",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_170.png"
+  },
+  {
+   "n": "171",
+   "name": "로켓단의 아테나",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_171.png"
+  },
+  {
+   "n": "172",
+   "name": "로켓단의 아폴로",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_172.png"
+  },
+  {
+   "n": "173",
+   "name": "릴리에의 결심",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_173.png"
+  },
+  {
+   "n": "174",
+   "name": "버베나와 헬레나",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_174.png"
+  },
+  {
+   "n": "175",
+   "name": "서퍼",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_175.png"
+  },
+  {
+   "n": "176",
+   "name": "심향의 모험",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_176.png"
+  },
+  {
+   "n": "177",
+   "name": "아세로라의 장난",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_177.png"
+  },
+  {
+   "n": "178",
+   "name": "아이리스의 투지",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_178.png"
+  },
+  {
+   "n": "179",
+   "name": "카나리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_179.png"
+  },
+  {
+   "n": "180",
+   "name": "투희",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_180.png"
+  },
+  {
+   "n": "181",
+   "name": "N의 성",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_181.png"
+  },
+  {
+   "n": "182",
+   "name": "그래비티 마운틴",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_182.png"
+  },
+  {
+   "n": "183",
+   "name": "누룩스시티",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_183.png"
+  },
+  {
+   "n": "184",
+   "name": "로켓단의 감시탑",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_184.png"
+  },
+  {
+   "n": "185",
+   "name": "로켓단의 팩토리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_185.png"
+  },
+  {
+   "n": "186",
+   "name": "미스터리 가든",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_186.png"
+  },
+  {
+   "n": "187",
+   "name": "밤의 광산",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_187.png"
+  },
+  {
+   "n": "188",
+   "name": "제로의 대공동",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_188.png"
+  },
+  {
+   "n": "189",
+   "name": "펄롱마을",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_189.png"
+  },
+  {
+   "n": "190",
+   "name": "활력의 숲",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_190.png"
+  },
+  {
+   "n": "191",
+   "name": "로켓단 에너지",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_191.png"
+  },
+  {
+   "n": "192",
+   "name": "이그니션 에너지",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_192.png"
+  },
+  {
+   "n": "193",
+   "name": "프리즘 에너지",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_193.png"
+  },
+  {
+   "n": "194",
+   "name": "뷰티플라이",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_194.png"
+  },
+  {
+   "n": "195",
+   "name": "독케일",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_195.png"
+  },
+  {
+   "n": "196",
+   "name": "꼬몽울",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_196.png"
+  },
+  {
+   "n": "197",
+   "name": "심향의 마그카르고",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_197.png"
+  },
+  {
+   "n": "198",
+   "name": "둔타",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_198.png"
+  },
+  {
+   "n": "199",
+   "name": "고라파덕",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_199.png"
+  },
+  {
+   "n": "200",
+   "name": "눈꼬마",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_200.png"
+  },
+  {
+   "n": "201",
+   "name": "일레도리자드",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_201.png"
+  },
+  {
+   "n": "202",
+   "name": "무우마",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_202.png"
+  },
+  {
+   "n": "203",
+   "name": "토게키스",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_203.png"
+  },
+  {
+   "n": "204",
+   "name": "호브의 대로트",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_204.png"
+  },
+  {
+   "n": "205",
+   "name": "로켓단의 따라큐",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_205.png"
+  },
+  {
+   "n": "206",
+   "name": "로켓단의 닥트리오",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_206.png"
+  },
+  {
+   "n": "207",
+   "name": "요가램",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_207.png"
+  },
+  {
+   "n": "208",
+   "name": "난천의 화강돌",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_208.png"
+  },
+  {
+   "n": "209",
+   "name": "가라르 가로막구리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_209.png"
+  },
+  {
+   "n": "210",
+   "name": "N의 제크로무",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_210.png"
+  },
+  {
+   "n": "211",
+   "name": "드라꼰",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_211.png"
+  },
+  {
+   "n": "212",
+   "name": "드래런치",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_212.png"
+  },
+  {
+   "n": "213",
+   "name": "스핀로토무",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_213.png"
+  },
+  {
+   "n": "214",
+   "name": "N의 포인트업",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_214.png"
+  },
+  {
+   "n": "215",
+   "name": "로켓단의 리시버",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_215.png"
+  },
+  {
+   "n": "216",
+   "name": "유리나팔",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_216.png"
+  },
+  {
+   "n": "217",
+   "name": "하이퍼볼",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_217.png"
+  },
+  {
+   "n": "218",
+   "name": "카운터 게인",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_218.png"
+  },
+  {
+   "n": "219",
+   "name": "버베나와 헬레나",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_219.png"
+  },
+  {
+   "n": "220",
+   "name": "카나리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_220.png"
+  },
+  {
+   "n": "221",
+   "name": "태권왕의 수련",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_221.png"
+  },
+  {
+   "n": "222",
+   "name": "재밍타워",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_222.png"
+  },
+  {
+   "n": "223",
+   "name": "메가리자몽X ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_223.png"
+  },
+  {
+   "n": "224",
+   "name": "메가눈여아 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_224.png"
+  },
+  {
+   "n": "225",
+   "name": "메가저리더프 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_225.png"
+  },
+  {
+   "n": "226",
+   "name": "메가가디안 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_226.png"
+  },
+  {
+   "n": "227",
+   "name": "메가디안시 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_227.png"
+  },
+  {
+   "n": "228",
+   "name": "메가루카리오 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_228.png"
+  },
+  {
+   "n": "229",
+   "name": "메가루차불 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_229.png"
+  },
+  {
+   "n": "230",
+   "name": "메가팬텀 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_230.png"
+  },
+  {
+   "n": "231",
+   "name": "메가곤율거니 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_231.png"
+  },
+  {
+   "n": "232",
+   "name": "메가망나뇽 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_232.png"
+  },
+  {
+   "n": "233",
+   "name": "메가눈여아 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_233.png"
+  },
+  {
+   "n": "234",
+   "name": "피카츄 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_234.png"
+  },
+  {
+   "n": "235",
+   "name": "메가저리더프 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_235.png"
+  },
+  {
+   "n": "236",
+   "name": "모야모의 찌리배리 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_236.png"
+  },
+  {
+   "n": "237",
+   "name": "로켓단의 뮤츠 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_237.png"
+  },
+  {
+   "n": "238",
+   "name": "메가디안시 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_238.png"
+  },
+  {
+   "n": "239",
+   "name": "메가루차불 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_239.png"
+  },
+  {
+   "n": "240",
+   "name": "메가팬텀 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_240.png"
+  },
+  {
+   "n": "241",
+   "name": "메가곤율거니 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_241.png"
+  },
+  {
+   "n": "242",
+   "name": "N의 조로아크 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_242.png"
+  },
+  {
+   "n": "243",
+   "name": "마리의 오롱털 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_243.png"
+  },
+  {
+   "n": "244",
+   "name": "기로치 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_244.png"
+  },
+  {
+   "n": "245",
+   "name": "성호의 메타그로스 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_245.png"
+  },
+  {
+   "n": "246",
+   "name": "메가망나뇽 ex",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_246.png"
+  },
+  {
+   "n": "247",
+   "name": "서퍼",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_247.png"
+  },
+  {
+   "n": "248",
+   "name": "아이리스의 투지",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_248.png"
+  },
+  {
+   "n": "249",
+   "name": "카나리",
+   "img": "https://cards.image.pokemonkorea.co.kr/data/wmimages/MEGA/M2a/M2a_249.png"
+  }
+ ]
+}

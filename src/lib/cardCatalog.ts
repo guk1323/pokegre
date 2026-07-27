@@ -3,7 +3,7 @@ import { koreanizeEnglishCardName } from './koreanizeEnglishTitle';
 import { koSetName } from './setNameKo';
 
 // 카드 카탈로그(세트별 수록 카드). public/sets/에 미리 긁어 둔 JSON을 읽는다.
-// 세트별 목록 화면(SetsView)과 플리마켓 카드 고르기(CardPicker)가 같이 쓴다.
+// 세트별 목록 화면(SetsView)과 플리마켓 카드 목록이 같이 쓴다.
 //
 // 이미지 주소를 만드는 규칙이 소스마다 달라서 여기 한곳에 모아 둔다 — 화면마다
 // 따로 두면 한쪽만 고쳐져서 어긋난다.
@@ -25,6 +25,12 @@ export interface SetCard {
   n: string;
   name: string;
   img: string;
+  // 한글판 정보. scripts/match-ko-cards.mts 가 포켓몬코리아 공식 자료를 이름으로 맞춰 붙인다.
+  // ⚠️ koNo가 n과 다를 수 있다 — 한국판은 서포트·굿즈를 가나다순으로 다시 매기기 때문이다.
+  // 없는 카드도 많다(한국 미발매 시크릿 구간). 없으면 한글판 목록에서 빼면 된다.
+  koImg?: string;
+  koNo?: string;
+  koName?: string;
 }
 
 export interface SetFile {
@@ -69,6 +75,16 @@ export async function loadSetIndex(): Promise<SetIndexEntry[]> {
   if (!res.ok) throw new Error('세트 목록을 불러오지 못했습니다.');
   indexCache = (await res.json()) as SetIndexEntry[];
   return indexCache;
+}
+
+// 한글판 그림이 붙어 있는 세트 목록(slug). 세트 파일 284개를 다 열어 보지 않으려고
+// match-ko-cards.mts 가 미리 뽑아 둔다. 아직 없으면 빈 배열 — 한글판 탭이 비는 것뿐이다.
+let koSetsCache: string[] | null = null;
+export async function loadKoSets(): Promise<string[]> {
+  if (koSetsCache) return koSetsCache;
+  const res = await fetch('/sets/ko-index.json').catch(() => null);
+  koSetsCache = res?.ok ? ((await res.json()) as string[]) : [];
+  return koSetsCache;
 }
 
 export async function loadSetCards(slug: string): Promise<SetCard[]> {

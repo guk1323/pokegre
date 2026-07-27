@@ -1,0 +1,297 @@
+{
+ "MC": {
+  "prefix": "BS2026001",
+  "series": "MEGA",
+  "code": "MC"
+ },
+ "M3": {
+  "prefix": "BS2026002",
+  "series": "MEGA",
+  "code": "M3"
+ },
+ "M4": {
+  "prefix": "BS2026003",
+  "series": "MEGA",
+  "code": "M4"
+ },
+ "M5": {
+  "prefix": "BS2026004",
+  "series": "MEGA",
+  "code": "M5"
+ },
+ "SV9": {
+  "prefix": "BS2025001",
+  "series": "SV",
+  "code": "SV9"
+ },
+ "SVN": {
+  "prefix": "BS2025002",
+  "series": "SV",
+  "code": "SVN"
+ },
+ "SVOD": {
+  "prefix": "BS2025003",
+  "series": "SV",
+  "code": "SVOD"
+ },
+ "SVOM": {
+  "prefix": "BS2025004",
+  "series": "SV",
+  "code": "SVOM"
+ },
+ "SV9a": {
+  "prefix": "BS2025005",
+  "series": "SV",
+  "code": "SV9a"
+ },
+ "SV10": {
+  "prefix": "BS2025006",
+  "series": "SV",
+  "code": "SV10"
+ },
+ "SV11B": {
+  "prefix": "BS2025007",
+  "series": "SV",
+  "code": "SV11B"
+ },
+ "SV11W": {
+  "prefix": "BS2025008",
+  "series": "SV",
+  "code": "SV11W"
+ },
+ "M1L": {
+  "prefix": "BS2025009",
+  "series": "MEGA",
+  "code": "M1L"
+ },
+ "M1S": {
+  "prefix": "BS2025010",
+  "series": "MEGA",
+  "code": "M1S"
+ },
+ "MBG": {
+  "prefix": "BS2025011",
+  "series": "MEGA",
+  "code": "MBG"
+ },
+ "MBD": {
+  "prefix": "BS2025012",
+  "series": "MEGA",
+  "code": "MBD"
+ },
+ "MA": {
+  "prefix": "BS2025013",
+  "series": "MEGA",
+  "code": "MA"
+ },
+ "M2": {
+  "prefix": "BS2025014",
+  "series": "MEGA",
+  "code": "M2"
+ },
+ "M2a": {
+  "prefix": "BS2025015",
+  "series": "MEGA",
+  "code": "M2a"
+ },
+ "SV4a": {
+  "prefix": "BS2024001",
+  "series": "SV",
+  "code": "SV4a"
+ },
+ "SVHK": {
+  "prefix": "BS2024002",
+  "series": "SV",
+  "code": "SVHK"
+ },
+ "SVHM": {
+  "prefix": "BS2024003",
+  "series": "SV",
+  "code": "SVHM"
+ },
+ "SV5K": {
+  "prefix": "BS2024004",
+  "series": "SV",
+  "code": "SV5K"
+ },
+ "SV5M": {
+  "prefix": "BS2024005",
+  "series": "SV",
+  "code": "SV5M"
+ },
+ "SVI": {
+  "prefix": "BS2024006",
+  "series": "SV",
+  "code": "SVI"
+ },
+ "SV5a": {
+  "prefix": "BS2024007",
+  "series": "SV",
+  "code": "SV5a"
+ },
+ "SV6": {
+  "prefix": "BS2024008",
+  "series": "SV",
+  "code": "SV6"
+ },
+ "SVJL": {
+  "prefix": "BS2024009",
+  "series": "SV",
+  "code": "SVJL"
+ },
+ "SVJP": {
+  "prefix": "BS2024010",
+  "series": "SV",
+  "code": "SVJP"
+ },
+ "SV6a": {
+  "prefix": "BS2024011",
+  "series": "SV",
+  "code": "SV6a"
+ },
+ "SV7": {
+  "prefix": "BS2024012",
+  "series": "SV",
+  "code": "SV7"
+ },
+ "SVK": {
+  "prefix": "BS2024013",
+  "series": "SV",
+  "code": "SVK"
+ },
+ "SVLN": {
+  "prefix": "BS2024014",
+  "series": "SV",
+  "code": "SVLN"
+ },
+ "SVLS": {
+  "prefix": "BS2024015",
+  "series": "SV",
+  "code": "SVLS"
+ },
+ "SV7a": {
+  "prefix": "BS2024016",
+  "series": "SV",
+  "code": "SV7a"
+ },
+ "SV8": {
+  "prefix": "BS2024017",
+  "series": "SV",
+  "code": "SV8"
+ },
+ "SVM": {
+  "prefix": "BS2024018",
+  "series": "SV",
+  "code": "SVM"
+ },
+ "SV8a": {
+  "prefix": "BS2024019",
+  "series": "SV",
+  "code": "SV8a"
+ },
+ "SVP2": {
+  "prefix": "BS2024020",
+  "series": "SV",
+  "code": "SVP2"
+ },
+ "S12a": {
+  "prefix": "BS2023001",
+  "series": "S",
+  "code": "S12a"
+ },
+ "SVA": {
+  "prefix": "BS2023004",
+  "series": "SV",
+  "code": "SVA"
+ },
+ "SV1S": {
+  "prefix": "BS2023006",
+  "series": "SV",
+  "code": "SV1S"
+ },
+ "SV1V": {
+  "prefix": "BS2023007",
+  "series": "SV",
+  "code": "SV1V"
+ },
+ "SVC": {
+  "prefix": "BS2023008",
+  "series": "SV",
+  "code": "SVC"
+ },
+ "SVB": {
+  "prefix": "BS2023009",
+  "series": "SV",
+  "code": "SVB"
+ },
+ "SV1a": {
+  "prefix": "BS2023010",
+  "series": "SV",
+  "code": "SV1a"
+ },
+ "SV2P": {
+  "prefix": "BS2023011",
+  "series": "SV",
+  "code": "SV2P"
+ },
+ "SV2D": {
+  "prefix": "BS2023012",
+  "series": "SV",
+  "code": "SV2D"
+ },
+ "SVP1": {
+  "prefix": "BS2023013",
+  "series": "SV",
+  "code": "SVP1"
+ },
+ "SV2a": {
+  "prefix": "BS2023014",
+  "series": "SV",
+  "code": "SV2a"
+ },
+ "SV3": {
+  "prefix": "BS2023015",
+  "series": "SV",
+  "code": "SV3"
+ },
+ "SVD": {
+  "prefix": "BS2023016",
+  "series": "SV",
+  "code": "SVD"
+ },
+ "SVF": {
+  "prefix": "BS2023017",
+  "series": "SV",
+  "code": "SVF"
+ },
+ "SVEM": {
+  "prefix": "BS2023018",
+  "series": "SV",
+  "code": "SVEM"
+ },
+ "SVEL": {
+  "prefix": "BS2023019",
+  "series": "SV",
+  "code": "SVEL"
+ },
+ "SV3a": {
+  "prefix": "BS2023020",
+  "series": "SV",
+  "code": "SV3a"
+ },
+ "SV4K": {
+  "prefix": "BS2023021",
+  "series": "SV",
+  "code": "SV4K"
+ },
+ "SV4M": {
+  "prefix": "BS2023022",
+  "series": "SV",
+  "code": "SV4M"
+ },
+ "SVG": {
+  "prefix": "BS2023023",
+  "series": "SV",
+  "code": "SVG"
+ }
+}

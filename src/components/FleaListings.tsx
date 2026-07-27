@@ -20,12 +20,12 @@ import {
   type FleaOffer,
 } from '../api/flea';
 import { uploadPostImage } from '../api/community';
-import { CardPicker, type PickedCard } from './CardPicker';
 import {
   CARD_BACK,
   cardImg,
   koName,
   koSet,
+  loadKoSets,
   loadSetCards,
   loadSetIndex,
   thumb,
@@ -33,6 +33,18 @@ import {
   type SetCard,
   type SetIndexEntry,
 } from '../lib/cardCatalog';
+
+// 고른 카드. 카탈로그(public/sets)의 세트 코드 + 카드 번호로 못 박는다 —
+// 이름을 자유롭게 받으면 같은 카드가 여러 갈래로 흩어져 시세를 못 만든다.
+export interface PickedCard {
+  slug: string;
+  ed: Edition;
+  setName: string;
+  n: string;
+  name: string;
+  // 카탈로그 이미지(공식 렌더). 판매자 실물 사진과는 별개다.
+  img: string;
+}
 
 // 플리마켓 매물 화면. 아직 운영자만 볼 수 있다(운영 ▾ 안).
 //
@@ -69,17 +81,16 @@ function NewListingForm({
   onDone,
   onCancel,
 }: {
-  // 카드 페이지에서 "이 카드 팔기"로 들어오면 카드가 이미 정해져 있다.
-  initialCard?: PickedCard;
+  // 어느 카드인지는 카드 페이지에서 이미 정해져 들어온다.
+  initialCard: PickedCard;
   onDone: () => void;
   onCancel: () => void;
 }) {
   // 카드는 반드시 카탈로그에서 고른다. 자유 입력이면 같은 카드가 여러 갈래로
   // 흩어져 시세가 안 모인다.
-  const [card, setCard] = useState<PickedCard | null>(initialCard ?? null);
-  const [picking, setPicking] = useState(!initialCard);
-  // 판본은 고른 카드에서 자동으로 정해진다(한글판만 손으로 바꾼다 — 카탈로그에 없어서).
-  const [edition, setEdition] = useState<Edition>(initialCard ? (initialCard.ed === 'ja' ? 'jp' : 'na') : 'jp');
+  const card = initialCard;
+  // 판본은 어느 탭(일본판·북미판·한글판)에서 들어왔는지로 이미 정해져 있다.
+  const edition = initialCard.ed;
   const [grade, setGrade] = useState('A');
   const [certNo, setCertNo] = useState('');
   const [price, setPrice] = useState('');
@@ -136,23 +147,6 @@ function NewListingForm({
     }
   }
 
-  // 카드부터 고르게 한다. 이게 정해져야 나머지(등급·사진)가 의미가 있다.
-  if (picking) {
-    return (
-      <div className="rounded-xl border border-neutral-200 p-4">
-        <CardPicker
-          onCancel={() => (card ? setPicking(false) : onCancel())}
-          onPick={(c) => {
-            setCard(c);
-            // 카탈로그의 판(ja/en)을 매물 판본으로 그대로 옮긴다.
-            setEdition(c.ed === 'ja' ? 'jp' : 'na');
-            setPicking(false);
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="rounded-xl border border-neutral-200 p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -183,37 +177,14 @@ function NewListingForm({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-black">{card.name}</p>
               <p className="truncate text-xs text-neutral-500">{card.setName}</p>
-              <p className="text-xs text-neutral-400">No.{card.n}</p>
+              {/* 판본은 어느 탭에서 들어왔는지로 정해진다. 여기서 바꾸게 두면
+                  카탈로그 그림과 판본이 어긋난다. */}
+              <p className="text-xs text-neutral-400">
+                No.{card.n} · {EDITION_LABEL[edition]}
+              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setPicking(true)}
-              className="flex-shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700"
-            >
-              바꾸기
-            </button>
           </div>
         )}
-
-        <div>
-          {/* 판본이 다르면 시세가 완전히 달라서 반드시 받는다. 카탈로그에서 고르면
-              일본판·북미판은 자동으로 맞춰지고, 한글판만 손으로 고른다. */}
-          <label className="mb-1 block text-xs font-semibold text-neutral-600">판본</label>
-          <div className="flex gap-2">
-            {(Object.keys(EDITION_LABEL) as Edition[]).map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => setEdition(e)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                  edition === e ? 'bg-neutral-900 text-white' : 'border border-neutral-300 text-neutral-600'
-                }`}
-              >
-                {EDITION_LABEL[e]}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div>
           <label className="mb-1 block text-xs font-semibold text-neutral-600">등급</label>
@@ -623,7 +594,7 @@ function CardMarket({
         />
         <h3 className="mt-3 text-center text-lg font-bold text-black">{card.name}</h3>
         <p className="text-center text-xs text-neutral-500">
-          {card.setName} · No.{card.n} · {card.ed === 'ja' ? '일본판' : '북미판'}
+          {card.setName} · No.{card.n} · {EDITION_LABEL[card.ed]}
         </p>
         <p className="mt-2 text-xl font-bold text-black">
           {lowest != null ? `${lowest.toLocaleString()}원~` : '판매중인 매물 없음'}
@@ -706,6 +677,10 @@ function CardMarket({
 const FEATURED = 4;
 
 export function FleaListings() {
+  // 판본을 먼저 고른다. 한글판은 카탈로그가 따로 없고, 일본판 세트에 포켓몬코리아
+  // 공식 그림·이름을 붙여 둔 것을 쓴다(한국은 일본판 세트를 그대로 낸다).
+  const [ed, setEd] = useState<Edition>('jp');
+  const [koSets, setKoSets] = useState<string[]>([]);
   const [sets, setSets] = useState<SetIndexEntry[] | null>(null);
   const [setIdx, setSetIdx] = useState(0);
   const [cards, setCards] = useState<SetCard[] | null>(null);
@@ -716,18 +691,26 @@ export function FleaListings() {
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState('');
 
-  // 발매일이 가장 최근인 세트 몇 개.
+  useEffect(() => {
+    loadKoSets().then(setKoSets).catch(() => undefined);
+  }, []);
+
+  // 판본별로 발매일이 가장 최근인 세트 몇 개.
   useEffect(() => {
     loadSetIndex()
       .then((list) => {
         const live = list
           .filter((s) => !s.slug.includes('pocket'))
+          .filter((s) =>
+            ed === 'na' ? s.ed === 'en' : ed === 'kr' ? koSets.includes(s.slug) : s.ed === 'ja',
+          )
           .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''))
           .slice(0, FEATURED);
         setSets(live);
+        setSetIdx(0);
       })
       .catch(() => setError('세트 목록을 불러오지 못했습니다.'));
-  }, []);
+  }, [ed, koSets]);
 
   const currentSet = sets?.[setIdx];
 
@@ -774,18 +757,47 @@ export function FleaListings() {
     );
   }
 
+  // 한글판일 때는 공식 한글명·번호·그림을 쓴다. 자료가 없는 카드(한국 미발매 시크릿 등)는
+  // 아예 빼 버린다 — 못 파는 카드를 목록에 두면 헛걸음이 된다.
+  const shape = (c: SetCard) => ({
+    n: ed === 'kr' ? (c.koNo ?? c.n) : c.n,
+    label: ed === 'kr' ? (c.koName ?? '') : koName(currentSet?.ed ?? 'ja', c.name),
+    img: ed === 'kr' ? (c.koImg ?? '') : usable(c.img) ? cardImg(c.img) : '',
+    raw: c,
+  });
   const q = query.trim().toLowerCase();
-  const list = (cards ?? []).filter(
-    (c) =>
-      !q ||
-      koName(currentSet?.ed ?? 'ja', c.name).toLowerCase().includes(q) ||
-      c.name.toLowerCase().includes(q) ||
-      c.n === q,
-  );
+  const list = (cards ?? [])
+    .filter((c) => ed !== 'kr' || !!c.koImg)
+    .map(shape)
+    .filter((c) => !q || c.label.toLowerCase().includes(q) || c.raw.name.toLowerCase().includes(q) || c.n === q);
 
   return (
     <div className="space-y-3">
       {error && <p className="text-sm text-rose-500">{error}</p>}
+
+      <div className="flex gap-2">
+        {(Object.keys(EDITION_LABEL) as Edition[]).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => {
+              setEd(v);
+              setQuery('');
+            }}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+              ed === v ? 'bg-neutral-900 text-white' : 'border border-neutral-300 text-neutral-600'
+            }`}
+          >
+            {EDITION_LABEL[v]}
+          </button>
+        ))}
+      </div>
+
+      {ed === 'kr' && koSets.length === 0 && (
+        <p className="rounded-xl border border-dashed border-neutral-200 py-10 text-center text-sm text-neutral-400">
+          한글판 자료를 아직 안 받았습니다.
+        </p>
+      )}
 
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
         {(sets ?? []).map((s, i) => (
@@ -822,19 +834,19 @@ export function FleaListings() {
         <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {list.map((c) => {
             const hit = withListings.get(`${currentSet.slug}/${c.n}`);
-            const src = usable(c.img) ? thumb(cardImg(c.img), 240) : CARD_BACK;
+            const src = c.img ? thumb(cardImg(c.img), 240) : CARD_BACK;
             return (
               <button
-                key={`${c.n}-${c.name}`}
+                key={`${c.n}-${c.raw.name}`}
                 type="button"
                 onClick={() =>
                   setMarket({
                     slug: currentSet.slug,
-                    ed: currentSet.ed,
+                    ed,
                     setName: koSet(currentSet.ed, currentSet.name),
                     n: c.n,
-                    name: koName(currentSet.ed, c.name),
-                    img: usable(c.img) ? cardImg(c.img) : '',
+                    name: c.label,
+                    img: c.img,
                   })
                 }
                 className="text-left"
@@ -856,9 +868,7 @@ export function FleaListings() {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 truncate text-[11px] font-semibold text-black">
-                  {koName(currentSet.ed, c.name)}
-                </p>
+                <p className="mt-1 truncate text-[11px] font-semibold text-black">{c.label}</p>
                 {hit?.lowest != null ? (
                   <p className="text-[11px] font-bold text-black">{hit.lowest.toLocaleString()}원~</p>
                 ) : (

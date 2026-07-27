@@ -332,6 +332,8 @@ const IMG_ALLOWED_HOSTS = new Set([
   'tcgplayer-cdn.tcgplayer.com',
   'images.pokemontcg.io',
   'images.scrydex.com',
+  // 한글판 카드 그림(포켓몬코리아 공식). wmimages라 워터마크가 박혀 있는 형태 그대로다.
+  'cards.image.pokemonkorea.co.kr',
   'www.artofpkm.com', // 옛 일본판(e-Card·PCG) 공식 스캔. cdn.artofpkm.com으로 302됨
   'cdn.artofpkm.com',
   'i.ebayimg.com', // 이베이 한글판 매물 사진(Browse API)
