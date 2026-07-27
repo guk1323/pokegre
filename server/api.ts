@@ -2611,10 +2611,19 @@ function mountFleaMarket(app: Mountable) {
     // GET — 매물 목록. 내린 매물은 빼고 최신순.
     const [all, pending] = await Promise.all([loadListings(), loadOffers()])
     const q = url.searchParams.get('q')?.trim().toLowerCase() ?? ''
+    // 카드 한 장의 매물만 볼 때 쓴다(카드 페이지). 팔린 것도 같이 준다 —
+    // 얼마에 팔렸는지가 시세를 가늠하는 자료라 스니커덩크도 그렇게 보여준다.
+    const slug = url.searchParams.get('slug') ?? ''
+    const no = url.searchParams.get('no') ?? ''
     const rows = all
       .filter((l) => l.status !== 'closed')
+      .filter((l) => !slug || (l.cardSlug === slug && l.cardNo === no))
       .filter((l) => !q || l.cardName.toLowerCase().includes(q) || l.setName.toLowerCase().includes(q))
-      .sort((a, b) => b.createdAt - a.createdAt)
+      // 파는 중인 게 먼저, 그 안에서 싼 것부터. 팔린 건 뒤에 최근 순으로.
+      .sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'open' ? -1 : 1
+        return a.status === 'open' ? a.price - b.price : b.createdAt - a.createdAt
+      })
       // 회원번호(sellerId)는 클라이언트로 내리지 않는다 — /me가 안 주는 것과 같은 이유다.
       // 대신 "내 매물인지"만 서버가 판단해서 알려준다.
       .map(({ sellerId, ...l }) => ({
@@ -2622,6 +2631,58 @@ function mountFleaMarket(app: Mountable) {
         mine: sellerId === user.id,
         offers: pending.filter((o) => o.listingId === l.id && o.status === 'pending').length,
       }))
+    sendJson(res, 200, rows)
+  })
+
+  // 매물이 하나라도 올라온 카드 목록. 카드 한 장이 한 줄이고, 그 카드의 매물 수와
+  // 최저가가 붙는다. 매물 탭의 첫 화면이다 — 매물 낱개를 늘어놓는 게 아니라
+  // "어떤 카드에 매물이 있는지"를 먼저 보여줘야 카탈로그처럼 굴러간다.
+  app.use('/api/local/flea/cards', async (req, res) => {
+    const user = await currentUser(req)
+    if (!isAdmin(user) || !user) {
+      sendJson(res, 404, { error: 'not found' })
+      return
+    }
+    const all = await loadListings()
+    const byCard = new Map<
+      string,
+      {
+        cardSlug: string
+        cardNo: string
+        cardImg: string
+        cardName: string
+        setName: string
+        edition: string
+        onSale: number
+        sold: number
+        lowest: number | null
+      }
+    >()
+    for (const l of all) {
+      if (l.status === 'closed') continue
+      const key = `${l.cardSlug}/${l.cardNo}`
+      const row =
+        byCard.get(key) ??
+        {
+          cardSlug: l.cardSlug,
+          cardNo: l.cardNo,
+          cardImg: l.cardImg,
+          cardName: l.cardName,
+          setName: l.setName,
+          edition: l.edition,
+          onSale: 0,
+          sold: 0,
+          lowest: null as number | null,
+        }
+      if (l.status === 'sold') row.sold++
+      else {
+        row.onSale++
+        row.lowest = row.lowest == null ? l.price : Math.min(row.lowest, l.price)
+      }
+      byCard.set(key, row)
+    }
+    // 파는 중인 매물이 많은 카드부터. 같으면 이름순으로 고정해 순서가 흔들리지 않게 한다.
+    const rows = [...byCard.values()].sort((a, b) => b.onSale - a.onSale || a.cardName.localeCompare(b.cardName))
     sendJson(res, 200, rows)
   })
 

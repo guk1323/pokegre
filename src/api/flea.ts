@@ -137,8 +137,33 @@ async function jsonOrThrow<T>(res: Response, fallback: string): Promise<T> {
   return res.json();
 }
 
-export async function fetchListings(q = ''): Promise<FleaListing[]> {
-  const res = await fetch(`/api/local/flea/listings${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+// 매물이 하나라도 올라온 카드 한 줄. 매물 탭 첫 화면에 쓴다.
+export interface FleaCardRow {
+  cardSlug: string;
+  cardNo: string;
+  cardImg: string;
+  cardName: string;
+  setName: string;
+  edition: Edition;
+  onSale: number;
+  sold: number;
+  lowest: number | null;
+}
+
+export async function fetchCardsWithListings(): Promise<FleaCardRow[]> {
+  const res = await fetch('/api/local/flea/cards');
+  return jsonOrThrow(res, '카드 목록을 불러오지 못했습니다.');
+}
+
+// slug·no를 주면 그 카드의 매물만. 팔린 매물도 같이 온다(시세를 가늠하는 자료라서).
+export async function fetchListings(opts: { slug?: string; no?: string; q?: string } = {}): Promise<FleaListing[]> {
+  const p = new URLSearchParams();
+  if (opts.slug) {
+    p.set('slug', opts.slug);
+    p.set('no', opts.no ?? '');
+  }
+  if (opts.q) p.set('q', opts.q);
+  const res = await fetch(`/api/local/flea/listings${p.toString() ? `?${p}` : ''}`);
   return jsonOrThrow(res, '매물을 불러오지 못했습니다.');
 }
 

@@ -4,6 +4,7 @@ import {
   closeListing,
   createListing,
   EDITION_LABEL,
+  fetchCardsWithListings,
   fetchListings,
   fetchOffers,
   isSlab,
@@ -14,12 +15,24 @@ import {
   sendOffer,
   SLAB_GRADES,
   type Edition,
+  type FleaCardRow,
   type FleaListing,
   type FleaOffer,
 } from '../api/flea';
 import { uploadPostImage } from '../api/community';
 import { CardPicker, type PickedCard } from './CardPicker';
-import { CARD_BACK, cardImg, thumb } from '../lib/cardCatalog';
+import {
+  CARD_BACK,
+  cardImg,
+  koName,
+  koSet,
+  loadSetCards,
+  loadSetIndex,
+  thumb,
+  usable,
+  type SetCard,
+  type SetIndexEntry,
+} from '../lib/cardCatalog';
 
 // 플리마켓 매물 화면. 아직 운영자만 볼 수 있다(운영 ▾ 안).
 //
@@ -51,13 +64,22 @@ function GradeBadge({ grade }: { grade: string }) {
 
 // ── 매물 올리기 ──────────────────────────────────────────────────────────────
 
-function NewListingForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+function NewListingForm({
+  initialCard,
+  onDone,
+  onCancel,
+}: {
+  // 카드 페이지에서 "이 카드 팔기"로 들어오면 카드가 이미 정해져 있다.
+  initialCard?: PickedCard;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   // 카드는 반드시 카탈로그에서 고른다. 자유 입력이면 같은 카드가 여러 갈래로
   // 흩어져 시세가 안 모인다.
-  const [card, setCard] = useState<PickedCard | null>(null);
-  const [picking, setPicking] = useState(true);
+  const [card, setCard] = useState<PickedCard | null>(initialCard ?? null);
+  const [picking, setPicking] = useState(!initialCard);
   // 판본은 고른 카드에서 자동으로 정해진다(한글판만 손으로 바꾼다 — 카탈로그에 없어서).
-  const [edition, setEdition] = useState<Edition>('jp');
+  const [edition, setEdition] = useState<Edition>(initialCard ? (initialCard.ed === 'ja' ? 'jp' : 'na') : 'jp');
   const [grade, setGrade] = useState('A');
   const [certNo, setCertNo] = useState('');
   const [price, setPrice] = useState('');
@@ -533,100 +555,319 @@ function ListingDetail({
 
 // ── 목록 ─────────────────────────────────────────────────────────────────────
 
-export function FleaListings() {
-  const [rows, setRows] = useState<FleaListing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [writing, setWriting] = useState(false);
-  const [openId, setOpenId] = useState<number | null>(null);
+// ── 카드 페이지 ──────────────────────────────────────────────────────────────
+// 카드 한 장이 하나의 페이지다. 매물이 0건이어도 페이지는 있다 — 스니커덩크·크림처럼
+// 카탈로그가 먼저 있고 거기에 매물이 붙는 구조라야 시세가 카드 단위로 쌓인다.
 
-  const load = useCallback(() => {
-    fetchListings()
+function CardMarket({
+  card,
+  onBack,
+  onOpenListing,
+  reloadKey,
+  onChanged,
+}: {
+  card: PickedCard;
+  onBack: () => void;
+  onOpenListing: (l: FleaListing) => void;
+  reloadKey: number;
+  onChanged: () => void;
+}) {
+  const [rows, setRows] = useState<FleaListing[] | null>(null);
+  const [grade, setGrade] = useState('전체');
+  const [selling, setSelling] = useState(false);
+
+  useEffect(() => {
+    setRows(null);
+    fetchListings({ slug: card.slug, no: card.n })
       .then(setRows)
-      .catch((e) => setError(e instanceof Error ? e.message : '불러오지 못했습니다.'))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => setRows([]));
+  }, [card.slug, card.n, reloadKey]);
 
-  useEffect(load, [load]);
-
-  const open = rows.find((r) => r.id === openId);
-  if (open) {
-    return <ListingDetail listing={open} onBack={() => setOpenId(null)} onChanged={load} />;
-  }
-
-  if (writing) {
+  if (selling) {
     return (
       <NewListingForm
-        onCancel={() => setWriting(false)}
+        initialCard={card}
+        onCancel={() => setSelling(false)}
         onDone={() => {
-          setWriting(false);
-          load();
+          setSelling(false);
+          onChanged();
         }}
       />
     );
   }
 
+  const all = rows ?? [];
+  // 등급 칩은 A~D를 늘 보여주고(팔 수 있는 상태니까), 감정 등급은 매물이 있는 것만 붙인다.
+  const slabsHere = [...new Set(all.map((r) => r.grade))].filter((g) => isSlab(g));
+  const chips = ['전체', ...RAW_GRADES, ...slabsHere];
+  const shown = grade === '전체' ? all : all.filter((r) => r.grade === grade);
+  const onSale = all.filter((r) => r.status === 'open');
+  const lowest = onSale.length ? Math.min(...onSale.map((r) => r.price)) : null;
+
   return (
     <div className="space-y-4">
-      <button
-        type="button"
-        onClick={() => setWriting(true)}
-        className="w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700"
-      >
-        + 매물 올리기
+      <button type="button" onClick={onBack} className="text-xs font-semibold text-neutral-500 hover:text-black">
+        ← 카드 목록
       </button>
 
+      {/* 카탈로그 이미지 + 카드 정보 */}
+      <div className="flex flex-col items-center">
+        <img
+          src={card.img ? thumb(cardImg(card.img), 480) : CARD_BACK}
+          alt=""
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = CARD_BACK;
+          }}
+          className="w-44 rounded-xl border border-neutral-200"
+        />
+        <h3 className="mt-3 text-center text-lg font-bold text-black">{card.name}</h3>
+        <p className="text-center text-xs text-neutral-500">
+          {card.setName} · No.{card.n} · {card.ed === 'ja' ? '일본판' : '북미판'}
+        </p>
+        <p className="mt-2 text-xl font-bold text-black">
+          {lowest != null ? `${lowest.toLocaleString()}원~` : '판매중인 매물 없음'}
+        </p>
+      </div>
+
+      {/* 등급 필터 */}
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {chips.map((g) => {
+          const n = g === '전체' ? all.length : all.filter((r) => r.grade === g).length;
+          return (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setGrade(g)}
+              className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                grade === g ? 'bg-neutral-900 text-white' : 'border border-neutral-300 text-neutral-600'
+              }`}
+            >
+              {g}
+              {n > 0 && <span className="ml-1 opacity-60">{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setSelling(true)}
+        className="w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700"
+      >
+        이 카드 팔기
+      </button>
+
+      {/* 매물 그리드. 여기서는 판매자 실물 사진이 주인공이다 — 실제 파는 물건이라서. */}
+      <div>
+        <p className="mb-2 text-sm font-bold text-black">올라온 매물 {shown.length}건</p>
+        {rows === null ? (
+          <p className="py-10 text-center text-sm text-neutral-400">불러오는 중...</p>
+        ) : shown.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-neutral-200 py-10 text-center text-sm text-neutral-400">
+            {grade === '전체' ? '아직 이 카드 매물이 없습니다.' : `${grade}등급 매물이 없습니다.`}
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {shown.map((r) => (
+              <button key={r.id} type="button" onClick={() => onOpenListing(r)} className="text-left">
+                <div className="relative">
+                  <img
+                    src={r.images[0] ?? CARD_BACK}
+                    alt=""
+                    loading="lazy"
+                    className={`aspect-square w-full rounded-lg border border-neutral-200 object-cover ${
+                      r.status === 'sold' ? 'opacity-45' : ''
+                    }`}
+                  />
+                  <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 py-0.5 text-[10px] font-bold text-white">
+                    {r.grade}
+                  </span>
+                  {r.status === 'sold' && (
+                    <span className="absolute left-1 top-1 rounded bg-neutral-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      거래완료
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs font-bold text-black">{won(r.price)}</p>
+                {!!r.offers && <p className="text-[11px] text-neutral-400">제안 {r.offers}</p>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 카드 고르기(첫 화면) ─────────────────────────────────────────────────────
+// 최신 세트 몇 개만 깔아 둔다. 전체 284개를 다 열면 매물 없는 카드가 3만 장이라
+// 둘러볼 수가 없다. 늘리는 건 나중에 매물이 붙는 걸 보고 정한다.
+const FEATURED = 4;
+
+export function FleaListings() {
+  const [sets, setSets] = useState<SetIndexEntry[] | null>(null);
+  const [setIdx, setSetIdx] = useState(0);
+  const [cards, setCards] = useState<SetCard[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [market, setMarket] = useState<PickedCard | null>(null);
+  const [openListing, setOpenListing] = useState<FleaListing | null>(null);
+  const [withListings, setWithListings] = useState<Map<string, FleaCardRow>>(new Map());
+  const [reloadKey, setReloadKey] = useState(0);
+  const [error, setError] = useState('');
+
+  // 발매일이 가장 최근인 세트 몇 개.
+  useEffect(() => {
+    loadSetIndex()
+      .then((list) => {
+        const live = list
+          .filter((s) => !s.slug.includes('pocket'))
+          .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''))
+          .slice(0, FEATURED);
+        setSets(live);
+      })
+      .catch(() => setError('세트 목록을 불러오지 못했습니다.'));
+  }, []);
+
+  const currentSet = sets?.[setIdx];
+
+  useEffect(() => {
+    if (!currentSet) return;
+    setCards(null);
+    loadSetCards(currentSet.slug)
+      .then(setCards)
+      .catch(() => setCards([]));
+  }, [currentSet]);
+
+  // 어떤 카드에 매물이 붙어 있는지. 카드 칸에 "N건 · 최저가"를 달아 준다.
+  const loadCounts = useCallback(() => {
+    fetchCardsWithListings()
+      .then((rows) => setWithListings(new Map(rows.map((r) => [`${r.cardSlug}/${r.cardNo}`, r]))))
+      .catch(() => undefined);
+  }, []);
+  useEffect(loadCounts, [loadCounts, reloadKey]);
+
+  const refresh = () => {
+    setReloadKey((n) => n + 1);
+    loadCounts();
+  };
+
+  if (openListing) {
+    return (
+      <ListingDetail
+        listing={openListing}
+        onBack={() => setOpenListing(null)}
+        onChanged={refresh}
+      />
+    );
+  }
+
+  if (market) {
+    return (
+      <CardMarket
+        card={market}
+        reloadKey={reloadKey}
+        onBack={() => setMarket(null)}
+        onOpenListing={setOpenListing}
+        onChanged={refresh}
+      />
+    );
+  }
+
+  const q = query.trim().toLowerCase();
+  const list = (cards ?? []).filter(
+    (c) =>
+      !q ||
+      koName(currentSet?.ed ?? 'ja', c.name).toLowerCase().includes(q) ||
+      c.name.toLowerCase().includes(q) ||
+      c.n === q,
+  );
+
+  return (
+    <div className="space-y-3">
       {error && <p className="text-sm text-rose-500">{error}</p>}
-      {loading ? (
+
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {(sets ?? []).map((s, i) => (
+          <button
+            key={s.slug}
+            type="button"
+            onClick={() => {
+              setSetIdx(i);
+              setQuery('');
+            }}
+            className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              setIdx === i ? 'bg-neutral-900 text-white' : 'border border-neutral-300 text-neutral-600'
+            }`}
+          >
+            {koSet(s.ed, s.name)}
+          </button>
+        ))}
+      </div>
+
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="카드 이름 또는 번호"
+        className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+      />
+
+      {!currentSet || cards === null ? (
         <p className="py-12 text-center text-sm text-neutral-400">불러오는 중...</p>
-      ) : rows.length === 0 ? (
+      ) : list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-neutral-200 py-12 text-center text-sm text-neutral-400">
-          올라온 매물이 없습니다.
+          찾는 카드가 없습니다.
         </p>
       ) : (
-        <ul className="space-y-2">
-          {rows.map((r) => (
-            <li key={r.id}>
+        <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {list.map((c) => {
+            const hit = withListings.get(`${currentSet.slug}/${c.n}`);
+            const src = usable(c.img) ? thumb(cardImg(c.img), 240) : CARD_BACK;
+            return (
               <button
+                key={`${c.n}-${c.name}`}
                 type="button"
-                onClick={() => setOpenId(r.id)}
-                className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 p-3 text-left hover:bg-neutral-50"
+                onClick={() =>
+                  setMarket({
+                    slug: currentSet.slug,
+                    ed: currentSet.ed,
+                    setName: koSet(currentSet.ed, currentSet.name),
+                    n: c.n,
+                    name: koName(currentSet.ed, c.name),
+                    img: usable(c.img) ? cardImg(c.img) : '',
+                  })
+                }
+                className="text-left"
               >
-                {/* 목록에서는 어떤 카드인지가 먼저다 — 카탈로그 그림을 쓴다.
-                    판매자 실물 사진은 눌러 들어가면 크게 보인다. */}
-                <img
-                  src={r.cardImg ? thumb(cardImg(r.cardImg), 120) : CARD_BACK}
-                  alt=""
-                  loading="lazy"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = CARD_BACK;
-                  }}
-                  className="h-16 w-12 flex-shrink-0 rounded object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <GradeBadge grade={r.grade} />
-                    <span className="truncate text-xs text-neutral-500">{EDITION_LABEL[r.edition]}</span>
-                    {r.status === 'sold' && (
-                      <span className="flex-shrink-0 rounded bg-neutral-200 px-1.5 py-0.5 text-[11px] font-bold text-neutral-700">
-                        거래완료
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 truncate text-sm font-semibold text-black">{r.cardName}</p>
-                  {r.setName && <p className="truncate text-[11px] text-neutral-400">{r.setName}</p>}
-                  <p className="text-sm font-bold text-black">{won(r.price)}</p>
+                <div className="relative">
+                  <img
+                    src={src}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = CARD_BACK;
+                    }}
+                    className="aspect-[63/88] w-full rounded-lg border border-neutral-200 object-cover"
+                  />
+                  {!!hit?.onSale && (
+                    <span className="absolute left-1 top-1 rounded bg-neutral-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      {hit.onSale}건
+                    </span>
+                  )}
                 </div>
-                {!!r.offers && (
-                  <span className="flex-shrink-0 rounded-full bg-neutral-900 px-2 py-0.5 text-[11px] font-semibold text-white">
-                    제안 {r.offers}
-                  </span>
+                <p className="mt-1 truncate text-[11px] font-semibold text-black">
+                  {koName(currentSet.ed, c.name)}
+                </p>
+                {hit?.lowest != null ? (
+                  <p className="text-[11px] font-bold text-black">{hit.lowest.toLocaleString()}원~</p>
+                ) : (
+                  <p className="text-[11px] text-neutral-400">No.{c.n}</p>
                 )}
               </button>
-            </li>
-          ))}
-        </ul>
+            );
+          })}
+        </div>
       )}
     </div>
   );
