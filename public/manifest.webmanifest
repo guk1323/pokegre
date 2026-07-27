@@ -1,13 +1,21 @@
 {
   "name": "pokegre — 포켓몬 카드의 모든 것",
   "short_name": "pokegre",
-  "description": "포켓몬 카드 시세 · 센터링 측정 · 일러스트 · 커뮤니티",
+  "description": "포켓몬 카드 시세 체크",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#111111",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }

@@ -23,7 +23,9 @@ FAINT = (150, 150, 150)
 
 TITLE = 'pokegre'
 LEAD = '포켓몬 카드의 모든 것'
-FEATURES = '시세 · 카드 뽑기 · 센터링 측정 · 세트/작가별 목록'
+# 아래 한 줄은 링크 미리보기의 '설명'이 대신한다. 그림에까지 같은 말을 넣으면
+# 카톡에서 위아래로 똑같은 문장이 두 번 보인다.
+SUB = ''
 URL = 'pokegre.com'
 
 
@@ -84,9 +86,10 @@ b = d.textbbox((0, 0), LEAD, font=f_lead)
 d.text((X - b[0], logo_bottom + 34 - b[1]), LEAD, font=f_lead, fill=INK)
 lead_bottom = logo_bottom + 34 + (b[3] - b[1])
 
-f_feat = ko(27)
-b = d.textbbox((0, 0), FEATURES, font=f_feat)
-d.text((X - b[0], lead_bottom + 26 - b[1]), FEATURES, font=f_feat, fill=GRAY)
+if SUB:
+    f_sub = ko(28)
+    b = d.textbbox((0, 0), SUB, font=f_sub)
+    d.text((X - b[0], lead_bottom + 26 - b[1]), SUB, font=f_sub, fill=GRAY)
 
 f_url = ko(24)
 b = d.textbbox((0, 0), URL, font=f_url)
