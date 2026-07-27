@@ -84,6 +84,10 @@ export interface FleaListing {
   // 회원번호는 서버가 안 내려준다. 대신 "내 매물인지"만 알려준다.
   mine: boolean;
   seller: string;
+  // 어느 카드인지. 카탈로그의 세트 코드 + 카드 번호로 못 박는다.
+  cardSlug: string;
+  cardNo: string;
+  cardImg: string;
   cardName: string;
   setName: string;
   edition: Edition;
@@ -112,6 +116,9 @@ export interface FleaOffer {
 }
 
 export interface NewListing {
+  cardSlug: string;
+  cardNo: string;
+  cardImg: string;
   cardName: string;
   setName: string;
   edition: Edition;

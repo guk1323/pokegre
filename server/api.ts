@@ -2406,6 +2406,11 @@ export type FleaListing = {
   id: number
   sellerId: string
   seller: string
+  // 어느 카드인지. 카탈로그(public/sets)의 세트 코드 + 카드 번호로 못 박는다.
+  // 이름을 자유롭게 받으면 같은 카드가 여러 갈래로 흩어져 시세를 못 만든다.
+  cardSlug: string
+  cardNo: string
+  cardImg: string
   cardName: string
   setName: string
   edition: (typeof FLEA_EDITIONS)[number]
@@ -2433,6 +2438,9 @@ export type FleaOffer = {
 export type FleaDeal = {
   id: number
   listingId: number
+  // 시세는 이 둘로 묶어서 낸다(카드 + 등급). 이름으로 묶으면 표기가 갈려 안 모인다.
+  cardSlug: string
+  cardNo: string
   cardName: string
   edition: string
   grade: string
@@ -2514,6 +2522,8 @@ function mountFleaMarket(app: Mountable) {
       }
       try {
         const b = JSON.parse(await readBody(req)) as Record<string, unknown>
+        const cardSlug = str(b.cardSlug, 40)
+        const cardNo = str(b.cardNo, 20)
         const cardName = str(b.cardName, 120)
         const grade = str(b.grade, 20)
         const price = Math.round(Number(b.price))
@@ -2524,8 +2534,12 @@ function mountFleaMarket(app: Mountable) {
         const isSlab = (FLEA_SLAB_GRADES as readonly string[]).includes(grade)
         const certNo = str(b.certNo, 40)
 
-        if (!cardName) {
-          sendJson(res, 400, { error: '카드 이름을 넣어 주세요.' })
+        // 카탈로그에서 고른 카드여야 한다. 형식만 확인한다 — 세트 파일은 서버가 아니라
+        // 정적 파일(dist/sets)이라 여기서 존재 여부까지 보지는 않는다.
+        // 세트 코드는 대소문자가 섞여 있다(ja-M5·ja-SV5a·en-me05 …) — 256개 중 79개가
+        // 대문자를 쓴다. 소문자만 받으면 그 세트 카드는 아예 못 올린다.
+        if (!/^[a-z]{2}-[A-Za-z0-9._-]+$/.test(cardSlug) || !/^[\w./-]+$/.test(cardNo) || !cardName) {
+          sendJson(res, 400, { error: '카드를 골라 주세요.' })
           return
         }
         if (!FLEA_ALL_GRADES.includes(grade)) {
@@ -2553,6 +2567,9 @@ function mountFleaMarket(app: Mountable) {
           id: nextId(all),
           sellerId: user.id,
           seller: user.nickname ?? '운영자',
+          cardSlug,
+          cardNo,
+          cardImg: str(b.cardImg, 300),
           cardName,
           setName: str(b.setName, 120),
           edition,
@@ -2687,6 +2704,8 @@ function mountFleaMarket(app: Mountable) {
         done.push({
           id: nextId(done),
           listingId: listing.id,
+          cardSlug: listing.cardSlug,
+          cardNo: listing.cardNo,
           cardName: listing.cardName,
           edition: listing.edition,
           grade: listing.grade,

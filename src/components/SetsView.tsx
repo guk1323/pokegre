@@ -1,62 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { koreanizeTitle } from '../lib/koreanizeTitle';
-import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
-import { koSetName } from '../lib/setNameKo';
+import {
+  CARD_BACK,
+  cardImg,
+  koName,
+  koSet,
+  loadSetCards,
+  loadSetIndex,
+  thumb,
+  usable,
+  type SetCard,
+  type SetIndexEntry,
+} from '../lib/cardCatalog';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
 
 // 세트(발매 패키지)별 수록 카드. 데이터는 TCGdex에서 미리 긁어 public/sets/에 저장해둔 걸
 // 읽는다. 일본판(ja)·북미판(en). 카드 이름은 원어로 저장돼 있어 화면에서 우리 변환기로
 // 한글화한다. 공개 화면(더보기 ▾ 메뉴). 세트 데이터는 정적 public/sets JSON이라 서버 인증 불필요.
-interface SetIndexEntry {
-  slug: string;
-  ed: 'ja' | 'en';
-  id: string;
-  name: string;
-  count: number;
-  releaseDate: string;
-  serie: string;
-  boxImg?: string; // 스니덩크 박스(팩) 상품 사진. 제일 우선.
-  logo: string; // 팩(패키지) 로고 이미지 URL.
-  cover: string; // 첫 카드 이미지(최후 대체).
-}
-interface SetCard {
-  n: string;
-  name: string;
-  img: string;
-}
-interface SetFile {
-  ed: 'ja' | 'en';
-  id: string;
-  name: string;
-  cards: SetCard[];
-}
+// 타입·이미지 규칙·한글화는 플리마켓 카드 고르기와 함께 쓰므로 lib/cardCatalog.ts에 있다.
 
 const PAGE = 60;
 
-// 카드 이미지 주소. TCGdex는 베이스 주소라 /high.webp를 붙인다(low.webp는 245px라
-// 320px 표시에서 뿌옇게 확대돼, 600px high를 받아 프록시가 선명하게 축소한다).
-// 다른 소스(리미트리스·포켈렉터·스니덩크·pokemontcg·artofpkm)는 완성된 주소 그대로 쓴다.
-const cardImg = (base: string) =>
-  !base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`;
-// 목록 썸네일은 64px인데 원본(로고 127KB·박스 59KB)을 그대로 받으면 느리다.
-// 무료 CDN(wsrv.nl)으로 필요한 크기의 WebP로 줄여 받는다(~5KB). w는 표시의 2배(레티나).
-const thumb = (url: string, w: number) => (url ? `/api/img?u=${encodeURIComponent(url)}&w=${w}` : '');
-// 이미지가 아직 없는 카드(옛 프로모·트레이너킷 등, 공개 소스에 스캔이 없음)의 임시 대체.
-// 빈 회색칸 대신 "뒷면(이미지 준비 중)"을 보여줘 일관성을 지킨다. 소스 생기면 교체.
-const CARD_BACK = '/card-back.svg';
-// 스니덩크는 "마켓 거래 사진"(슬랩·손·책상 위 등)이라 공식 카드 렌더가 아니다. 경로 불문
-// (apparel_used_listings·upload_bg_removed 다) "이미지 없음"으로 취급해 뒷면으로 대체한다.
-// 공식 꽉 찬 렌더(tcgdex·pokemontcg·limitless·artofpkm·tcgplayer)만 진짜 이미지로 남긴다.
-const usable = (url?: string) => !!url && !url.includes('snkrdunk');
-// 일본판은 일본어 변환 후, TCGdex에 영어로 섞여 오는 이름(옛 세트의 Koffing 등)까지
-// 영어 변환기로 한 번 더 잡는다. 북미판은 영어 변환만.
-const koName = (ed: 'ja' | 'en', name: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
-const koSet = (ed: 'ja' | 'en', name: string) =>
-  ed === 'ja' ? koreanizeTitle(name) : koSetName(name);
-// 시리즈 이름 중 자동 변환이 어색한 것만 손으로 잡는다.
-// (剣と盾는 と가 "토"로 변환돼 "剣토盾"처럼 깨진다.)
 const SERIE_LABEL: Record<string, string> = {
   '剣と盾': '소드&실드',
   'ポケットモンスターカードゲーム': '초기 시리즈 (1996~)',
@@ -111,9 +75,8 @@ export function SetsView({
     setCards(null);
     setShown(PAGE);
     setLoading(true);
-    fetch(`/sets/${s.slug}.json`)
-      .then((r) => r.json())
-      .then((d: SetFile) => setCards(d.cards))
+    loadSetCards(s.slug)
+      .then(setCards)
       .catch(() => setCards([]))
       .finally(() => setLoading(false));
   }
@@ -129,8 +92,8 @@ export function SetsView({
   });
 
   useEffect(() => {
-    fetch('/sets/index.json')
-      .then((r) => (r.ok ? r.json() : []))
+    loadSetIndex()
+      .catch(() => [] as SetIndexEntry[])
       .then((list: SetIndexEntry[]) => {
         setIndex(list);
         indexRef.current = list;

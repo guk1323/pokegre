@@ -18,6 +18,8 @@ import {
   type FleaOffer,
 } from '../api/flea';
 import { uploadPostImage } from '../api/community';
+import { CardPicker, type PickedCard } from './CardPicker';
+import { CARD_BACK, cardImg, thumb } from '../lib/cardCatalog';
 
 // 플리마켓 매물 화면. 아직 운영자만 볼 수 있다(운영 ▾ 안).
 //
@@ -50,8 +52,11 @@ function GradeBadge({ grade }: { grade: string }) {
 // ── 매물 올리기 ──────────────────────────────────────────────────────────────
 
 function NewListingForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
-  const [cardName, setCardName] = useState('');
-  const [setName, setSetName] = useState('');
+  // 카드는 반드시 카탈로그에서 고른다. 자유 입력이면 같은 카드가 여러 갈래로
+  // 흩어져 시세가 안 모인다.
+  const [card, setCard] = useState<PickedCard | null>(null);
+  const [picking, setPicking] = useState(true);
+  // 판본은 고른 카드에서 자동으로 정해진다(한글판만 손으로 바꾼다 — 카탈로그에 없어서).
   const [edition, setEdition] = useState<Edition>('jp');
   const [grade, setGrade] = useState('A');
   const [certNo, setCertNo] = useState('');
@@ -87,9 +92,13 @@ function NewListingForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
     setBusy(true);
     setError('');
     try {
+      if (!card) return;
       await createListing({
-        cardName: cardName.trim(),
-        setName: setName.trim(),
+        cardSlug: card.slug,
+        cardNo: card.n,
+        cardImg: card.img,
+        cardName: card.name,
+        setName: card.setName,
         edition,
         grade,
         certNo: certNo.trim(),
@@ -105,6 +114,23 @@ function NewListingForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
     }
   }
 
+  // 카드부터 고르게 한다. 이게 정해져야 나머지(등급·사진)가 의미가 있다.
+  if (picking) {
+    return (
+      <div className="rounded-xl border border-neutral-200 p-4">
+        <CardPicker
+          onCancel={() => (card ? setPicking(false) : onCancel())}
+          onPick={(c) => {
+            setCard(c);
+            // 카탈로그의 판(ja/en)을 매물 판본으로 그대로 옮긴다.
+            setEdition(c.ed === 'ja' ? 'jp' : 'na');
+            setPicking(false);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-neutral-200 p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -115,28 +141,41 @@ function NewListingForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
       </div>
 
       <div className="space-y-3">
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-neutral-600">카드 이름</label>
-          <input
-            value={cardName}
-            onChange={(e) => setCardName(e.target.value)}
-            placeholder="예: 리자몽 ex SAR"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-          />
-        </div>
+        {/* 고른 카드. 카탈로그 이미지는 "이 카드가 맞다"는 표시일 뿐이고,
+            실제 파는 물건은 아래에서 올리는 실물 사진이다. */}
+        {card && (
+          <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+            {card.img ? (
+              <img
+                src={thumb(cardImg(card.img), 120)}
+                alt=""
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = CARD_BACK;
+                }}
+                className="h-16 w-12 flex-shrink-0 rounded object-cover"
+              />
+            ) : (
+              <img src={CARD_BACK} alt="" className="h-16 w-12 flex-shrink-0 rounded object-cover" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-black">{card.name}</p>
+              <p className="truncate text-xs text-neutral-500">{card.setName}</p>
+              <p className="text-xs text-neutral-400">No.{card.n}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPicking(true)}
+              className="flex-shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-700"
+            >
+              바꾸기
+            </button>
+          </div>
+        )}
 
         <div>
-          <label className="mb-1 block text-xs font-semibold text-neutral-600">세트 (선택)</label>
-          <input
-            value={setName}
-            onChange={(e) => setSetName(e.target.value)}
-            placeholder="예: 흑염의 지배자"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div>
-          {/* 판본이 다르면 시세가 완전히 달라서 반드시 받는다. */}
+          {/* 판본이 다르면 시세가 완전히 달라서 반드시 받는다. 카탈로그에서 고르면
+              일본판·북미판은 자동으로 맞춰지고, 한글판만 손으로 고른다. */}
           <label className="mb-1 block text-xs font-semibold text-neutral-600">판본</label>
           <div className="flex gap-2">
             {(Object.keys(EDITION_LABEL) as Edition[]).map((e) => (
@@ -277,7 +316,7 @@ function NewListingForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
 
         <button
           type="button"
-          disabled={busy || uploading}
+          disabled={busy || uploading || !card}
           onClick={submit}
           className="w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-40"
         >
@@ -336,18 +375,42 @@ function ListingDetail({
         ← 매물 목록
       </button>
 
+      {/* 실제 파는 물건은 판매자가 찍은 실물 사진이다. 공식 카드 그림(카탈로그)은
+          "이 카드가 맞다"는 표시일 뿐이라 아래에 작게 둔다. */}
       {listing.images.length > 0 && (
-        <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
-          {listing.images.map((u) => (
-            <img
-              key={u}
-              src={u}
-              alt=""
-              className="h-56 w-40 flex-shrink-0 snap-start rounded-xl border border-neutral-200 object-cover"
-            />
-          ))}
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-neutral-600">판매자 실물 사진</p>
+          <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
+            {listing.images.map((u) => (
+              <img
+                key={u}
+                src={u}
+                alt=""
+                className="h-56 w-40 flex-shrink-0 snap-start rounded-xl border border-neutral-200 object-cover"
+              />
+            ))}
+          </div>
         </div>
       )}
+
+      <div className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+        <img
+          src={listing.cardImg ? thumb(cardImg(listing.cardImg), 120) : CARD_BACK}
+          alt=""
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = CARD_BACK;
+            }}
+          className="h-16 w-12 flex-shrink-0 rounded object-cover"
+        />
+        <div className="min-w-0">
+          <p className="text-[11px] text-neutral-400">카탈로그</p>
+          <p className="truncate text-sm font-semibold text-black">{listing.cardName}</p>
+          <p className="truncate text-xs text-neutral-500">
+            {listing.setName} · No.{listing.cardNo}
+          </p>
+        </div>
+      </div>
 
       <div>
         <div className="flex items-center gap-2">
@@ -529,11 +592,18 @@ export function FleaListings() {
                 onClick={() => setOpenId(r.id)}
                 className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 p-3 text-left hover:bg-neutral-50"
               >
-                {r.images[0] ? (
-                  <img src={r.images[0]} alt="" className="h-16 w-12 flex-shrink-0 rounded object-cover" />
-                ) : (
-                  <div className="h-16 w-12 flex-shrink-0 rounded bg-neutral-100" />
-                )}
+                {/* 목록에서는 어떤 카드인지가 먼저다 — 카탈로그 그림을 쓴다.
+                    판매자 실물 사진은 눌러 들어가면 크게 보인다. */}
+                <img
+                  src={r.cardImg ? thumb(cardImg(r.cardImg), 120) : CARD_BACK}
+                  alt=""
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = CARD_BACK;
+                  }}
+                  className="h-16 w-12 flex-shrink-0 rounded object-cover"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <GradeBadge grade={r.grade} />
@@ -545,6 +615,7 @@ export function FleaListings() {
                     )}
                   </div>
                   <p className="mt-0.5 truncate text-sm font-semibold text-black">{r.cardName}</p>
+                  {r.setName && <p className="truncate text-[11px] text-neutral-400">{r.setName}</p>}
                   <p className="text-sm font-bold text-black">{won(r.price)}</p>
                 </div>
                 {!!r.offers && (
