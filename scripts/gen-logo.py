@@ -12,7 +12,7 @@
 #   icon-192.png         PWA
 #   icon-512.png         PWA
 #   apple-touch-icon.png 아이폰 홈화면
-#   naver-logo.png       네이버 검수 제출용 (정사각)
+#   naver-logo.png       네이버 로그인 로고 등록칸용 (140x140, 권장 규격)
 
 import os
 from fontTools.ttLib import TTFont
@@ -108,5 +108,6 @@ make_png(192, 'icon-192.png')
 make_png(512, 'icon-512.png')
 # 아이폰 홈화면은 OS가 알아서 모서리를 깎으므로 사각형 그대로 채운다.
 make_png(180, 'apple-touch-icon.png', radius_ratio=0)
-# 네이버 검수 제출용
-make_png(512, 'naver-logo.png')
+# 네이버 로그인 개발자센터 로고 등록칸.
+# 안내: "권장 크기는 140x140 이며 500KB 이하의 jpg, png, gif만 등록 가능합니다."
+make_png(140, 'naver-logo.png')
