@@ -3028,9 +3028,14 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       if (!upstream.ok) {
         // 업스트림 원본 에러 바디는 그대로 흘리지 않고 상태 코드만 전달한다.
         // (에러 응답은 캐시하지 않아 일시적 429/500이 6시간 고정되지 않게 한다.)
+        // 429는 두 종류다. 분당 한도면 정말 "잠시 후"에 풀리지만, 하루치를 다 쓴 것이면
+        // 한국시간 오전 9시(UTC 0시)까지 안 열린다. 화면에 다르게 안내해야 방문자가
+        // 헛되이 새로고침하지 않는다.
+        const dailyLeft = Number(upstream.headers.get('x-ratelimit-daily-remaining'))
+        const daily = upstream.status === 429 && Number.isFinite(dailyLeft) && dailyLeft <= 0
         res.statusCode = upstream.status
         res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ error: 'upstream_error', status: upstream.status }))
+        res.end(JSON.stringify({ error: daily ? 'daily_limit' : 'upstream_error', status: upstream.status }))
         return
       }
 

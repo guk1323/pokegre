@@ -118,13 +118,19 @@ function setMeta(html: string, key: string, value: string): string {
   return html.replace(b, `$1${value}$2`)
 }
 
-function buildCardHtml(id: string, name: string | null, card: { image: string; price: number } | null): string {
+// sharePath는 "/c/123"·"/e/456" 같은 공유 주소. 모듈 위쪽의 node:path와 헷갈리지 않게
+// 이름을 따로 뒀다.
+function buildCardHtml(
+  sharePath: string,
+  name: string | null,
+  card: { image: string; price: number } | null,
+): string {
   const title = name ? `${name} 시세 | pokegre` : '포켓몬 카드 시세 | pokegre'
   const desc =
     card && card.price > 0
       ? `스니커덩크 최저가 ¥${yen.format(card.price)} · 등급별 시세는 pokegre에서`
       : '일본판·북미판 시세를 한국어로 봅니다.'
-  const url = `https://pokegre.com/c/${id}`
+  const url = `https://pokegre.com${sharePath}`
 
   let html = TEMPLATE
   html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
@@ -143,12 +149,19 @@ function buildCardHtml(id: string, name: string | null, card: { image: string; p
   return html
 }
 
-// 이베이·TCGplayer 공유 링크. 카드 시세(PPT)는 호출 한도가 빡빡해서 미리보기에
-// 값을 넣지 않는다 — 크롤러가 링크를 두드릴 때마다 크레딧이 나간다. 링크를 눌러
-// 들어오면 화면이 그 카드를 열어 준다.
-app.get(['/e/:id', '/t/:id'], (_req, res) => {
-  res.setHeader('Cache-Control', 'no-cache')
-  res.sendFile(path.join(DIST, 'index.html'))
+// 이베이·TCGplayer 공유 링크. 카드 시세(PPT)는 호출 한도가 빡빡해서 그림과 가격은
+// 미리보기에 넣지 않는다 — 크롤러가 링크를 두드릴 때마다 크레딧이 나간다.
+// 다만 카드 이름은 링크(?n=)에 이미 들어 있으므로 제목에는 넣는다. 안 넣으면 카톡에
+// "pokegre — 포켓몬 카드의 모든 것"만 떠서 무슨 카드를 보낸 건지 알 수 없다.
+app.get(['/e/:id', '/t/:id'], (req, res) => {
+  const name = typeof req.query.n === 'string' ? req.query.n.slice(0, 120) : null
+  if (!name) {
+    res.setHeader('Cache-Control', 'no-cache')
+    res.sendFile(path.join(DIST, 'index.html'))
+    return
+  }
+  res.set('content-type', 'text/html; charset=utf-8')
+  res.send(buildCardHtml(req.path, name, null))
 })
 
 app.get('/c/:id', async (req, res) => {
@@ -162,7 +175,7 @@ app.get('/c/:id', async (req, res) => {
     const name = typeof req.query.n === 'string' ? req.query.n.slice(0, 120) : null
     const card = await fetchShareCard(id)
     res.set('content-type', 'text/html; charset=utf-8')
-    res.send(buildCardHtml(id, name, card))
+    res.send(buildCardHtml(`/c/${id}`, name, card))
   } catch {
     res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(path.join(DIST, 'index.html'))

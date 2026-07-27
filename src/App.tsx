@@ -4,7 +4,7 @@ import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
 import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
-import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
+import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_DAILY_LIMIT, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
 import { translateSearchQuery, canonicalizeSearchTerm } from './lib/translateQuery';
 import { getLocalSuggestions } from './lib/localSuggestions';
 import {
@@ -567,9 +567,11 @@ function App() {
         })
         .catch((err: Error) => {
           setEbayError(
-            err.message === EBAY_RATE_LIMITED
-              ? '시세 조회 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.'
-              : '시세를 불러오지 못했습니다.',
+            err.message === EBAY_DAILY_LIMIT
+              ? '오늘 볼 수 있는 시세 조회량을 다 썼습니다. 내일 오전 9시에 다시 열립니다.'
+              : err.message === EBAY_RATE_LIMITED
+                ? '지금 조회가 몰렸습니다. 30초쯤 뒤에 다시 눌러 주세요.'
+                : '시세를 불러오지 못했습니다.',
           );
           // 이전 검색 결과가 남아 있으면 에러 문구 아래에 엉뚱한 카드가 계속
           // 보이므로(특히 발매판을 바꿨을 때) 같이 비워준다.

@@ -66,6 +66,8 @@ export type CardEdition = 'japanese' | 'english' | 'korean';
 
 // PokemonPriceTracker 일일 크레딧 초과(429)를 호출부에서 식별하기 위한 에러 표식.
 export const EBAY_RATE_LIMITED = 'ebay_rate_limited';
+// 하루치를 다 쓴 경우. 분당 한도와 달리 한국시간 오전 9시까지 안 열리므로 안내가 다르다.
+export const EBAY_DAILY_LIMIT = 'ebay_daily_limit';
 
 export interface EbaySearchResult {
   cards: EbayCard[];
@@ -101,8 +103,12 @@ export async function searchEbayCards(
   if (market === 'tcgplayer') params.set('have', 'tcgplayer');
 
   const res = await fetch(`/api/local/card-prices?${params.toString()}`);
-  // 일일 크레딧 초과(429)는 호출부가 "일시적 오류"와 구분해 안내하도록 별도 에러로 던진다.
-  if (res.status === 429) throw new Error(EBAY_RATE_LIMITED);
+  // 429는 호출부가 "일시적 오류"와 구분해 안내하도록 별도 에러로 던진다. 하루치를 다 쓴
+  // 것인지(오전 9시까지 대기) 분당 한도인지(곧 풀림)는 서버가 알려준다.
+  if (res.status === 429) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error === 'daily_limit' ? EBAY_DAILY_LIMIT : EBAY_RATE_LIMITED);
+  }
   if (!res.ok) throw new Error(`card-prices request failed: ${res.status}`);
 
   // 서버가 내려주는 이름은 TCGPlayer 영문 표기라, SNKRDUNK 결과(koreanizeTitle)와

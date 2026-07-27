@@ -40,7 +40,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // 이름만 필요하므로 떼어 낸다.
 const cleanName = (n) => String(n ?? '').replace(/\s*-\s*\d+[a-z]?\/\d+.*$/i, '').trim()
 
+// ⚠️ 이 스크립트가 쓰는 크레딧은 사이트 방문자가 쓸 몫과 같은 통이다. 2026-07-27에
+// 세트를 몰아 받다가 하루치(20,000)를 다 써서, 그날 밤 내내 eBay·TCGplayer 시세가
+// "조회 한도 초과"로 안 나왔다. 방문자 몫을 남겨 두고 멈춘다.
+const KEEP_FOR_VISITORS = 8000
+let remaining = Infinity
+
 for (const { code, count } of sets) {
+  if (remaining < KEEP_FOR_VISITORS) {
+    console.log(`\n남은 크레딧 ${remaining} — 방문자 몫(${KEEP_FOR_VISITORS})을 남기고 멈춘다.`)
+    console.log('한국시간 오전 9시에 초기화되니 그 뒤에 다시 돌리면 이어받는다.')
+    break
+  }
   if (out[code]) {
     console.log(`  ${code} 건너뜀(이미 있음, ${Object.keys(out[code]).length}장)`)
     continue
@@ -59,6 +70,9 @@ for (const { code, count } of sets) {
       await sleep(wait * 1000)
       r = await fetch(url, { headers: { accept: 'application/json', authorization: `Bearer ${key}` } })
     }
+    // 남은 크레딧은 헤더로만 알 수 있다. 다음 세트로 넘어갈지 여기서 판단한다.
+    const left = Number(r.headers.get('x-ratelimit-daily-remaining'))
+    if (Number.isFinite(left)) remaining = left
     if (!r.ok) {
       console.log(`  ${code} 실패 ${r.status}`)
       break
