@@ -2392,7 +2392,8 @@ function normalizeFleaConfig(raw: unknown): FleaConfig {
   }
 }
 
-// 생카 등급과 감정 등급. 표기는 스니커덩크와 맞춘다 — 그래야 우리 거래가와 스니커덩크
+// 싱글카드(등급 안 받은 카드) 등급과 등급카드(감정회사가 매긴 것) 등급.
+// 표기는 스니커덩크와 맞춘다 — 그래야 우리 거래가와 스니커덩크
 // 시세를 나란히 놓고 볼 수 있다. 판정 기준은 docs/플리마켓-등급기준.md에 있다.
 export const FLEA_RAW_GRADES = ['A', 'B', 'C', 'D'] as const
 export const FLEA_SLAB_GRADES = [
@@ -2554,7 +2555,7 @@ function mountFleaMarket(app: Mountable) {
         }
         // 감정 카드는 인증번호가 있어야 나중에 감정사 조회로 대조할 수 있다.
         if (isSlab && !certNo) {
-          sendJson(res, 400, { error: '감정 카드는 인증번호가 필요합니다.' })
+          sendJson(res, 400, { error: '등급카드는 인증번호가 필요합니다.' })
           return
         }
         // 사진 장수는 등급 기준 문서와 맞춘다. A·B는 모서리까지 4장, C·D는 결함 사진까지 3장.

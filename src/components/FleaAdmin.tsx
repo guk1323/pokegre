@@ -284,7 +284,7 @@ export function FleaAdmin() {
           <li>· 자기 매물에 제안 막기 (지금은 혼자 확인하려고 열어 뒀다)</li>
         </ul>
         <p className="mt-3 text-xs leading-relaxed text-neutral-500">
-          등급 기준(생카 A·B·C·D, 감정 카드, 필수 사진)은 <code>docs/플리마켓-등급기준.md</code>에
+          등급 기준(싱글카드 A·B·C·D, 등급카드, 필수 사진)은 <code>docs/플리마켓-등급기준.md</code>에
           정리해 두었습니다.
         </p>
       </div>
