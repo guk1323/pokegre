@@ -1,6 +1,22 @@
-import { CARD_NAME_KO_TO_EN, CARD_NAME_KO_TO_EN_LONG } from './koreanizeEnglishTitle';
+import { CARD_NAME_KO_TO_EN, CARD_NAME_KO_TO_EN_LONG, CARD_NAME_KO_TO_EN_NOSPACE } from './koreanizeEnglishTitle';
 import pokemonNames from '../data/pokemonNames.json';
 import packNames from '../data/packNames.json';
+import cardNameKoEn from '../data/cardNameKoEn.json';
+
+// 한글 카드명 → 영문 카드명. scripts/gen-ko-en-cards.mts가 자동으로 만든다(우리 일본어
+// 카드명을 화면에 나오는 한글로 바꾼 뒤, 같은 카드의 영문명을 PPT 자료에서 번호로 찾아
+// 짝지은 것). 손으로 넣은 사전(CARD_NAME_KO_TO_EN)에 없는 것만 여기서 메운다.
+//
+// 왜 필요한가: 한글로 검색할 때 스니커덩크는 결과가 나오는데 eBay·TCGplayer는 0건이던
+// 카드가 674종 있었다. 사전 두 벌의 촘촘함이 달라서 생긴 차이다.
+const AUTO_KO_TO_EN = new Map<string, string>(Object.entries(cardNameKoEn as Record<string, string>));
+const AUTO_KO_TO_EN_NOSPACE = new Map<string, string>(
+  [...AUTO_KO_TO_EN].map(([ko, en]) => [ko.replace(/[\s·]/g, ''), en]),
+);
+// 부분 치환용. 짧은 이름은 다른 말에 끼어들어 검색을 깨뜨리므로 3글자 이상만 쓴다.
+const AUTO_KO_TO_EN_LONG: [string, string][] = [...AUTO_KO_TO_EN]
+  .filter(([ko]) => ko.replace(/\s/g, '').length >= 3)
+  .sort((a, b) => b[0].length - a[0].length);
 
 interface PokemonName {
   id: number;
@@ -148,7 +164,13 @@ export function translateSearchQueryToEnglish(
   if (exact) return exact.en;
   // 트레이너·굿즈·스타디움 한글 카드명이 통째로 들어오면 그대로 영문명으로 바꾼다.
   // 짧은 이름(추명·이슬 등)도 여기서는 안전하다 — 전체가 일치할 때만이라서.
-  const exactCard = CARD_NAME_KO_TO_EN.get(trimmed);
+  // 띄어쓰기가 달라도 같은 카드로 본다("테라스탈오브" = "테라스탈 오브").
+  const noSpace = trimmed.replace(/[\s·]/g, '');
+  const exactCard =
+    CARD_NAME_KO_TO_EN.get(trimmed) ??
+    CARD_NAME_KO_TO_EN_NOSPACE.get(noSpace) ??
+    AUTO_KO_TO_EN.get(trimmed) ??
+    AUTO_KO_TO_EN_NOSPACE.get(noSpace);
   if (exactCard) return exactCard;
 
   let result = trimmed;
@@ -164,6 +186,12 @@ export function translateSearchQueryToEnglish(
   // 카드명이 문장 일부로 들어온 경우("벽록의 가면 오거폰 SAR")도 바꿔 준다.
   // 긴 이름부터 처리해야 짧은 이름이 먼저 걸려 조각나지 않는다.
   for (const [ko, en] of CARD_NAME_KO_TO_EN_LONG) {
+    if (result.includes(ko)) {
+      result = result.split(ko).join(en);
+    }
+  }
+  // 손 사전으로 못 잡은 것만 자동 사전으로 한 번 더. 손으로 넣은 쪽이 늘 우선이다.
+  for (const [ko, en] of AUTO_KO_TO_EN_LONG) {
     if (result.includes(ko)) {
       result = result.split(ko).join(en);
     }

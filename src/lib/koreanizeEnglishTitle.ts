@@ -1221,6 +1221,12 @@ const ITEM_EN_TO_KO: Record<string, string> = {
 //    통째로 일치할 때만 쓰고 부분 치환에는 3글자 이상만 넣는다.
 const koToEnEntries: [string, string][] = Object.entries({ ...TRAINER_EN_TO_KO, ...ITEM_EN_TO_KO }).map(([en, ko]) => [ko, en]);
 export const CARD_NAME_KO_TO_EN = new Map<string, string>(koToEnEntries);
+// 같은 카드인데 띄어쓰기가 달라 검색이 빗나가는 걸 막는다. 화면에는 "테라스탈오브"로
+// 나오는데 사전 키는 "테라스탈 오브"라 한글로 치면 eBay·TCGplayer에서 아무것도 안 나왔다.
+// 가운뎃점(·)도 판마다 있고 없고 해서 같이 지운다.
+export const CARD_NAME_KO_TO_EN_NOSPACE = new Map<string, string>(
+  koToEnEntries.map(([ko, en]) => [ko.replace(/[\s·]/g, ''), en]),
+);
 export const CARD_NAME_KO_TO_EN_LONG: [string, string][] = koToEnEntries
   .filter(([ko]) => ko.replace(/\s/g, '').length >= 3)
   .sort((a, b) => b[0].length - a[0].length);
