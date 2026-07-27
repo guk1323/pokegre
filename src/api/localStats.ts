@@ -75,6 +75,7 @@ export function trackVisit(): void {
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
 export type TrackedEvent =
+  | 'share'
   | 'snkrdunk_search'
   | 'ebay_search'
   | 'scan'

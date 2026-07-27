@@ -1448,6 +1448,7 @@ const MAX_SET_KEYS = 500
 const ALLOWED_EVENTS = new Set([
   'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'ebay_korean',
   'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value', 'packsim_share',
+  'share',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60

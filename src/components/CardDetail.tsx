@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { KrwHint } from './KrwHint';
 import { reportCardTitleMiss } from '../api/localStats';
+import { ShareButton } from './ShareButton';
 import {
   fetchConditionPrices,
   fetchPriceHistory,
@@ -27,7 +28,6 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   const [condition, setCondition] = useState('');
   // 카드 이름(한글화) 오류 신고를 한 번 누르면 감사 문구로 바꾼다.
   const [titleReported, setTitleReported] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
   // 수량은 항상 1개(1장)로 고정한다. 사용자가 고를 일이 없고("10박스 묶음 시세"를
   // 보고 싶은 사람은 없다), 안 고정하면 박스 시세가 묶음 총액과 섞여 부풀려진다.
   const [variantId, setVariantId] = useState<number | null>(null);
@@ -89,31 +89,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
 
       <div className="mb-1 flex items-start justify-between gap-2">
         <h2 className="text-base font-bold text-black">{card.title}</h2>
-        {/* 공유: 폰이면 시스템 공유창(카톡 등), 아니면 링크 복사. 공유 주소는 App이
-            주소창에 넣는 /c/<id> 형식과 동일하다. */}
-        <button
-          type="button"
-          onClick={async () => {
-            const url = `https://pokegre.com/c/${card.apparelId}?n=${encodeURIComponent(card.title.slice(0, 80))}`;
-            if (navigator.share) {
-              navigator.share({ title: `${card.title} 시세 | pokegre`, url }).catch(() => undefined);
-            } else {
-              try {
-                await navigator.clipboard.writeText(url);
-                setShareCopied(true);
-                setTimeout(() => setShareCopied(false), 2000);
-              } catch {
-                window.prompt('이 주소를 복사하세요', url);
-              }
-            }
-          }}
-          className="flex-shrink-0 inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] font-semibold text-neutral-500 hover:bg-neutral-50 hover:text-black"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.7 10.7l6.6-3.4m-6.6 6l6.6 3.4M9 12a3 3 0 11-6 0 3 3 0 016 0zm12-6a3 3 0 11-6 0 3 3 0 016 0zm0 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          {shareCopied ? '복사됨!' : '공유'}
-        </button>
+        <ShareButton path={`/c/${card.apparelId}`} name={card.title} />
       </div>
       <p className="text-xs text-neutral-400 mb-1">
         매물 {card.stock.toLocaleString()}개

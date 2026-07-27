@@ -40,6 +40,7 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩' },
   { key: 'packsim_value', label: '앨범 시세', hint: '앨범 탭에서 예상 가치 조회' },
   { key: 'packsim_share', label: '개봉 자랑', hint: '팩 결과를 커뮤니티에 공유' },
+  { key: 'share', label: '카드 공유', hint: '카드 상세에서 공유 버튼을 누를 때' },
   { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
 ];
 

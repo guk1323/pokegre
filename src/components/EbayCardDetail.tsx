@@ -3,6 +3,7 @@ import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCa
 import { KrwHint, KrwRateNote } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
+import { ShareButton } from './ShareButton';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -26,7 +27,10 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
         )}
       </div>
 
-      <h2 className="text-base font-bold text-black mb-1">{card.name}</h2>
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <h2 className="text-base font-bold text-black">{card.name}</h2>
+        <ShareButton path={`/e/${card.tcgPlayerId}`} name={card.name} />
+      </div>
       <p className="text-xs text-neutral-400 mb-1">
         {card.setName}
         {card.cardNumber ? ` · ${card.cardNumber}` : ''} · 낙찰 {card.totalSales.toLocaleString()}건
