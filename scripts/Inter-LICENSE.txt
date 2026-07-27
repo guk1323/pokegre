@@ -1,0 +1,7 @@
+로고에 쓴 글꼴: Inter (ExtraBold)
+저작권: Copyright (c) 2016-2024 The Inter Project Authors (https://github.com/rsms/inter)
+라이선스: SIL Open Font License 1.1 — 상업적 이용·로고 사용 모두 허용됩니다.
+전문: https://openfontlicense.org
+
+이 글꼴 파일은 로고(favicon.svg · icon-*.png · pack-card-back.svg)를 만드는 데만 씁니다.
+사이트 본문 글꼴은 그대로 기기 기본 글꼴을 씁니다.
