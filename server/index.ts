@@ -12,6 +12,23 @@ const app = express()
 // gzip 압축. 작가 JSON(50KB대)·index.json·번들이 5~8배 줄어 로딩이 크게 빨라진다.
 // 모든 라우트보다 먼저 둬야 정적 파일·API 응답까지 압축된다.
 app.use(compression())
+
+// 보안 헤더. 지금까지 하나도 안 붙이고 있었다. 로그인(카카오·네이버)이 있는 사이트라
+// 남의 페이지가 우리를 iframe에 넣어 클릭을 가로챌 수 있었다.
+// 세션 쿠키는 이미 HttpOnly·SameSite=Lax라 CSRF 쪽은 막혀 있다.
+app.use((_req, res, next) => {
+  // 어떤 사이트도 우리를 iframe에 넣지 못하게 한다(클릭재킹).
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'")
+  // 브라우저가 파일 내용을 보고 타입을 멋대로 바꾸지 않게 한다.
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  // 이베이·스니커덩크로 나갈 때 우리 주소 전체(검색어가 들어 있다)를 넘기지 않는다.
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  // https로만 접속하게 한다. pokegre.com은 http를 안 쓰므로 안전하다.
+  res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains')
+  next()
+})
+
 const PORT = Number(process.env.PORT ?? 3000)
 const DIST = path.resolve(process.cwd(), 'dist')
 const DATA_DIR = process.env.POKEGRE_DATA_DIR ?? path.resolve(process.cwd(), 'data')
