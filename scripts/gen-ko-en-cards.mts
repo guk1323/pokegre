@@ -79,6 +79,18 @@ console.log(`한글 → 영문 ${pairs.size}쌍`)
 for (const [k, v] of [...pairs].slice(0, 12)) console.log(`   ${k}  →  ${v}`)
 
 if (WRITE) {
+  // 이미 있는 사전과 합친다. PPT 하루 한도 때문에 세트를 나눠 받는데, 그냥 덮어쓰면
+  // 이번에 못 받은 세트의 쌍이 통째로 사라진다(실제로 M3가 그렇게 날아갔다).
+  // 이번에 새로 검증한 쪽을 우선하고, 없는 것만 예전 값으로 채운다.
+  const prev: Record<string, string> = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : {}
+  let carried = 0
+  for (const [k, v] of Object.entries(prev)) {
+    if (!pairs.has(k)) {
+      pairs.set(k, v)
+      carried++
+    }
+  }
+  if (carried) console.log(`이전 사전에서 ${carried}쌍 이어받음(이번에 못 받은 세트)`)
   writeFileSync(OUT, JSON.stringify(Object.fromEntries([...pairs].sort()), null, 1) + '\n')
   console.log(`\n→ ${OUT}`)
 } else {
