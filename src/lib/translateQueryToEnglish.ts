@@ -13,10 +13,9 @@ const AUTO_KO_TO_EN = new Map<string, string>(Object.entries(cardNameKoEn as Rec
 const AUTO_KO_TO_EN_NOSPACE = new Map<string, string>(
   [...AUTO_KO_TO_EN].map(([ko, en]) => [ko.replace(/[\s·]/g, ''), en]),
 );
-// 부분 치환용. 짧은 이름은 다른 말에 끼어들어 검색을 깨뜨리므로 3글자 이상만 쓴다.
-const AUTO_KO_TO_EN_LONG: [string, string][] = [...AUTO_KO_TO_EN]
-  .filter(([ko]) => ko.replace(/\s/g, '').length >= 3)
-  .sort((a, b) => b[0].length - a[0].length);
+// ⚠️ 자동 사전은 "카드 이름 전체가 일치할 때"만 쓴다. 부분 치환에 올렸더니 '침바루'가
+// '히스이 장침바루' 속에 끼어들어 "Hisuian 장Qwilfish"가 됐다. 손으로 넣고 검증한 사전과
+// 달리 자동 생성물이라, 조각내 쓰는 건 위험 대비 얻는 게 적다.
 
 interface PokemonName {
   id: number;
@@ -186,12 +185,6 @@ export function translateSearchQueryToEnglish(
   // 카드명이 문장 일부로 들어온 경우("벽록의 가면 오거폰 SAR")도 바꿔 준다.
   // 긴 이름부터 처리해야 짧은 이름이 먼저 걸려 조각나지 않는다.
   for (const [ko, en] of CARD_NAME_KO_TO_EN_LONG) {
-    if (result.includes(ko)) {
-      result = result.split(ko).join(en);
-    }
-  }
-  // 손 사전으로 못 잡은 것만 자동 사전으로 한 번 더. 손으로 넣은 쪽이 늘 우선이다.
-  for (const [ko, en] of AUTO_KO_TO_EN_LONG) {
     if (result.includes(ko)) {
       result = result.split(ko).join(en);
     }
