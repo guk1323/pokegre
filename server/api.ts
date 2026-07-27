@@ -1399,6 +1399,7 @@ const MAX_TRANSLATION_FEEDBACK = 300
 const FLEA_CONFIG_FILE = dataFile('flea-config.json')
 // 매물·거래 기록. 아직 만들지 않은 기능이라 파일이 없는 게 정상이다(없으면 0건).
 const FLEA_LISTINGS_FILE = dataFile('flea-listings.json')
+const FLEA_OFFERS_FILE = dataFile('flea-offers.json')
 const FLEA_DEALS_FILE = dataFile('flea-deals.json')
 const EVENT_STATS_FILE = dataFile('event-stats.json')
 // 작가별 조회 횟수(누적). "작가별 조회" 이벤트에 딸려 온 작가 이름으로 센다.
@@ -2389,8 +2390,68 @@ function normalizeFleaConfig(raw: unknown): FleaConfig {
   }
 }
 
+// 생카 등급과 감정 등급. 표기는 스니커덩크와 맞춘다 — 그래야 우리 거래가와 스니커덩크
+// 시세를 나란히 놓고 볼 수 있다. 판정 기준은 docs/플리마켓-등급기준.md에 있다.
+export const FLEA_RAW_GRADES = ['A', 'B', 'C', 'D'] as const
+export const FLEA_SLAB_GRADES = [
+  'PSA10', 'PSA9', 'PSA8 이하',
+  'BGS10 BL', 'BGS10 GL', 'BGS9.5', 'BGS9.5 이하',
+  'ARS10+', 'ARS10', 'ARS9', 'ARS8 이하',
+  '기타 감정품',
+] as const
+const FLEA_ALL_GRADES: string[] = [...FLEA_RAW_GRADES, ...FLEA_SLAB_GRADES]
+const FLEA_EDITIONS = ['jp', 'na', 'kr'] as const
+
+export type FleaListing = {
+  id: number
+  sellerId: string
+  seller: string
+  cardName: string
+  setName: string
+  edition: (typeof FLEA_EDITIONS)[number]
+  grade: string
+  // 감정 카드일 때만. 나중에 감정사 공식 조회로 대조해 가짜를 걸러내려고 필수로 받는다.
+  certNo: string
+  price: number
+  images: string[]
+  note: string
+  status: 'open' | 'sold' | 'closed'
+  createdAt: number
+}
+
+export type FleaOffer = {
+  id: number
+  listingId: number
+  buyerId: string
+  buyer: string
+  price: number
+  status: 'pending' | 'accepted' | 'rejected'
+  createdAt: number
+}
+
+// 성사된 거래. 우리 자체 시세는 이 기록으로만 만든다 — 올려둔 가격(호가)은 시세가 아니다.
+export type FleaDeal = {
+  id: number
+  listingId: number
+  cardName: string
+  edition: string
+  grade: string
+  price: number
+  sellerId: string
+  buyerId: string
+  at: number
+}
+
+const MAX_FLEA_LISTINGS = 2000
+const MAX_FLEA_IMAGES = 6
+const FLEA_MAX_PRICE = 100_000_000
+
 function mountFleaMarket(app: Mountable) {
   let config: FleaConfig | null = null
+  let listings: FleaListing[] | null = null
+  let offers: FleaOffer[] | null = null
+  let deals: FleaDeal[] | null = null
+  const allowWrite = rateLimiter(30, 60 * 1000)
 
   async function load(): Promise<FleaConfig> {
     if (config) return config
@@ -2405,15 +2466,259 @@ function mountFleaMarket(app: Mountable) {
     })
   }
 
-  // 매물·거래 건수. 아직 기능이 없어 파일이 없는 게 정상이므로 없으면 0으로 둔다.
-  async function countOf(file: string): Promise<number> {
-    try {
-      const parsed = JSON.parse(await readFile(file, 'utf-8'))
-      return Array.isArray(parsed) ? parsed.length : 0
-    } catch {
-      return 0
-    }
+  // 매물·제안·거래 목록. 파일이 없으면 빈 배열로 시작한다(아직 아무도 안 올린 상태).
+  async function loadList<T>(key: string, file: string, get: () => T[] | null, set: (v: T[]) => void): Promise<T[]> {
+    const cached = get()
+    if (cached) return cached
+    return firstReadOnce(key, async () => {
+      const again = get()
+      if (again) return again
+      let parsed: T[]
+      try {
+        const raw = JSON.parse(await readFile(file, 'utf-8'))
+        parsed = Array.isArray(raw) ? raw : []
+      } catch {
+        parsed = []
+      }
+      set(parsed)
+      return parsed
+    })
   }
+
+  const loadListings = () =>
+    loadList<FleaListing>('flea-listings', FLEA_LISTINGS_FILE, () => listings, (v) => { listings = v })
+  const loadOffers = () =>
+    loadList<FleaOffer>('flea-offers', FLEA_OFFERS_FILE, () => offers, (v) => { offers = v })
+  const loadDeals = () =>
+    loadList<FleaDeal>('flea-deals', FLEA_DEALS_FILE, () => deals, (v) => { deals = v })
+
+  const nextId = (rows: { id: number }[]) => rows.reduce((m, r) => Math.max(m, r.id), 0) + 1
+  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
+  app.use('/api/local/flea/listings', async (req, res) => {
+    // 지금은 운영자만. 회원에게 여는 건 1단계로 올린 뒤에 푼다.
+    const user = await currentUser(req)
+    if (!isAdmin(user) || !user) {
+      sendJson(res, 404, { error: 'not found' })
+      return
+    }
+
+    const url = new URL(req.url ?? '', 'http://localhost')
+    const segments = url.pathname.split('/').filter(Boolean)
+
+    // POST — 매물 올리기
+    if (req.method === 'POST' && segments.length === 0) {
+      if (!allowWrite(req)) {
+        tooManyRequests(res)
+        return
+      }
+      try {
+        const b = JSON.parse(await readBody(req)) as Record<string, unknown>
+        const cardName = str(b.cardName, 120)
+        const grade = str(b.grade, 20)
+        const price = Math.round(Number(b.price))
+        const edition = FLEA_EDITIONS.includes(b.edition as never) ? (b.edition as FleaListing['edition']) : 'jp'
+        const images = Array.isArray(b.images)
+          ? b.images.filter((u): u is string => typeof u === 'string' && /^\/uploads\/[\w.-]+$/.test(u)).slice(0, MAX_FLEA_IMAGES)
+          : []
+        const isSlab = (FLEA_SLAB_GRADES as readonly string[]).includes(grade)
+        const certNo = str(b.certNo, 40)
+
+        if (!cardName) {
+          sendJson(res, 400, { error: '카드 이름을 넣어 주세요.' })
+          return
+        }
+        if (!FLEA_ALL_GRADES.includes(grade)) {
+          sendJson(res, 400, { error: '등급을 골라 주세요.' })
+          return
+        }
+        if (!Number.isFinite(price) || price <= 0 || price > FLEA_MAX_PRICE) {
+          sendJson(res, 400, { error: '가격을 다시 확인해 주세요.' })
+          return
+        }
+        // 감정 카드는 인증번호가 있어야 나중에 감정사 조회로 대조할 수 있다.
+        if (isSlab && !certNo) {
+          sendJson(res, 400, { error: '감정 카드는 인증번호가 필요합니다.' })
+          return
+        }
+        // 사진 장수는 등급 기준 문서와 맞춘다. A·B는 모서리까지 4장, C·D는 결함 사진까지 3장.
+        const needed = grade === 'A' || grade === 'B' ? 4 : 3
+        if (images.length < needed) {
+          sendJson(res, 400, { error: `${grade}등급은 사진 ${needed}장이 필요합니다.` })
+          return
+        }
+
+        const all = await loadListings()
+        const row: FleaListing = {
+          id: nextId(all),
+          sellerId: user.id,
+          seller: user.nickname ?? '운영자',
+          cardName,
+          setName: str(b.setName, 120),
+          edition,
+          grade,
+          certNo: isSlab ? certNo : '',
+          price,
+          images,
+          note: str(b.note, 500),
+          status: 'open',
+          createdAt: Date.now(),
+        }
+        all.push(row)
+        if (all.length > MAX_FLEA_LISTINGS) all.splice(0, all.length - MAX_FLEA_LISTINGS)
+        await writeJsonFile(FLEA_LISTINGS_FILE, all)
+        const { sellerId: _hidden, ...safe } = row
+        sendJson(res, 201, { ...safe, mine: true, offers: 0 })
+      } catch {
+        sendJson(res, 400, { error: '올리지 못했습니다.' })
+      }
+      return
+    }
+
+    // DELETE /listings/<id> — 내 매물 내리기
+    if (req.method === 'DELETE' && segments.length === 1) {
+      const id = Number(segments[0])
+      const all = await loadListings()
+      const row = all.find((l) => l.id === id)
+      if (!row || row.sellerId !== user.id) {
+        sendJson(res, 404, { error: 'not found' })
+        return
+      }
+      row.status = 'closed'
+      await writeJsonFile(FLEA_LISTINGS_FILE, all)
+      res.statusCode = 204
+      res.end()
+      return
+    }
+
+    // GET — 매물 목록. 내린 매물은 빼고 최신순.
+    const [all, pending] = await Promise.all([loadListings(), loadOffers()])
+    const q = url.searchParams.get('q')?.trim().toLowerCase() ?? ''
+    const rows = all
+      .filter((l) => l.status !== 'closed')
+      .filter((l) => !q || l.cardName.toLowerCase().includes(q) || l.setName.toLowerCase().includes(q))
+      .sort((a, b) => b.createdAt - a.createdAt)
+      // 회원번호(sellerId)는 클라이언트로 내리지 않는다 — /me가 안 주는 것과 같은 이유다.
+      // 대신 "내 매물인지"만 서버가 판단해서 알려준다.
+      .map(({ sellerId, ...l }) => ({
+        ...l,
+        mine: sellerId === user.id,
+        offers: pending.filter((o) => o.listingId === l.id && o.status === 'pending').length,
+      }))
+    sendJson(res, 200, rows)
+  })
+
+  app.use('/api/local/flea/offers', async (req, res) => {
+    const user = await currentUser(req)
+    if (!isAdmin(user) || !user) {
+      sendJson(res, 404, { error: 'not found' })
+      return
+    }
+
+    const url = new URL(req.url ?? '', 'http://localhost')
+    const segments = url.pathname.split('/').filter(Boolean)
+
+    // POST — 이 값에 사겠다고 제안한다. 흥정을 쪽지가 아니라 버튼으로 하는 게 핵심이다.
+    // 그래야 합의 금액이 시스템에 남아 시세로 쓸 수 있다(쪽지 안에 숨으면 못 쓴다).
+    if (req.method === 'POST' && segments.length === 0) {
+      if (!allowWrite(req)) {
+        tooManyRequests(res)
+        return
+      }
+      try {
+        const b = JSON.parse(await readBody(req)) as { listingId?: unknown; price?: unknown }
+        const listingId = Number(b.listingId)
+        const price = Math.round(Number(b.price))
+        const all = await loadListings()
+        const listing = all.find((l) => l.id === listingId && l.status === 'open')
+        if (!listing) {
+          sendJson(res, 404, { error: '이미 없는 매물입니다.' })
+          return
+        }
+        if (!Number.isFinite(price) || price <= 0 || price > FLEA_MAX_PRICE) {
+          sendJson(res, 400, { error: '금액을 다시 확인해 주세요.' })
+          return
+        }
+        // ⚠️ 지금은 운영자 혼자라 자기 매물에도 제안할 수 있게 열어 뒀다(흐름 확인용).
+        // 회원에게 열 때 여기서 sellerId === user.id 를 막아야 한다.
+        const rows = await loadOffers()
+        const row: FleaOffer = {
+          id: nextId(rows),
+          listingId,
+          buyerId: user.id,
+          buyer: user.nickname ?? '운영자',
+          price,
+          status: 'pending',
+          createdAt: Date.now(),
+        }
+        rows.push(row)
+        await writeJsonFile(FLEA_OFFERS_FILE, rows)
+        const { buyerId: _hidden, ...safe } = row
+        sendJson(res, 201, { ...safe, canAnswer: listing.sellerId === user.id, mine: true })
+      } catch {
+        sendJson(res, 400, { error: '보내지 못했습니다.' })
+      }
+      return
+    }
+
+    // PUT /offers/<id> — 판매자가 수락하거나 거절한다. 수락하면 그 금액이 거래로 남는다.
+    if (req.method === 'PUT' && segments.length === 1) {
+      try {
+        const id = Number(segments[0])
+        const b = JSON.parse(await readBody(req)) as { accept?: unknown }
+        const [rows, all] = await Promise.all([loadOffers(), loadListings()])
+        const offer = rows.find((o) => o.id === id && o.status === 'pending')
+        const listing = offer ? all.find((l) => l.id === offer.listingId) : undefined
+        if (!offer || !listing || listing.sellerId !== user.id) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        if (b.accept !== true) {
+          offer.status = 'rejected'
+          await writeJsonFile(FLEA_OFFERS_FILE, rows)
+          sendJson(res, 200, { ...offer, buyerId: undefined })
+          return
+        }
+        offer.status = 'accepted'
+        listing.status = 'sold'
+        // 남은 제안은 자동으로 거절 처리한다 — 판 물건에 제안이 계속 붙어 있으면 헷갈린다.
+        for (const o of rows) if (o.listingId === listing.id && o.status === 'pending') o.status = 'rejected'
+        const done = await loadDeals()
+        done.push({
+          id: nextId(done),
+          listingId: listing.id,
+          cardName: listing.cardName,
+          edition: listing.edition,
+          grade: listing.grade,
+          price: offer.price,
+          sellerId: listing.sellerId,
+          buyerId: offer.buyerId,
+          at: Date.now(),
+        })
+        await writeJsonFile(FLEA_OFFERS_FILE, rows)
+        await writeJsonFile(FLEA_LISTINGS_FILE, all)
+        await writeJsonFile(FLEA_DEALS_FILE, done)
+        sendJson(res, 200, { ...offer, buyerId: undefined })
+      } catch {
+        sendJson(res, 400, { error: '처리하지 못했습니다.' })
+      }
+      return
+    }
+
+    // GET /offers?listingId=N — 그 매물에 들어온 제안. 여기서도 회원번호는 빼고,
+    // "내가 답할 수 있는 제안인지"(내 매물에 들어온 것인지)만 서버가 알려준다.
+    const [rows, all] = await Promise.all([loadOffers(), loadListings()])
+    const listingId = Number(url.searchParams.get('listingId'))
+    const sellerOf = new Map(all.map((l) => [l.id, l.sellerId]))
+    sendJson(
+      res,
+      200,
+      rows
+        .filter((o) => !Number.isFinite(listingId) || o.listingId === listingId)
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map(({ buyerId, ...o }) => ({ ...o, canAnswer: sellerOf.get(o.listingId) === user.id, mine: buyerId === user.id })),
+    )
+  })
 
   app.use('/api/local/flea/config', async (req, res) => {
     const viewer = await currentUser(req)
@@ -2449,14 +2754,15 @@ function mountFleaMarket(app: Mountable) {
       return
     }
 
-    const [current, listings, deals] = await Promise.all([
-      load(),
-      countOf(FLEA_LISTINGS_FILE),
-      countOf(FLEA_DEALS_FILE),
-    ])
+    const [current, allListings, allDeals] = await Promise.all([load(), loadListings(), loadDeals()])
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ config: current, counts: { listings, deals } }))
+    res.end(
+      JSON.stringify({
+        config: current,
+        counts: { listings: allListings.filter((l) => l.status !== 'closed').length, deals: allDeals.length },
+      }),
+    )
   })
 }
 

@@ -42,6 +42,136 @@ export async function fetchFleaStatus(): Promise<FleaStatus> {
   return res.json();
 }
 
+// ── 매물·제안 ──────────────────────────────────────────────────────────────
+
+// 표기는 스니커덩크와 맞춘다. 판정 기준은 docs/플리마켓-등급기준.md 참고.
+export const RAW_GRADES = ['A', 'B', 'C', 'D'] as const;
+export const SLAB_GRADES = [
+  'PSA10', 'PSA9', 'PSA8 이하',
+  'BGS10 BL', 'BGS10 GL', 'BGS9.5', 'BGS9.5 이하',
+  'ARS10+', 'ARS10', 'ARS9', 'ARS8 이하',
+  '기타 감정품',
+] as const;
+
+export const EDITION_LABEL = { jp: '일본판', na: '북미판', kr: '한글판' } as const;
+export type Edition = keyof typeof EDITION_LABEL;
+
+// 등급별 한 줄 설명. 등록 화면에서 고를 때 바로 보이게 해서 후하게 매기는 걸 줄인다.
+export const RAW_GRADE_HINT: Record<(typeof RAW_GRADES)[number], string> = {
+  A: '모서리 흰 까짐 없음 · 정면에서 흠이 안 보임',
+  B: '모서리 흰 까짐 1mm 이하 2곳까지 · 잔흠 2개까지',
+  C: '흰 까짐 3곳 이상 · 정면에서 흠이 바로 보임',
+  D: '접힘·찢어짐·물 젖음·낙서 중 하나라도 있으면 D',
+};
+
+// 등급별 필수 사진 장수. 비싼 등급일수록 많이 받는다.
+export function requiredPhotos(grade: string): number {
+  return grade === 'A' || grade === 'B' ? 4 : 3;
+}
+
+export function photoGuide(grade: string): string {
+  return grade === 'A' || grade === 'B'
+    ? '앞면 · 뒷면 · 빛 반사 · 모서리'
+    : '앞면 · 뒷면 · 결함 부위';
+}
+
+export function isSlab(grade: string): boolean {
+  return (SLAB_GRADES as readonly string[]).includes(grade);
+}
+
+export interface FleaListing {
+  id: number;
+  // 회원번호는 서버가 안 내려준다. 대신 "내 매물인지"만 알려준다.
+  mine: boolean;
+  seller: string;
+  cardName: string;
+  setName: string;
+  edition: Edition;
+  grade: string;
+  certNo: string;
+  price: number;
+  images: string[];
+  note: string;
+  status: 'open' | 'sold' | 'closed';
+  createdAt: number;
+  // 목록에서만 붙는다 — 들어온 제안 수.
+  offers?: number;
+}
+
+export interface FleaOffer {
+  id: number;
+  listingId: number;
+  buyer: string;
+  price: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: number;
+  // 내 매물에 들어온 제안이라 수락·거절할 수 있는지. 서버가 판단해서 준다.
+  canAnswer: boolean;
+  // 내가 보낸 제안인지.
+  mine: boolean;
+}
+
+export interface NewListing {
+  cardName: string;
+  setName: string;
+  edition: Edition;
+  grade: string;
+  certNo: string;
+  price: number;
+  images: string[];
+  note: string;
+}
+
+async function jsonOrThrow<T>(res: Response, fallback: string): Promise<T> {
+  if (!res.ok) {
+    const reason = await res.json().catch(() => null);
+    throw new Error(reason?.error ?? fallback);
+  }
+  return res.json();
+}
+
+export async function fetchListings(q = ''): Promise<FleaListing[]> {
+  const res = await fetch(`/api/local/flea/listings${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+  return jsonOrThrow(res, '매물을 불러오지 못했습니다.');
+}
+
+export async function createListing(input: NewListing): Promise<FleaListing> {
+  const res = await fetch('/api/local/flea/listings', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return jsonOrThrow(res, '올리지 못했습니다.');
+}
+
+export async function closeListing(id: number): Promise<void> {
+  const res = await fetch(`/api/local/flea/listings/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('내리지 못했습니다.');
+}
+
+export async function fetchOffers(listingId: number): Promise<FleaOffer[]> {
+  const res = await fetch(`/api/local/flea/offers?listingId=${listingId}`);
+  return jsonOrThrow(res, '제안을 불러오지 못했습니다.');
+}
+
+export async function sendOffer(listingId: number, price: number): Promise<FleaOffer> {
+  const res = await fetch('/api/local/flea/offers', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ listingId, price }),
+  });
+  return jsonOrThrow(res, '보내지 못했습니다.');
+}
+
+export async function answerOffer(id: number, accept: boolean): Promise<FleaOffer> {
+  const res = await fetch(`/api/local/flea/offers/${id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ accept }),
+  });
+  return jsonOrThrow(res, '처리하지 못했습니다.');
+}
+
 export async function saveFleaConfig(config: FleaConfig): Promise<FleaConfig> {
   const res = await fetch('/api/local/flea/config', {
     method: 'PUT',

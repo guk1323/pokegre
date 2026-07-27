@@ -7,6 +7,7 @@ import {
   type FleaConfig,
   type FleaStatus,
 } from '../api/flea';
+import { FleaListings } from './FleaListings';
 
 // 운영자 전용 플리마켓 관리 화면.
 //
@@ -39,6 +40,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 }
 
 export function FleaAdmin() {
+  const [tab, setTab] = useState<'listings' | 'config'>('listings');
   const [status, setStatus] = useState<FleaStatus | null>(null);
   const [draft, setDraft] = useState<FleaConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,11 +93,35 @@ export function FleaAdmin() {
       <div>
         <h2 className="mb-1 text-base font-bold text-black">플리마켓</h2>
         <p className="text-xs leading-relaxed text-neutral-500">
-          회원끼리 실물 카드를 거래하고, 그 거래가로 우리 시세를 만드는 기능입니다. 아직 만드는
-          중이라 매물·쪽지 화면은 없고 여기서 여는 단계만 정합니다.
+          회원끼리 실물 카드를 거래하고, 그 거래가로 우리 시세를 만드는 기능입니다. 아직 운영자만
+          보이므로, 올리고 제안하고 수락하는 흐름을 혼자 눌러 볼 수 있습니다.
         </p>
       </div>
 
+      <div className="flex gap-2">
+        {(
+          [
+            ['listings', '매물'],
+            ['config', '설정'],
+          ] as const
+        ).map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setTab(v)}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+              tab === v ? 'bg-neutral-900 text-white' : 'border border-neutral-300 text-neutral-600'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'listings' && <FleaListings />}
+
+      {tab === 'config' && (
+        <>
       {/* 지금 상태를 맨 위에 크게. 열려 있는지부터 한눈에 보여야 한다. */}
       <div
         className={`rounded-xl border p-4 ${
@@ -251,17 +277,19 @@ export function FleaAdmin() {
       <div className="rounded-xl border border-dashed border-neutral-300 p-4">
         <p className="text-sm font-bold text-black">아직 만들지 않은 것</p>
         <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-neutral-600">
-          <li>· 매물 등록·목록 (카드 상세 화면에 "판매중 N건"으로 붙임)</li>
-          <li>· 1:1 쪽지</li>
-          <li>· 제안 → 수락 → 완료 흐름 (거래가가 여기서 남는다)</li>
+          <li>· 1:1 쪽지 (지금은 제안 금액만 오간다)</li>
+          <li>· 카드 상세 화면에 "판매중 N건"으로 붙이기</li>
           <li>· 후기·거래 신뢰도 (이게 없으면 아무도 완료를 안 누른다)</li>
           <li>· 자전거래 검사 (같은 사람끼리 반복·신규 계정·같은 기기)</li>
+          <li>· 자기 매물에 제안 막기 (지금은 혼자 확인하려고 열어 뒀다)</li>
         </ul>
         <p className="mt-3 text-xs leading-relaxed text-neutral-500">
           등급 기준(생카 A·B·C·D, 감정 카드, 필수 사진)은 <code>docs/플리마켓-등급기준.md</code>에
           정리해 두었습니다.
         </p>
       </div>
+        </>
+      )}
     </div>
   );
 }
