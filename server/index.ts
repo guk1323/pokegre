@@ -105,31 +105,51 @@ async function fetchShareCard(id: string): Promise<{ image: string; price: numbe
   return data
 }
 
+// 템플릿의 meta 태그를 "이름"으로 찾아 바꾼다. 예전엔 문구를 통째로 적어 두고 문자열
+// 일치로 바꿨는데, index.html의 문구를 손보는 순간 조용히 안 먹었다 — 2026-07-27에
+// 실제로 그렇게 깨져서 공유 링크에 카드 이름이 안 나왔다.
+function setMeta(html: string, key: string, value: string): string {
+  const attr = key.startsWith('og:') ? 'property' : 'name'
+  // content가 여러 줄로 쪼개져 있어도 잡히게 [\s\S]를 쓴다.
+  const a = new RegExp(`(<meta[\\s\\S]*?${attr}="${key}"[\\s\\S]*?content=")[^"]*(")`)
+  if (a.test(html)) return html.replace(a, `$1${value}$2`)
+  // 속성 순서가 반대(content가 먼저)인 경우.
+  const b = new RegExp(`(<meta[\\s\\S]*?content=")[^"]*("[\\s\\S]*?${attr}="${key}")`)
+  return html.replace(b, `$1${value}$2`)
+}
+
 function buildCardHtml(id: string, name: string | null, card: { image: string; price: number } | null): string {
   const title = name ? `${name} 시세 | pokegre` : '포켓몬 카드 시세 | pokegre'
   const desc =
     card && card.price > 0
-      ? `스니커덩크 최저가 ¥${yen.format(card.price)} · 일본판·북미판 시세를 pokegre에서 확인`
-      : '스니커덩크 일본 실거래가와 이베이 PSA 등급별 낙찰가를 한국어로 한눈에.'
+      ? `스니커덩크 최저가 ¥${yen.format(card.price)} · 등급별 시세는 pokegre에서`
+      : '일본판·북미판 시세를 한국어로 봅니다.'
   const url = `https://pokegre.com/c/${id}`
 
   let html = TEMPLATE
-  html = html.replace('<title>포켓몬 카드 시세 · 센터링 · 일러스트 | pokegre — 일본판·북미판</title>', `<title>${esc(title)}</title>`)
-  // og:title·twitter:title은 같은 content라 한 번에 바꾼다.
-  html = html.split('content="포켓몬 카드 시세 | pokegre"').join(`content="${esc(title)}"`)
-  html = html.replace(/(<meta\s+property="og:description"\s+content=")[^"]*(")/, `$1${esc(desc)}$2`)
-  html = html.replace(/(<meta\s+name="twitter:description"\s+content=")[^"]*(")/, `$1${esc(desc)}$2`)
-  // og:url·canonical을 이 카드 주소로.
-  html = html.split('content="https://pokegre.com/"').join(`content="${esc(url)}"`)
-  html = html.split('href="https://pokegre.com/"').join(`href="${esc(url)}"`)
-  // 카드 이미지가 있으면 큰 미리보기로 띄운다.
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
+  html = setMeta(html, 'og:url', esc(url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+
+  // 카드 그림. 있던 og:image를 "바꿔야" 한다 — 예전엔 뒤에 하나 더 붙였는데 크롤러는
+  // 보통 먼저 나온 걸 쓰므로 기본 그림이 이겨서 카드가 안 보였다.
   if (card?.image) {
-    const imgTags = `\n    <meta property="og:image" content="${esc(card.image)}" />\n    <meta name="twitter:image" content="${esc(card.image)}" />`
-    html = html.replace('<meta property="og:locale" content="ko_KR" />', `<meta property="og:locale" content="ko_KR" />${imgTags}`)
-    html = html.replace('content="summary"', 'content="summary_large_image"')
+    for (const k of ['og:image', 'twitter:image']) html = setMeta(html, k, esc(card.image))
+    // 세로로 긴 카드라 1200x630을 그대로 두면 미리보기가 잘린다.
+    html = html.replace(/\s*<meta property="og:image:(width|height)"[^>]*\/?>/g, '')
   }
   return html
 }
+
+// 이베이·TCGplayer 공유 링크. 카드 시세(PPT)는 호출 한도가 빡빡해서 미리보기에
+// 값을 넣지 않는다 — 크롤러가 링크를 두드릴 때마다 크레딧이 나간다. 링크를 눌러
+// 들어오면 화면이 그 카드를 열어 준다.
+app.get(['/e/:id', '/t/:id'], (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache')
+  res.sendFile(path.join(DIST, 'index.html'))
+})
 
 app.get('/c/:id', async (req, res) => {
   try {

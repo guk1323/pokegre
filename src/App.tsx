@@ -62,6 +62,14 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
+// 공유 주소에 실을 카드 이름. 전체 제목을 그대로 넣으면 링크가 200자를 넘는다
+// (세트 설명 괄호가 통째로 들어가고 한글이 퍼센트 인코딩되기 때문).
+// 뒤 괄호를 떼고 40자로 자르면 "리자드 AR[SV2a 169/165]" 정도가 남아, 미리보기 제목으로
+// 충분하면서 링크가 짧아진다. 어차피 화면은 카드 번호로 카드를 찾으므로 이 값은 표시용이다.
+function shareName(title: string): string {
+  return title.replace(/\s*\([^()]*\)\s*$/, '').trim().slice(0, 40);
+}
+
 type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
 type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 
@@ -152,6 +160,14 @@ function App() {
   const [ebayLoading, setEbayLoading] = useState(false);
   const [ebayError, setEbayError] = useState<string | null>(null);
   const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
+  // 공유 링크(/e/·/t/)로 들어왔을 때 열어야 할 카드. 번호로 미리 받아 두고, 검색 결과가
+  // 오면 그 안에서 고른다. 결과에 없으면(다른 세트가 먼저 잡히는 등) 받아 둔 카드를
+  // 목록 맨 앞에 꽂아서 반드시 열리게 한다.
+  const [pendingCardId, setPendingCardId] = useState<string | null>(null);
+  const [pendingSnkr, setPendingSnkr] = useState<SnkrdunkCard | null>(null);
+  // 공유 링크로 들어와 카드를 찾는 중. 이 동안에는 주소를 건드리지 않는다 —
+  // 카드가 아직 안 골라졌다고 주소를 /로 되돌려 버리면 링크가 무용지물이 된다.
+  const [restoringShare, setRestoringShare] = useState(() => /^\/[cet]\//.test(window.location.pathname));
   // "더 보기"용. ebayOffset은 지금까지 요청한 원본 카드 수(페이지 크기의 배수)다.
   const [ebayOffset, setEbayOffset] = useState(0);
   const [ebayHasMore, setEbayHasMore] = useState(false);
@@ -400,16 +416,51 @@ function App() {
       .finally(() => setNewsLoading(false));
   }, []);
 
-  // 카드 공유 링크(/c/<id>?n=<이름>)로 들어오면, 담아둔 카드 이름으로 검색해 그 카드를
-  // 바로 보여준다. 서버가 이미 미리보기(제목·시세·이미지)를 심어 보냈고, 여기서는
-  // 사람이 실제로 그 카드를 찾을 수 있게 검색만 태워 준다.
+  // 카드 공유 링크(/c/<id>)로 들어오면 그 카드를 바로 보여준다.
+  // 주소에 이름을 싣지 않는다 — 카드 이름이 길어서 링크가 감당 못 하게 길어졌다
+  // (세트명까지 들어가 한글이 퍼센트 인코딩되면 200자가 넘었다). 번호만 있으면
+  // 스니커덩크에서 이름·시세를 받아올 수 있으므로 그걸로 충분하다.
+  // 옛 링크(?n=이름)도 계속 되게 둔다 — 이미 카톡·카페에 뿌려진 것들이 있다.
   useEffect(() => {
-    if (!/^\/c\/\d+/.test(window.location.pathname)) return;
-    const n = new URLSearchParams(window.location.search).get('n');
-    if (n) {
+    const m = window.location.pathname.match(/^\/([cet])\/([\w-]+)/);
+    if (!m) return;
+    const [, kind, id] = m;
+
+    if (kind === 'c') {
       setSource('snkrdunk');
-      setQuery(n);
+      // 옛 링크(?n=이름)는 그 이름으로 바로 검색한다.
+      const legacyName = new URLSearchParams(window.location.search).get('n');
+      if (legacyName) {
+        setQuery(legacyName);
+        setRestoringShare(false);
+        return;
+      }
+      resolveStoredCards([{ apparelId: Number(id), category: 'card' }])
+        .then((cards) => {
+          if (!cards[0]) {
+            setRestoringShare(false);
+            return;
+          }
+          setPendingSnkr(cards[0]);
+          setQuery(cards[0].title);
+        })
+        .catch(() => setRestoringShare(false));
+      return;
     }
+
+    // 이베이·TCGplayer는 카드 번호(tcgPlayerId)로 찾는다. 번호로 카드를 한 장 받아
+    // 그 이름으로 검색을 태우고, 목록이 오면 아래 효과가 그 카드를 골라 준다.
+    // 이베이·TCGplayer는 카드 번호만으로 조회할 방법이 없다(PPT가 tcgPlayerId 단건
+    // 조회를 안 받는다). 그래서 주소에 짧은 이름을 같이 실어 그 이름으로 검색하고,
+    // 결과에서 번호가 같은 카드를 골라 연다.
+    setSource(kind === 'e' ? 'ebay' : 'tcgplayer');
+    const shared = new URLSearchParams(window.location.search).get('n');
+    if (!shared) {
+      setRestoringShare(false);
+      return;
+    }
+    setPendingCardId(id);
+    setQuery(shared);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -638,6 +689,30 @@ function App() {
     setSuggestionsOpen(false);
   }
 
+  // 공유 링크로 들어온 카드를 펼쳐 준다. 검색 결과에 이미 있으면 그걸 고르고,
+  // 없으면 맨 앞에 꽂는다 — 이름으로 검색하면 다른 세트가 먼저 잡혀 정작 공유한
+  // 카드가 첫 페이지에 없을 수 있다.
+  useEffect(() => {
+    if (!pendingSnkr) return;
+    if (items.length === 0) return;
+    if (!items.some((c) => c.apparelId === pendingSnkr.apparelId)) {
+      setItems((prev) => [pendingSnkr, ...prev]);
+    }
+    setSelectedId(pendingSnkr.apparelId);
+    setPendingSnkr(null);
+    setRestoringShare(false);
+  }, [items, pendingSnkr]);
+
+  useEffect(() => {
+    if (!pendingCardId) return;
+    if (ebayItems.length === 0) return;
+    // 결과에 있으면 그 카드를 편다. 없으면(다른 세트가 먼저 잡힌 경우) 목록만 두고
+    // 표시만 지운다 — 검색어가 그 카드 이름이라 사용자가 바로 찾을 수 있다.
+    if (ebayItems.some((c) => c.tcgPlayerId === pendingCardId)) setEbaySelectedId(pendingCardId);
+    setPendingCardId(null);
+    setRestoringShare(false);
+  }, [ebayItems, pendingCardId]);
+
   const selectedCard = items.find((c) => c.apparelId === selectedId) ?? null;
   const interestSelectedCard =
     [...recentlyViewed, ...favorites].find((c) => c.apparelId === interestSelectedId) ?? null;
@@ -647,16 +722,26 @@ function App() {
   // 히스토리 스택은 안 건드려서 기존 뒤로가기 처리와 충돌하지 않는다. 이걸로 사용자가
   // 주소를 복사해 붙이면 카드 이름·시세 미리보기가 뜨는 링크가 된다.
   useEffect(() => {
-    // /c/ 공유 주소는 "카드 시세 화면에서 스니덩크 카드를 실제로 보고 있을 때"만 쓴다.
-    // 다른 탭(커뮤니티 등)이나 이베이·TCGplayer로 넘어가면 주소를 /로 되돌린다(안 그러면
-    // 화면이 바뀌어도 이전 카드 주소가 계속 남는다).
-    if (view === 'cards' && source === 'snkrdunk' && selectedCard) {
-      const slug = encodeURIComponent(selectedCard.title.slice(0, 80));
-      window.history.replaceState(window.history.state, '', `/c/${selectedCard.apparelId}?n=${slug}`);
-    } else if (window.location.pathname.startsWith('/c/')) {
+    // 소스마다 주소를 따로 둔다. 전에는 스니커덩크만 있어서 이베이·TCGplayer 카드는
+    // 아예 공유할 주소가 없었다.
+    //   /c/<번호>  스니커덩크      /e/<번호>  이베이      /t/<번호>  TCGplayer
+    // 카드 화면이 아니거나 아무 카드도 안 골랐으면 주소를 /로 되돌린다.
+    const path =
+      view !== 'cards'
+        ? null
+        : source === 'snkrdunk' && selectedCard
+          ? `/c/${selectedCard.apparelId}?n=${encodeURIComponent(shareName(selectedCard.title))}`
+          : source === 'ebay' && ebaySelectedCard
+            ? `/e/${ebaySelectedCard.tcgPlayerId}?n=${encodeURIComponent(shareName(ebaySelectedCard.name))}`
+            : source === 'tcgplayer' && ebaySelectedCard
+              ? `/t/${ebaySelectedCard.tcgPlayerId}?n=${encodeURIComponent(shareName(ebaySelectedCard.name))}`
+              : null;
+    if (path) {
+      window.history.replaceState(window.history.state, '', path);
+    } else if (!restoringShare && /^\/[cet]\//.test(window.location.pathname)) {
       window.history.replaceState(window.history.state, '', '/');
     }
-  }, [selectedCard, view, source]);
+  }, [selectedCard, ebaySelectedCard, view, source, restoringShare]);
 
   const translatedQuery = useMemo(() => translateSearchQuery(query), [query]);
   const showTranslationHint = source === 'snkrdunk' && translatedQuery && translatedQuery !== query.trim();
