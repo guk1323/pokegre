@@ -2653,14 +2653,13 @@ function mountFleaMarket(app: Mountable) {
     return firstReadOnce('card-index', async () => {
       if (cardIndex) return cardIndex
       cardIndexTried = true
-      // 개발에서는 public/, 배포 이미지에서는 dist/ 에 있다.
-      for (const dir of ['dist', 'public']) {
-        try {
-          cardIndex = JSON.parse(await readFile(path.resolve(dir, 'card-index.json'), 'utf-8'))
-          return cardIndex
-        } catch {
-          /* 다음 경로로 */
-        }
+      // 리포 루트(개발)와 이미지 루트(배포) 모두 같은 자리다. public/ 에 두지 않는 이유는
+      // 거기 있으면 정적 파일로 공개돼 누구나 3MB를 내려받게 되기 때문이다.
+      try {
+        cardIndex = JSON.parse(await readFile(path.resolve('card-index.json'), 'utf-8'))
+        return cardIndex
+      } catch {
+        /* 아래에서 알린다 */
       }
       console.warn('[flea] card-index.json 을 못 찾았습니다. npx tsx scripts/gen-card-index.mts 로 만드세요.')
       return null

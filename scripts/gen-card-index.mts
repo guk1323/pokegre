@@ -3,7 +3,8 @@
 // 왜 미리 만드나: 화면에서 "개굴닌자"를 치면 세트를 가리지 않고 다 나와야 하는데,
 // 세트 파일이 284개(카드 31,603장)라 그때그때 다 열 수가 없다. 그렇다고 색인을
 // 통째로 내려주면 3MB라 사용자가 받기엔 무겁다. 그래서 파일로 만들어 두고 서버가
-// 읽어 검색 결과만 내려준다.
+// 읽어 검색 결과만 내려준다. 공개 폴더(public)가 아니라 리포 루트에 둔다 — 서버만
+// 읽으면 되고, 공개돼 있으면 크롤러가 3MB를 긁어 간다.
 //
 // 한글 이름은 여기서 미리 변환해 둔다 — 서버가 변환기를 들고 있지 않아도 되게.
 //
@@ -17,7 +18,9 @@ import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle'
 import { koSetName } from '../src/lib/setNameKo'
 
 const SETS_DIR = path.resolve('public/sets')
-const OUT = path.resolve('public/card-index.json')
+// public/ 에 두면 정적 파일로 공개돼 누구나 3MB를 내려받을 수 있다.
+// 서버만 읽으면 되므로 리포 루트에 두고 Dockerfile 이 이미지로 복사한다.
+const OUT = path.resolve('card-index.json')
 
 interface SetIndexEntry {
   slug: string
