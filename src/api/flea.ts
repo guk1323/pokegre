@@ -150,6 +150,24 @@ export interface FleaCardRow {
   lowest: number | null;
 }
 
+// 카드 이름으로 세트를 가리지 않고 찾은 결과 한 줄.
+export interface FleaSearchRow {
+  slug: string;
+  n: string;
+  name: string;
+  img: string;
+  setName: string;
+  ed: Edition;
+  onSale: number;
+  lowest: number | null;
+}
+
+// 색인이 3MB라 클라이언트로 안 내려받는다 — 서버가 찾아서 결과만 준다.
+export async function searchCards(q: string, ed: Edition): Promise<{ rows: FleaSearchRow[]; total: number }> {
+  const res = await fetch(`/api/local/flea/search?q=${encodeURIComponent(q)}&ed=${ed}`);
+  return jsonOrThrow(res, '카드를 찾지 못했습니다.');
+}
+
 export async function fetchCardsWithListings(): Promise<FleaCardRow[]> {
   const res = await fetch('/api/local/flea/cards');
   return jsonOrThrow(res, '카드 목록을 불러오지 못했습니다.');

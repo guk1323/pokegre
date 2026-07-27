@@ -2636,6 +2636,99 @@ function mountFleaMarket(app: Mountable) {
     sendJson(res, 200, rows)
   })
 
+  // 카드 이름으로 세트를 가리지 않고 찾는다("개굴닌자" → 어느 세트에 있든 다 나온다).
+  //
+  // 색인(dist/card-index.json)은 scripts/gen-card-index.mts 가 미리 만들어 둔 것이다.
+  // 3MB라 클라이언트로 통째로 내려주면 무겁다 — 서버가 한 번 읽어 두고 결과만 준다.
+  // 한글 이름도 색인에 이미 들어 있어 서버가 변환기를 들고 있을 필요가 없다.
+  type CardIndex = {
+    sets: Record<string, [string, string, string]> // slug → [한글 세트명, ed, 발매일]
+    rows: [string, string, string, string, string, string, string][]
+  }
+  let cardIndex: CardIndex | null = null
+  let cardIndexTried = false
+
+  async function loadCardIndex(): Promise<CardIndex | null> {
+    if (cardIndex || cardIndexTried) return cardIndex
+    return firstReadOnce('card-index', async () => {
+      if (cardIndex) return cardIndex
+      cardIndexTried = true
+      // 개발에서는 public/, 배포 이미지에서는 dist/ 에 있다.
+      for (const dir of ['dist', 'public']) {
+        try {
+          cardIndex = JSON.parse(await readFile(path.resolve(dir, 'card-index.json'), 'utf-8'))
+          return cardIndex
+        } catch {
+          /* 다음 경로로 */
+        }
+      }
+      console.warn('[flea] card-index.json 을 못 찾았습니다. npx tsx scripts/gen-card-index.mts 로 만드세요.')
+      return null
+    })
+  }
+
+  const SEARCH_LIMIT = 60
+
+  app.use('/api/local/flea/search', async (req, res) => {
+    const user = await currentUser(req)
+    if (!isAdmin(user) || !user) {
+      sendJson(res, 404, { error: 'not found' })
+      return
+    }
+    const url = new URL(req.url ?? '', 'http://localhost')
+    const q = (url.searchParams.get('q') ?? '').trim().toLowerCase()
+    // jp = 일본판, na = 북미판, kr = 한글판(한글 자료가 붙은 카드만)
+    const ed = url.searchParams.get('ed') ?? 'jp'
+    if (q.length < 1) {
+      sendJson(res, 200, { rows: [], total: 0 })
+      return
+    }
+
+    const [idx, all] = await Promise.all([loadCardIndex(), loadListings()])
+    if (!idx) {
+      sendJson(res, 200, { rows: [], total: 0 })
+      return
+    }
+
+    // 카드별 매물 수·최저가. 검색 결과 칸에 바로 붙여 준다.
+    const stat = new Map<string, { onSale: number; lowest: number | null }>()
+    for (const l of all) {
+      if (l.status !== 'open') continue
+      const key = `${l.cardSlug}/${l.cardNo}`
+      const cur = stat.get(key) ?? { onSale: 0, lowest: null as number | null }
+      cur.onSale++
+      cur.lowest = cur.lowest == null ? l.price : Math.min(cur.lowest, l.price)
+      stat.set(key, cur)
+    }
+
+    const wantEd = ed === 'na' ? 'en' : 'ja'
+    const out: unknown[] = []
+    let total = 0
+    for (const r of idx.rows) {
+      const [slug, n, name, img, koName, koImg, koNo] = r
+      const set = idx.sets[slug]
+      if (!set) continue
+      if (ed === 'kr' ? !koImg : set[1] !== wantEd) continue
+      const label = ed === 'kr' ? koName || name : name
+      if (!label.toLowerCase().includes(q)) continue
+      total++
+      if (out.length >= SEARCH_LIMIT) continue
+      const no = ed === 'kr' ? koNo || n : n
+      const hit = stat.get(`${slug}/${no}`)
+      out.push({
+        slug,
+        n: no,
+        name: label,
+        img: ed === 'kr' ? koImg : img,
+        setName: set[0],
+        ed,
+        onSale: hit?.onSale ?? 0,
+        lowest: hit?.lowest ?? null,
+      })
+    }
+    sendJson(res, 200, { rows: out, total })
+  })
+
   // 매물이 하나라도 올라온 카드 목록. 카드 한 장이 한 줄이고, 그 카드의 매물 수와
   // 최저가가 붙는다. 매물 탭의 첫 화면이다 — 매물 낱개를 늘어놓는 게 아니라
   // "어떤 카드에 매물이 있는지"를 먼저 보여줘야 카탈로그처럼 굴러간다.

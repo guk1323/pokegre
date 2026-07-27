@@ -6,6 +6,7 @@ import {
   EDITION_LABEL,
   fetchCardsWithListings,
   fetchListings,
+  searchCards,
   fetchOffers,
   isSlab,
   photoGuide,
@@ -17,6 +18,7 @@ import {
   type Edition,
   type FleaCardRow,
   type FleaListing,
+  type FleaSearchRow,
   type FleaOffer,
 } from '../api/flea';
 import { uploadPostImage } from '../api/community';
@@ -685,6 +687,9 @@ export function FleaListings() {
   const [setIdx, setSetIdx] = useState(0);
   const [cards, setCards] = useState<SetCard[] | null>(null);
   const [query, setQuery] = useState('');
+  // 검색어를 넣으면 세트를 가리지 않고 전체에서 찾는다(서버가 색인으로 찾아 준다).
+  const [found, setFound] = useState<{ rows: FleaSearchRow[]; total: number } | null>(null);
+  const [searching, setSearching] = useState(false);
   const [market, setMarket] = useState<PickedCard | null>(null);
   const [openListing, setOpenListing] = useState<FleaListing | null>(null);
   const [withListings, setWithListings] = useState<Map<string, FleaCardRow>>(new Map());
@@ -729,6 +734,24 @@ export function FleaListings() {
       .catch(() => undefined);
   }, []);
   useEffect(loadCounts, [loadCounts, reloadKey]);
+
+  // 타이핑할 때마다 서버를 두드리지 않게 잠깐 기다렸다 찾는다.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setFound(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(() => {
+      searchCards(q, ed)
+        .then(setFound)
+        .catch(() => setFound({ rows: [], total: 0 }))
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, ed, reloadKey]);
 
   const refresh = () => {
     setReloadKey((n) => n + 1);
@@ -799,7 +822,8 @@ export function FleaListings() {
         </p>
       )}
 
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      {/* 검색 중에는 세트 탭이 의미가 없다 — 전체에서 찾고 있으니 감춘다. */}
+      <div className={`-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 ${query.trim() ? 'hidden' : ''}`}>
         {(sets ?? []).map((s, i) => (
           <button
             key={s.slug}
@@ -820,11 +844,63 @@ export function FleaListings() {
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="카드 이름 또는 번호"
+        placeholder="카드 이름으로 전체에서 찾기 (예: 개굴닌자)"
         className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
       />
 
-      {!currentSet || cards === null ? (
+      {/* 검색 중이면 세트 목록 대신 전체 검색 결과를 보여준다. */}
+      {query.trim() ? (
+        searching && !found ? (
+          <p className="py-12 text-center text-sm text-neutral-400">찾는 중...</p>
+        ) : !found || found.rows.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-neutral-200 py-12 text-center text-sm text-neutral-400">
+            "{query.trim()}"로 찾은 카드가 없습니다.
+          </p>
+        ) : (
+          <>
+            <p className="text-xs text-neutral-500">
+              {found.total.toLocaleString()}장 찾음
+              {found.total > found.rows.length && ` · 앞의 ${found.rows.length}장만 보여줍니다`}
+            </p>
+            <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {found.rows.map((c) => (
+                <button
+                  key={`${c.slug}-${c.n}`}
+                  type="button"
+                  onClick={() =>
+                    setMarket({ slug: c.slug, ed: c.ed, setName: c.setName, n: c.n, name: c.name, img: c.img })
+                  }
+                  className="text-left"
+                >
+                  <div className="relative">
+                    <img
+                      src={c.img ? thumb(cardImg(c.img), 240) : CARD_BACK}
+                      alt=""
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = CARD_BACK;
+                      }}
+                      className="aspect-[63/88] w-full rounded-lg border border-neutral-200 object-cover"
+                    />
+                    {!!c.onSale && (
+                      <span className="absolute left-1 top-1 rounded bg-neutral-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        {c.onSale}건
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 truncate text-[11px] font-semibold text-black">{c.name}</p>
+                  {/* 전체에서 찾은 결과라 어느 세트인지가 중요하다. */}
+                  <p className="truncate text-[11px] text-neutral-400">{c.setName}</p>
+                  {c.lowest != null && (
+                    <p className="text-[11px] font-bold text-black">{c.lowest.toLocaleString()}원~</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )
+      ) : !currentSet || cards === null ? (
         <p className="py-12 text-center text-sm text-neutral-400">불러오는 중...</p>
       ) : list.length === 0 ? (
         <p className="rounded-xl border border-dashed border-neutral-200 py-12 text-center text-sm text-neutral-400">
