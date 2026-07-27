@@ -129,6 +129,10 @@ function App() {
   // 스캔이 "세트+번호"로 검색했는데 0건이면 카드 이름으로 자동 재검색하기 위한 백업 이름.
   // 번호를 써서 검색한 경우에만 채운다(번호를 못 읽었으면 이미 이름으로 검색 중).
   const scanFallbackRef = useRef<string | null>(null);
+  // 사진으로 찾은 카드는 소스마다 검색어가 다르다. 스니커덩크는 일본판 카탈로그라
+  // "세트코드 번호"(M4 086/083)로 찾는 게 정확하고, 이베이·TCGplayer는 영문 이름이
+  // 있어야 걸린다(Charizard ex 086/083). 탭만 바꿨을 때 갈아 끼우려고 둘 다 들고 있는다.
+  const scanQueriesRef = useRef<{ snkrdunk: string; ebay: string } | null>(null);
   // 백업(이름) 재검색이 실제로 일어났음을 알리는 안내.
   const [scanFellBack, setScanFellBack] = useState(false);
   // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
@@ -345,12 +349,26 @@ function App() {
     const target = ed === 'english' ? 'ebay' : source;
     // 번호로 검색하는 경우에만 이름 백업을 둔다. 번호로 0건이면 이름으로 다시 찾는다.
     scanFallbackRef.current = num && result.pokemonNameEn ? result.pokemonNameEn : null;
+    scanQueriesRef.current = { snkrdunk, ebay };
     setScanFellBack(false);
     setEdition(ed);
     setSource(target);
     setQuery(target === 'ebay' ? ebay : snkrdunk);
     setScannedResult(result);
     setScanReported(false);
+  };
+
+  // 시세 소스(탭)를 바꾼다. 사진으로 찾은 카드라면 검색어도 그 소스에 맞게 갈아 끼운다 —
+  // 안 그러면 스니커덩크에서 "M4 086/083"으로 잘 나온 카드가, 이베이로 옮기는 순간
+  // 그 세트코드를 그대로 들고 가서 0건이 된다(사용자 제보).
+  // 검색어를 손으로 고친 뒤라면 그대로 둔다(둘 중 어느 것과도 같지 않으면 손댄 것이다).
+  const switchSource = (next: PriceSource) => {
+    const qs = scanQueriesRef.current;
+    if (qs && (query === qs.snkrdunk || query === qs.ebay)) {
+      const want = next === 'snkrdunk' ? qs.snkrdunk : qs.ebay;
+      if (want && want !== query) setQuery(want);
+    }
+    setSource(next);
   };
 
   // 센터링 도구의 "이 카드 시세 보러 가기": 찍어둔 사진을 그대로 스캔해 시세 화면으로.
@@ -1168,7 +1186,7 @@ function App() {
                 <div className="inline-flex rounded-full border border-neutral-300 p-1">
                   <button
                     type="button"
-                    onClick={() => setSource('snkrdunk')}
+                    onClick={() => switchSource('snkrdunk')}
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       source === 'snkrdunk' ? 'bg-black text-white' : 'text-neutral-600'
                     }`}
@@ -1177,7 +1195,7 @@ function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSource('ebay')}
+                    onClick={() => switchSource('ebay')}
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       source === 'ebay' ? 'bg-black text-white' : 'text-neutral-600'
                     }`}
@@ -1186,7 +1204,7 @@ function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSource('tcgplayer')}
+                    onClick={() => switchSource('tcgplayer')}
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       source === 'tcgplayer' ? 'bg-black text-white' : 'text-neutral-600'
                     }`}
