@@ -98,12 +98,23 @@ function DetailLayout({
   );
 }
 
+// 새로고침해도 보던 화면에 남아 있게 한다. 화면 이동마다 history.state.nav에 적어 두므로
+// (navigate·아래 replaceState) 새로 뜰 때 그걸 그대로 되읽으면 된다.
+// 예전엔 안 읽어서, 뽑기나 커뮤니티를 보다가 새로고침하면 무조건 홈으로 튕겼다.
+function savedNav(): { view?: MainView; query?: string; source?: PriceSource; edition?: CardEdition } {
+  try {
+    return (window.history.state as { nav?: Record<string, unknown> } | null)?.nav ?? {};
+  } catch {
+    return {};
+  }
+}
+
 function App() {
-  const [view, setView] = useState<MainView>('cards');
+  const [view, setView] = useState<MainView>(() => savedNav().view ?? 'cards');
   // 상단 드롭다운(더보기·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
   const [openMenu, setOpenMenu] = useState<'more' | 'admin' | null>(null);
-  const [source, setSource] = useState<PriceSource>('snkrdunk');
-  const [query, setQuery] = useState('');
+  const [source, setSource] = useState<PriceSource>(() => savedNav().source ?? 'snkrdunk');
+  const [query, setQuery] = useState(() => savedNav().query ?? '');
   // 방금 스캔한 결과. "이 카드가 아닙니다" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
   const [scannedResult, setScannedResult] = useState<CardScanResult | null>(null);
   const [scanReported, setScanReported] = useState(false);
@@ -145,7 +156,7 @@ function App() {
   const [ebayOffset, setEbayOffset] = useState(0);
   const [ebayHasMore, setEbayHasMore] = useState(false);
   const [ebayLoadingMore, setEbayLoadingMore] = useState(false);
-  const [edition, setEdition] = useState<CardEdition>('japanese');
+  const [edition, setEdition] = useState<CardEdition>(() => savedNav().edition ?? 'japanese');
   const [nickname, setNickname] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [createdAt, setCreatedAt] = useState<number | undefined>(undefined);
@@ -240,6 +251,16 @@ function App() {
       setCreatedAt(me.createdAt);
       setIsAdmin(me.isAdmin ?? false);
       setProviders(me.providers ?? []);
+      // 새로고침으로 되살린 화면이 운영자 전용인데 운영자가 아니면 빈 화면만 남는다.
+      // 뽑기는 공개 화면이지만 로그인이 필요하므로 같이 홈으로 보낸다.
+      // 지금 화면은 setView의 함수형으로 읽는다 — 이 효과는 한 번만 돌아야 해서
+      // view를 의존성에 넣을 수 없다.
+      setView((v) => {
+        const adminOnly = v === 'reports' || v === 'stats' || v === 'scantest' || v === 'flea';
+        if (adminOnly && !me.isAdmin) return 'cards';
+        if (v === 'packsim' && !me.loggedIn) return 'cards';
+        return v;
+      });
       if (me.loggedIn && !me.nickname) setNeedsNickname(true);
       if (!me.loggedIn) return;
 

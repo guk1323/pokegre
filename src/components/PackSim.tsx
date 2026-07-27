@@ -441,8 +441,17 @@ export function PackSim({
     }
   }
 
+  // 열어 둔 결과를 아직 처리 안 했으면(앨범에 넣기/넘기기) 새로 열 수 없다.
+  // 예전엔 그냥 열려서, 고르지 않은 카드가 조용히 사라졌다.
+  const mustDecide = !!pack && !keptDone;
+
   async function open(slug2: string, from?: 'stash') {
     if (!sim) return;
+    if (mustDecide) {
+      setErr('먼저 이 팩의 카드를 앨범에 넣을지 정해 주세요.');
+      focusResult();
+      return;
+    }
     setErr('');
     setBusy(true);
     setPack(null);
@@ -496,6 +505,11 @@ export function PackSim({
   async function openBox(slug2: string, from?: 'stash') {
     const target = packBySlug.get(slug2);
     if (!sim || !target?.boxPacks) return;
+    if (mustDecide) {
+      setErr('먼저 이 팩의 카드를 앨범에 넣을지 정해 주세요.');
+      focusResult();
+      return;
+    }
     setErr('');
     setBusy(true);
     setPack(null);
@@ -638,6 +652,9 @@ export function PackSim({
       if (d.album) setSim((s2) => (s2 ? { ...s2, album: d.album! } : s2));
       setDelPick(new Set());
       setDelMode(false);
+      // 예상 가치는 따로 받아 오는 값이라, 여기서 다시 받지 않으면 지운 카드 값이
+      // 그대로 남아 있다가 새로고침해야 줄어든다.
+      void loadValue();
     } finally {
       setBusy(false);
     }
@@ -1627,10 +1644,10 @@ export function PackSim({
                       <button
                         type="button"
                         onClick={() => void openBox(s3, 'stash')}
-                        disabled={busy}
+                        disabled={busy || mustDecide}
                         className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                       >
-                        박스 개봉
+                        {mustDecide ? '앨범 선택 먼저' : '박스 개봉'}
                       </button>
                     </div>
                   );
@@ -1650,10 +1667,10 @@ export function PackSim({
                       <button
                         type="button"
                         onClick={() => void open(s3, 'stash')}
-                        disabled={busy}
+                        disabled={busy || mustDecide}
                         className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                       >
-                        팩 개봉
+                        {mustDecide ? '앨범 선택 먼저' : '팩 개봉'}
                       </button>
                     </div>
                   );

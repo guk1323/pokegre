@@ -4583,6 +4583,15 @@ function mountAuth(
           const state = url.searchParams.get('state')
           const pending = state ? pendingStates.get(state) : undefined
           if (!code || !state || !pending) {
+            // 네이버가 거절하면 code 없이 error를 달고 돌아온다. 배포로 서버가 새로 뜨면
+            // pendingStates(메모리)가 비어서 state를 못 찾는 경우도 여기로 온다.
+            console.warn(
+              '[auth:naver] 콜백 실패 —',
+              `code=${code ? '있음' : '없음'}`,
+              `state=${state ? (pending ? '있음' : '만료/유실') : '없음'}`,
+              `error=${url.searchParams.get('error') ?? '-'}`,
+              url.searchParams.get('error_description') ?? '',
+            )
             res.statusCode = 302
             res.setHeader('location', '/?login=failed')
             res.end()
@@ -4600,13 +4609,16 @@ function mountAuth(
 
           const tokenRes = await fetch(tokenUrl)
           if (!tokenRes.ok) {
+            console.warn('[auth:naver] 토큰 교환 실패 —', tokenRes.status, (await tokenRes.text()).slice(0, 200))
             res.statusCode = 302
             res.setHeader('location', '/?login=failed')
             res.end()
             return
           }
-          const { access_token } = (await tokenRes.json()) as { access_token?: string }
+          const tokenBody = (await tokenRes.json()) as { access_token?: string; error?: string; error_description?: string }
+          const { access_token } = tokenBody
           if (!access_token) {
+            console.warn('[auth:naver] 토큰 없음 —', tokenBody.error ?? '-', tokenBody.error_description ?? '')
             res.statusCode = 302
             res.setHeader('location', '/?login=failed')
             res.end()
@@ -4619,6 +4631,7 @@ function mountAuth(
             headers: { authorization: `Bearer ${access_token}` },
           })
           if (!meRes.ok) {
+            console.warn('[auth:naver] 회원정보 조회 실패 —', meRes.status, (await meRes.text()).slice(0, 200))
             res.statusCode = 302
             res.setHeader('location', '/?login=failed')
             res.end()
@@ -4627,6 +4640,7 @@ function mountAuth(
           // 카카오는 최상위에 id가 있지만 네이버는 response 안에 들어있다.
           const providerId = String(((await meRes.json()) as { response?: { id?: string } }).response?.id ?? '')
           if (!providerId) {
+            console.warn('[auth:naver] 회원번호가 응답에 없음')
             res.statusCode = 302
             res.setHeader('location', '/?login=failed')
             res.end()
