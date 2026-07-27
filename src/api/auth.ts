@@ -37,6 +37,7 @@ export async function deleteAccount(): Promise<void> {
 export const NICKNAME_TAKEN = 'nickname_taken';
 export const NICKNAME_RESERVED = 'nickname_reserved';
 export const NICKNAME_BANNED = 'nickname_banned';
+export const NICKNAME_CHARSET = 'nickname_charset';
 
 export async function setNickname(nickname: string): Promise<string> {
   const res = await fetch('/api/local/auth/nickname', {
@@ -53,6 +54,13 @@ export async function setNickname(nickname: string): Promise<string> {
     if (body.error === 'nickname_banned') throw new Error(NICKNAME_BANNED);
     throw new Error(NICKNAME_TAKEN);
   }
+  // 400은 길이나 글자 종류 문제. 눈에 안 보이는 문자·전각 글자로 남의 닉네임을 흉내내는
+  // 걸 서버가 막는데, 이유를 안 알려주면 왜 안 되는지 모른다.
+  if (res.status === 400) {
+    const body = await res.json().catch(() => ({}));
+    if (body.error === 'nickname_charset') throw new Error(NICKNAME_CHARSET);
+    throw new Error('닉네임을 저장하지 못했습니다.');
+  }
   if (!res.ok) throw new Error('닉네임을 저장하지 못했습니다.');
   return (await res.json()).nickname;
 }
@@ -62,6 +70,7 @@ export function nicknameErrorMessage(err: unknown): string {
   if (code === NICKNAME_TAKEN) return '이미 사용 중인 닉네임입니다.';
   if (code === NICKNAME_RESERVED) return '운영자만 쓸 수 있는 닉네임입니다.';
   if (code === NICKNAME_BANNED) return '사용할 수 없는 단어가 들어있습니다.';
+  if (code === NICKNAME_CHARSET) return '한글·영문·숫자만 쓸 수 있습니다(사이 공백과 _ - . 는 됩니다).';
   return '닉네임을 저장하지 못했습니다.';
 }
 

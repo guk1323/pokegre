@@ -3396,9 +3396,21 @@ function containsBannedWord(nickname: string): boolean {
 // 중복 검사용. 예약어와 달리 공백은 살린다 — "개 발자"와 "개발자"는 다른 이름으로 봐도
 // 되고, 공백까지 지우면 멀쩡한 닉네임끼리 부딪힌다. 대소문자만 맞춰서 "Pokegre"와
 // "pokegre"가 같이 존재하는 것만 막는다.
+// 중복 검사용으로 "같은 이름"을 한 모양으로 모은다. 소문자만 맞추던 시절엔
+// "독자"와 "독자<보이지 않는 공백>", "DOKJA"와 "ＤＯＫＪＡ"(전각)가 서로 다른 이름으로
+// 통과해서 남의 닉네임을 그대로 흉내낼 수 있었다.
+// NFKC는 전각·호환 문자를 보통 글자로 모아 주고, 그다음 공백·보이지 않는 문자를 지운다.
 function normalizeForDuplicate(nickname: string): string {
-  return nickname.toLowerCase()
+  return nickname
+    .normalize('NFKC')
+    .replace(/[\s\u00ad\u200b-\u200f\u2060\ufeff]/g, '')
+    .toLowerCase()
 }
+
+// 닉네임에 쓸 수 있는 글자. 한글(자모 포함 — "ㅋㅋ" 같은 것)·영문·숫자와 가운데 공백,
+// 밑줄·붙임표·마침표만 받는다. 태그처럼 보이는 이름(<script>…)이나 눈에 안 보이는
+// 문자를 막는 게 목적이다 — 목록에서 남과 구분이 되어야 한다.
+const NICKNAME_OK = /^[가-힣ㄱ-ㆎa-zA-Z0-9]([가-힣ㄱ-ㆎa-zA-Z0-9 ._-]*[가-힣ㄱ-ㆎa-zA-Z0-9._-])?$/
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const STATE_TTL_MS = 10 * 60 * 1000
@@ -4079,9 +4091,15 @@ function mountAuth(
           return
         }
         const body = JSON.parse((await readBody(req)) || '{}') as { nickname?: string }
-        const nickname = body.nickname?.trim()
+        // 가운데 공백이 여러 칸이면 한 칸으로 줄인다("독   자" → "독 자"). 안 그러면
+        // 공백 수만 다른 이름이 서로 다른 사람처럼 보인다.
+        const nickname = body.nickname?.trim().replace(/\s+/g, ' ')
         if (!nickname || nickname.length > 20) {
           sendJson(res, 400, { error: 'nickname must be 1-20 chars' })
+          return
+        }
+        if (!NICKNAME_OK.test(nickname)) {
+          sendJson(res, 400, { error: 'nickname_charset' })
           return
         }
         // 금지어는 운영자에게도 적용한다. 예약어와 달리 "운영자니까 욕은 써도 된다"는
