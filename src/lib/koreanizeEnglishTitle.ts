@@ -153,6 +153,7 @@ export const STRUCTURAL_EN_TO_KO: [string, string][] = [
   [' Wish', ' 소원'],
   [' Plan', ' 플랜'],
   [' Bag', ' 가방'],
+  [' Heavy Ball', ' 헤비볼'], // "Hisuian Heavy Ball"의 뒷말이 영어로 남았다
 ];
 
 // 트레이너·인물 서포트 카드 이름(영어 → 한글). 포켓몬이 아니라 pokemonNames 사전에 없어
@@ -439,7 +440,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Electric Generator': '일렉트릭제네레이터',
   'Energy Coin': '에너지 코인',
   'Exp. Share': '학습장치',
-  Fennel: '회향',
+  Fennel: '주리', // マコモ. 회향(채소)으로 옮겨져 있었다
   'Fighting Au Lait': '격투 맛의 오레',
   'Full Metal Lab': '풀메탈랩',
   'Future Booster Energy Capsule': '부스트에너지 미래',
@@ -629,7 +630,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Team Yell Towel': '옐단 타올',
   'Telescopic Sight': '망원렌즈',
   'Temple of Sinnoh': '신오의 신전',
-  Thorton: '노간주', // ネジキ. 주리(マコモ=Fennel)와 다른 인물이다(2026-07-29 정정)
+  Thorton: '느지키', // ネジキ. 주리(マコモ=Fennel)·노간주(アデク=Alder)와 다른 인물이다
   'Tool Box': '도구상자',
   'Tool Jammer': '툴 재머',
   'Tower of Darkness': '악의 탑',
@@ -1399,6 +1400,8 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   'Clefairy Doll': '삐삐인형',
   'Rotom Bike': '로토무 자전거',
   'Rotom Phone': '로토무 스마트폰',
+  // 북미판 사전에 없어 뒷말이 영어로 남던 것.
+  "Lt. Surge's Deal": '마티스의 거래',
   // ── 2026-07-28: 통째로 바꿔야 하는 것들 ────────────────────────────────
   // 말 순서가 뒤집히거나(네크로즈마 새벽의 날개) 붙여 써야 해서(메가터보),
   // 조각 치환으로는 안 되는 이름들이다.
@@ -1917,6 +1920,10 @@ export function koreanizeEnglishCardName(name: string): string {
     }
   }
 
+  // 앞말 사전에 꼬리 공백이 있어("Hisuian " → "히스이 ") 조사가 떨어져 나가거나
+  // 공백이 겹치는 일이 있다("히스이 의 동료들", "히스이  블레이범").
+  // 한글 뒤에 붙는 조사 앞의 공백을 지우고, 겹친 공백은 한 칸으로 줄인다.
+  result = result.replace(/(?<=[가-힣])\s+(?=의\s)/g, '').replace(/ {2,}/g, ' ');
   return result;
 }
 
