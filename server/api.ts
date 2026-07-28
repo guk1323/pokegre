@@ -1813,6 +1813,59 @@ function mountSearchTracker(app: Mountable) {
 }
 
 const PRICE_TRACKER_ORIGIN = 'https://www.pokemonpricetracker.com/api/v2'
+
+// ── PPT 호출 차단기 ────────────────────────────────────────────────────────
+// "한도 초과"를 받고도 계속 부르면 PPT가 키를 통째로 정지시킨다(5분에 429가 50번이면
+// 1시간, 반복하면 24시간 → 7일 → 영구). 2026-07-28에 실제로 한 번 막혔다.
+//
+// 원인은 재시도가 아니라 "안 멈춘 것"이었다. 하루치 크레딧이 바닥나면 그때부터 모든
+// 응답이 429인데, 방문자가 카드를 볼 때마다 캐시에 없으면 그대로 업스트림을 불렀다.
+// 한 번 부를 때마다 429가 한 번 쌓이니, 사람 몇 명이 목록을 넘기는 것만으로 5분에
+// 50번을 넘긴다. 뒤에서 도는 앨범 시세 채우기도 5초마다 한 번씩 보태고 있었다.
+//
+// 그래서 429를 한 번이라도 받으면 풀릴 시각까지 아예 부르지 않는다. 그동안은 저장해 둔
+// 값이나 안내 문구로 답한다 — 어차피 불러 봐야 429라 방문자가 얻는 건 없고, 정지만
+// 앞당긴다.
+let pptBlockedUntil = 0
+let pptDailyOut = false
+
+// 하루치는 UTC 자정(한국시간 오전 9시)에 초기화된다.
+const nextUtcMidnight = (now = Date.now()) => {
+  const d = new Date(now)
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)
+}
+
+// 지금 불러도 되는지. daily는 "하루치를 다 썼다"는 뜻으로, 화면 안내가 달라진다.
+const pptGate = (): { ok: boolean; daily: boolean } =>
+  Date.now() < pptBlockedUntil ? { ok: false, daily: pptDailyOut } : { ok: true, daily: false }
+
+// 응답을 보고 언제까지 쉴지 정한다.
+// 5xx는 PPT 쪽 장애라 한도와 무관하므로 판단을 바꾸지 않는다.
+function notePpt(status: number, headers: Headers) {
+  const after = Number(headers.get('retry-after'))
+  const wait = Number.isFinite(after) && after > 0 ? after * 1000 : 0
+
+  // 키가 정지되면 429가 아니라 403으로 오고, 남은 시간을 Retry-After로 알려준다
+  // (실측: `403 {"error":"API key blocked for abuse"}` + retry-after 2924).
+  // 이걸 "429가 아니니 풀렸다"로 읽으면 정지된 키를 정지 내내 계속 두드리게 된다.
+  if (status === 403 && wait > 0) {
+    pptBlockedUntil = Date.now() + wait
+    pptDailyOut = false
+    return
+  }
+  if (status !== 429) {
+    if (status < 500) {
+      pptBlockedUntil = 0
+      pptDailyOut = false
+    }
+    return
+  }
+  const left = Number(headers.get('x-ratelimit-daily-remaining'))
+  pptDailyOut = Number.isFinite(left) && left <= 0
+  // 분당 한도면 PPT가 Retry-After로 알려준다. 없으면 1분 쉰다.
+  pptBlockedUntil = pptDailyOut ? nextUtcMidnight() : Date.now() + (wait || 60_000)
+}
+
 // 무료 티어가 하루 100건(전체 방문자 공용)이라, 캐시 적중률이 곧 eBay가 얼마나 오래
 // 살아있느냐다. TTL을 24시간으로 두면 같은 카드는 하루 한 번만 크레딧을 쓴다. 홍보로
 // 사람이 몰려 다들 같은 인기 카드를 볼 때, 첫 조회 한 번만 크레딧을 쓰고 나머지는
@@ -3090,6 +3143,16 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       return
     }
 
+    // 이미 한도에 걸린 걸 아는 동안은 부르지 않는다. 불러도 429가 돌아올 뿐인데,
+    // 그 429가 쌓이면 키가 정지된다(위 pptGate 설명).
+    const gate = pptGate()
+    if (!gate.ok) {
+      res.statusCode = 429
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ error: gate.daily ? 'daily_limit' : 'upstream_error', status: 429 }))
+      return
+    }
+
     try {
       // 등급별 가격 추이 그래프를 그리려면 히스토리를 함께 받아야 한다. 클라이언트가
       // 보낸 검색 조건은 그대로 두고 히스토리 옵션만 서버에서 덧붙인다. (캐시 키는
@@ -3110,6 +3173,8 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
           authorization: `Bearer ${apiKey}`,
         },
       })
+
+      notePpt(upstream.status, upstream.headers)
 
       if (!upstream.ok) {
         // 업스트림 원본 에러 바디는 그대로 흘리지 않고 상태 코드만 전달한다.
@@ -3814,6 +3879,9 @@ async function warmPackPrices(apiKey: string) {
   warming = true
   try {
     for (const slug of Object.keys(PPT_SET_NAMES)) {
+      // 한도에 걸렸으면 이번 바퀴는 접는다. 22세트를 계속 도는 건 헛일이고,
+      // 풀린 뒤에 다시 오면 못 받은 것부터 이어서 채운다.
+      if (!pptGate().ok) break
       const hit = packPriceCache.get(slug)
       if (hit && packPriceFresh(hit)) continue
       await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 5_000 })
@@ -3831,7 +3899,11 @@ async function warmPackPrices(apiKey: string) {
     const hit = packPriceCache.get(slug)
     return !hit || hit.partial || Date.now() - hit.at >= PACK_PRICE_TTL_MS
   })
-  if (leftover) setTimeout(() => void warmPackPrices(apiKey), 5 * 60_000)
+  // 한도에 걸려서 접은 것이면 풀리는 시각까지 기다렸다 온다(5분마다 두드리지 않는다).
+  if (leftover) {
+    const wait = Math.max(5 * 60_000, pptBlockedUntil - Date.now() + 5_000)
+    setTimeout(() => void warmPackPrices(apiKey), wait)
+  }
 }
 
 // PPT는 limit을 크게 줘도 한 번에 200행까지만 준다(offset으로 이어받기는 된다 —
@@ -3844,6 +3916,9 @@ async function fetchSetPage(
   apiKey: string,
   offset: number,
 ): Promise<{ cardNumber?: string; name?: string; prices?: { market?: number } }[] | null> {
+  // 한도에 걸린 동안은 부르지 않는다. 뒤에서 도는 워밍이 5초마다 429를 쌓으면
+  // 그것만으로 키가 정지된다.
+  if (!pptGate().ok) return null
   const r = await fetch(
     `${PRICE_TRACKER_ORIGIN}/cards?language=${lang}&setName=${encodeURIComponent(setName)}&limit=${PPT_PAGE}&offset=${offset}`,
     {
@@ -3851,6 +3926,7 @@ async function fetchSetPage(
       headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` },
     },
   )
+  notePpt(r.status, r.headers)
   if (!r.ok) return null
   const j = (await r.json()) as { data?: { cardNumber?: string; name?: string; prices?: { market?: number } }[] }
   return Array.isArray(j.data) ? j.data : []

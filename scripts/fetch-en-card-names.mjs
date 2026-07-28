@@ -53,8 +53,11 @@ const cleanName = (n) => String(n ?? '').replace(/\s*-\s*\d+[a-z]?\/\d+.*$/i, ''
 // "조회 한도 초과"로 안 나왔다. 방문자 몫을 남겨 두고 멈춘다.
 const KEEP_FOR_VISITORS = 8000
 let remaining = Infinity
+// 한도가 계속 걸려서 통째로 멈췄는지. 남은 세트를 마저 두드리지 않기 위한 표시다.
+let stopped = false
 
 for (const { code, count } of sets) {
+  if (stopped) break
   if (remaining < KEEP_FOR_VISITORS) {
     console.log(`\n남은 크레딧 ${remaining} — 방문자 몫(${KEEP_FOR_VISITORS})을 남기고 멈춘다.`)
     console.log('한국시간 오전 9시에 초기화되니 그 뒤에 다시 돌리면 이어받는다.')
@@ -83,6 +86,15 @@ for (const { code, count } of sets) {
     // 남은 크레딧은 헤더로만 알 수 있다. 다음 세트로 넘어갈지 여기서 판단한다.
     const left = Number(r.headers.get('x-ratelimit-daily-remaining'))
     if (Number.isFinite(left)) remaining = left
+    // 세 번 쉬고도 429면 분당 한도가 아니라 하루치가 바닥난 것이다. 이때는 남은 세트를
+    // 계속 두드려도 전부 429인데, 그 429가 쌓이면 PPT가 키를 정지시킨다(1시간 → 24시간
+    // → 7일 → 영구). 2026-07-28에 실제로 한 시간 정지당했다. 그래서 통째로 멈춘다.
+    if (r.status === 429) {
+      console.log(`\n  ${code}에서 한도가 계속 걸린다 — 여기서 멈춘다.`)
+      console.log('  한국시간 오전 9시에 초기화되니 그 뒤에 다시 돌리면 이어받는다.')
+      stopped = true
+      break
+    }
     if (!r.ok) {
       console.log(`  ${code} 실패 ${r.status}`)
       break
