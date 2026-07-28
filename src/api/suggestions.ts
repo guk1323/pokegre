@@ -20,5 +20,23 @@ export async function fetchRemoteSuggestions(query: string): Promise<string[]> {
   if (!res.ok) return [];
 
   const data: SuggestResponse = await res.json();
-  return (data.suggestions ?? []).map((s) => koreanizeTitle(s.keyword));
+  return (data.suggestions ?? []).map((s) => tidyRarity(koreanizeTitle(s.keyword)));
+}
+
+// 자동완성 키워드는 사람들이 실제로 친 검색어라 레어도가 소문자로 붙어 온다
+// ("리자몽vstar", "피카츄 ar"). 정작 카드 목록에는 대문자로 보이므로(SAR·VSTAR)
+// 나란히 놓으면 어긋나 보인다. 목록 쪽 표기에 맞춰 준다.
+// ex는 공식 표기가 소문자라 건드리지 않는다("리자몽 ex").
+// 뒤쪽 x·y는 레어도가 아니라 메가진화 형태 구분이다(메가리자몽 X / Y). 역시 대문자로 쓴다.
+const RARITY_WORDS = [
+  'vstar', 'vmax', 'csr', 'ssr', 'sar', 'chr', 'mur', 'ace', 'ar', 'sr', 'hr', 'ur', 'rr', 'se', 'gx', 'v',
+  'x', 'y',
+];
+
+function tidyRarity(name: string): string {
+  for (const w of RARITY_WORDS) {
+    const re = new RegExp(`([가-힣0-9])\\s*${w}$`, 'i');
+    if (re.test(name)) return name.replace(re, (_m, before: string) => `${before} ${w.toUpperCase()}`);
+  }
+  return name;
 }
