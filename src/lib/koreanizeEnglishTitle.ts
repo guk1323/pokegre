@@ -45,7 +45,7 @@ const packKoByCode = new Map(
 
 // 포켓몬 이름 앞에 붙는 수식어. "ex"/"V"/"VMAX"/"GX" 같은 접미사는 한국 공식 표기에서도
 // 영문 그대로 쓰기 때문에 건드리지 않는다.
-const STRUCTURAL_EN_TO_KO: [string, string][] = [
+export const STRUCTURAL_EN_TO_KO: [string, string][] = [
   // 소유격 카드명(Destined Rivals 등). 함수 초입에서 곧은 어포스트로피(')를 굽은
   // 것(’)으로 정규화하므로 여기 키도 굽은 표기다. 한글명은 전부 기존 트레이너
   // 사전에서 확정된 이름만 쓴다.
@@ -1020,7 +1020,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Pokémon Flute': '포켓몬의 피리',
   'Pokémon Nurse': '포켓몬 간호사',
   'Pokémon Trader': '포켓몬 교환 아저씨',
-  'Power Charge': '파워 차치',
+  'Power Charge': '파워 차지',
   'Premier Ball': '프레미어볼',
   'Professor Birch': '털보박사',
   'Professor Elm': '공박사',
@@ -1817,16 +1817,36 @@ const KO_KEEPS_OLD = new Set([
   '가짜 오박사', // Impostor / Imposter (철자만 다르다)
 ]);
 
-const koToEnEntries: [string, string][] = Object.entries({
+const EARLIER_TABLES = {
   ...TRAINER_EN_TO_KO,
   ...ITEM_EN_TO_KO,
   ...USER_CONFIRMED_EN_TO_KO,
   ...UNVERIFIED_EN_TO_KO,
-  // 한글이 겹치는 것은 역방향에서 뺀다(위 주석 참고).
+};
+const earlierKoNames = new Set(Object.values(EARLIER_TABLES));
+// ⚠️ 전개(...)는 뒤에 온 것이 이기는데, 화면 쪽 조회는 앞에 쓴 표가 이긴다(?? 순서).
+// 그대로 두면 같은 영문 카드가 두 표에 다르게 들어 있을 때 화면과 검색이 서로 다른
+// 한글을 골라, 화면에 보이는 이름으로 검색하면 아무것도 안 나온다.
+// (Volkner가 화면에선 '전진', 검색 사전에선 '기선'이었다.)
+// 그래서 화면 조회 순서를 뒤집어 전개한다 — 뒤에 올수록 화면에서 먼저 보는 표다.
+const koToEnEntries: [string, string][] = Object.entries({
+  // 한글이 겹치는 것은 앞쪽 표를 살리려고 역방향에서 뺀다. 단 앞쪽 표에 그 한글이
+  // 아예 없으면 빼면 안 된다 — 빼는 순간 역방향이 통째로 사라져, 한글로 검색했을 때
+  // "오박사의 연구"가 "오Professor's Research"처럼 조각나 버린다(부분 치환으로 흘러서다).
   ...Object.fromEntries(
-    Object.entries(ENGLISH_CARD_EN_TO_KO).filter(([, ko]) => !KO_KEEPS_OLD.has(ko)),
+    Object.entries(ENGLISH_CARD_EN_TO_KO).filter(
+      ([, ko]) => !(KO_KEEPS_OLD.has(ko) && earlierKoNames.has(ko)),
+    ),
   ),
+  ...UNVERIFIED_EN_TO_KO,
+  ...USER_CONFIRMED_EN_TO_KO,
+  ...ITEM_EN_TO_KO,
+  ...TRAINER_EN_TO_KO,
 }).map(([en, ko]) => [ko, en]);
+// 같은 한글에 영문이 여럿 달리면 Map은 마지막 것을 쓴다. 괄호가 붙은 변형판
+// ("N's Zorua (Poke Ball Pattern)")이 이기면 검색이 그 변형판으로만 가므로,
+// 괄호 있는 것을 앞으로 보내 기본판이 마지막에 남게 한다.
+koToEnEntries.sort((a, b) => Number(b[1].includes('(')) - Number(a[1].includes('(')));
 export const CARD_NAME_KO_TO_EN = new Map<string, string>(koToEnEntries);
 // 같은 카드인데 띄어쓰기가 달라 검색이 빗나가는 걸 막는다. 화면에는 "테라스탈오브"로
 // 나오는데 사전 키는 "테라스탈 오브"라 한글로 치면 eBay·TCGplayer에서 아무것도 안 나왔다.

@@ -1,4 +1,9 @@
-import { CARD_NAME_KO_TO_EN, CARD_NAME_KO_TO_EN_LONG, CARD_NAME_KO_TO_EN_NOSPACE } from './koreanizeEnglishTitle';
+import {
+  CARD_NAME_KO_TO_EN,
+  CARD_NAME_KO_TO_EN_LONG,
+  CARD_NAME_KO_TO_EN_NOSPACE,
+  STRUCTURAL_EN_TO_KO,
+} from './koreanizeEnglishTitle';
 import pokemonNames from '../data/pokemonNames.json';
 import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
@@ -71,6 +76,24 @@ const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['히스이', 'Hisuian '],
   ['팔데아', 'Paldean '],
 ];
+
+// 화면에 쓰는 구조어 표(koreanizeEnglishTitle)를 뒤집어 검색 쪽을 자동으로 채운다.
+// 예전에는 양쪽을 따로 손으로 적었는데, 화면 쪽에만 낱말을 늘리면 그 이름으로는
+// 검색이 안 됐다("다크 망나뇽"이 보이는데 쳐도 안 나오던 것). 한쪽만 고치는 실수를
+// 구조적으로 막으려고 한 곳에서 가져온다. 위에 손으로 적은 것이 있으면 그게 이긴다
+// (TCGplayer 표기에 맞춘 어포스트로피 같은 세부가 있어서다).
+const handWritten = new Set(STRUCTURAL_EN_TERMS.map(([ko]) => ko));
+for (const [en, ko] of STRUCTURAL_EN_TO_KO) {
+  const k = ko.trim();
+  if (!k || handWritten.has(k)) continue;
+  handWritten.add(k);
+  STRUCTURAL_EN_TERMS.push([k, en.trim() + ' '].map((v) => v.replace(/[’]/g, "'")) as [string, string]);
+}
+
+const longestFirstTerms = [
+  ...pokemonWithMega,
+  ...STRUCTURAL_EN_TERMS.map(([ko, en]) => ({ ko, en })),
+].sort((a, b) => b.ko.length - a.ko.length);
 
 // 북미판(english) 전용. 한글(일본판) 팩 이름 → 영문판 세트명. 일본판과 영문판은
 // 발매 단위가 1:1로 안 맞아서(일본판 두 팩이 영문판 한 세트로 묶이고, 수록 카드도
@@ -189,14 +212,11 @@ export function translateSearchQueryToEnglish(
       result = result.split(ko).join(en);
     }
   }
-  // 포켓몬 이름이 구조어보다 먼저다. "메가"를 먼저 떼면 메가자리(Yanmega)·메가니움
-  // (Meganium)이 "Mega 자리"처럼 반쪽이 나서 검색이 안 된다.
-  for (const entry of pokemonWithMega) {
-    if (result.includes(entry.ko)) {
-      result = result.split(entry.ko).join(entry.en);
-    }
-  }
-  for (const [ko, en] of STRUCTURAL_EN_TERMS) {
+  // 포켓몬 이름과 구조어를 한 줄에 세워 긴 것부터 바꾼다. 둘을 따로 돌리면 어느 쪽을
+  // 먼저 하든 반쪽이 난다 — 포켓몬을 먼저 하면 "마그마단의"의 앞 세 글자가 마그마
+  // (Magmar)로 먹히고, 구조어를 먼저 하면 "다크라이"가 "Dark 라이"가 된다.
+  // 긴 것부터 바꾸면 둘 다 제 이름을 지킨다(다크라이 > 다크, 마그마단의 > 마그마).
+  for (const { ko, en } of longestFirstTerms) {
     if (result.includes(ko)) {
       result = result.split(ko).join(en);
     }
