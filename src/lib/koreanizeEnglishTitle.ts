@@ -98,7 +98,7 @@ const STRUCTURAL_EN_TO_KO: [string, string][] = [
   ['Dome Fossil ', '껍질화석 '],
   ['Helix Fossil ', '조개화석 '],
   ['Root Fossil ', '뿌리화석 '],
-  ['Old Amber ', '비밀의아엠버 '],
+  ['Old Amber ', '비밀의호박 '], // 아엠버는 Amber를 소리로 옮긴 것이었다
   ['Detective ', '명탐정 '],
   ['Shining ', '빛나는 '],
   ['Armored ', '아머드 '],
@@ -421,7 +421,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   // 표를 나누지 않았다). 이름이 겹치거나 한글이 아닌 45개는 넣지 않고 되물었다.
   'Academy at Night': '야간 학원',
   'Ancient Booster Energy Capsule': '부스트에너지 고대',
-  'Antique Plume Fossil': '복원된 깃털카세키',
+  'Antique Plume Fossil': '복원된 깃털화석', // 카세키=化石의 음역이었다
   'Awakening Drum': '각성의 드럼',
   'Beach Court': '해변의 코트',
   'Boxed Order': '박스 주문',
@@ -1059,7 +1059,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Antique Cover Fossil': '복원된 덮개화석',
   'Antique Dome Fossil': '복원된 껍질화석',
   'Antique Helix Fossil': '복원된 조개화석',
-  'Antique Old Amber': '복원된 비밀의암석',
+  'Antique Old Amber': '복원된 비밀의호박',
   'Antique Root Fossil': '복원된 뿌리화석',
   'Area Zero Underdepths': '제로대공동',
   Artazon: '보울마을',
@@ -1289,7 +1289,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Unidentified Fossil': '정체불명의 화석',
   'Root Fossil': '뿌리화석',
   'Claw Fossil': '발톱화석',
-  'Old Amber': '비밀의 호박',
+  'Old Amber': '비밀의호박',
   // 일반 역할 인물
   Fisherman: '낚시꾼',
   Lady: '귀부인',
@@ -1331,7 +1331,6 @@ const ITEM_EN_TO_KO: Record<string, string> = {
 const USER_CONFIRMED_EN_TO_KO: Record<string, string> = {
   "Antique Dome Fossil": "오래된 껍질화석",
   "Antique Helix Fossil": "오래된 조개화석",
-  "Antique Old Amber": "오래된 비밀의호박",
   "Battle Compressor": "배틀 컴프레서",
   "Bianca's Devotion": "벨의 진심",
   "Canceling Cologne": "캔슬코롱",
