@@ -32,6 +32,7 @@
 - **팝수(Population)**: **GemRate 기반 → PSA·CGC·BGS·SGC 등 여러 회사** (PSA 전용 아님!). **Business($99) 전용**, `/population` 엔드포인트(파라미터 `tcgPlayerId`), 카드당 2크레딧. 우리 $10 키는 403.
 - **요금제**: Free 100/일 · **API $10 = 20,000/일** · Business $99 = 200,000/일 · Enterprise $300 = 100만/일.
 - **한도는 응답 헤더로 확인할 것**(추측 금지): `x-ratelimit-daily-limit/remaining/reset`, `x-ratelimit-minute-limit/remaining`. **분당은 "요청 60번"이지 크레딧이 아니다**(예전에 '분당 크레딧 500'이라 적어둔 건 오류). 일일은 크레딧이며 `limit=200` 한 번이 200크레딧. **초기화는 매일 UTC 0시 = 한국시간 오전 9시.**
+- **⚠️ 429를 계속 내면 키가 정지된다** (2026-07-28 실제로 1시간 정지당함). **5분 안에 429 150번**(pro 기준)이 기준선이고, 반복하면 1시간 → 24시간 → 7일 → 영구. 정지 중에는 **429가 아니라 `403 {"error":"API key blocked for abuse"}` + `Retry-After`(초)** 로 온다. 하루치가 바닥나면 그 뒤 모든 응답이 429라, **"429를 받으면 그 시각까지 아예 안 부른다"** 가 유일한 안전장치다 — server/api.ts의 `pptGate`/`notePpt`가 그 역할을 하며, PPT를 부르는 코드는 반드시 이걸 거쳐야 한다. 새 스크립트도 429가 계속 나면 남은 세트를 두드리지 말고 통째로 멈출 것.
 - **크레딧 규칙**: `limit`(기본 50)에 과금 — 단건은 `limit=1`이나 `tcgPlayerId`로. history/ebay/cardmarket 각 +1/카드. **`page` 없음, `offset`은 됨**. limit을 크게 줘도 **한 번에 200행까지만** 준다 — 세트가 200행을 넘으면 offset=200,400…으로 이어받아야 앞번호 카드가 안 잘린다(2026-07-25 실측, 리자몽 6번이 이걸로 빠졌었다).
 - 이미지: `imageCdnUrl` 200/400/800(tcgplayer-cdn).
 - Scrydex와 비교: 팝수까지 PPT가 다회사로 커버하므로, 우리(포켓몬 전용)엔 Scrydex 고유 이점은 사진인식(이미 Claude로 있음)·멀티게임(불필요)뿐 → **갈 이유 없음**.
