@@ -185,6 +185,32 @@ const JP_SEARCH_ONLY: Record<string, string> = {
   '남나리의 도움': "Daisy's Help",
   '팔데아의 동료들': 'Friends in Paldea',
   '달이 빛나는 언덕': 'Moonlit Hill',
+  // 같은 카드인데 PPT가 다른 낱말로 적어 둔 것들. 세트 번호가 맞는 것만 담았다
+  // (세트별로 일치율 70% 넘는 것만 믿는다). 화면 이름은 그대로 두고 검색만 맞춘다.
+  '마티스의 거래': "Lt. Surge's Deal",
+  로켓단의리시버: "Team Rocket's Transceiver",
+  파이팅공: 'Fight Gong',
+  로켓단에너지: "Team Rocket's Energy",
+  '청목의 수완': "Larry's Efficiency",
+  '아이언 디펜더': 'Iron X Defense',
+  '활력의 숲': 'Vitality Forest',
+  '괴상한 시계': 'Strange Timepiece',
+  추리세트: 'Deduction Kit',
+  느긋풀: 'Chill Teaser Toy',
+  '용의 비약': 'Dragon Elixir',
+  '로켓단의 깜짝봄': "Team Rocket's Venture Bomb",
+  'N의 방안': "N's Plan",
+  스파이크에너지: 'Spiky Energy',
+  '리치 에너지': 'Enriching Energy',
+  시간벌기터보: 'Wait and See Turbo',
+  안전고글: 'Protective Goggles',
+  타이트밴드: 'Rigid Band',
+  '시트론의 재치': "Clemont's Wit",
+  낚싯대MAX: 'Fishing Rod MAX',
+  뉴트럴센터: 'Neutralization Zone',
+  // ⚠️ 아래는 담지 않는다 — PPT 쪽 번호가 어긋나 딴 카드 이름이 붙어 있다.
+  //   기본 물 에너지 → Basic Psychic Energy · 켄타로스 → Waitress · 버프론 ex → Herdier
+  // 주리 → Fennel도 뺐다. 우리 사전은 Thorton이라 인물이 아예 다르다(확인 필요).
 };
 
 // PPT 표기에 맞춰 다듬는다. 사전에서 통째로 찾아 바로 돌려주는 길도 있어서,
