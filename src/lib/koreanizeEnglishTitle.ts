@@ -1305,6 +1305,10 @@ const UNVERIFIED_EN_TO_KO: Record<string, string> = {
 //   제트        일본판 Zett          / 북미판 Jett
 //   구멍파는삽  일본판 Digging Shovel / 북미판 Hole-Digging Shovel
 const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
+  // 일본 원판 'がくしゅうそうち' 하나를 북미판이 시대에 따라 다르게 불렀다.
+  // 한국 이름은 둘 다 '학습장치'라 화면에는 같이 나오고, 검색은 먼저 있던 Exp. Share 를 쓴다.
+  "EXP. ALL": "학습장치",
+
   // 옛 북미판 카드 4차 49종 — 2026-07-28 사용자 확인.
   // 'Prof. Oak's Research'는 'Professor Oak's Research'와 같은 카드의 다른 표기다.
   // 둘 다 '오박사의 연구'로 보이게 두고, 검색(한글→영문)은 먼저 있던 쪽을 쓴다.
@@ -1583,7 +1587,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Zinnia's Resolve": "피아나의 결의",
 };
 
-const KO_KEEPS_OLD = new Set(['제트', '구멍파는삽']);
+const KO_KEEPS_OLD = new Set(['제트', '구멍파는삽', '학습장치', '오박사의 연구']);
 
 const koToEnEntries: [string, string][] = Object.entries({
   ...TRAINER_EN_TO_KO,
