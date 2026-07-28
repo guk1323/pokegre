@@ -790,6 +790,12 @@ function App() {
   // 사전이 온 뒤에 채운다. 안내문 한 줄이라 조금 늦게 떠도 티가 안 난다.
   const [translatedQuery, setTranslatedQuery] = useState('');
   useEffect(() => {
+    // ⚠️ 검색어가 없으면 사전을 부르지 않는다. 부르면 첫 화면에서 사전을 통째로
+    // 받아 버려 떼어 놓은 뜻이 없어진다(실제로 그랬다 — 운영 빌드에서 잡았다).
+    if (!query.trim()) {
+      setTranslatedQuery('');
+      return;
+    }
     let alive = true;
     void loadNameDict().then((d) => {
       if (alive) setTranslatedQuery(d.translateSearchQuery(query));

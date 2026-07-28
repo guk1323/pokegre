@@ -145,6 +145,9 @@ export async function fetchApparelDetail(apparelId: number): Promise<{ title: st
 // 저장해둔 참조(ID + 카테고리)를 현재 시세로 채워서 되살린다. 실패한 카드는 조용히
 // 빼는데, 판매 종료 등으로 사라진 상품을 목록에서 계속 붙들고 있을 이유가 없다.
 export async function resolveStoredCards(refs: StoredCardRef[]): Promise<SnkrdunkCard[]> {
+  // 비어 있으면 여기서 끝낸다. 아래에서 이름 사전을 받는데, 즐겨찾기가 하나도 없는
+  // 사람까지 첫 화면에서 사전을 통째로 받게 된다(운영 빌드에서 실제로 그랬다).
+  if (refs.length === 0) return [];
   const details = await Promise.all(refs.map((ref) => fetchApparelDetail(ref.apparelId).catch(() => null)));
   const dict = await loadNameDict();
 
@@ -167,6 +170,7 @@ export async function resolveStoredCards(refs: StoredCardRef[]): Promise<Snkrdun
 }
 
 async function enrichWithCleanImages(cards: SnkrdunkCard[]): Promise<SnkrdunkCard[]> {
+  if (cards.length === 0) return [];
   const details = await Promise.all(cards.map((card) => fetchApparelDetail(card.apparelId).catch(() => null)));
   const dict = await loadNameDict();
   return cards.map((card, i) => {
