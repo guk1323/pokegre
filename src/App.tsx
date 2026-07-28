@@ -62,14 +62,6 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-// 공유 주소에 실을 카드 이름. 전체 제목을 그대로 넣으면 링크가 200자를 넘는다
-// (세트 설명 괄호가 통째로 들어가고 한글이 퍼센트 인코딩되기 때문).
-// 뒤 괄호를 떼고 40자로 자르면 "리자드 AR[SV2a 169/165]" 정도가 남아, 미리보기 제목으로
-// 충분하면서 링크가 짧아진다. 어차피 화면은 카드 번호로 카드를 찾으므로 이 값은 표시용이다.
-function shareName(title: string): string {
-  return title.replace(/\s*\([^()]*\)\s*$/, '').trim().slice(0, 40);
-}
-
 type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
 type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 
@@ -755,9 +747,9 @@ function App() {
             // 91자짜리 알 수 없는 주소가 된다.
             `/c/${selectedCard.apparelId}`
           : source === 'ebay' && ebaySelectedCard
-            ? `/e/${ebaySelectedCard.tcgPlayerId}?n=${encodeURIComponent(shareName(ebaySelectedCard.name))}`
+            ? `/e/${ebaySelectedCard.tcgPlayerId}`
             : source === 'tcgplayer' && ebaySelectedCard
-              ? `/t/${ebaySelectedCard.tcgPlayerId}?n=${encodeURIComponent(shareName(ebaySelectedCard.name))}`
+              ? `/t/${ebaySelectedCard.tcgPlayerId}`
               : null;
     if (path) {
       window.history.replaceState(window.history.state, '', path);

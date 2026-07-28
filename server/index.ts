@@ -3,7 +3,14 @@ import compression from 'compression'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { access } from 'node:fs/promises'
-import { backupDataFiles, isAdminRequest, maintenanceOn, mountApi } from './api.ts'
+import {
+  backupDataFiles,
+  isAdminRequest,
+  lookupCardName,
+  maintenanceOn,
+  mountApi,
+  startCardNameStore,
+} from './api.ts'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 
@@ -80,6 +87,9 @@ app.use(async (req, res, next) => {
 // API가 정적 파일보다 먼저다. 순서가 뒤집히면 SPA 폴백이 /api/* 요청까지 삼켜서
 // index.html을 돌려주고, 클라이언트는 JSON 대신 HTML을 받아 파싱 에러를 낸다.
 mountApi(app, process.env)
+
+// 공유 링크 미리보기에 쓸 카드 이름을 파일에서 불러오고, 주기적으로 저장한다.
+startCardNameStore()
 
 // 데이터 백업: 기동할 때 한 번, 그 뒤로는 하루에 한 번. 배포마다 기계가 새로 뜨므로
 // 기동 시점 백업만으로도 "배포 직전 상태"가 늘 남는다.
@@ -194,7 +204,15 @@ function buildCardHtml(
 // 다만 카드 이름은 링크(?n=)에 이미 들어 있으므로 제목에는 넣는다. 안 넣으면 카톡에
 // "pokegre — 포켓몬 카드의 모든 것"만 떠서 무슨 카드를 보낸 건지 알 수 없다.
 app.get(['/e/:id', '/t/:id'], (req, res) => {
-  const name = typeof req.query.n === 'string' ? req.query.n.slice(0, 120) : null
+  // 시세를 볼 때 주워 둔 이름이 있으면 그걸 쓴다(주소가 짧아진다). 없으면 링크에 실려 온
+  // ?n=으로 넘어간다 — 서버가 다시 뜬 직후나 아무도 안 본 카드가 여기 해당한다.
+  const id = String(req.params.id ?? '')
+  const known = lookupCardName(id)
+  const name = known
+    ? shareName(koreanizeEnglishCardName(known))
+    : typeof req.query.n === 'string'
+      ? req.query.n.slice(0, 120)
+      : null
   if (!name) {
     res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(path.join(DIST, 'index.html'))

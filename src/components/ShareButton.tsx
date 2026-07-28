@@ -8,14 +8,11 @@ import { trackEvent } from '../api/localStats';
 // 없었다. 카드를 찾아 남에게 시세를 알려주는 건 화면과 무관하게 같은 동작이다.
 export function ShareButton({ path, name }: { path: string; name: string }) {
   const [copied, setCopied] = useState(false);
-  // 스니커덩크 카드(/c/)는 서버가 카드 이름을 스스로 알아내므로 주소에 이름을 안 싣는다.
-  // 한글을 주소에 넣으면 %EB%A6%AC…로 늘어나 91자짜리 링크가 되고, 받는 사람 눈에는
-  // 알 수 없는 문자가 잔뜩 붙은 주소로 보인다.
-  // 이베이·TCGplayer(/e/·/t/)는 시세 호출 한도 때문에 서버가 이름을 못 받아 와서
-  // 여기서 실어 보낸다.
-  const url = path.startsWith('/c/')
-    ? `https://pokegre.com${path}`
-    : `https://pokegre.com${path}?n=${encodeURIComponent(shareName(name))}`;
+  // 주소에 카드 이름을 싣지 않는다. 한글을 주소에 넣으면 %EB%A6%AC…로 늘어나 91자짜리
+  // 링크가 되고, 받는 사람 눈에는 알 수 없는 문자가 잔뜩 붙은 주소로 보인다.
+  // 이름은 서버가 안다 — 스니커덩크는 직접 물어보고, 이베이·TCGplayer는 시세가 오갈 때
+  // 주워 둔 것을 쓴다.
+  const url = `https://pokegre.com${path}`;
 
   return (
     <button
@@ -49,11 +46,3 @@ export function ShareButton({ path, name }: { path: string; name: string }) {
   );
 }
 
-// 주소가 길면 카톡에서 링크가 두 줄로 접힌다. 뒤에 붙는 괄호 설명(레어도·세트 표기)은
-// 떼고 40자까지만 싣는다 — 미리보기 제목에만 쓰이므로 짧아도 알아본다.
-function shareName(title: string): string {
-  return title
-    .replace(/\s*\([^()]*\)\s*$/, '')
-    .trim()
-    .slice(0, 40);
-}
