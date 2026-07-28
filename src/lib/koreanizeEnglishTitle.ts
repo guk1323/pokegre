@@ -1238,7 +1238,41 @@ const ITEM_EN_TO_KO: Record<string, string> = {
 // 쓰였고, 한글로 검색하면 영문 시세(eBay·TCGplayer)에서 아무것도 안 나왔다.
 // ⚠️ 2글자 이하 이름(추명·이슬·모란 …)은 다른 말에 끼어들어 검색을 깨뜨리므로,
 //    통째로 일치할 때만 쓰고 부분 치환에는 3글자 이상만 넣는다.
-const koToEnEntries: [string, string][] = Object.entries({ ...TRAINER_EN_TO_KO, ...ITEM_EN_TO_KO }).map(([en, ko]) => [ko, en]);
+
+// 사용자가 공식 영문 카드명을 확인해 준 것들(2026-07-28). 자동 수집으로는 못 채운 카드다.
+// 넣기 전에 PPT에 그 이름으로 실제 카드가 잡히는지 하나씩 확인했다 — 이름만 맞아도
+// PPT에 그 카드가 없으면 검색은 여전히 0건이라, 확인된 것만 넣는다.
+const USER_CONFIRMED_EN_TO_KO: Record<string, string> = {
+  "Antique Dome Fossil": "오래된 껍질화석",
+  "Antique Helix Fossil": "오래된 조개화석",
+  "Antique Old Amber": "오래된 비밀의호박",
+  "Battle Compressor": "배틀 컴프레서",
+  "Bianca's Devotion": "벨의 진심",
+  "Canceling Cologne": "캔슬코롱",
+  "Cook": "쿡",
+  "Daisy's Help": "남나리의 도움",
+  "Digging Shovel": "구멍파는삽",
+  "Grabber": "스내치암",
+  "Haban Berry": "하반열매",
+  "Hero's Cape": "히어로 망토",
+  "Hop's Phantump": "호브의 나목령",
+  "Hypnotoxic Laser": "데인저러스광선",
+  "Leftovers": "먹다남은음식",
+  "Moonlit Hill": "달이 빛나는 언덕",
+  "Parallel City": "패럴렐시티",
+  "Quad Stone": "쿼드스톤",
+  "Repel": "벌레회피스프레이",
+  "Technical Machine: Crisis Punch": "기술머신 위기극복한방",
+  "Trainers' Mail": "트레이너즈 포스트",
+  "Treasure Gadget": "트레져 가젯",
+  "Unidentified Fossil": "수수께끼화석",
+  "Volkner": "기선",
+  "Wally's Compassion": "민진의 헤아림",
+  "Worker": "작업원",
+  "Xerosic's Machinations": "크세로시키의 속셈",
+};
+
+const koToEnEntries: [string, string][] = Object.entries({ ...TRAINER_EN_TO_KO, ...ITEM_EN_TO_KO, ...USER_CONFIRMED_EN_TO_KO }).map(([en, ko]) => [ko, en]);
 export const CARD_NAME_KO_TO_EN = new Map<string, string>(koToEnEntries);
 // 같은 카드인데 띄어쓰기가 달라 검색이 빗나가는 걸 막는다. 화면에는 "테라스탈오브"로
 // 나오는데 사전 키는 "테라스탈 오브"라 한글로 치면 eBay·TCGplayer에서 아무것도 안 나왔다.
@@ -1262,14 +1296,14 @@ export function koreanizeEnglishCardName(name: string): string {
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
   // 굽은 것을 곧은 것으로 바꿔 조회한다.
   const exactKey = name.trim().replace(/[’]/g, "'");
-  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey];
+  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey] ?? USER_CONFIRMED_EN_TO_KO[exactKey];
   if (exact) return exact;
 
   // PokemonPriceTracker는 "Levincia - 092/063"처럼 이름 뒤에 카드 번호를 붙여 준다.
   // 번호를 뗀 뒤 찾고, 번호는 그대로 뒤에 다시 붙인다(안 그러면 영문 그대로 남는다).
   const numbered = exactKey.match(/^(.+?)\s+-\s+([A-Za-z0-9/-]+)$/);
   if (numbered) {
-    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]];
+    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]];
     if (found) return `${found} - ${numbered[2]}`;
   }
   // "Judge (Mirror Holo)"처럼 괄호로 인쇄 방식이 붙는 것도 같은 방식으로 처리한다.

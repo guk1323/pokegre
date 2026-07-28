@@ -61,14 +61,16 @@ for (const { code, count } of sets) {
   const page = Math.min(PAGE, Math.max(50, Math.ceil((count * 1.3) / 50) * 50))
   for (let offset = 0; ; offset += page) {
     const url = `https://www.pokemonpricetracker.com/api/v2/cards?language=japanese&setName=${encodeURIComponent(code)}&limit=${page}&offset=${offset}`
-    let r = await fetch(url, { headers: { accept: 'application/json', authorization: `Bearer ${key}` } })
-    // 429는 "잠깐 쉬라"는 뜻이라 retry-after만큼 기다렸다 한 번 더 해본다. 한 번 더 막히면
-    // 그 세트는 비워 두고 넘어간다 — 다음에 다시 돌리면 빈 세트만 이어받는다.
-    if (r.status === 429) {
-      const wait = (Number(r.headers.get('retry-after')) || 30) + 2
-      console.log(`  ${code} 한도 — ${wait}초 쉬고 다시`)
-      await sleep(wait * 1000)
+    // 429는 "잠깐 쉬라"는 뜻이다. 분당 한도(60요청)는 1분이면 풀리므로 몇 번 더 기다려
+    // 본다. 예전엔 한 번만 재시도해서, 검증 작업으로 분당 한도를 쓴 직후에 돌리면
+    // 세트 일곱 개가 통째로 빈손으로 끝났다.
+    let r
+    for (let tries = 0; ; tries++) {
       r = await fetch(url, { headers: { accept: 'application/json', authorization: `Bearer ${key}` } })
+      if (r.status !== 429 || tries >= 3) break
+      const wait = (Number(r.headers.get('retry-after')) || 30) + 3
+      console.log(`  ${code} 한도 — ${wait}초 쉬고 다시(${tries + 1}/3)`)
+      await sleep(wait * 1000)
     }
     // 남은 크레딧은 헤더로만 알 수 있다. 다음 세트로 넘어갈지 여기서 판단한다.
     const left = Number(r.headers.get('x-ratelimit-daily-remaining'))
