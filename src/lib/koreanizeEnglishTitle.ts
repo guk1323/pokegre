@@ -421,7 +421,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   // 표를 나누지 않았다). 이름이 겹치거나 한글이 아닌 45개는 넣지 않고 되물었다.
   'Academy at Night': '야간 학원',
   'Ancient Booster Energy Capsule': '부스트에너지 고대',
-  'Antique Plume Fossil': '복원된 깃털화석', // 카세키=化石의 음역이었다
+  'Antique Plume Fossil': '오래된 깃털화석', // 카세키=化石의 음역이었다
   'Awakening Drum': '각성의 드럼',
   'Beach Court': '해변의 코트',
   'Boxed Order': '박스 주문',
@@ -1056,11 +1056,13 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   "Acerola's Mischief": '아세로라의 장난',
   Amarys: '네리네',
   'Amulet of Hope': '희망의 부적',
-  'Antique Cover Fossil': '복원된 덮개화석',
-  'Antique Dome Fossil': '복원된 껍질화석',
-  'Antique Helix Fossil': '복원된 조개화석',
-  'Antique Old Amber': '복원된 비밀의호박',
-  'Antique Root Fossil': '복원된 뿌리화석',
+  // Antique(古びた)는 한국 정식 발매명이 '오래된'이다. 영문판 쪽에만 '복원된'이
+  // 섞여 들어와 있었다(2026-07-28 정정).
+  'Antique Cover Fossil': '오래된 덮개화석',
+  'Antique Dome Fossil': '오래된 껍질화석',
+  'Antique Helix Fossil': '오래된 조개화석',
+  'Antique Old Amber': '오래된 비밀의호박',
+  'Antique Root Fossil': '오래된 뿌리화석',
   'Area Zero Underdepths': '제로대공동',
   Artazon: '보울마을',
   "Arven's Sandwich": '페퍼의 샌드위치',
