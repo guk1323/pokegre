@@ -1,8 +1,8 @@
-import pokemonNames from '../data/pokemonNames.json';
-import pokemonNameAliases from '../data/pokemonNameAliases.json';
-import packNames from '../data/packNames.json';
-import { kanaToHangul } from './kanaToHangul';
-import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
+import pokemonNames from '../data/pokemonNames.json' with { type: 'json' };
+import pokemonNameAliases from '../data/pokemonNameAliases.json' with { type: 'json' };
+import packNames from '../data/packNames.json' with { type: 'json' };
+import { kanaToHangul } from './kanaToHangul.ts';
+import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides.ts';
 
 interface PokemonName {
   id: number;

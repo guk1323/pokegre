@@ -8,7 +8,14 @@ import { trackEvent } from '../api/localStats';
 // 없었다. 카드를 찾아 남에게 시세를 알려주는 건 화면과 무관하게 같은 동작이다.
 export function ShareButton({ path, name }: { path: string; name: string }) {
   const [copied, setCopied] = useState(false);
-  const url = `https://pokegre.com${path}?n=${encodeURIComponent(shareName(name))}`;
+  // 스니커덩크 카드(/c/)는 서버가 카드 이름을 스스로 알아내므로 주소에 이름을 안 싣는다.
+  // 한글을 주소에 넣으면 %EB%A6%AC…로 늘어나 91자짜리 링크가 되고, 받는 사람 눈에는
+  // 알 수 없는 문자가 잔뜩 붙은 주소로 보인다.
+  // 이베이·TCGplayer(/e/·/t/)는 시세 호출 한도 때문에 서버가 이름을 못 받아 와서
+  // 여기서 실어 보낸다.
+  const url = path.startsWith('/c/')
+    ? `https://pokegre.com${path}`
+    : `https://pokegre.com${path}?n=${encodeURIComponent(shareName(name))}`;
 
   return (
     <button

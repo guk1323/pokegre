@@ -4,6 +4,8 @@ import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { access } from 'node:fs/promises'
 import { backupDataFiles, isAdminRequest, maintenanceOn, mountApi } from './api.ts'
+import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 
 // 프로덕션 진입점. 개발은 vite가 API(server/api.ts)와 프론트를 함께 띄우지만,
 // 배포에서는 이 프로세스가 둘 다 맡는다 — 같은 mountApi를 부르므로 라우팅은 개발과
@@ -97,23 +99,34 @@ const esc = (s: string) =>
 const yen = new Intl.NumberFormat('ja-JP')
 
 // 크롤러·링크 언펄러가 같은 카드를 자주 때리므로 짧게 캐시한다(스니커덩크 호출 아끼기).
-const shareCache = new Map<string, { at: number; data: { image: string; price: number } | null }>()
+const shareCache = new Map<string, { at: number; data: ShareCard | null }>()
 const SHARE_TTL = 10 * 60 * 1000
 
-async function fetchShareCard(id: string): Promise<{ image: string; price: number } | null> {
+type ShareCard = { image: string; price: number; name: string }
+
+async function fetchShareCard(id: string): Promise<ShareCard | null> {
   const hit = shareCache.get(id)
   if (hit && Date.now() - hit.at < SHARE_TTL) return hit.data
-  let data: { image: string; price: number } | null = null
+  let data: ShareCard | null = null
   try {
     const r = await fetch(`https://snkrdunk.com/v1/apparels/${id}`, {
       signal: AbortSignal.timeout(2500),
       headers: { accept: 'application/json' },
     })
     if (r.ok) {
-      const j = (await r.json()) as { primaryMedia?: { imageUrl?: string }; usedMinPrice?: number; minPrice?: number }
+      const j = (await r.json()) as {
+        primaryMedia?: { imageUrl?: string }
+        usedMinPrice?: number
+        minPrice?: number
+        name?: string
+      }
       const image = j.primaryMedia?.imageUrl ?? ''
       const price = j.usedMinPrice || j.minPrice || 0
-      if (image) data = { image, price }
+      // 스니커덩크 이름은 일본어라 화면과 같은 방식으로 한글로 바꾼다. 예전엔 이걸 서버에서
+      // 못 해서 링크에 ?n=<한글 이름>을 붙여 보냈는데, 한글이 %EB%A6%AC…로 늘어나
+      // 주소가 세 배로 길어졌다(91자 → 28자).
+      const name = j.name ? shareName(koreanizeEnglishCardName(koreanizeTitle(j.name))) : ''
+      if (image) data = { image, price, name }
     }
   } catch {
     // 실패하면 이름만으로 미리보기(이미지·시세 없이)
@@ -137,6 +150,16 @@ function setMeta(html: string, key: string, value: string): string {
 
 // sharePath는 "/c/123"·"/e/456" 같은 공유 주소. 모듈 위쪽의 node:path와 헷갈리지 않게
 // 이름을 따로 뒀다.
+// 미리보기 제목에만 쓰므로 군더더기를 뗀다. 스니커덩크 이름에는 세트·번호가 대괄호로,
+// 팩 이름이 괄호로 붙어 있다("리자드 AR[SV2a 169/165](확장팩「…」)").
+function shareName(title: string): string {
+  return title
+    .replace(/\s*\([^()]*\)\s*$/, '')
+    .replace(/\s*\[[^\]]*\]\s*$/, '')
+    .trim()
+    .slice(0, 40)
+}
+
 function buildCardHtml(
   sharePath: string,
   name: string | null,
@@ -189,8 +212,9 @@ app.get('/c/:id', async (req, res) => {
       res.sendFile(path.join(DIST, 'index.html'))
       return
     }
-    const name = typeof req.query.n === 'string' ? req.query.n.slice(0, 120) : null
     const card = await fetchShareCard(id)
+    // 이름은 서버가 스스로 알아낸다. ?n=은 옛 링크를 위해 남겨 두고 예비로만 쓴다.
+    const name = card?.name || (typeof req.query.n === 'string' ? req.query.n.slice(0, 120) : null)
     res.set('content-type', 'text/html; charset=utf-8')
     res.send(buildCardHtml(`/c/${id}`, name, card))
   } catch {

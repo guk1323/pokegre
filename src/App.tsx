@@ -750,7 +750,10 @@ function App() {
       view !== 'cards'
         ? null
         : source === 'snkrdunk' && selectedCard
-          ? `/c/${selectedCard.apparelId}?n=${encodeURIComponent(shareName(selectedCard.title))}`
+          ? // 스니커덩크 카드는 서버가 이름을 스스로 알아내므로 주소에 안 싣는다.
+            // 주소창에서 그대로 복사해 붙이는 사람이 많은데, 한글이 %EB%A6%AC…로 늘어나면
+            // 91자짜리 알 수 없는 주소가 된다.
+            `/c/${selectedCard.apparelId}`
           : source === 'ebay' && ebaySelectedCard
             ? `/e/${ebaySelectedCard.tcgPlayerId}?n=${encodeURIComponent(shareName(ebaySelectedCard.name))}`
             : source === 'tcgplayer' && ebaySelectedCard

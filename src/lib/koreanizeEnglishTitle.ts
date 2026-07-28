@@ -1,6 +1,6 @@
-import pokemonNames from '../data/pokemonNames.json';
-import packNames from '../data/packNames.json';
-import cardNameKoEn from '../data/cardNameKoEn.json';
+import pokemonNames from '../data/pokemonNames.json' with { type: 'json' };
+import packNames from '../data/packNames.json' with { type: 'json' };
+import cardNameKoEn from '../data/cardNameKoEn.json' with { type: 'json' };
 
 // 영문 카드명 → 한글. scripts/gen-ko-en-cards.mts가 만든 "한글 → 영문"을 뒤집은 것이다.
 // 왜 뒤집어 쓰는가: 같은 카드가 탭마다 다른 이름으로 보였다("올림박사의 기백"(스니커덩크)
