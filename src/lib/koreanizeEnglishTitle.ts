@@ -1402,6 +1402,16 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   'Rotom Phone': '로토무 스마트폰',
   // 북미판 사전에 없어 뒷말이 영어로 남던 것.
   // 같은 카드의 다른 영문 표기(PPT와 TCGdex가 다르게 적어 온다). 한글은 같게 맞춘다.
+  // PPT는 일본판 카드에 자기네 영문 이름을 붙인다. 그 이름이 화면에 그대로 뜨므로
+  // 여기에도 짝을 달아 둔다(안 달면 eBay·TCGplayer 일본판 탭에서 영어로 보인다).
+  "Clemont's Wit": '시트론의 재치',
+  "Larry's Efficiency": '청목의 수완',
+  'Fight Gong': '파이팅공',
+  'Fishing Rod MAX': '낚싯대MAX',
+  'Iron X Defense': '아이언 디펜더',
+  'Vitality Forest': '활력의 숲',
+  'Nidoran M': '니드런♂',
+  'Nidoran F': '니드런♀',
   'Basic Grass Energy': '기본 풀 에너지',
   'Basic Fire Energy': '기본 불꽃 에너지',
   'Basic Water Energy': '기본 물 에너지',
@@ -1887,12 +1897,40 @@ const pokemonEnPatterns = sortedPokemonEnKo.map((entry) => ({
   ko: entry.ko,
 }));
 
+// 사전 여섯 곳을 정해진 순서로 뒤진다(앞에 쓴 표가 이긴다).
+function lookupExact(key: string): string | undefined {
+  return (
+    AUTO_EN_TO_KO.get(key) ??
+    TRAINER_EN_TO_KO[key] ??
+    ITEM_EN_TO_KO[key] ??
+    USER_CONFIRMED_EN_TO_KO[key] ??
+    UNVERIFIED_EN_TO_KO[key] ??
+    ENGLISH_CARD_EN_TO_KO[key]
+  );
+}
+
+const stripAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
+
+// 악센트를 뗀 표기 → 사전에 든 정식 표기. PPT가 "Pokemon Catcher"처럼 악센트 없이
+// 주는데 우리 사전 키는 "Pokémon Catcher"라 그냥은 안 맞는다.
+const accentKeys = new Map<string, string>();
+for (const table of [TRAINER_EN_TO_KO, ITEM_EN_TO_KO, USER_CONFIRMED_EN_TO_KO, UNVERIFIED_EN_TO_KO, ENGLISH_CARD_EN_TO_KO]) {
+  for (const key of Object.keys(table)) {
+    const plain = stripAccents(key);
+    if (plain !== key && !accentKeys.has(plain)) accentKeys.set(plain, key);
+  }
+}
+
 export function koreanizeEnglishCardName(name: string): string {
   // 트레이너·인물·아이템 카드는 이름 전체가 일치할 때만 통째로 바꾼다(부분 치환 사고 방지).
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
   // 굽은 것을 곧은 것으로 바꿔 조회한다.
   const exactKey = name.trim().replace(/[’]/g, "'");
-  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey] ?? USER_CONFIRMED_EN_TO_KO[exactKey] ?? UNVERIFIED_EN_TO_KO[exactKey] ?? ENGLISH_CARD_EN_TO_KO[exactKey];
+  // PPT는 악센트를 뺀 표기로 준다("Pokemon Catcher"·"Pokegear 3.0"·"Poke Ball").
+  // 우리 사전은 정식 표기(악센트 있음)라 그대로는 안 맞는다. 악센트를 붙였다 떼었다
+  // 하는 대신, 사전을 찾을 때 양쪽 표기를 다 넣어 본다.
+  const deaccented = accentKeys.get(stripAccents(exactKey));
+  const exact = lookupExact(exactKey) ?? (deaccented ? lookupExact(deaccented) : undefined);
   if (exact) return exact;
 
   // PokemonPriceTracker는 "Levincia - 092/063"처럼 이름 뒤에 카드 번호를 붙여 준다.
