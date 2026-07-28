@@ -33,6 +33,14 @@ const sets = idx
   .filter((s) => (want.length ? want.includes(s.id) : (s.releaseDate ?? '') >= '2022'))
   .map((s) => ({ code: s.id, count: s.count ?? PAGE }))
 
+// PPT가 우리와 다른 이름으로 갖고 있는 세트. 코드를 그대로 물으면 엉뚱한 세트가 온다
+// (setName=MC로 물으면 2017년 'smC: Tapu Bulu-GX'가 온다). 우리 세트의 한글 이름을
+// 보고 PPT 쪽 이름을 찾아 적어 둔다.
+const SET_ALIAS = {
+  MC: 'Start Deck 100 Battle Collection', // 스타트 덱 100 배틀컬렉션
+  SVK: 'SV: Stellar Miracle Deck Build Box', // 덱 빌드 BOX 스텔라미라클
+}
+
 const out = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : {}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -60,7 +68,7 @@ for (const { code, count } of sets) {
   // 프로모·특전으로 실제 장수가 목록보다 많은 세트가 있어 조금 여유를 둔다.
   const page = Math.min(PAGE, Math.max(50, Math.ceil((count * 1.3) / 50) * 50))
   for (let offset = 0; ; offset += page) {
-    const url = `https://www.pokemonpricetracker.com/api/v2/cards?language=japanese&setName=${encodeURIComponent(code)}&limit=${page}&offset=${offset}`
+    const url = `https://www.pokemonpricetracker.com/api/v2/cards?language=japanese&setName=${encodeURIComponent(SET_ALIAS[code] ?? code)}&limit=${page}&offset=${offset}`
     // 429는 "잠깐 쉬라"는 뜻이다. 분당 한도(60요청)는 1분이면 풀리므로 몇 번 더 기다려
     // 본다. 예전엔 한 번만 재시도해서, 검증 작업으로 분당 한도를 쓴 직후에 돌리면
     // 세트 일곱 개가 통째로 빈손으로 끝났다.
@@ -84,8 +92,14 @@ for (const { code, count } of sets) {
     for (const c of rows) {
       // setName은 "SV4K: Ancient Roar" 꼴. setName=SV6으로 물으면 SV6a 같은 다른 세트도
       // 섞여 오므로(그대로 쓰면 번호가 통째로 어긋난다) 코드가 정확히 맞는 것만 받는다.
-      const code2 = String(c.setName ?? '').split(':')[0].trim()
-      if (code2 && code2 !== code) continue
+      // 세트 코드는 대소문자가 섞여 온다(우리 M1L ↔ PPT m1L). 별칭으로 부른 세트는
+      // 코드가 아예 없으므로 이름 전체로 견준다.
+      const want = SET_ALIAS[code] ?? code
+      const full = String(c.setName ?? '')
+      const same = SET_ALIAS[code]
+        ? full.toLowerCase().startsWith(want.toLowerCase())
+        : full.split(':')[0].trim().toLowerCase() === want.toLowerCase()
+      if (full && !same) continue
       // cardNumber는 "063/066" 꼴. 우리 세트 JSON의 n은 "063"이라 앞쪽만 쓴다.
       const no = String(c.cardNumber ?? '').split('/')[0]
       const name = cleanName(c.name)
