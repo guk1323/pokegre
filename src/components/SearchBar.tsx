@@ -5,12 +5,14 @@ export function SearchBar({
   onChange,
   onFocus,
   onBlur,
+  onSubmit,
   children,
 }: {
   value: string;
   onChange: (v: string) => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  onSubmit?: () => void;
   children?: ReactNode;
 }) {
   return (
@@ -31,6 +33,14 @@ export function SearchBar({
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
+        // 엔터(폰 키보드의 "검색")를 누르면 자동완성을 닫고 키보드를 내린다. 예전에는
+        // 검색창 밖을 따로 눌러야 닫혀서, 결과가 나와도 자동완성이 그 위를 덮고 있었다.
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter') return;
+          e.currentTarget.blur();
+          onSubmit?.();
+        }}
+        enterKeyHint="search"
         placeholder="카드명 또는 팩 이름 검색"
         className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-10 pr-10 text-sm text-black placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black"
       />

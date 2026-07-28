@@ -36,10 +36,15 @@ export function CardTile({
         <img src={card.imageUrl} alt={card.title} className="h-full w-full object-contain" loading="lazy" />
         {onToggleFavorite && <FavoriteButton active={!!isFavorite} onToggle={() => onToggleFavorite(card)} />}
       </div>
-      <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.title}</p>
+      {/* 카드 이름은 "이름 [세트 번호](팩 이름)" 한 덩어리로 온다. 그대로 두 줄로 자르면
+          팩 이름이 "(하…"에서 끊겨 어느 팩인지 알 수 없었다. 이름과 팩을 나눠 놓는다. */}
+      <p className="font-semibold text-sm text-black line-clamp-2">{cardTitleMain(card.title)}</p>
+      {cardTitlePack(card.title) && (
+        <p className="mb-1 line-clamp-1 text-[11px] text-neutral-400">{cardTitlePack(card.title)}</p>
+      )}
       {/* 찜 수는 검색 결과에만 있다. 저장해둔 카드를 ID로 복원한 경우엔 값이 없어서
           "매물 N개"만 보여준다. */}
-      <p className="text-xs text-neutral-400 mb-1">
+      <p className="mt-0.5 text-xs text-neutral-400 mb-1">
         매물 {card.stock.toLocaleString()}개
         {card.favoriteCount !== undefined && ` · 찜 ${card.favoriteCount.toLocaleString()}`}
       </p>
@@ -79,4 +84,15 @@ export function CardTile({
       )}
     </button>
   );
+}
+
+// "메가리자몽 X ex MA [M2a 223/193](확장팩「메가진화」)" 를 둘로 나눈다.
+// 앞: 카드 이름과 세트·번호  /  뒤: 팩 이름(괄호 안)
+function cardTitleMain(title: string): string {
+  return title.replace(/\s*\([^()]*\)\s*$/, '').trim();
+}
+
+function cardTitlePack(title: string): string {
+  const m = title.match(/\(([^()]*)\)\s*$/);
+  return m ? m[1].trim() : '';
 }

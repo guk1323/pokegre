@@ -948,7 +948,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => navigate({ view: 'cards' })}
-                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
                     view === 'cards' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -960,7 +960,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setOpenMenu(openMenu === 'more' ? null : 'more')}
-                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
                       view === 'artists' || view === 'sets' || view === 'centering' || view === 'packsim'
                         ? 'bg-black text-white'
                         : 'text-neutral-600 hover:bg-neutral-100'
@@ -997,7 +997,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => navigate({ view: 'community' })}
-                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
                     view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -1010,7 +1010,7 @@ function App() {
                     <button
                       type="button"
                       onClick={() => setOpenMenu(openMenu === 'admin' ? null : 'admin')}
-                      className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                      className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
                         view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea'
                           ? 'bg-black text-white'
                           : 'text-neutral-600 hover:bg-neutral-100'
@@ -1049,7 +1049,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => navigate({ view: 'mypage' })}
-                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
                     view === 'mypage' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -1136,6 +1136,7 @@ function App() {
                       }}
                       onFocus={() => setSuggestionsOpen(true)}
                       onBlur={() => setSuggestionsOpen(false)}
+                      onSubmit={() => setSuggestionsOpen(false)}
                     >
                       {suggestionsOpen && <SearchSuggestions items={suggestions} onSelect={handleSelectSuggestion} />}
                     </SearchBar>
@@ -1182,7 +1183,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => switchSource('snkrdunk')}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                       source === 'snkrdunk' ? 'bg-black text-white' : 'text-neutral-600'
                     }`}
                   >
@@ -1191,7 +1192,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => switchSource('ebay')}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                       source === 'ebay' ? 'bg-black text-white' : 'text-neutral-600'
                     }`}
                   >
@@ -1200,7 +1201,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => switchSource('tcgplayer')}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                       source === 'tcgplayer' ? 'bg-black text-white' : 'text-neutral-600'
                     }`}
                   >
@@ -1216,7 +1217,7 @@ function App() {
                     <button
                       type="button"
                       onClick={() => setEdition('japanese')}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                         edition === 'japanese' ? 'bg-black text-white' : 'text-neutral-600'
                       }`}
                     >
@@ -1225,7 +1226,7 @@ function App() {
                     <button
                       type="button"
                       onClick={() => setEdition('english')}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                         edition === 'english' ? 'bg-black text-white' : 'text-neutral-600'
                       }`}
                     >
@@ -1236,7 +1237,7 @@ function App() {
                       <button
                         type="button"
                         onClick={() => setEdition('korean')}
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                           edition === 'korean' ? 'bg-black text-white' : 'text-neutral-600'
                         }`}
                       >
