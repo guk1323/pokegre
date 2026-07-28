@@ -206,7 +206,9 @@ export async function backupDataFiles(): Promise<void> {
   const target = path.join(dir, today)
   try {
     await mkdir(target, { recursive: true })
-    const names = (await readdir(DATA_DIR)).filter((n) => n.endsWith('.json'))
+    // card-names.json은 공유 링크 제목에 쓰는 캐시라 잃어도 다시 모이면 그만이다.
+    // 백업은 잃으면 되돌릴 수 없는 것(회원·글·앨범)만 담는다.
+    const names = (await readdir(DATA_DIR)).filter((n) => n.endsWith('.json') && n !== 'card-names.json')
     for (const name of names) {
       const body = await readFile(path.join(DATA_DIR, name), 'utf-8').catch(() => null)
       if (body == null) continue
