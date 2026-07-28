@@ -68,6 +68,91 @@ const STRUCTURAL_EN_TO_KO: [string, string][] = [
   ['Alolan ', '알로라 '],
   ['Hisuian ', '히스이 '],
   ['Paldean ', '팔데아 '],
+  // ── 2026-07-28: 사용자 검수(공식 한글명 기준) ──────────────────────────
+  // 앞뒤 공백이 낱말 경계다. 'Dark '는 "Darkrai"를 건드리지 않는다.
+  // 이름 전체가 맞는 카드는 위 exact 사전이 먼저 잡으므로 여기까지 오지 않는다.
+  ['Team Aqua’s ', '아쿠아단의 '],
+  ['Team Magma’s ', '마그마단의 '],
+  ['Lt. Surge’s ', '마티스의 '],
+  ['Erika’s ', '민화의 '],
+  ['Brock’s ', '웅의 '],
+  ['Sabrina’s ', '초련의 '],
+  ['Blaine’s ', '강연의 '],
+  ['Koga’s ', '독수의 '],
+  ['Giovanni’s ', '비주기의 '],
+  ['Ash’s ', '지우의 '],
+  ['Holon’s ', '홀론의 '],
+  ['Lance’s ', '목호의 '],
+  ['Imakuni?’s ', '이마쿠니?의 '],
+  // 'Team Rocket’s '가 배열 앞에 있어 이미 바뀐 뒤라, 남은 것만 잡는다.
+  ['Rocket’s ', '로켓단의 '],
+  // 버드렉스는 접두어에 말 이름이 들어간다(백마/흑마).
+  ['Ice Rider ', '백마 '],
+  ['Shadow Rider ', '흑마 '],
+  ['Rapid Strike ', '연격 '],
+  ['Single Strike ', '일격 '],
+  ['Origin Forme ', '오리진폼 '],
+  ['Special Delivery ', '스페셜 배달 '],
+  ['Armor Fossil ', '방패의화석 '],
+  ['Claw Fossil ', '발톱화석 '],
+  ['Dome Fossil ', '껍질화석 '],
+  ['Helix Fossil ', '조개화석 '],
+  ['Root Fossil ', '뿌리화석 '],
+  ['Old Amber ', '비밀의아엠버 '],
+  ['Detective ', '명탐정 '],
+  ['Shining ', '빛나는 '],
+  ['Armored ', '아머드 '],
+  ['Primal ', '원시 '],
+  ['Flying ', '공중날기 '],
+  ['Surfing ', '파도타기 '],
+  ['Ancient ', '고대 '],
+  ['Frost ', '프로스트 '],
+  ['Drone ', '드론 '],
+  ['Dark ', '다크 '],
+  ['Light ', '라이트 '],
+  ['White ', '화이트 '],
+  ['Black ', '블랙 '],
+  ['Ultra ', '울트라 '],
+  ['Cool ', '쿨 '],
+  // 뒤에 붙는 말. 앞의 공백이 낱말 경계다.
+  [' Spirit Link', ' 소울링크'],
+  [' Plant Cloak', ' 초목부목'],
+  [' Sandy Cloak', ' 모래땅부목'],
+  [' Trash Cloak', ' 슈레기부목'],
+  [' East Sea', ' 동쪽바다'],
+  [' West Sea', ' 서쪽바다'],
+  [' Attack Forme', ' 어택폼'],
+  [' Defense Forme', ' 디펜스폼'],
+  [' Normal Forme', ' 노말폼'],
+  [' Speed Forme', ' 스피드폼'],
+  [' Rain Form', ' 빗방울의 모습'],
+  [' Rainy Form', ' 빗방울의 모습'],
+  [' Snow-cloud Form', ' 설운의 모습'],
+  [' Snowy Form', ' 설운의 모습'],
+  [' Sunny Form', ' 태양의 모습'],
+  [' Chestplate', ' 체스트플레이트'],
+  [' Cerulean City Gym', ' 블루시티 체육관'],
+  [' Water Command', ' 수룡 조종'],
+  [' Full Force', ' 진심'],
+  [' Evil Deeds', ' 악행'],
+  [' Determination', ' 결의'],
+  [' Hypnotizer', ' 최면기'],
+  [' Handiwork', ' 공작'],
+  [' Guidance', ' 인도'],
+  [' Trickery', ' 속임수'],
+  [' Feelings', ' 의지'],
+  [' Vitality', ' 활력'],
+  [' Friends', ' 친구들'],
+  [' Resolve', ' 각오'],
+  [' Advice', ' 조언'],
+  [' Pride', ' 프라이드'],
+  [' Favor', ' 부탁'],
+  [' Tears', ' 눈물'],
+  [' Wrath', ' 분노'],
+  [' Duel', ' 결투'],
+  [' Wish', ' 소원'],
+  [' Plan', ' 플랜'],
+  [' Bag', ' 가방'],
 ];
 
 // 트레이너·인물 서포트 카드 이름(영어 → 한글). 포켓몬이 아니라 pokemonNames 사전에 없어
@@ -296,21 +381,21 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Choice Belt': '구애머리띠', // Choice Band와 같은 이름으로 발매됐다(사용자 확인)
   Charity: '자선',
   'Energy Restore': '에너지 재활용',
-  Fisher: '낚시꾼', // Fisherman의 옛 이름, 같은 카드(사용자 확인)
+  Fisher: '낚시꾼 (Fisher)', // Fisherman이 정발명이라 옛 이름 쪽에 구분을 붙인다(2026-07-28)
   'Focus Band': '기합의 머리띠',
   'Focus Sash': '기합의 띠',
   'Muscle Band': '힘의 머리띠',
   'Expert Belt': '달인의 띠',
   'Impact Energy': '임팩트 에너지',
   'Single Strike Energy': '일격 에너지',
-  Peonia: '피오니', // 피오니의 딸이지만 한글판은 둘 다 "피오니"로 나왔다(사용자 확인)
-  Peony: '피오니', // Peonia와 같은 이름(사용자 확인)
+  Peonia: '피오니아', // 아버지 Peony=피오니와 다른 인물(2026-07-28 정정)
+  Peony: '피오니',
   'Acro Bike': '더트자전거',
   Bicycle: '자전거',
   Hiker: '등산가',
   'Poké Maniac': '애호가',
-  'Roller Skater': '롤러스케이트',
-  'Roller Skates': '롤러스케이트', // 트레이너 Roller Skater와 같은 이름(사용자 확인)
+  'Roller Skater': '롤러스케이터', // 사람(서포트)과 도구를 가른다(2026-07-28)
+  'Roller Skates': '롤러스케이트',
   'Ultra Forest Kartenvoy': '울트라조무래기',
   'Ultra Recon Squad': '울트라조사대',
   'Cara Liss': '복원 연구원',
@@ -322,7 +407,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Superior Energy Retrieval': '슈퍼 에너지 회수',
   'Super Energy Retrieval': '하이퍼 에너지 회수',
   'Dowsing Machine': '다우징머신',
-  'Item Finder': '다우징머신', // Dowsing Machine의 옛 이름(사용자 확인)
+  'Item Finder': '아이템 탐지기', // Dowsing Machine(다우징머신)과 원문 뜻이 다르다(2026-07-28)
   'Moomoo Milk': '튼튼밀크',
   'Moo-Moo Milk': '튼튼밀크', // Moomoo Milk의 옛 표기(사용자 확인)
   Picnicker: '피크닉걸',
@@ -877,7 +962,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Ancient Technical Machine (Ice)': '고대 기술머신 (얼음)',
   'Ancient Technical Machine (Rock)': '고대 기술머신 (바위)',
   'Ancient Technical Machine (Steel)': '고대 기술머신 (강철)',
-  'Armor Fossil': '발톱카세키',
+  'Armor Fossil': '방패의화석', // 발톱(Claw)이 아니라 방패다. 카세키=化石의 음역이었다.
   'Balloon Berry': '풍선 열매',
   'Battle Frontier': '배틀프런티어',
   'Battle Tower': '배틀타워',
@@ -897,7 +982,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Dawn Stadium': '여명의 스타디움',
   'Desert Ruins': '사막의 유적',
   Digger: '구멍파기',
-  'Dome Fossil': '껍질카세키',
+  'Dome Fossil': '껍질화석',
   'Dual Ball': '듀얼볼',
   'Energy Amplifier': '에너지 증폭기',
   'Energy Charge': '에너지 차치',
@@ -910,7 +995,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Good Rod': '좋은 낚싯대',
   'Heal Energy': '치료 에너지',
   'Heal Powder': '치료 가루',
-  'Helix Fossil': '조개카세키',
+  'Helix Fossil': '조개화석',
   'Holon Energy FF': '홀론 에너지 FF',
   'Holon Energy GL': '홀론 에너지 GL',
   'Holon Energy WP': '홀론 에너지 WP',
@@ -1305,6 +1390,45 @@ const UNVERIFIED_EN_TO_KO: Record<string, string> = {
 //   제트        일본판 Zett          / 북미판 Jett
 //   구멍파는삽  일본판 Digging Shovel / 북미판 Hole-Digging Shovel
 const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
+  // 캐스퐁은 세트마다 앞뒤가 뒤집혀 온다("Castform Rain Form" / "Rain Castform").
+  // 뒤집힌 쪽은 조각 치환으로 안 되므로 통째로 적는다.
+  'Rain Castform': '빗방울 캐스퐁',
+  'Snow-cloud Castform': '설운 캐스퐁',
+  'Sunny Castform': '태양 캐스퐁',
+  'Clefairy Doll': '삐삐인형',
+  'Rotom Bike': '로토무 자전거',
+  'Rotom Phone': '로토무 스마트폰',
+  // ── 2026-07-28: 통째로 바꿔야 하는 것들 ────────────────────────────────
+  // 말 순서가 뒤집히거나(네크로즈마 새벽의 날개) 붙여 써야 해서(메가터보),
+  // 조각 치환으로는 안 되는 이름들이다.
+  'Dawn Wings Necrozma': '네크로즈마 새벽의 날개',
+  'Dawn Wings Necrozma GX': '네크로즈마 새벽의 날개 GX',
+  'Dusk Mane Necrozma': '네크로즈마 황혼의 갈기',
+  'Dusk Mane Necrozma GX': '네크로즈마 황혼의 갈기 GX',
+  'Ash Greninja EX': '지우개굴닌자 EX',
+  'Pikachu Libre': '옷차림 피카츄',
+  'Pichu Bros.': '피츄 형제',
+  'Pikachu with Grey Felt Hat': '회색 페레모를 쓴 피카츄',
+  'Rotom Dex': '로토무 도감',
+  'Rotom Dex—Poké Finder Mode': '로토무 도감 포켓파인더 모드',
+  "Lillie's Poké Doll": '릴리에의 삐삐인형',
+  'Level Max': '레벨 MAX',
+  'Mega Turbo': '메가터보',
+  'Mega Catcher': '메가캐처',
+  // 괄호 안 인물 이름. 카드마다 다른 박사가 들어간다.
+  "Boss's Orders (Lysandre)": '보스의 지령 (플라드리)',
+  "Boss's Orders (Giovanni)": '보스의 지령 (비주기)',
+  "Professor's Research (Professor Oak)": '박사의 연구 (오박사)',
+  "Professor's Research (Professor Magnolia)": '박사의 연구 (매놀리아박사)',
+  "Professor's Research (Professor Juniper)": '박사의 연구 (주박사)',
+  // B: 피오니(아버지)와 피오니아(딸)는 다른 인물이라 이름이 겹치면 안 된다.
+  'Power Charge': '파워 차지',
+  // C: 같은 한글명으로 겹치던 것들. 겹치는 쪽에 구분을 붙인다.
+  'EXP. ALL': '학습장치 (EXP. ALL)',
+  'EXP.ALL': '학습장치 (EXP. ALL)',
+  'Fisherman': '낚시꾼',
+  'Traveling Merchant': '행상인 (Merchant)',
+  'Traveling Salesman': '행상인',
   // 이 카드는 괄호까지가 원본 이름이다(neo4 096).
   "Thought Wave Machine (Rocket's Secret Machine)": "사고파 머신 (로켓단의 비밀메카)",
 
@@ -1329,7 +1453,6 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Counterattack Claws": "반격의 손톱",
   "Crystal Energy": "크리스탈 에너지",
   "Darkness Cube 01": "다크니스 큐브 01",
-  "EXP.ALL": "학습장치",
   "Ecogym": "에코 체육관",
   "Energy Ark": "에너지 방주",
   "Energy Flow": "에너지의 흐름",
@@ -1398,7 +1521,6 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Time Shard": "시간의 조각",
   "Transparent Walls": "투명한 벽",
   "Trash Exchange": "쓰레기 교환",
-  "Traveling Salesman": "행상인",
   "Underground Lake": "지하 호수",
   "Undersea Ruins": "해저 유적",
   "Vermilion City Gym": "갈색시티 체육관",
@@ -1408,7 +1530,6 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
 
   // 일본 원판 'がくしゅうそうち' 하나를 북미판이 시대에 따라 다르게 불렀다.
   // 한국 이름은 둘 다 '학습장치'라 화면에는 같이 나오고, 검색은 먼저 있던 Exp. Share 를 쓴다.
-  "EXP. ALL": "학습장치",
 
   // 옛 북미판 카드 4차 49종 — 2026-07-28 사용자 확인.
   // 'Prof. Oak's Research'는 'Professor Oak's Research'와 같은 카드의 다른 표기다.
@@ -1537,7 +1658,6 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Galactic HQ": "갤럭시단 아지트",
   "Ho Oh": "칠색조",
   "Indigo Plateau": "석영고원",
-  "Level Max": "레벨 MAX",
   "Lost Remover": "로스트 리무버",
   "Lost World": "로스트 월드",
   "Lucian's Assignment": "오엽의 지시",
@@ -1680,7 +1800,6 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Thick Scale": "두꺼운비늘",
   "Training Area": "트레이닝 에리어",
   "Transformation Tome": "변신의 서",
-  "Traveling Merchant": "행상인",
   "Tremendous Bomb": "폭발적인 폭탄",
   "Voltaic Lightning Energy": "볼텍스 번개 에너지",
   "Waitress": "웨이트리스",
@@ -1693,7 +1812,7 @@ const KO_KEEPS_OLD = new Set([
   '구멍파는삽',
   '학습장치',
   '오박사의 연구',
-  '행상인', // Traveling Merchant / Traveling Salesman
+  '행상인', // Traveling Salesman(구분자 붙인 Merchant 쪽은 이제 안 겹친다)
   '가짜 오박사', // Impostor / Imposter (철자만 다르다)
 ]);
 
