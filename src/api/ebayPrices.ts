@@ -1,5 +1,4 @@
-import { translateSearchQueryToEnglish } from '../lib/translateQueryToEnglish';
-import { koreanizeEnglishCardName, koreanizeEnglishSetName } from '../lib/koreanizeEnglishTitle';
+import { loadNameDict } from '../lib/nameDict';
 
 export interface EbayGradePoint {
   date: string;
@@ -92,7 +91,8 @@ export async function searchEbayCards(
 
   // PokemonPriceTracker의 search는 일본판 DB도 영문 카드명으로 색인돼 있어서,
   // 두 발매판 모두 한글→영문 번역을 태워 보낸다.
-  const translated = translateSearchQueryToEnglish(trimmed, edition);
+  const dict = await loadNameDict();
+  const translated = dict.translateSearchQueryToEnglish(trimmed, edition);
   const params = new URLSearchParams({
     language: edition,
     search: translated,
@@ -118,8 +118,8 @@ export async function searchEbayCards(
     ...card,
     // 원본 영문 이름은 이베이 검색 링크용으로 남겨두고, 표시용 이름만 한글로 바꾼다.
     nameEn: card.name,
-    name: koreanizeEnglishCardName(card.name),
-    setName: koreanizeEnglishSetName(card.setName),
+    name: dict.koreanizeEnglishCardName(card.name),
+    setName: dict.koreanizeEnglishSetName(card.setName),
   }));
   return { cards, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE };
 }

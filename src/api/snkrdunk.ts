@@ -1,5 +1,4 @@
-import { translateSearchQuery } from '../lib/translateQuery';
-import { koreanizeTitle } from '../lib/koreanizeTitle';
+import { loadNameDict } from '../lib/nameDict';
 
 export type ProductCategory = 'box' | 'card' | 'other';
 
@@ -97,7 +96,7 @@ export async function searchPokemonCards(
   const params = new URLSearchParams({
     func: 'all',
     refId: 'search',
-    keyword: translateSearchQuery(keyword),
+    keyword: (await loadNameDict()).translateSearchQuery(keyword),
     sortKey: 'default',
     cardVersion: '2',
     brandIds: 'pokemon',
@@ -147,6 +146,7 @@ export async function fetchApparelDetail(apparelId: number): Promise<{ title: st
 // 빼는데, 판매 종료 등으로 사라진 상품을 목록에서 계속 붙들고 있을 이유가 없다.
 export async function resolveStoredCards(refs: StoredCardRef[]): Promise<SnkrdunkCard[]> {
   const details = await Promise.all(refs.map((ref) => fetchApparelDetail(ref.apparelId).catch(() => null)));
+  const dict = await loadNameDict();
 
   return refs
     .map((ref, i): SnkrdunkCard | null => {
@@ -154,7 +154,7 @@ export async function resolveStoredCards(refs: StoredCardRef[]): Promise<Snkrdun
       if (!detail) return null;
       return {
         apparelId: ref.apparelId,
-        title: koreanizeTitle(detail.title),
+        title: dict.koreanizeTitle(detail.title),
         rawTitle: detail.title,
         imageUrl: detail.imageUrl,
         price: detail.price,
@@ -168,12 +168,13 @@ export async function resolveStoredCards(refs: StoredCardRef[]): Promise<Snkrdun
 
 async function enrichWithCleanImages(cards: SnkrdunkCard[]): Promise<SnkrdunkCard[]> {
   const details = await Promise.all(cards.map((card) => fetchApparelDetail(card.apparelId).catch(() => null)));
+  const dict = await loadNameDict();
   return cards.map((card, i) => {
     const detail = details[i];
-    if (!detail) return { ...card, title: koreanizeTitle(card.title), rawTitle: card.title };
+    if (!detail) return { ...card, title: dict.koreanizeTitle(card.title), rawTitle: card.title };
     return {
       ...card,
-      title: koreanizeTitle(detail.title || card.title),
+      title: dict.koreanizeTitle(detail.title || card.title),
       rawTitle: detail.title || card.title,
       imageUrl: detail.imageUrl || card.imageUrl,
       price: detail.price || card.price,

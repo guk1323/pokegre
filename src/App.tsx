@@ -5,8 +5,8 @@ import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type Popular
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_DAILY_LIMIT, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
-import { translateSearchQuery, canonicalizeSearchTerm } from './lib/translateQuery';
-import { getLocalSuggestions } from './lib/localSuggestions';
+import { loadNameDict, warmNameDict } from './lib/nameDict';
+
 import {
   addRecentlyViewed,
   getFavoriteRefs,
@@ -22,7 +22,7 @@ import { SearchSuggestions } from './components/SearchSuggestions';
 import { CardTile } from './components/CardTile';
 import { CompareView } from './components/CompareView';
 import { EbayCompareView } from './components/EbayCompareView';
-import { KoreanEbayView } from './components/KoreanEbayView';
+
 import { CardDetail } from './components/CardDetail';
 import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
@@ -34,6 +34,8 @@ import { EbayCardDetail } from './components/EbayCardDetail';
 import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
 import { CardScanButton } from './components/CardScanButton';
 import { reportScanMiss, scanCard, type CardScanResult } from './api/cardScan';
+// 한글판 화면은 카드 이름 사전을 쓴다. 첫 화면에는 안 나오므로 나중에 불러온다.
+const KoreanEbayView = lazy(() => import('./components/KoreanEbayView').then((m) => ({ default: m.KoreanEbayView })));
 const Community = lazy(() => import('./Community').then((m) => ({ default: m.Community })));
 import { Footer } from './components/legal/Footer';
 import { NicknameSetup } from './components/NicknameSetup';
@@ -483,10 +485,14 @@ function App() {
       return;
     }
 
-    setSuggestions(getLocalSuggestions(trimmed));
     setSuggestActive(-1);
 
     let cancelled = false;
+    // 이름 목록(포켓몬·팩)도 사전만큼 커서 같이 나중에 받는다. 검색창을 누르는
+    // 순간 미리 받아 두므로 글자를 칠 때쯤이면 이미 와 있다.
+    void import('./lib/localSuggestions').then((m) => {
+      if (!cancelled) setSuggestions(m.getLocalSuggestions(trimmed));
+    });
     fetchRemoteSuggestions(trimmed).then((remote) => {
       if (cancelled || remote.length === 0) return;
       setSuggestions((prev) => [...new Set([...prev, ...remote])].slice(0, 10));
@@ -610,7 +616,7 @@ function App() {
       // 끝나므로 이 시점의 ref는 지금 검색어의 결과를 담고 있다.
       const r = searchResultRef.current;
       if (r.query !== trimmed || r.count === 0) return;
-      trackSearch(canonicalizeSearchTerm(trimmed));
+      void loadNameDict().then((d) => trackSearch(d.canonicalizeSearchTerm(trimmed)));
       // 어느 소스로 실제 검색이 이뤄졌는지만 센다(개인정보 없음).
       trackEvent(r.source === 'ebay' ? 'ebay_search' : r.source === 'tcgplayer' ? 'tcgplayer' : 'snkrdunk_search');
       loadPopularSearches();
@@ -781,7 +787,17 @@ function App() {
     }
   }, [selectedCard, ebaySelectedCard, view, source, restoringShare]);
 
-  const translatedQuery = useMemo(() => translateSearchQuery(query), [query]);
+  // 사전이 온 뒤에 채운다. 안내문 한 줄이라 조금 늦게 떠도 티가 안 난다.
+  const [translatedQuery, setTranslatedQuery] = useState('');
+  useEffect(() => {
+    let alive = true;
+    void loadNameDict().then((d) => {
+      if (alive) setTranslatedQuery(d.translateSearchQuery(query));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [query]);
   const showTranslationHint = source === 'snkrdunk' && translatedQuery && translatedQuery !== query.trim();
   const hasMore = !exhausted;
   const isHome = query.trim().length === 0;
@@ -1157,7 +1173,12 @@ function App() {
                         scanFallbackRef.current = null;
                         setScanFellBack(false);
                       }}
-                      onFocus={() => setSuggestionsOpen(true)}
+                      onFocus={() => {
+                        setSuggestionsOpen(true);
+                        // 검색창을 누르는 순간 이름 사전을 미리 받아 둔다. 실제로
+                        // 검색을 누를 때쯤이면 이미 와 있어서 기다림이 없다.
+                        warmNameDict();
+                      }}
                       onBlur={() => setSuggestionsOpen(false)}
                       onSubmit={() => setSuggestionsOpen(false)}
                       onKeyNav={handleSuggestKey}

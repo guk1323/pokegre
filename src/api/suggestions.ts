@@ -1,5 +1,4 @@
-import { translateSearchQuery } from '../lib/translateQuery';
-import { koreanizeTitle } from '../lib/koreanizeTitle';
+import { loadNameDict } from '../lib/nameDict';
 
 interface SuggestResponse {
   suggestions?: { keyword: string }[];
@@ -12,7 +11,8 @@ export async function fetchRemoteSuggestions(query: string): Promise<string[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const translated = translateSearchQuery(trimmed);
+  const dict = await loadNameDict();
+  const translated = dict.translateSearchQuery(trimmed);
   if (translated === trimmed || /[가-힣]/.test(translated)) return [];
 
   const params = new URLSearchParams({ keyword: translated, limit: '10' });
@@ -20,7 +20,7 @@ export async function fetchRemoteSuggestions(query: string): Promise<string[]> {
   if (!res.ok) return [];
 
   const data: SuggestResponse = await res.json();
-  return (data.suggestions ?? []).map((s) => tidyRarity(koreanizeTitle(s.keyword)));
+  return (data.suggestions ?? []).map((s) => tidyRarity(dict.koreanizeTitle(s.keyword)));
 }
 
 // 자동완성 키워드는 사람들이 실제로 친 검색어라 레어도가 소문자로 붙어 온다
