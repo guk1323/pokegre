@@ -1,5 +1,24 @@
 import pokemonNames from '../data/pokemonNames.json';
 import packNames from '../data/packNames.json';
+import cardNameKoEn from '../data/cardNameKoEn.json';
+
+// 영문 카드명 → 한글. scripts/gen-ko-en-cards.mts가 만든 "한글 → 영문"을 뒤집은 것이다.
+// 왜 뒤집어 쓰는가: 같은 카드가 탭마다 다른 이름으로 보였다("올림박사의 기백"(스니커덩크)
+// vs "올림박사의 기력"(이베이)). 공식 카드명을 확인해 보면 일본어 경로 쪽이 맞다 —
+// 그쪽은 포켓몬코리아 공식명과 계속 대조해 왔고, 이 영문 표는 그런 검증이 없었다.
+// 그래서 아래 손 사전보다 이걸 먼저 본다.
+// 같은 영문에 한글이 둘 이상 붙은 것은 어느 쪽인지 알 수 없으므로 뺀다.
+const AUTO_EN_TO_KO: Map<string, string> = (() => {
+  const count = new Map<string, number>();
+  for (const en of Object.values(cardNameKoEn as Record<string, string>)) {
+    count.set(en, (count.get(en) ?? 0) + 1);
+  }
+  const map = new Map<string, string>();
+  for (const [ko, en] of Object.entries(cardNameKoEn as Record<string, string>)) {
+    if (count.get(en) === 1) map.set(en, ko);
+  }
+  return map;
+})();
 
 interface PokemonName {
   id: number;
@@ -1243,14 +1262,14 @@ export function koreanizeEnglishCardName(name: string): string {
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
   // 굽은 것을 곧은 것으로 바꿔 조회한다.
   const exactKey = name.trim().replace(/[’]/g, "'");
-  const exact = TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey];
+  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey];
   if (exact) return exact;
 
   // PokemonPriceTracker는 "Levincia - 092/063"처럼 이름 뒤에 카드 번호를 붙여 준다.
   // 번호를 뗀 뒤 찾고, 번호는 그대로 뒤에 다시 붙인다(안 그러면 영문 그대로 남는다).
   const numbered = exactKey.match(/^(.+?)\s+-\s+([A-Za-z0-9/-]+)$/);
   if (numbered) {
-    const found = TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]];
+    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]];
     if (found) return `${found} - ${numbered[2]}`;
   }
   // "Judge (Mirror Holo)"처럼 괄호로 인쇄 방식이 붙는 것도 같은 방식으로 처리한다.
