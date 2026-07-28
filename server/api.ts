@@ -200,6 +200,13 @@ async function rescueCorrupt(file: string): Promise<void> {
 // 것까지는 못 막는다. 이 사이트의 데이터는 다 합쳐 몇백 KB이고 볼륨은 900MB가 남아
 // 있으므로, 며칠치를 통째로 들고 있는 게 가장 싸고 확실한 보험이다.
 const BACKUP_KEEP_DAYS = 7
+
+// 바깥 서비스가 응답을 안 주고 매달릴 때를 대비한 제한 시간. 걸어두지 않으면 Node 기본이
+// 5분이라, 그동안 방문자는 로딩 화면만 보고 우리 서버는 연결을 붙잡고 있는다.
+// 기계가 512MB짜리 한 대뿐이라 이런 요청이 쌓이면 사이트 전체가 느려진다.
+const UPSTREAM_TIMEOUT_MS = 8000 // 시세·목록처럼 보통 1초 안에 오는 것
+const UPSTREAM_SLOW_MS = 15000 // 이미지·이베이 검색처럼 더 걸릴 수 있는 것
+const SCAN_TIMEOUT_MS = 45000 // 사진 인식(Claude)은 원래 오래 걸린다
 export async function backupDataFiles(): Promise<void> {
   const dir = path.join(DATA_DIR, 'backups')
   const today = kstDayKey(Date.now())
@@ -297,6 +304,7 @@ function mountSnkrdunkProxy(app: Mountable) {
 
     try {
       const upstream = await fetch(`${SNKRDUNK_ORIGIN}${path}`, {
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         headers: {
           accept: 'application/json',
           'user-agent': 'Mozilla/5.0 (compatible; pokemon-card-price-tracker/0.1; personal use)',
@@ -354,7 +362,10 @@ function mountImageProxy(app: Mountable) {
     const bare = url.replace(/^https?:\/\//, '')
     const wsrv = `https://images.weserv.nl/?url=${encodeURIComponent(bare)}&w=${w}&output=webp&q=72`
     try {
-      const r = await fetch(wsrv, { headers: { 'user-agent': 'pokegre-img/0.1' } })
+      const r = await fetch(wsrv, {
+        signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
+        headers: { 'user-agent': 'pokegre-img/0.1' },
+      })
       if (!r.ok) return null
       const buf = Buffer.from(await r.arrayBuffer())
       return { body: buf, contentType: r.headers.get('content-type') ?? 'image/webp' }
@@ -451,7 +462,9 @@ function mountExchangeRate(app: Mountable) {
     try {
       // 달러 기준으로 한 번만 부르고 엔→원은 나눠서 구한다. 따로 부른 값과 소수점
       // 넷째 자리까지 같은 걸 확인했다.
-      const upstream = await fetch(`${EXCHANGE_ORIGIN}/latest?base=USD&symbols=KRW,JPY`)
+      const upstream = await fetch(`${EXCHANGE_ORIGIN}/latest?base=USD&symbols=KRW,JPY`, {
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      })
       if (!upstream.ok) {
         sendJson(res, 502, { error: 'upstream_error' })
         return
@@ -535,6 +548,7 @@ function mountKoreanNews(app: Mountable) {
       const form = new URLSearchParams({ pn: String(page), cate: '2', sword: '', rcode: 'menu_news' })
       const upstream = await fetch(`${KOREAN_NEWS_ORIGIN}/v3/news_ajax`, {
         method: 'POST',
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         headers: {
           'content-type': 'application/x-www-form-urlencoded',
           'user-agent': 'Mozilla/5.0 (compatible; pokemon-card-price-tracker/0.1; personal use)',
@@ -3090,6 +3104,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       // 히스토리 점 수 상한 — 응답 크기와 그래프 해상도의 균형(180일에 60점 = 3일 간격).
       upstreamParams.set('maxDataPoints', '60')
       const upstream = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${upstreamParams.toString()}`, {
+        signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
         headers: {
           accept: 'application/json',
           authorization: `Bearer ${apiKey}`,
@@ -3165,6 +3180,7 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
     const basic = Buffer.from(`${appId}:${certId}`).toString('base64')
     const r = await fetch(EBAY_OAUTH_URL, {
       method: 'POST',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       headers: { authorization: `Basic ${basic}`, 'content-type': 'application/x-www-form-urlencoded' },
       body: 'grant_type=client_credentials&scope=' + encodeURIComponent('https://api.ebay.com/oauth/api_scope'),
     })
@@ -3209,6 +3225,7 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
         sort: 'price',
       })
       const r = await fetch(`${EBAY_BROWSE_URL}?${params.toString()}`, {
+        signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
         headers: { authorization: `Bearer ${tok}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
       })
       if (!r.ok) {
@@ -3374,6 +3391,7 @@ function mountCardScan(app: Mountable, apiKey: string) {
 
       const upstream = await fetch(ANTHROPIC_API_URL, {
         method: 'POST',
+        signal: AbortSignal.timeout(SCAN_TIMEOUT_MS),
         headers: {
           'content-type': 'application/json',
           'x-api-key': apiKey,
