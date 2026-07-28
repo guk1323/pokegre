@@ -1828,6 +1828,13 @@ const PRICE_TRACKER_ORIGIN = 'https://www.pokemonpricetracker.com/api/v2'
 // 앞당긴다.
 let pptBlockedUntil = 0
 let pptDailyOut = false
+// 오늘 남은 크레딧. 응답 헤더로만 알 수 있어서 부를 때마다 갱신한다.
+let pptDailyLeft = Number.POSITIVE_INFINITY
+// 방문자 몫으로 남겨 둘 크레딧. 뒤에서 도는 앨범 시세 채우기가 하루치를 다 쓰면
+// 그때부터 방문자의 eBay·TCGplayer 시세가 통째로 안 나온다. 실제로 그래 왔다 —
+// 2026-07-28에도 낮 한 시간 반 동안 22세트를 받아 하루치가 바닥났다.
+// 세트 하나가 200~600크레딧이라 채우기 한 바퀴에 1만 안팎이 든다.
+const PPT_KEEP_FOR_VISITORS = 8000
 
 // 하루치는 UTC 자정(한국시간 오전 9시)에 초기화된다.
 const nextUtcMidnight = (now = Date.now()) => {
@@ -1842,6 +1849,8 @@ const pptGate = (): { ok: boolean; daily: boolean } =>
 // 응답을 보고 언제까지 쉴지 정한다.
 // 5xx는 PPT 쪽 장애라 한도와 무관하므로 판단을 바꾸지 않는다.
 function notePpt(status: number, headers: Headers) {
+  const left = Number(headers.get('x-ratelimit-daily-remaining'))
+  if (Number.isFinite(left)) pptDailyLeft = left
   const after = Number(headers.get('retry-after'))
   const wait = Number.isFinite(after) && after > 0 ? after * 1000 : 0
 
@@ -1860,7 +1869,6 @@ function notePpt(status: number, headers: Headers) {
     }
     return
   }
-  const left = Number(headers.get('x-ratelimit-daily-remaining'))
   pptDailyOut = Number.isFinite(left) && left <= 0
   // 분당 한도면 PPT가 Retry-After로 알려준다. 없으면 1분 쉰다.
   pptBlockedUntil = pptDailyOut ? nextUtcMidnight() : Date.now() + (wait || 60_000)
@@ -3877,11 +3885,18 @@ let warming = false
 async function warmPackPrices(apiKey: string) {
   if (!apiKey || warming) return
   warming = true
+  let outOfBudget = false
   try {
     for (const slug of Object.keys(PPT_SET_NAMES)) {
       // 한도에 걸렸으면 이번 바퀴는 접는다. 22세트를 계속 도는 건 헛일이고,
       // 풀린 뒤에 다시 오면 못 받은 것부터 이어서 채운다.
       if (!pptGate().ok) break
+      // 방문자 몫까지 먹지는 않는다. 앨범 시세는 하루 이틀 묵어도 쓸 만하지만,
+      // 카드 시세가 안 나오는 건 바로 보인다.
+      if (pptDailyLeft < PPT_KEEP_FOR_VISITORS) {
+        outOfBudget = true
+        break
+      }
       const hit = packPriceCache.get(slug)
       if (hit && packPriceFresh(hit)) continue
       await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 5_000 })
@@ -3900,8 +3915,10 @@ async function warmPackPrices(apiKey: string) {
     return !hit || hit.partial || Date.now() - hit.at >= PACK_PRICE_TTL_MS
   })
   // 한도에 걸려서 접은 것이면 풀리는 시각까지 기다렸다 온다(5분마다 두드리지 않는다).
+  // 방문자 몫을 남기려고 접은 것이면 하루치가 새로 차는 시각(한국시간 오전 9시)에 온다.
   if (leftover) {
-    const wait = Math.max(5 * 60_000, pptBlockedUntil - Date.now() + 5_000)
+    const until = outOfBudget ? nextUtcMidnight() : pptBlockedUntil
+    const wait = Math.max(5 * 60_000, until - Date.now() + 5_000)
     setTimeout(() => void warmPackPrices(apiKey), wait)
   }
 }
