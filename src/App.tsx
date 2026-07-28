@@ -150,6 +150,8 @@ function App() {
   const [interestSelectedId, setInterestSelectedId] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  // 방향키로 고른 자동완성 줄(-1 = 아무것도 안 고름).
+  const [suggestActive, setSuggestActive] = useState(-1);
   const [news, setNews] = useState<KoreanNewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [ebayItems, setEbayItems] = useState<EbayCard[]>([]);
@@ -482,6 +484,7 @@ function App() {
     }
 
     setSuggestions(getLocalSuggestions(trimmed));
+    setSuggestActive(-1);
 
     let cancelled = false;
     fetchRemoteSuggestions(trimmed).then((remote) => {
@@ -699,6 +702,26 @@ function App() {
   function handleSelectSuggestion(term: string) {
     setQuery(term);
     setSuggestionsOpen(false);
+    setSuggestActive(-1);
+  }
+
+  // 자동완성 목록 키보드 조작. 처리했으면 true를 돌려줘 브라우저 기본 동작을 막는다.
+  function handleSuggestKey(key: 'ArrowDown' | 'ArrowUp' | 'Escape' | 'Enter'): boolean {
+    if (!suggestionsOpen || suggestions.length === 0) return false;
+    if (key === 'Escape') {
+      setSuggestionsOpen(false);
+      setSuggestActive(-1);
+      return true;
+    }
+    if (key === 'Enter') {
+      if (suggestActive < 0) return false; // 고른 게 없으면 친 그대로 검색한다
+      handleSelectSuggestion(suggestions[suggestActive]);
+      return true;
+    }
+    // 끝에서 한 번 더 누르면 반대쪽으로 돈다(목록이 짧아 되돌아가기가 빠르다).
+    const last = suggestions.length - 1;
+    setSuggestActive((i) => (key === 'ArrowDown' ? (i >= last ? 0 : i + 1) : i <= 0 ? last : i - 1));
+    return true;
   }
 
   // 공유 링크로 들어온 카드를 펼쳐 준다. 검색 결과에 이미 있으면 그걸 고르고,
@@ -1137,8 +1160,15 @@ function App() {
                       onFocus={() => setSuggestionsOpen(true)}
                       onBlur={() => setSuggestionsOpen(false)}
                       onSubmit={() => setSuggestionsOpen(false)}
+                      onKeyNav={handleSuggestKey}
                     >
-                      {suggestionsOpen && <SearchSuggestions items={suggestions} onSelect={handleSelectSuggestion} />}
+                      {suggestionsOpen && (
+                        <SearchSuggestions
+                          items={suggestions}
+                          active={suggestActive}
+                          onSelect={handleSelectSuggestion}
+                        />
+                      )}
                     </SearchBar>
                   </div>
                   {/* 북미판(영문) 카드는 SNKRDUNK에 없으니 이베이로 보내고, 일본어·한국어

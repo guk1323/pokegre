@@ -37,7 +37,11 @@ function Row({ item, onSelect }: { item: PopularSearch; onSelect: (term: string)
       onClick={() => onSelect(item.term)}
       className="w-full flex items-center gap-3 rounded-lg bg-neutral-50 hover:bg-neutral-100 px-4 py-3 text-left"
     >
-      <span className="w-4 flex-shrink-0 text-sm font-bold text-neutral-900">{item.rank}</span>
+      {/* 10위는 두 자리라 칸(w-4=16px)을 넘겼고, 넘친 글자를 끊는 규칙 때문에 "1 / 0"으로
+          갈라져 보였다. 두 자리가 들어갈 폭을 주고 줄바꿈을 막는다. */}
+      <span className="w-6 flex-shrink-0 whitespace-nowrap text-right text-sm font-bold tabular-nums text-neutral-900">
+        {item.rank}
+      </span>
       <span className="min-w-0 flex-1 text-sm font-medium text-neutral-900 truncate">{item.term}</span>
       <ChangeIndicator item={item} />
     </button>

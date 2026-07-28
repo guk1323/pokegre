@@ -10,14 +10,16 @@ body {
 
 /* 한글 줄바꿈. 브라우저 기본값은 한글을 아무 글자에서나 끊어서 "하이클래스팩「MEGA드 /
    림 ex」"처럼 낱말 한가운데가 갈라진다. keep-all이면 띄어쓰기 단위로만 끊어 읽기 편하다.
-   대신 띄어쓰기 없는 긴 이름은 줄을 넘칠 수 있어 overflow-wrap으로 그때만 끊어 준다. */
+   대신 띄어쓰기 없는 긴 이름은 줄을 넘칠 수 있어 overflow-wrap으로 그때만 끊어 준다.
+   anywhere가 아니라 break-word를 쓴다 — anywhere는 좁은 칸에서 숫자까지 갈라놔서
+   인기 검색어 10위가 "1 / 0"으로 쪼개졌다. */
 body,
 input,
 textarea,
 button,
 select {
   word-break: keep-all;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* 옆으로 넘기는 카드 줄에 붙인다. 맥/크롬은 스크롤할 때만 스크롤바를 잠깐 보여줘서,

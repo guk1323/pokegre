@@ -6,6 +6,7 @@ export function SearchBar({
   onFocus,
   onBlur,
   onSubmit,
+  onKeyNav,
   children,
 }: {
   value: string;
@@ -13,6 +14,9 @@ export function SearchBar({
   onFocus?: () => void;
   onBlur?: () => void;
   onSubmit?: () => void;
+  // 자동완성 목록을 방향키로 오르내리게 한다. 위/아래/Escape를 위쪽에서 처리하고,
+  // 처리했으면 true를 돌려준다(그때는 기본 동작인 커서 이동을 막는다).
+  onKeyNav?: (key: 'ArrowDown' | 'ArrowUp' | 'Escape' | 'Enter') => boolean;
   children?: ReactNode;
 }) {
   return (
@@ -36,7 +40,15 @@ export function SearchBar({
         // 엔터(폰 키보드의 "검색")를 누르면 자동완성을 닫고 키보드를 내린다. 예전에는
         // 검색창 밖을 따로 눌러야 닫혀서, 결과가 나와도 자동완성이 그 위를 덮고 있었다.
         onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Escape') {
+            // 위/아래는 커서를 글자 끝으로 보내려 하므로, 목록을 움직였으면 막는다.
+            if (onKeyNav?.(e.key)) e.preventDefault();
+            return;
+          }
           if (e.key !== 'Enter') return;
+          // 목록에서 고른 항목이 있으면 그것으로 검색한다(키보드는 그대로 둔다 —
+          // 고른 말이 검색창에 들어가는 게 보여야 한다).
+          if (onKeyNav?.('Enter')) return;
           e.currentTarget.blur();
           onSubmit?.();
         }}
