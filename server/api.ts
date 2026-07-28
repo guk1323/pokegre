@@ -3846,7 +3846,10 @@ async function fetchSetPage(
 ): Promise<{ cardNumber?: string; name?: string; prices?: { market?: number } }[] | null> {
   const r = await fetch(
     `${PRICE_TRACKER_ORIGIN}/cards?language=${lang}&setName=${encodeURIComponent(setName)}&limit=${PPT_PAGE}&offset=${offset}`,
-    { headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` } },
+    {
+      signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
+      headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` },
+    },
   )
   if (!r.ok) return null
   const j = (await r.json()) as { data?: { cardNumber?: string; name?: string; prices?: { market?: number } }[] }
@@ -4851,7 +4854,7 @@ function mountAuth(
           // 카카오와 달리 네이버는 토큰 단계에서도 state를 확인한다.
           tokenUrl.searchParams.set('state', state)
 
-          const tokenRes = await fetch(tokenUrl)
+          const tokenRes = await fetch(tokenUrl, { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) })
           if (!tokenRes.ok) {
             console.warn('[auth:naver] 토큰 교환 실패 —', tokenRes.status, (await tokenRes.text()).slice(0, 200))
             res.statusCode = 302
@@ -4872,6 +4875,7 @@ function mountAuth(
           // 제공 정보를 하나도 체크하지 않았으므로 id(회원번호)만 온다. 이름·이메일은
           // 애초에 넘어오지 않는다.
           const meRes = await fetch('https://openapi.naver.com/v1/nid/me', {
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
             headers: { authorization: `Bearer ${access_token}` },
           })
           if (!meRes.ok) {
@@ -4942,6 +4946,7 @@ function mountAuth(
 
         const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
           method: 'POST',
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
           headers: { 'content-type': 'application/x-www-form-urlencoded;charset=utf-8' },
           body: new URLSearchParams({
             grant_type: 'authorization_code',
@@ -4967,6 +4972,7 @@ function mountAuth(
 
         // 동의항목을 요청하지 않았으므로 응답의 id(회원번호)만 쓴다.
         const meRes = await fetch('https://kapi.kakao.com/v2/user/me', {
+          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
           headers: { authorization: `Bearer ${access_token}` },
         })
         if (!meRes.ok) {
