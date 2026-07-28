@@ -188,11 +188,13 @@ export function translateSearchQueryToEnglish(
   // 짧은 이름(추명·이슬 등)도 여기서는 안전하다 — 전체가 일치할 때만이라서.
   // 띄어쓰기가 달라도 같은 카드로 본다("테라스탈오브" = "테라스탈 오브").
   const noSpace = trimmed.replace(/[\s·]/g, '');
-  const exactCard =
-    CARD_NAME_KO_TO_EN.get(trimmed) ??
-    CARD_NAME_KO_TO_EN_NOSPACE.get(noSpace) ??
-    AUTO_KO_TO_EN.get(trimmed) ??
-    AUTO_KO_TO_EN_NOSPACE.get(noSpace);
+  // 같은 한글 이름이라도 판에 따라 영문명이 다르다. PPT는 일본판 카드에 자기네 영문
+  // 번역을 붙이는데, 그게 북미판 정식 이름과 다른 경우가 많다
+  // ("아이언 디펜더"가 북미판은 Iron Defender, 일본판은 Iron X Defense).
+  // 그래서 일본판을 찾을 때는 PPT에서 받아 만든 자동 사전을 먼저 본다.
+  const auto = AUTO_KO_TO_EN.get(trimmed) ?? AUTO_KO_TO_EN_NOSPACE.get(noSpace);
+  const hand = CARD_NAME_KO_TO_EN.get(trimmed) ?? CARD_NAME_KO_TO_EN_NOSPACE.get(noSpace);
+  const exactCard = edition === 'japanese' ? (auto ?? hand) : (hand ?? auto);
   if (exactCard) return exactCard;
 
   let result = trimmed;
