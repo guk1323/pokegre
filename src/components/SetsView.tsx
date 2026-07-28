@@ -6,11 +6,13 @@ import {
   koSet,
   loadSetCards,
   loadSetIndex,
+  rarityRank,
   thumb,
   usable,
   type SetCard,
   type SetIndexEntry,
 } from '../lib/cardCatalog';
+import pokemonNames from '../data/pokemonNames.json';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
 
@@ -27,6 +29,36 @@ const SERIE_LABEL: Record<string, string> = {
 };
 const koSerie = (ed: 'ja' | 'en', serie: string) => SERIE_LABEL[serie] ?? koSet(ed, serie);
 const shortDate = (d: string) => (d ? d.slice(0, 7).replace('-', '.') : '');
+
+// 세트의 간판 카드. 레어도가 높은 순으로 고르되 포켓몬이 그려진 카드만 본다 —
+// 등급만 보면 금박 에너지·스타디움 카드가 올라오는데(SV 시리즈의 맨 끝 카드들),
+// 세트를 알아보는 데는 도움이 안 된다.
+// 같은 이름이 여러 장이면(그림만 다른 같은 카드) 한 장만 남긴다.
+const POKEMON_KO = (pokemonNames as { ko: string }[]).map((p) => p.ko).filter((k) => k.length >= 2);
+
+function topCards(ed: 'ja' | 'en', cards: SetCard[], limit = 4): SetCard[] {
+  const ranked = cards
+    .filter((c) => rarityRank(c.r) >= 0)
+    // 그림이 없는 카드는 뺀다. 간판으로 올려 놓고 "이미지 준비 중"이 뜨면 초라하다.
+    .filter((c) => usable(c.img))
+    .filter((c) => {
+      const nm = koName(ed, c.name);
+      return POKEMON_KO.some((k) => nm.includes(k));
+    })
+    // 등급이 같으면 뒷번호를 앞에 둔다 — 세트 뒤쪽일수록 특별 카드다.
+    .sort((a, b) => rarityRank(b.r) - rarityRank(a.r) || Number(b.n) - Number(a.n));
+
+  const out: SetCard[] = [];
+  const seen = new Set<string>();
+  for (const c of ranked) {
+    const nm = koName(ed, c.name);
+    if (seen.has(nm)) continue;
+    seen.add(nm);
+    out.push(c);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 export function SetsView({
   onPickCard,
@@ -115,6 +147,7 @@ export function SetsView({
   // ── 세트 한 개의 카드 그리드 ──────────────────────────────────────────────
   if (selected) {
     const visible = (cards ?? []).slice(0, shown);
+    const highlights = topCards(selected.ed, cards ?? []);
     return (
       <div className="mx-auto max-w-4xl">
         <button
@@ -152,7 +185,7 @@ export function SetsView({
 
         {loading ? (
           // 스켈레톤: 자리를 미리 잡아 로딩이 덜 튀어 보인다.
-          <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="aspect-[5/7] rounded-xl bg-neutral-100" />
@@ -163,7 +196,39 @@ export function SetsView({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
+            {/* 이 세트의 간판 카드. 레어도가 채워진 세트에만 나온다(원본 DB에 없는 세트가
+                많다). 없으면 이 줄을 통째로 감춘다 — 억지로 채우면 엉뚱한 카드가 올라간다. */}
+            {highlights.length > 0 && (
+              <div className="mb-6">
+                <p className="mb-2 text-sm font-bold text-black">이 세트의 주요 카드</p>
+                <div className="grid grid-cols-4 gap-x-3">
+                  {highlights.map((c) => {
+                    const nm = koName(selected.ed, c.name);
+                    return (
+                      <button key={`top-${c.n}`} type="button" onClick={() => onPickCard(nm)} className="group text-left">
+                        <div className="aspect-[5/7] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200/70 transition group-hover:shadow-lg">
+                          <img
+                            src={usable(c.img) ? thumb(cardImg(c.img), 320) : CARD_BACK}
+                            alt={nm}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.04]"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (usable(c.img) && img.src !== cardImg(c.img)) img.src = cardImg(c.img);
+                              else if (!img.src.endsWith(CARD_BACK)) img.src = CARD_BACK;
+                            }}
+                          />
+                        </div>
+                        <p className="mt-1.5 line-clamp-1 text-[11px] font-bold text-black">{nm}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5">
               {visible.map((c, i) => {
                 const nm = koName(selected.ed, c.name);
                 return (

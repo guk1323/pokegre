@@ -31,6 +31,33 @@ export interface SetCard {
   koImg?: string;
   koNo?: string;
   koName?: string;
+  // 레어도(원본 DB 표기). 채워진 세트가 많지 않다 — 2023년 이후 24개 세트뿐이라
+  // 없으면 없는 대로 다뤄야 한다.
+  r?: string;
+}
+
+// 낮은 등급 → 높은 등급. 세트의 간판 카드를 고르는 데 쓴다.
+// 원본 DB(TCGdex) 표기를 그대로 쓴다 — 표기가 바뀌면 목록에 없어 -1이 되고,
+// 그런 카드는 자동으로 뒤로 밀린다(틀린 카드를 올리는 것보다 낫다).
+const RARITY_ORDER = [
+  'Common',
+  'Uncommon',
+  'Rare',
+  'Double rare',
+  'ACE SPEC Rare',
+  'Ultra Rare',
+  'Illustration rare',
+  'Shiny rare',
+  'Shiny Ultra Rare',
+  'Special illustration rare',
+  'Secret Rare',
+  'Hyper rare',
+  'Black White Rare',
+  'Mega Hyper Rare',
+];
+
+export function rarityRank(r?: string): number {
+  return r ? RARITY_ORDER.indexOf(r) : -1;
 }
 
 export interface SetFile {
