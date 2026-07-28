@@ -1272,7 +1272,30 @@ const USER_CONFIRMED_EN_TO_KO: Record<string, string> = {
   "Xerosic's Machinations": "크세로시키의 속셈",
 };
 
-const koToEnEntries: [string, string][] = Object.entries({ ...TRAINER_EN_TO_KO, ...ITEM_EN_TO_KO, ...USER_CONFIRMED_EN_TO_KO }).map(([en, ko]) => [ko, en]);
+
+// 사용자가 확인해 줬지만 PPT에서는 그 이름으로 카드가 안 잡힌 것들. 이름이 틀려서가 아니라
+// PPT에 그 세트 자료가 없기 때문으로 보인다(M-P 프로모, 스타터 세트 등).
+// 지금도 검색이 0건이라 넣어서 나빠질 건 없고, PPT에 자료가 생기면 그때부터 걸린다.
+const UNVERIFIED_EN_TO_KO: Record<string, string> = {
+  "Celebratory Fanfare": "축하팡파르",
+  "Hardship Insurance": "역경보험",
+  "Larry's Professionalism": "청목의 수완",
+  "Neutral Center": "뉴트럴센터",
+  "Perfect Mixer": "퍼펙트믹서",
+  "Perilous Ruins": "위험한 폐허",
+  "PokeVital A": "포켓바이털A",
+  "Precious Carry": "프레셔스캐리",
+  "Regain Energy": "리게인 에너지",
+  "Safety Goggles": "안전고글",
+  "Super Rod MAX": "낚싯대MAX",
+  "Tight Band": "타이트밴드",
+  "Time-Gaining Turbo": "시간벌기터보",
+  "Uncanny Clock": "괴상한 시계",
+  "Uncharted Altar": "미개척의 제단",
+  "Zett": "제트",
+};
+
+const koToEnEntries: [string, string][] = Object.entries({ ...TRAINER_EN_TO_KO, ...ITEM_EN_TO_KO, ...USER_CONFIRMED_EN_TO_KO, ...UNVERIFIED_EN_TO_KO }).map(([en, ko]) => [ko, en]);
 export const CARD_NAME_KO_TO_EN = new Map<string, string>(koToEnEntries);
 // 같은 카드인데 띄어쓰기가 달라 검색이 빗나가는 걸 막는다. 화면에는 "테라스탈오브"로
 // 나오는데 사전 키는 "테라스탈 오브"라 한글로 치면 eBay·TCGplayer에서 아무것도 안 나왔다.
@@ -1296,20 +1319,25 @@ export function koreanizeEnglishCardName(name: string): string {
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
   // 굽은 것을 곧은 것으로 바꿔 조회한다.
   const exactKey = name.trim().replace(/[’]/g, "'");
-  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey] ?? USER_CONFIRMED_EN_TO_KO[exactKey];
+  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey] ?? USER_CONFIRMED_EN_TO_KO[exactKey] ?? UNVERIFIED_EN_TO_KO[exactKey];
   if (exact) return exact;
 
   // PokemonPriceTracker는 "Levincia - 092/063"처럼 이름 뒤에 카드 번호를 붙여 준다.
   // 번호를 뗀 뒤 찾고, 번호는 그대로 뒤에 다시 붙인다(안 그러면 영문 그대로 남는다).
   const numbered = exactKey.match(/^(.+?)\s+-\s+([A-Za-z0-9/-]+)$/);
   if (numbered) {
-    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]];
+    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]] ?? UNVERIFIED_EN_TO_KO[numbered[1]];
     if (found) return `${found} - ${numbered[2]}`;
   }
   // "Judge (Mirror Holo)"처럼 괄호로 인쇄 방식이 붙는 것도 같은 방식으로 처리한다.
   const suffixed = exactKey.match(/^(.+?)\s+(\([^()]+\))$/);
   if (suffixed) {
-    const found = TRAINER_EN_TO_KO[suffixed[1]] ?? ITEM_EN_TO_KO[suffixed[1]];
+    const found =
+      AUTO_EN_TO_KO.get(suffixed[1]) ??
+      TRAINER_EN_TO_KO[suffixed[1]] ??
+      ITEM_EN_TO_KO[suffixed[1]] ??
+      USER_CONFIRMED_EN_TO_KO[suffixed[1]] ??
+      UNVERIFIED_EN_TO_KO[suffixed[1]];
     if (found) return `${found} ${suffixed[2]}`;
   }
 
