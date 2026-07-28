@@ -1940,6 +1940,10 @@ export function koreanizeTitle(title: string): string {
   // 반쪽짜리가 되어 오히려 읽기 나쁘다.
   result = result.replace(/(?<=[가-힣])['’]s\s+/g, '의 ');
 
+  // 앞말 사전에 꼬리 공백이 있으면("パルデア" → "팔데아 ") 조사 앞에 공백이 낀다
+  // ("팔데아 의 동료들"). 한글 뒤에 붙는 조사 앞의 공백만 지운다.
+  result = result.replace(/(?<=[가-힣])\s+(?=의\s)/g, '');
+
   // 옛 팩·에너지 이름에 홀로 남는 원소 한자. 포켓몬 이름은 이미 앞에서 바뀌었다.
   result = result.split('水').join('물').split('炎').join('불꽃').split('闇').join('어둠').split('草').join('풀');
   result = result.split('丘').join('언덕').split('版').join('판').split('賞').join('상');

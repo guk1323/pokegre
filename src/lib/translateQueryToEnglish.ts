@@ -173,6 +173,39 @@ const packJpPatterns = (packNames as PackName[])
 // 동일한 부분 문자열 치환 방식을 쓴다.
 // edition='korean'은 이베이 한글판(Browse API) 경로라 이 PPT용 번역엔 안 오지만, 타입
 // 호환을 위해 받아만 두고 영문판과 같게 처리한다(실제로는 호출되지 않음).
+// 일본판 카드인데 한글 이름이 그대로 나가던 것들. PPT에서 받아 둔 영문명으로 맞췄다.
+// ⚠️ 여기(검색 전용)에 둔다. 자동 사전(cardNameKoEn.json)에 넣으면 그 파일은 화면
+// 이름을 만드는 데도 쓰여서, 북미판 카드 이름까지 같이 바뀐다(실제로 15장이 바뀌었다).
+// 같은 카드의 한글 이름이 일본판·북미판에서 다른 경우가 있는데, 어느 쪽이 공식인지는
+// 따로 확인해야 할 일이라 검색만 먼저 고친다.
+const JP_SEARCH_ONLY: Record<string, string> = {
+  캔슬코롱: 'Canceling Cologne',
+  스내치암: 'Grabber',
+  먹다남은음식: 'Leftovers',
+  '남나리의 도움': "Daisy's Help",
+  '팔데아의 동료들': 'Friends in Paldea',
+  '달이 빛나는 언덕': 'Moonlit Hill',
+};
+
+// PPT 표기에 맞춰 다듬는다. 사전에서 통째로 찾아 바로 돌려주는 길도 있어서,
+// 마지막에 한 번만 하면 안 되고 나가는 모든 길에 걸어야 한다.
+//  · 악센트를 뗀다 — PPT는 Flabébé를 "Flabebe", Pokémon Catcher를 "Pokemon Catcher"로 색인한다.
+//  · 성별 기호를 글자로 바꾼다 — "Nidoran F" · "Nidoran M".
+function forPpt(s: string): string {
+  return (
+    s
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // ⚠️ NFD는 한글도 자모로 쪼갠다("남" → ㄴ+ㅏ+ㅁ). 그대로 두면 아직 한글로 남은
+      // 검색어가 깨진 채 나간다. 악센트를 뗀 뒤 반드시 도로 합친다.
+      .normalize('NFC')
+      .replace(/\s*♀/g, ' F')
+      .replace(/\s*♂/g, ' M')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}
+
 export function translateSearchQueryToEnglish(
   query: string,
   edition: 'japanese' | 'english' | 'korean' = 'japanese',
@@ -183,7 +216,7 @@ export function translateSearchQueryToEnglish(
   // 검색어가 포켓몬 이름과 정확히 같으면 팩 매칭을 건너뛰고 바로 그 포켓몬으로 보낸다.
   // (팩 이름과 같은 이름이어도 포켓몬 카드 검색이 우선이다.)
   const exact = sortedPokemonKoEn.find((e) => e.ko === trimmed);
-  if (exact) return exact.en;
+  if (exact) return forPpt(exact.en);
   // 트레이너·굿즈·스타디움 한글 카드명이 통째로 들어오면 그대로 영문명으로 바꾼다.
   // 짧은 이름(추명·이슬 등)도 여기서는 안전하다 — 전체가 일치할 때만이라서.
   // 띄어쓰기가 달라도 같은 카드로 본다("테라스탈오브" = "테라스탈 오브").
@@ -192,10 +225,10 @@ export function translateSearchQueryToEnglish(
   // 번역을 붙이는데, 그게 북미판 정식 이름과 다른 경우가 많다
   // ("아이언 디펜더"가 북미판은 Iron Defender, 일본판은 Iron X Defense).
   // 그래서 일본판을 찾을 때는 PPT에서 받아 만든 자동 사전을 먼저 본다.
-  const auto = AUTO_KO_TO_EN.get(trimmed) ?? AUTO_KO_TO_EN_NOSPACE.get(noSpace);
+  const auto = JP_SEARCH_ONLY[trimmed] ?? AUTO_KO_TO_EN.get(trimmed) ?? AUTO_KO_TO_EN_NOSPACE.get(noSpace);
   const hand = CARD_NAME_KO_TO_EN.get(trimmed) ?? CARD_NAME_KO_TO_EN_NOSPACE.get(noSpace);
   const exactCard = edition === 'japanese' ? (auto ?? hand) : (hand ?? auto);
-  if (exactCard) return exactCard;
+  if (exactCard) return forPpt(exactCard);
 
   let result = trimmed;
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. 짧은 일반어를 먼저 바꾸면 팩 이름이
@@ -228,5 +261,5 @@ export function translateSearchQueryToEnglish(
   result = result.replace(/([A-Za-z][A-Za-z0-9.&'-]*(?: [A-Za-z0-9.&'-]+)*)의(?=\s|$)/g, "$1's");
   // 접두어를 바꾸면 "Team Rocket's  Mewtwo"처럼 공백이 겹칠 수 있다(한글 쪽 띄어쓰기가
   // 그대로 남아서). 검색어에 겹친 공백은 매칭을 방해하므로 한 칸으로 줄인다.
-  return result.replace(/\s+/g, ' ').trim();
+  return forPpt(result);
 }
