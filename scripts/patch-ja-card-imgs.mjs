@@ -7,6 +7,20 @@ import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const OUT = path.resolve(process.cwd(), 'public/sets')
+
+// 기본 에너지 카드는 번호가 숫자가 아니라 문자다(우리 데이터는 GRA·FIR…, Limitless는
+// G·R…). 표준 타입 약자라 표로 이어 준다. 이게 없으면 세트마다 에너지 8장이 빈칸으로
+// 남는다(스타트 덱 100이 그랬다).
+const ENERGY_CODE = {
+  GRA: 'G', // 풀
+  FIR: 'R', // 불꽃
+  WAT: 'W', // 물
+  LIG: 'L', // 번개
+  PSY: 'P', // 초
+  FIG: 'F', // 투
+  DAR: 'D', // 악
+  MET: 'M', // 강철
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function fetchLimitlessImages(setId) {
@@ -17,10 +31,14 @@ async function fetchLimitlessImages(setId) {
     if (!r.ok) return null
     const html = await r.text()
     // 예: limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/M5/M5_1_R_JP_SM.png
-    const re = new RegExp(`limitlesstcg\\.nyc3[^"\\s)]+/tpc/${setId}/${setId}_(\\d+)_[^"\\s)]+\\.png`, 'g')
+    // 번호는 숫자(1, 23…)거나 에너지 타입 문자(G, R, W…)다.
+    const re = new RegExp(`limitlesstcg\\.nyc3[^"\\s)]+/tpc/${setId}/${setId}_([A-Za-z0-9]+)_[^"\\s)]+\\.png`, 'g')
     const map = new Map()
     let m
-    while ((m = re.exec(html))) map.set(Number(m[1]), 'https://' + m[0])
+    while ((m = re.exec(html))) {
+      const key = /^\d+$/.test(m[1]) ? Number(m[1]) : m[1].toUpperCase()
+      map.set(key, 'https://' + m[0])
+    }
     return map.size ? map : null
   } catch {
     return null
@@ -48,8 +66,10 @@ async function main() {
     for (const c of d.cards) {
       if (c.img) continue
       const n = parseInt(c.n, 10)
-      if (Number.isFinite(n) && map.has(n)) {
-        c.img = map.get(n)
+      // 숫자 번호면 그대로, 아니면 에너지 약자로 바꿔 찾는다.
+      const key = Number.isFinite(n) ? n : ENERGY_CODE[c.n?.toUpperCase()]
+      if (key !== undefined && map.has(key)) {
+        c.img = map.get(key)
         filled++
       }
     }
