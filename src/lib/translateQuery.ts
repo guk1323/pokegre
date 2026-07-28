@@ -55,6 +55,11 @@ const packPatterns = sortedPackKo.map((e) => ({ re: spaceInsensitivePattern(e.ko
 // 카드명 접두사로 자주 붙는 말은 검색어 번역에서도 빠지면 안 되기 때문.
 const reverseStructuralTerms = new Map<string, string>();
 for (const [ja, ko] of STRUCTURAL_TERMS) {
+  // 왼쪽이 알파벳뿐인 항목은 건너뛴다. 그런 항목은 옛 세트의 깨진 원본 데이터를
+  // 고치려고 넣은 것이지(원본에 'Bugsy'가 영어로 들어 있다) 검색어가 아니다.
+  // 그대로 뒤집으면 "호일"로 검색할 때 스니커덩크에 'Bugsy'를 보내게 되는데,
+  // 거긴 일본어로 찾는 곳이라 아무것도 안 나온다. 제대로 된 짝(ツクシ)이 뒤쪽에 있다.
+  if (!/[ぁ-んァ-ヶ一-鿿]/.test(ja)) continue;
   if (!reverseStructuralTerms.has(ko)) reverseStructuralTerms.set(ko, ja);
   // 지역폼 접두사처럼 한글 쪽에 띄어쓰기가 붙은 말("가라르 ")은 붙여 쓴 검색어
   // ("가라르야도란")에 안 걸린다. 그러면 남은 "가"가 엉뚱한 한자 규칙에 잡혀
@@ -95,6 +100,10 @@ export function translateSearchQuery(query: string): string {
       result = result.split(ko).join(ja);
     }
   }
+  // 남은 소유격 "의"를 일본어 の로 바꾼다. 이름만 일본어로 바뀌고 "의"가 남으면
+  // 스니커덩크에서 안 잡힌다("ロケット団의 ミュウツー"). 앞이 일본어(또는 N 같은
+  // 알파벳)일 때만 바꾸므로, 아직 한글로 남은 이름의 "의"는 건드리지 않는다.
+  result = result.replace(/([ぁ-んァ-ヶ一-鿿A-Za-z0-9])의\s*/g, '$1の');
   return result;
 }
 
