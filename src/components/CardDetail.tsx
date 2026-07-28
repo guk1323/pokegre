@@ -88,13 +88,31 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       </div>
 
       <div className="mb-1 flex items-start justify-between gap-2">
-        <h2 className="text-base font-bold text-black">{card.title}</h2>
+        {/* 카드 이름은 "이름 [세트 번호](팩 이름)" 한 덩어리로 온다. 통째로 두면 폰에서
+            세 줄을 차지해 정작 보러 온 시세가 아래로 밀린다. 팩은 아랫줄로 뺀다. */}
+        <h2 className="text-base font-bold text-black">{cardTitleMain(card.title)}</h2>
         <ShareButton path={`/c/${card.apparelId}`} name={card.title} />
       </div>
-      <p className="text-xs text-neutral-400 mb-1">
+      {cardTitlePack(card.title) && (
+        <p className="mb-1 text-xs text-neutral-500">{cardTitlePack(card.title)}</p>
+      )}
+      <p className="text-xs text-neutral-400 mb-4">
         매물 {card.stock.toLocaleString()}개
         {card.favoriteCount !== undefined && ` · 찜 ${card.favoriteCount.toLocaleString()}`}
       </p>
+      <div className="rounded-lg bg-neutral-50 p-4 mb-4">
+        <p className="text-xs text-neutral-400 mb-1">현재 최저가 (SNKRDUNK)</p>
+        {Number.isFinite(card.price) && card.price > 0 ? (
+          <>
+            <span className="text-2xl font-extrabold text-black">{yen.format(card.price)}</span>
+            {/* 자세히 보는 화면이라 여기서만 기준일을 밝힌다. 목록에서 타일마다 반복하면
+                시끄럽고, 정작 가격을 뜯어보는 건 이 화면이다. */}
+            <KrwHint amount={card.price} currency="jpy" showDate />
+          </>
+        ) : (
+          <span className="text-lg font-bold text-neutral-400">현재 매물이 없습니다</span>
+        )}
+      </div>
       {/* 카드 이름 한글화가 이상하면(예: 파미리마토→패밀리마트) 사용자가 알려준다.
           화면에 보인 제목과 원본 링크만 보내고, 사진·개인정보는 안 보낸다. */}
       {titleReported ? (
@@ -112,19 +130,6 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
         </button>
       )}
 
-      <div className="rounded-lg bg-neutral-50 p-4 mb-4">
-        <p className="text-xs text-neutral-400 mb-1">현재 최저가 (SNKRDUNK)</p>
-        {Number.isFinite(card.price) && card.price > 0 ? (
-          <>
-            <span className="text-2xl font-extrabold text-black">{yen.format(card.price)}</span>
-            {/* 자세히 보는 화면이라 여기서만 기준일을 밝힌다. 목록에서 타일마다 반복하면
-                시끄럽고, 정작 가격을 뜯어보는 건 이 화면이다. */}
-            <KrwHint amount={card.price} currency="jpy" showDate />
-          </>
-        ) : (
-          <span className="text-lg font-bold text-neutral-400">현재 매물이 없습니다</span>
-        )}
-      </div>
 
       <div className="mb-4">
         <PriceChart
@@ -190,4 +195,14 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       )}
     </div>
   );
+}
+
+// "메가리자몽 X ex MA [M2a 223/193](하이클래스팩「MEGA드림 ex」)" 를 둘로 나눈다.
+function cardTitleMain(title: string): string {
+  return title.replace(/\s*\([^()]*\)\s*$/, '').trim();
+}
+
+function cardTitlePack(title: string): string {
+  const m = title.match(/\(([^()]*)\)\s*$/);
+  return m ? m[1].trim() : '';
 }
