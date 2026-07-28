@@ -789,11 +789,26 @@ function mountCommunity(app: Mountable) {
     await writeJsonFile(POSTS_FILE, posts)
   }
 
+  // 상한을 넘겨 밀려나는 글을 지운다. 사진과 댓글도 같이 치운다 — 예전에는 글만 잘라내서
+  // 주인 없는 사진이 폴더에 그대로 남았다(폴더 상한 300MB에 도달하면 새 사진을 못 올린다).
+  async function trimOldPosts(all: CommunityPost[]): Promise<void> {
+    if (all.length <= MAX_POSTS) return
+    const dropped = all.splice(0, all.length - MAX_POSTS)
+    for (const p of dropped) await removeUploads(p.images)
+    const ids = new Set(dropped.map((p) => p.id))
+    const cs = await loadComments()
+    const left = cs.filter((c) => !ids.has(c.postId))
+    if (left.length !== cs.length) {
+      comments = left
+      await persistComments()
+    }
+  }
+
   // 카드 뽑기 자랑글 등록 훅(위 모듈 변수 참조). 글 수 상한도 일반 글쓰기와 같게 지킨다.
   appendCommunityPost = async (post: CommunityPost) => {
     const all = await loadPosts()
     all.push(post)
-    if (all.length > MAX_POSTS) all.splice(0, all.length - MAX_POSTS)
+    await trimOldPosts(all)
     await persistPosts()
   }
 
@@ -982,7 +997,7 @@ function mountCommunity(app: Mountable) {
           commentCount: 0,
         }
         all.push(post)
-        if (all.length > MAX_POSTS) all.splice(0, all.length - MAX_POSTS)
+        await trimOldPosts(all)
         await persistPosts()
         sendJson(res, 201, toPublicPost(post, user, await loadUsers()))
         return
