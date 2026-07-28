@@ -451,7 +451,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Medical Energy': '메디컬 에너지',
   Mesagoza: '테이블시티',
   'Mist Energy': '미스트 에너지',
-  'Moonlit Hill': '달맞이 언덕',
+  'Moonlit Hill': '달이 빛나는 언덕', // 샤이니트레저ex 정식명(2026-07-29 정정)
   'Neo Upper Energy': '네오 어퍼 에너지',
   'Neutralization Zone': '널리파이어 존',
   'Paradise Resort': '파라다이스 리조트',
@@ -492,7 +492,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Burning Scarf': '스카프',
   'Café Master': '카페소믈리에',
   'Camping Gear': '캠핑 세트',
-  'Canceling Cologne': '스위치코롱',
+  'Canceling Cologne': '캔슬코롱', // 타임게이저 정식명(2026-07-29 정정)
   Candela: '칸델라',
   'Capacious Bucket': '듬뿍양동이',
   'Cape of Toughness': '질긴의 망토',
@@ -629,7 +629,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Team Yell Towel': '옐단 타올',
   'Telescopic Sight': '망원렌즈',
   'Temple of Sinnoh': '신오의 신전',
-  Thorton: '주리',
+  Thorton: '노간주', // ネジキ. 주리(マコモ=Fennel)와 다른 인물이다(2026-07-29 정정)
   'Tool Box': '도구상자',
   'Tool Jammer': '툴 재머',
   'Tower of Darkness': '악의 탑',
@@ -1047,7 +1047,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   Cyrano: '시아노',
   'Heat Rotom': '히트 로토무',
   'Buddy-Buddy Poffin': '페포마을포핀',
-  "Daisy's Help": '나나미의 도와주기',
+  "Daisy's Help": '남나리의 도움', // 그린의 누나 남나리(2026-07-29 정정)
   'Grand Tree': '그랜드 트리',
   "Hop's Choice Band": '호프의 구애머리띠',
   "Team Rocket's Transceiver": '로켓단의 송수신기',
@@ -1108,10 +1108,10 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Fan Rotom': '스핀 로토무',
   'Festival Grounds': '축제 광장',
   'Fighting Gong': '격투 징',
-  'Friends in Paldea': '팔데아의 친구들',
+  'Friends in Paldea': '팔데아의 동료들', // '○○의 동료들' 표기(2026-07-29 정정)
   "Giovanni's Charisma": '비주기의 카리스마',
   'Glass Trumpet': '유리 나팔',
-  Grabber: '핸드캐처',
+  Grabber: '스내치암', // 포켓몬 카드 151 정식명(2026-07-29 정정)
   'Granite Cave': '바위동굴',
   'Gravity Gemstone': '중력의 보석',
   'Gravity Mountain': '중력 산',
@@ -1130,7 +1130,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   Lacey: '타로',
   "Lana's Aid": '수련의 지원',
   "Larry's Skill": '청목의 요령',
-  Leftovers: '먹고자남은음식',
+  Leftovers: '먹다남은음식', // 2026-07-29 정정(먹고자=Munchlax가 섞여 있었다)
   'Legacy Energy': '레거시 에너지',
   'Letter of Encouragement': '응원 편지',
   "Lillie's Determination": '릴리에의 결의',
