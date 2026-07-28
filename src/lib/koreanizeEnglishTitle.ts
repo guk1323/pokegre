@@ -1278,7 +1278,6 @@ const USER_CONFIRMED_EN_TO_KO: Record<string, string> = {
 // 지금도 검색이 0건이라 넣어서 나빠질 건 없고, PPT에 자료가 생기면 그때부터 걸린다.
 const UNVERIFIED_EN_TO_KO: Record<string, string> = {
   "Celebratory Fanfare": "축하팡파르",
-  "Hardship Insurance": "역경보험",
   "Larry's Professionalism": "청목의 수완",
   "Neutral Center": "뉴트럴센터",
   "Perfect Mixer": "퍼펙트믹서",
@@ -1295,7 +1294,97 @@ const UNVERIFIED_EN_TO_KO: Record<string, string> = {
   "Zett": "제트",
 };
 
-const koToEnEntries: [string, string][] = Object.entries({ ...TRAINER_EN_TO_KO, ...ITEM_EN_TO_KO, ...USER_CONFIRMED_EN_TO_KO, ...UNVERIFIED_EN_TO_KO }).map(([en, ko]) => [ko, en]);
+
+// 북미판·모바일 포켓 카드 이름(2026-07-28 사용자 확인). 2020년 이후 세트인데 영어 그대로
+// 나오던 67종이다. 인물 이름은 한국 공식명을 따랐다(May=봄이, Lyra=금선, Zinnia=피아나,
+// Grimsley=블랑사).
+//
+// ⚠️ 한글 이름이 이미 다른 영문에 매여 있는 것은 화면 표시(영문→한글)에만 쓴다.
+// 검색(한글→영문)까지 바꾸면 먼저 확인해 둔 카드가 안 걸린다:
+//   제트        일본판 Zett          / 북미판 Jett
+//   구멍파는삽  일본판 Digging Shovel / 북미판 Hole-Digging Shovel
+const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
+  "Acerola's Premonition": "아세로라의 예감",
+  "Adventurer's Discovery": "모험가의 발견",
+  "Adversity Policy": "역경보험",
+  "Backtrack Badge": "역행의 뱃지",
+  "Battle Cage": "배틀 케이지",
+  "Beast Wall": "비스트 월",
+  "Blowtorch": "블로토치",
+  "Bubbly Water Energy": "버블 물 에너지",
+  "Budding Expeditioner": "신입 탐험가",
+  "Celestic Town Elder": "봉신마을 장로",
+  "Clemont's Backpack": "시트론의 배낭",
+  "Colress's Tenacity": "아크로마의 집념",
+  "Dark Pendant": "다크 펜던트",
+  "Electrical Cord": "전원 코드",
+  "Elemental Switch": "엘리멘탈 스위치",
+  "Fishing Net": "낚싯바구니",
+  "Flame Patch": "불꽃의 패치",
+  "Fossil Quarry": "화석 채굴장",
+  "Gladion's Final Battle": "글라디오의 결전",
+  "Great Haul Net": "대어 포획망",
+  "Grimsley's Move": "블랑사의 수",
+  "Growing Grass Energy": "그로잉 풀 에너지",
+  "Heavy Helmet": "헤비헬멧",
+  "Hero's Medal": "영웅의 메달",
+  "Hitting Hammer": "타격 망치",
+  "Hole-Digging Shovel": "구멍파는삽",
+  "Inflatable Boat": "고무보트",
+  "Jett": "제트",
+  "Juggler": "저글러",
+  "Karen's Conviction": "카린의 신념",
+  "Korrina's Focus": "코르니의 기합",
+  "Leaf": "리프",
+  "Leaf Cape": "나뭇잎 망토",
+  "Lucky Mittens": "행운의 장갑",
+  "Lyra": "금선",
+  "Magnetic Metal Energy": "마그넷 강철 에너지",
+  "May": "봄이",
+  "Memory Light": "추억의 빛",
+  "Mythical Slab": "환상의 석판",
+  "Nemona's Backpack": "네모의 가방",
+  "Nighttime Mine": "심야의 광산",
+  "Nitro Fire Energy": "나이트로 불꽃 에너지",
+  "Peculiar Plaza": "기묘한 광장",
+  "Poké Pad": "포켓패드",
+  "Pokémon Breeder's Nurturing": "포켓몬 브리더의 육성",
+  "Prank Spinner": "장난 팽이",
+  "Protective Poncho": "프로텍트 우비",
+  "Quick-Grow Extract": "속성 성장 엑기스",
+  "Red": "레드",
+  "Rocky Fighting Energy": "록 격투 에너지",
+  "Shadowy Darkness Energy": "딥 다크 에너지",
+  "Silver": "실버",
+  "Skaters' Park": "스케이터 파크",
+  "Squirt Bottle": "꼬부기물조우",
+  "Starting Plains": "시작의 평원",
+  "Steel Apron": "스틸 에이프런",
+  "Team Yell's Cheer": "터프에일의 성원",
+  "Telepathic Psychic Energy": "텔레파시 초 에너지",
+  "Thick Scale": "두꺼운비늘",
+  "Training Area": "트레이닝 에리어",
+  "Transformation Tome": "변신의 서",
+  "Traveling Merchant": "행상인",
+  "Tremendous Bomb": "폭발적인 폭탄",
+  "Voltaic Lightning Energy": "볼텍스 번개 에너지",
+  "Waitress": "웨이트리스",
+  "X Speed": "스피드업",
+  "Zinnia's Resolve": "피아나의 결의",
+};
+
+const KO_KEEPS_OLD = new Set(['제트', '구멍파는삽']);
+
+const koToEnEntries: [string, string][] = Object.entries({
+  ...TRAINER_EN_TO_KO,
+  ...ITEM_EN_TO_KO,
+  ...USER_CONFIRMED_EN_TO_KO,
+  ...UNVERIFIED_EN_TO_KO,
+  // 한글이 겹치는 것은 역방향에서 뺀다(위 주석 참고).
+  ...Object.fromEntries(
+    Object.entries(ENGLISH_CARD_EN_TO_KO).filter(([, ko]) => !KO_KEEPS_OLD.has(ko)),
+  ),
+}).map(([en, ko]) => [ko, en]);
 export const CARD_NAME_KO_TO_EN = new Map<string, string>(koToEnEntries);
 // 같은 카드인데 띄어쓰기가 달라 검색이 빗나가는 걸 막는다. 화면에는 "테라스탈오브"로
 // 나오는데 사전 키는 "테라스탈 오브"라 한글로 치면 eBay·TCGplayer에서 아무것도 안 나왔다.
@@ -1319,14 +1408,14 @@ export function koreanizeEnglishCardName(name: string): string {
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
   // 굽은 것을 곧은 것으로 바꿔 조회한다.
   const exactKey = name.trim().replace(/[’]/g, "'");
-  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey] ?? USER_CONFIRMED_EN_TO_KO[exactKey] ?? UNVERIFIED_EN_TO_KO[exactKey];
+  const exact = AUTO_EN_TO_KO.get(exactKey) ?? TRAINER_EN_TO_KO[exactKey] ?? ITEM_EN_TO_KO[exactKey] ?? USER_CONFIRMED_EN_TO_KO[exactKey] ?? UNVERIFIED_EN_TO_KO[exactKey] ?? ENGLISH_CARD_EN_TO_KO[exactKey];
   if (exact) return exact;
 
   // PokemonPriceTracker는 "Levincia - 092/063"처럼 이름 뒤에 카드 번호를 붙여 준다.
   // 번호를 뗀 뒤 찾고, 번호는 그대로 뒤에 다시 붙인다(안 그러면 영문 그대로 남는다).
   const numbered = exactKey.match(/^(.+?)\s+-\s+([A-Za-z0-9/-]+)$/);
   if (numbered) {
-    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]] ?? UNVERIFIED_EN_TO_KO[numbered[1]];
+    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]] ?? UNVERIFIED_EN_TO_KO[numbered[1]] ?? ENGLISH_CARD_EN_TO_KO[numbered[1]];
     if (found) return `${found} - ${numbered[2]}`;
   }
   // "Judge (Mirror Holo)"처럼 괄호로 인쇄 방식이 붙는 것도 같은 방식으로 처리한다.
