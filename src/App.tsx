@@ -34,6 +34,7 @@ import { EbayCardDetail } from './components/EbayCardDetail';
 import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
 import { CardScanButton } from './components/CardScanButton';
 import { reportScanMiss, scanCard, type CardScanResult } from './api/cardScan';
+import { findCardByIllustrator } from './lib/findCardByIllustrator';
 // 한글판 화면은 카드 이름 사전을 쓴다. 첫 화면에는 안 나오므로 나중에 불러온다.
 const KoreanEbayView = lazy(() => import('./components/KoreanEbayView').then((m) => ({ default: m.KoreanEbayView })));
 const Community = lazy(() => import('./Community').then((m) => ({ default: m.Community })));
@@ -129,6 +130,8 @@ function App() {
   const scanQueriesRef = useRef<{ snkrdunk: string; ebay: string } | null>(null);
   // 백업(이름) 재검색이 실제로 일어났음을 알리는 안내.
   const [scanFellBack, setScanFellBack] = useState(false);
+  // 번호 대신 일러스트레이터로 찾아낸 경우 그 사실을 알려 준다(후보가 여럿이면 몇 개인지).
+  const [scanFoundByArtist, setScanFoundByArtist] = useState(0);
   // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
   // 오타·타이핑 조각이 순위에 끼는 걸 막는 데 쓴다(집계 시점에 최신값을 참조).
   const searchResultRef = useRef<{ query: string; count: number; source: PriceSource }>({ query: '', count: 0, source: 'snkrdunk' });
@@ -336,6 +339,26 @@ function App() {
     window.scrollTo({ top: 0 });
   };
 
+  // 사진에서 번호를 못 읽었을 때, 일러스트레이터 이름으로 카드를 찾아 번호를 채운다.
+  // 번호는 구석에 아주 작게 있어 사진이 조금만 잘려도 못 읽는데, 일러스트레이터 이름은
+  // 그림 바로 아래라 웬만하면 찍힌다. "작가 + 카드이름"이면 86%가 한 장으로 좁혀진다.
+  // 못 찾으면 원래대로 이름으로만 검색한다(조용히 넘어간다).
+  const applyScanWithLookup = async (result: CardScanResult) => {
+    // ⚠️ 북미판일 때만 쓴다. 작가별 카드 목록이 북미판 기준이라, 일본판 카드에 쓰면
+    // 같은 그림의 "북미판 번호"가 나와 스니커덩크에서 엉뚱한 카드를 찾게 된다
+    // (일본판 메가리자몽Y ex는 MC 766/742인데 목록은 북미판 294를 준다).
+    if (result.cardNumber || !result.illustrator || result.edition !== 'english') {
+      applyScanResult(result);
+      return;
+    }
+    const hit = await findCardByIllustrator(result.illustrator, result.pokemonNameEn);
+    // 후보가 딱 하나일 때만 번호를 채운다. 여럿이면 어느 것인지 알 수 없어서, 번호를
+    // 찍어 넣으면 엉뚱한 카드의 시세를 보여주게 된다 — 그럴 바엔 이름으로 찾게 둔다.
+    const sure = hit && hit.candidates === 1 ? hit : null;
+    applyScanResult(sure ? { ...result, cardNumber: sure.number } : result);
+    if (sure) setScanFoundByArtist(1);
+  };
+
   // 스캔 결과를 검색어·소스·판(일/북미)에 반영한다. 카메라 버튼과 센터링 도구가 공유한다.
   const applyScanResult = (result: CardScanResult) => {
     const num = result.cardNumber;
@@ -347,6 +370,7 @@ function App() {
     scanFallbackRef.current = num && result.pokemonNameEn ? result.pokemonNameEn : null;
     scanQueriesRef.current = { snkrdunk, ebay };
     setScanFellBack(false);
+    setScanFoundByArtist(0);
     setEdition(ed);
     setSource(target);
     setQuery(target === 'ebay' ? ebay : snkrdunk);
@@ -374,7 +398,7 @@ function App() {
     if (!result.found || !(result.pokemonNameEn || result.cardNumber)) {
       throw new Error('카드를 인식하지 못했습니다. 앞면이 또렷한 사진으로 다시 시도해 주세요.');
     }
-    applyScanResult(result);
+    await applyScanWithLookup(result);
     setView('cards');
     window.scrollTo({ top: 0 });
   };
@@ -1201,8 +1225,14 @@ function App() {
                   {/* 북미판(영문) 카드는 SNKRDUNK에 없으니 이베이로 보내고, 일본어·한국어
                       카드는 지금 보던 소스를 유지한다. 소스에 맞는 검색어를 고른다 —
                       SNKRDUNK는 세트+번호(확실), 이베이는 영어 이름+번호. */}
-                  <CardScanButton onResult={({ result }) => applyScanResult(result)} />
+                  <CardScanButton onResult={({ result }) => void applyScanWithLookup(result)} />
                 </div>
+                {scanFoundByArtist > 0 && (
+                  <p className="text-xs text-neutral-400 mt-2">
+                    카드 번호가 안 보여서 일러스트레이터로 찾았습니다. 내 카드가 아니면
+                    카드 이름으로 다시 검색해 보세요.
+                  </p>
+                )}
                 {scanFellBack && (
                   <p className="text-xs text-neutral-400 mt-2">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
                 )}
