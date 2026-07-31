@@ -8,6 +8,17 @@ export interface CardScanResult {
   setCode?: string | null;
   // 'japanese' = 일본어/한국어 카드(SNKRDUNK·이베이 일본판), 'english' = 북미판(이베이).
   edition?: 'japanese' | 'english';
+  // ── 번호를 못 읽었을 때 카드를 알아볼 단서들 ──────────────────────────
+  // 일러스트레이터 이름은 모든 카드에 인쇄돼 있고, 우리가 가진 작가별 카드 목록
+  // (public/artists)과 맞추면 "작가 + 카드이름"만으로 86%가 한 장으로 좁혀진다.
+  illustrator?: string | null;
+  hp?: string | null;
+  rarity?: string | null;
+  year?: string | null;
+  // 등급 케이스(슬랩)에 들어 있는지와 그 등급. 라벨을 제대로 읽었는지 가늠하는 데도 쓴다.
+  graded?: boolean;
+  gradeCompany?: string | null;
+  grade?: string | null;
 }
 
 function fileToBase64(file: Blob): Promise<string> {
@@ -98,6 +109,12 @@ export function reportScanMiss(result: CardScanResult): void {
       number: result.cardNumber,
       setCode: result.setCode,
       edition: result.edition,
+      // 왜 틀렸는지 나중에 짚어 보려고 단서도 같이 남긴다. 슬랩이면 라벨을 제대로
+      // 읽었는지, 번호를 못 읽었으면 일러스트레이터라도 읽었는지 알 수 있다.
+      illustrator: result.illustrator ?? null,
+      graded: result.graded ?? false,
+      gradeCompany: result.gradeCompany ?? null,
+      grade: result.grade ?? null,
     }),
   }).catch(() => undefined);
 }

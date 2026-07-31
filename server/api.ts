@@ -2192,7 +2192,21 @@ function mountVisitStats(app: Mountable) {
 // 저장하지 않고, 스캔이 뭐라고 읽었는지(이름·번호·세트·판)만 남긴다. 이 기록으로 어떤
 // 패턴에서 자주 틀리는지 보고 프롬프트를 다듬는다. Claude가 이걸로 재학습하는 건 아니다.
 function mountScanFeedback(app: Mountable) {
-  let items: { name: string; number: string | null; setCode: string | null; edition: string | null; at: number }[] | null = null
+  // 스캔이 뭐라고 읽었는지. 사진은 안 받는다.
+  // illustrator·graded·grade는 왜 틀렸는지 짚어 보려고 나중에 넣었다(옛 기록엔 없다).
+  let items:
+    | {
+        name: string
+        number: string | null
+        setCode: string | null
+        edition: string | null
+        illustrator?: string | null
+        graded?: boolean
+        gradeCompany?: string | null
+        grade?: string | null
+        at: number
+      }[]
+    | null = null
   const allow = rateLimiter(20, 60 * 1000)
 
   async function load() {
@@ -2222,13 +2236,26 @@ function mountScanFeedback(app: Mountable) {
         return
       }
       try {
-        const b = JSON.parse(await readBody(req)) as { name?: string; number?: string; setCode?: string; edition?: string }
+        const b = JSON.parse(await readBody(req)) as {
+          name?: string
+          number?: string
+          setCode?: string
+          edition?: string
+          illustrator?: string
+          graded?: boolean
+          gradeCompany?: string
+          grade?: string
+        }
         const all = await load()
         all.push({
           name: (b.name ?? '').slice(0, 80),
           number: b.number?.slice(0, 40) ?? null,
           setCode: b.setCode?.slice(0, 20) ?? null,
           edition: b.edition?.slice(0, 20) ?? null,
+          illustrator: b.illustrator?.slice(0, 60) ?? null,
+          graded: b.graded === true,
+          gradeCompany: b.gradeCompany?.slice(0, 20) ?? null,
+          grade: b.grade?.slice(0, 10) ?? null,
           at: Date.now(),
         })
         if (all.length > MAX_SCAN_FEEDBACK) all.splice(0, all.length - MAX_SCAN_FEEDBACK)
@@ -3355,11 +3382,30 @@ const CARD_SCAN_MODEL = 'claude-sonnet-5'
 
 const CARD_SCAN_PROMPT = `이 이미지는 포켓몬 카드다. 등급 케이스(슬랩)에 들어 있을 수도 있다. 아래 JSON 하나로만 답하고 다른 말은 절대 붙이지 마라.
 
-읽는 순서:
-1) 카드가 등급 케이스에 들어 있고 위쪽에 영어 라벨이 보이면, 카드 번호를 그 라벨에서 먼저 읽어라(작고 반짝이는 카드 글씨보다 라벨이 또렷하다).
-2) 홀로그램 반사·번들거림이 있으면, 반사에 가려지지 않은 또렷한 글자만 읽어라.
+【사진에 카드가 여러 장이면】
+가장 크게, 가장 가운데 있는 카드 한 장만 읽어라. 여러 장을 뭉뚱그려 답하지 마라.
 
-{"found": true, "pokemonNameEn": "카드에 인쇄된 이름을 먼저 정확히 읽어 어떤 포켓몬/트레이너인지 알아낸 뒤, 그 카드가 영어판 포켓몬 카드에서 쓰는 공식 영어 이름으로 답하라(추측 금지, 인쇄된 이름 기준). ex·V·VMAX·VSTAR·GX 표기가 있으면 포함(예: Greninja ex, Pikachu V)", "cardNumber": "카드 번호(예: 086/083, 209/XY-P, 025/165). 라벨이나 카드에서 읽되, 반사로 흐릿해 확실치 않으면 절대 지어내지 말고 null. 틀린 번호보다 null이 낫다", "setCode": "세트 코드(예: M4, SV5a, XY-P). 라벨이나 카드 번호 옆에서. 안 보이면 null", "edition": "카드에 인쇄된 언어 기준. 일본어면 \\"japanese\\", 한국어여도 반드시 \\"japanese\\"로 답하라, 영어면 \\"english\\". \\"korean\\"이라고 답하지 마라"}
+【등급 케이스(슬랩)일 때】
+위쪽에 인쇄된 라벨을 먼저 읽어라. 케이스 안 카드의 작은 글씨보다 라벨이 훨씬 또렷하다.
+라벨에는 보통 이런 것들이 적혀 있다 — 발매연도 · 언어(JAPANESE 등) · 세트 이름이나 코드 ·
+카드 번호 · 카드 이름 · 감정 등급.
+⚠️ 회사(PSA·BGS·CGC·SGC 등)마다 순서와 표기가 달라서 정해진 틀이 없다. 순서에 기대지 말고
+보이는 항목을 하나씩 골라내라. 판단이 어려우면 이렇게 본다:
+· 숫자 두 개가 떨어져 있으면 대개 앞이 카드 번호, 뒤(또는 큰 글씨)가 등급이다.
+· "10" "9.5" "GEM MT 10" "MINT 9"처럼 10 이하 숫자나 등급어가 붙은 것은 등급이지 카드 번호가 아니다.
+· 카드 번호는 "086/083"처럼 빗금이 있거나 세트 코드가 옆에 붙는 경우가 많다.
+· 라벨 맨 위 긴 숫자(인증번호)는 카드 번호가 아니다. 절대 쓰지 마라.
+라벨이 잘려서 안 보이면 케이스 안 카드에서 읽어라.
+
+【케이스가 없는 맨 카드일 때】
+카드 번호는 보통 아래쪽 구석에 작게 인쇄돼 있다. 홀로그램 반사·번들거림이 있으면
+반사에 가려지지 않은 또렷한 글자만 읽어라.
+
+【번호가 안 보이면】
+번호를 지어내지 말고 null로 두되, 대신 카드를 알아볼 다른 단서를 최대한 채워라.
+그림 아래나 옆에 작게 적힌 일러스트레이터 이름(예: "Illus. Mitsuhiro Arita")이 특히 중요하다.
+
+{"found": true, "pokemonNameEn": "카드에 인쇄된 이름을 먼저 정확히 읽어 어떤 포켓몬/트레이너인지 알아낸 뒤, 그 카드가 영어판 포켓몬 카드에서 쓰는 공식 영어 이름으로 답하라(추측 금지, 인쇄된 이름 기준). ex·V·VMAX·VSTAR·GX 표기가 있으면 포함(예: Greninja ex, Pikachu V)", "cardNumber": "카드 번호(예: 086/083, 209/XY-P, 025/165). 반사로 흐릿해 확실치 않으면 절대 지어내지 말고 null. 틀린 번호보다 null이 낫다", "setCode": "세트 코드(예: M4, SV5a, XY-P). 번호 옆이나 라벨에서. 안 보이면 null", "edition": "카드에 인쇄된 언어 기준. 일본어면 \\"japanese\\", 한국어여도 반드시 \\"japanese\\"로 답하라, 영어면 \\"english\\". \\"korean\\"이라고 답하지 마라", "illustrator": "일러스트레이터 이름을 인쇄된 로마자 그대로(예: Mitsuhiro Arita, 5ban Graphics). \\"Illus.\\"는 빼고 이름만. 안 보이면 null", "hp": "HP 숫자만(예: 210). 없거나 안 보이면 null", "rarity": "카드 오른쪽 아래 레어도 기호나 글자(예: RR, SAR, AR, C, U, R). 안 보이면 null", "year": "카드나 라벨에 적힌 발매연도 4자리(예: 2023). 안 보이면 null", "graded": "등급 케이스에 들어 있으면 true, 맨 카드면 false", "gradeCompany": "등급 회사(PSA, BGS, CGC, SGC, ARS 등). 케이스가 아니거나 안 보이면 null", "grade": "감정 등급(예: 10, 9.5). 안 보이면 null"}
 
 포켓몬 카드가 아니면 {"found": false} 로만 답하라.`
 
