@@ -182,8 +182,19 @@ function App() {
   // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
   // 안 주므로 아무것도 못 본다.
   const [isAdmin, setIsAdmin] = useState(false);
+  // /set/<슬러그>로 들어오면 바로 세트 화면을 연다. 서버가 그 주소로 힛카드가 적힌
+  // 페이지를 미리 만들어 보내므로(검색 노출용), 사람이 눌러 들어오면 앱이 이어받는다.
+  useEffect(() => {
+    if (!/^\/set\//.test(window.location.pathname)) return;
+    setView('sets');
+    // 주소는 그대로 둔다 — 새로고침·공유해도 같은 세트가 열린다.
+    document.getElementById('seo-fallback')?.remove();
+  }, []);
   // 팩 개봉의 "수록 카드 보기" → 세트 목록에서 그 세트를 바로 연다.
-  const [setsInitialSlug, setSetsInitialSlug] = useState<string | null>(null);
+  // /set/<슬러그>로 들어와도 같은 자리로 보낸다(검색으로 들어오는 길).
+  const [setsInitialSlug, setSetsInitialSlug] = useState<string | null>(
+    () => window.location.pathname.match(/^\/set\/([\w.-]+)/)?.[1] ?? null,
+  );
   // 팩 개봉 앨범에서 시세 화면으로 넘어왔는지. 맞으면 "앨범으로 돌아가기"를 띄운다.
   const [backToPacksim, setBackToPacksim] = useState(false);
   // 카드 비교. 최대 2장을 담아 나란히 본다. 베타로 모두에게 공개(2026-07-20).

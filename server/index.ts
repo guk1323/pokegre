@@ -2,7 +2,7 @@ import express from 'express'
 import compression from 'compression'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
-import { access } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import {
   backupDataFiles,
   isAdminRequest,
@@ -10,9 +10,22 @@ import {
   maintenanceOn,
   mountApi,
   startCardNameStore,
+  topPricedCards,
 } from './api.ts'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koSetName } from '../src/lib/setNameKo.ts'
+
+// 화면(cardCatalog)과 같은 규칙으로 이름을 한글로 만든다. 그 파일은 브라우저 전용이라
+// 여기서 가져다 쓰지 않고 같은 내용만 옮겨 둔다.
+const koSet = (ed: 'ja' | 'en', name: string) => (ed === 'ja' ? koreanizeTitle(name) : koSetName(name))
+const koName = (ed: 'ja' | 'en', name: string) => {
+  if (ed !== 'ja') return koreanizeEnglishCardName(name)
+  if (/[ぁ-んァ-ヶ一-龯]/.test(name)) return koreanizeEnglishCardName(koreanizeTitle(name))
+  const en = koreanizeEnglishCardName(name)
+  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return en
+  return koreanizeEnglishCardName(koreanizeTitle(name))
+}
 
 // 프로덕션 진입점. 개발은 vite가 API(server/api.ts)와 프론트를 함께 띄우지만,
 // 배포에서는 이 프로세스가 둘 다 맡는다 — 같은 mountApi를 부르므로 라우팅은 개발과
@@ -239,6 +252,71 @@ app.get('/c/:id', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(path.join(DIST, 'index.html'))
   }
+})
+
+// ── 세트별 힛카드 페이지(검색 노출용) ──────────────────────────────────────
+// "초전브레이커 힛카드"로 검색해서 우리 사이트가 나오게 하는 자리다.
+//
+// 지금 세트 화면은 브라우저가 그린다. 그러면 크롤러가 처음 받는 HTML이 텅 비어 있어
+// 무슨 내용인지 알 수 없다. 그래서 이 주소에서는 서버가 카드 이름과 값을 글자로 미리
+// 넣어 보낸다. 사람이 눌러 들어오면 앱이 이어받아 평소 화면을 그린다
+// (App.tsx가 /set/<슬러그>를 읽어 그 세트를 연다).
+app.get('/set/:slug', async (req, res) => {
+  const slug = String(req.params.slug ?? '')
+  if (!/^[\w.-]+$/.test(slug)) {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  let setName = ''
+  let ed: 'ja' | 'en' = 'ja'
+  let cards: { n: string; name: string }[] = []
+  try {
+    const raw = await readFile(path.join(DIST, 'sets', `${slug}.json`), 'utf-8')
+    const d = JSON.parse(raw) as { ed?: 'ja' | 'en'; name?: string; cards?: { n: string; name: string }[] }
+    ed = d.ed ?? 'ja'
+    setName = koSet(ed, d.name ?? '')
+    cards = d.cards ?? []
+  } catch {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  const hits = topPricedCards(slug, 8)
+  const byNum = new Map(cards.map((c) => [String(Number(c.n)), c]))
+  const rows = hits
+    .map((h) => ({ ...h, card: byNum.get(String(Number(h.n))) }))
+    .filter((r) => r.card)
+    .map((r) => ({ n: r.n, usd: r.usd, name: koName(ed, r.card!.name) }))
+
+  const title = rows.length ? `${setName} 힛카드 시세 | pokegre` : `${setName} 카드 목록 | pokegre`
+  const desc = rows.length
+    ? `${setName}에서 값이 높은 카드 ${rows.length}장 — ${rows
+        .slice(0, 3)
+        .map((r) => r.name)
+        .join(' · ')} 등. TCGplayer 마켓가(미감정) 기준.`
+    : `${setName} 수록 카드 ${cards.length}장을 한국어 이름으로 봅니다.`
+  const url = `https://pokegre.com/set/${slug}`
+
+  let html = TEMPLATE
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
+  html = setMeta(html, 'og:url', esc(url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+
+  // 크롤러가 읽을 본문. 앱이 뜨면 App.tsx가 이 조각을 지운다.
+  const list = rows
+    .map(
+      (r) =>
+        `<li>${esc(r.name)} <span>${esc(String(r.n))}번</span> <span>$${r.usd.toFixed(0)}</span></li>`,
+    )
+    .join('')
+  const body = `<div id="seo-fallback"><h1>${esc(setName)} 힛카드</h1>${
+    rows.length
+      ? `<p>${esc(setName)}에서 값이 높은 카드 ${rows.length}장입니다. TCGplayer 마켓가(미감정 생카드) 기준입니다.</p><ol>${list}</ol>`
+      : `<p>${esc(setName)} 수록 카드 ${cards.length}장.</p>`
+  }<p><a href="/set/${esc(slug)}">${esc(setName)} 전체 카드 보기</a></p></div>`
+  html = html.replace('<body>', `<body>${body}`)
+  res.set('Cache-Control', 'public, max-age=600').send(html)
 })
 
 // 정적 파일 캐시 정책. 번들(assets/*)은 파일명에 해시가 있어 1년 캐시해도 안전하지만,

@@ -15,6 +15,7 @@ import {
 import pokemonNames from '../data/pokemonNames.json';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
+import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
 
 // 세트(발매 패키지)별 수록 카드. 데이터는 TCGdex에서 미리 긁어 public/sets/에 저장해둔 걸
 // 읽는다. 일본판(ja)·북미판(en). 카드 이름은 원어로 저장돼 있어 화면에서 우리 변환기로
@@ -98,6 +99,11 @@ export function SetsView({
   // 값이 높은 순으로 고른 힛카드. 앨범 시세를 받아 둔 세트에서만 온다.
   // 없는 세트는 예전처럼 레어도로 고른다(그때는 "주요 카드"라고 부른다).
   const [hitCards, setHitCards] = useState<{ n: string; usd: number; name: string }[] | null>(null);
+  // 힛카드 값을 원화로 보여주려고 환율을 한 번 받아 둔다. 못 받으면 달러로 적는다.
+  const [usdToKrw, setUsdToKrw] = useState<number | null>(null);
+  useEffect(() => {
+    void fetchExchangeRates().then((r) => setUsdToKrw(r?.usdToKrw ?? null));
+  }, []);
   const [loading, setLoading] = useState(false);
   const [shown, setShown] = useState(PAGE);
 
@@ -164,6 +170,8 @@ export function SetsView({
       .filter((c): c is SetCard => !!c && usable(c.img));
     const highlights = priced.length >= 3 ? priced : topCards(selected.ed, cards ?? []);
     const pricedMode = priced.length >= 3;
+    // 번호 → 값(USD). 화면에 원화로 적는다.
+    const usdByNum = new Map((hitCards ?? []).map((h) => [String(Number(h.n)), h.usd]));
     return (
       <div className="mx-auto max-w-4xl">
         <button
@@ -216,9 +224,16 @@ export function SetsView({
                 많다). 없으면 이 줄을 통째로 감춘다 — 억지로 채우면 엉뚱한 카드가 올라간다. */}
             {highlights.length > 0 && (
               <div className="mb-6">
-                <p className="mb-2 text-sm font-bold text-black">
-                  {pricedMode ? '이 세트의 힛카드' : '이 세트의 주요 카드'}
-                </p>
+                <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
+                  <p className="text-sm font-bold text-black">
+                    {pricedMode ? '이 세트의 힛카드' : '이 세트의 주요 카드'}
+                  </p>
+                  {/* 기준을 안 밝히면 "왜 스니커덩크 값과 다르냐"는 오해가 생긴다.
+                      등급 카드가 아니라 미감정 생카드의 TCGplayer 마켓가다. */}
+                  {pricedMode && (
+                    <span className="text-[11px] text-neutral-400">TCGplayer 마켓가 · 미감정 기준</span>
+                  )}
+                </div>
                 <div className="grid grid-cols-4 gap-x-3">
                   {highlights.map((c) => {
                     const nm = koName(selected.ed, c.name);
@@ -239,6 +254,15 @@ export function SetsView({
                           />
                         </div>
                         <p className="mt-1.5 line-clamp-1 text-[11px] font-bold text-black">{nm}</p>
+                        {(() => {
+                          const usd = usdByNum.get(String(Number(c.n)));
+                          if (!usd) return null;
+                          return (
+                            <p className="text-[11px] text-neutral-500">
+                              {usdToKrw ? formatKrwApprox(usd * usdToKrw) : `$${Math.round(usd).toLocaleString()}`}
+                            </p>
+                          );
+                        })()}
                       </button>
                     );
                   })}

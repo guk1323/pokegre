@@ -5168,6 +5168,18 @@ function mountAuth(
 //
 // 값은 앨범 시세로 이미 받아 둔 것을 그대로 쓴다(크레딧을 새로 안 쓴다). 그래서 앨범
 // 목록에 있는 세트만 나온다. 없는 세트는 빈 배열을 주고, 화면이 예전 방식으로 돌아간다.
+// 세트에서 값이 높은 카드를 골라 준다. 화면(API)과 검색 노출 페이지가 같이 쓴다.
+export function topPricedCards(slug: string, limit = 4): { n: string; usd: number; name: string }[] {
+  const hit = packPriceCache.get(slug)
+  if (!hit) return []
+  return Object.entries(hit.prices)
+    .filter(([n]) => !n.includes('~'))
+    .map(([n, usd]) => ({ n, usd, name: hit.names?.[n] ?? '' }))
+    .filter((r) => r.usd > 0)
+    .sort((a, b) => b.usd - a.usd)
+    .slice(0, limit)
+}
+
 function mountSetHitCards(app: Mountable) {
   app.use('/api/local/set-hit-cards', async (req, res) => {
     const url = new URL(req.url ?? '', 'http://localhost')
@@ -5183,14 +5195,7 @@ function mountSetHitCards(app: Mountable) {
       sendJson(res, 200, { slug, priced: false, cards: [] })
       return
     }
-    // 변형판 키(123~m 같은 것)는 빼고 기본판 번호만 본다.
-    const rows = Object.entries(hit.prices)
-      .filter(([n]) => !n.includes('~'))
-      .map(([n, usd]) => ({ n, usd, name: hit.names?.[n] ?? '' }))
-      .filter((r) => r.usd > 0)
-      .sort((a, b) => b.usd - a.usd)
-      .slice(0, limit)
-    sendJson(res, 200, { slug, priced: true, at: hit.at, cards: rows })
+    sendJson(res, 200, { slug, priced: true, at: hit.at, cards: topPricedCards(slug, limit) })
   })
 }
 
