@@ -182,6 +182,7 @@ const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500, extra:
 
 export const PACK_SETS: PackSet[] = [
   // 일본판 5장팩 — limitless에서 받은 데이터(시크릿 포함). scripts/gen-packsim.mjs
+  JP('M5', '어비스아이', 1800, { profile: JP_MEGA }),
   JP('M4', '닌자스피너', 1800, { profile: JP_MEGA }), // 2026-05 세대부터 200엔
   JP('M3', '니힐제로', 1600, { profile: JP_MEGA }),
   JP('M1L', '메가브레이브', 1600, { profile: JP_MEGA }),
@@ -214,6 +215,7 @@ export const PACK_SETS: PackSet[] = [
 // ⚠️ 전부 PPT API로 직접 확인한 문자열만 적는다(추측 금지). m1L·m1S는 소문자 m이 맞다.
 export const PPT_SET_NAMES: Record<string, string> = {
   // 일본판
+  'ja-M5': 'M5: Abyss Eye',
   'ja-M4': 'M4: Ninja Spinner',
   'ja-M3': 'M3: Nihil Zero',
   'ja-M1L': 'm1L: Mega Brave',
