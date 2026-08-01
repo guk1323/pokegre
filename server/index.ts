@@ -263,7 +263,10 @@ app.get('/c/:id', async (req, res) => {
 // (App.tsx가 /set/<슬러그>를 읽어 그 세트를 연다).
 app.get('/set/:slug', async (req, res) => {
   const slug = String(req.params.slug ?? '')
-  if (!/^[\w.-]+$/.test(slug)) {
+  // +를 허용한다. 옛 일본판 세트 코드에 들어 있다(SM1+·sm2+ 등 5개).
+  // 빼면 그 세트만 구글용 페이지가 안 나가고 홈으로 떨어진다(2026-08-01 실측).
+  // /는 여전히 막으므로 다른 폴더로 새 나갈 수 없다.
+  if (!/^[\w.+-]+$/.test(slug)) {
     res.status(404).send(TEMPLATE)
     return
   }

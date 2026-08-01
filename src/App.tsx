@@ -193,7 +193,8 @@ function App() {
   // 팩 개봉의 "수록 카드 보기" → 세트 목록에서 그 세트를 바로 연다.
   // /set/<슬러그>로 들어와도 같은 자리로 보낸다(검색으로 들어오는 길).
   const [setsInitialSlug, setSetsInitialSlug] = useState<string | null>(
-    () => window.location.pathname.match(/^\/set\/([\w.-]+)/)?.[1] ?? null,
+    // +도 받는다(SM1+ 같은 옛 세트 코드). 빼면 그 주소로 들어와도 세트가 안 열린다.
+    () => decodeURIComponent(window.location.pathname.match(/^\/set\/([\w.%+-]+)/)?.[1] ?? '') || null,
   );
   // 팩 개봉 앨범에서 시세 화면으로 넘어왔는지. 맞으면 "앨범으로 돌아가기"를 띄운다.
   const [backToPacksim, setBackToPacksim] = useState(false);
