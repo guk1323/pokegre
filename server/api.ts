@@ -568,7 +568,10 @@ function mountKoreanNews(app: Mountable) {
       const [, html] = raw.split('#|#')
       const items = parseKoreanNewsHtml(html ?? '')
       const body = JSON.stringify({ items })
-      cache.set(cacheKey, body)
+      // ⚠️ 원본이 실패했거나 모양이 바뀌어 한 건도 못 읽었으면 캐시하지 않는다.
+      // 담아 두면 그때부터 캐시 시간 내내 뉴스가 통째로 빈 화면이 된다
+      // (스니커덩크 프록시에서 같은 종류의 사고가 있었다 — 403을 담아 5분간 검색이 막혔다).
+      if (upstream.ok && items.length) cache.set(cacheKey, body)
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')
       res.end(body)
