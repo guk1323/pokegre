@@ -233,10 +233,12 @@ export function SetsView({
             {/* 이 세트의 간판 카드. 레어도가 채워진 세트에만 나온다(원본 DB에 없는 세트가
                 많다). 없으면 이 줄을 통째로 감춘다 — 억지로 채우면 엉뚱한 카드가 올라간다. */}
             {highlights.length > 0 && (
-              <div className="mb-6">
-                <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
-                  <p className="text-sm font-bold text-black">
-                    {pricedMode ? '이 세트의 힛카드' : '이 세트의 주요 카드'}
+              // 힛카드와 아래 전체 목록이 뭉개져 보인다는 제보. 힛카드만 옅은 판 위에 얹어
+              // 한 덩어리로 묶고, 아래 목록에는 제목을 따로 달아 둘을 갈라 놓는다.
+              <div className="mb-6 rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200/70">
+                <div className="mb-3 flex flex-wrap items-baseline gap-x-2">
+                  <p className="text-base font-bold text-black">
+                    {pricedMode ? `힛카드 TOP ${highlights.length}` : '주요 카드'}
                   </p>
                   {/* 기준을 안 밝히면 "왜 스니커덩크 값과 다르냐"는 오해가 생긴다.
                       등급 카드가 아니라 미감정 생카드의 TCGplayer 마켓가다. */}
@@ -280,6 +282,9 @@ export function SetsView({
               </div>
             )}
 
+            <p className="mb-3 text-base font-bold text-black">
+              수록 카드 <span className="text-neutral-400">{(cards ?? []).length}종</span>
+            </p>
             <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5">
               {visible.map((c, i) => {
                 const nm = koName(selected.ed, c.name);
