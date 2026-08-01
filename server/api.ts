@@ -284,16 +284,30 @@ function tooManyRequests(res: ServerResponse) {
 }
 
 const SNKRDUNK_ORIGIN = 'https://snkrdunk.com'
+// 스니커덩크 프록시에도 제한을 건다. 우리가 부르는 바깥 서비스 중 여기만 없었다.
+// 한 번 검색하면 목록 1번 + 카드마다 1번씩 부르므로(24장이면 25번) 넉넉히 잡는다.
+// 목적은 정밀한 제어가 아니라, 한 사람이 스크립트로 몰아쳐 우리 IP가 막히는 걸 막는 것이다
+// (2026-08-02에 짧은 검색어에서 403을 받았다. 원인은 우리 캐시였지만, 상대가 IP로
+//  막으면 방문자 전체가 검색을 못 하게 된다).
+const SNKRDUNK_RATE_LIMIT = 600
+const SNKRDUNK_RATE_WINDOW_MS = 10 * 60 * 1000
 const CACHE_TTL_MS = 5 * 60 * 1000
 // 제일 큰 응답이 trading-history의 약 50KB라, 300개면 최대 15MB 정도다.
 const CACHE_MAX_ENTRIES = 300
 
 function mountSnkrdunkProxy(app: Mountable) {
   const cache = new TtlCache<{ body: string; status: number; contentType: string }>(CACHE_TTL_MS, CACHE_MAX_ENTRIES)
+  const allow = rateLimiter(SNKRDUNK_RATE_LIMIT, SNKRDUNK_RATE_WINDOW_MS)
 
   app.use('/api/snkrdunk', async (req, res) => {
     const path = req.url ?? ''
     const cached = cache.get(path)
+
+    // 캐시에 있으면 제한을 세지 않는다 — 바깥으로 나가는 요청이 아니다.
+    if (!cached && !allow(req)) {
+      tooManyRequests(res)
+      return
+    }
 
     if (cached) {
       res.statusCode = cached.status
