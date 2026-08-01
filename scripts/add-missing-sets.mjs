@@ -42,7 +42,15 @@ function parseCards(html) {
     if (!n || !name) continue
     cards.push({ n: String(n).padStart(3, '0'), name, img: hover.replace('_XS.png', '_SM.png') })
   }
-  return cards
+  // limitless 목록에 같은 줄이 두 번 나오는 세트가 있다(XY7·CP4의 기라티나EX).
+  // 번호+이름이 같으면 한 장만 남긴다 — 안 그러면 세트 화면에 같은 카드가 두 번 뜬다.
+  const seen = new Set()
+  return cards.filter((c) => {
+    const key = `${c.n}|${c.name}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 // ⚠️ TCGdex와 limitless가 같은 코드를 다른 세트에 쓰는 곳이 있다. 코드만 보고 받으면
