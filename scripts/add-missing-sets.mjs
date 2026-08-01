@@ -106,7 +106,7 @@ async function main() {
       continue
     }
     // 발매일·시리즈는 TCGdex 상세에 있다(카드는 비어도 이건 준다).
-    const meta = await get(`https://api.tcgdex.net/v2/ja/sets/${s.id}`).then((t) => (t ? JSON.parse(t) : null))
+    const meta = await get(`https://api.tcgdex.net/v2/ja/sets/${encodeURIComponent(s.id)}`).then((t) => (t ? JSON.parse(t) : null))
     const slug = `ja-${s.id}`
     if (WRITE) {
       await writeFile(path.join(OUT, `${slug}.json`), JSON.stringify({ ed: 'ja', id: s.id, name: s.name, cards }))
