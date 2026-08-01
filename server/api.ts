@@ -1834,6 +1834,8 @@ const PRICE_TRACKER_ORIGIN = 'https://www.pokemonpricetracker.com/api/v2'
 // 앞당긴다.
 let pptBlockedUntil = 0
 let pptDailyOut = false
+// 429가 이어지기 시작한 시각. 하루치를 다 썼는지 가리는 데 쓴다(아래 notePpt 설명).
+let ppt429Since = 0
 // 오늘 남은 크레딧. 응답 헤더로만 알 수 있어서 부를 때마다 갱신한다.
 let pptDailyLeft = Number.POSITIVE_INFINITY
 // 방문자 몫으로 남겨 둘 크레딧. 뒤에서 도는 앨범 시세 채우기가 하루치를 다 쓰면
@@ -1872,12 +1874,25 @@ function notePpt(status: number, headers: Headers) {
     if (status < 500) {
       pptBlockedUntil = 0
       pptDailyOut = false
+      ppt429Since = 0
     }
     return
   }
-  pptDailyOut = Number.isFinite(left) && left <= 0
+  const now = Date.now()
+  if (!ppt429Since) ppt429Since = now
+
+  // 429는 두 가지인데 PPT가 늘 구분해 주지는 않는다. 남은 크레딧 헤더가 0이면 확실하지만,
+  // 헤더를 아예 안 보내면서 429만 주는 경우가 있다(2026-08-01 실측: 서버를 새로 띄워
+  // 우리 쪽 차단을 지운 직후 첫 호출도 429였고, 헤더는 없었다).
+  //
+  // 분당 한도라면 1분 안에 풀린다. 그래서 "쉬었다가 다시 불렀는데 또 429"가 2분 넘게
+  // 이어지면 분당 한도가 아니다 — 하루치를 다 쓴 것으로 본다. 이걸 안 하면 방문자에게
+  // "30초 뒤에 다시 눌러 주세요"라고 잘못 안내해 밤새 헛되이 새로고침하게 만든다.
+  const stuckTooLong = now - ppt429Since > 2 * 60_000
+  pptDailyOut = (Number.isFinite(left) && left <= 0) || stuckTooLong
+
   // 분당 한도면 PPT가 Retry-After로 알려준다. 없으면 1분 쉰다.
-  pptBlockedUntil = pptDailyOut ? nextUtcMidnight() : Date.now() + (wait || 60_000)
+  pptBlockedUntil = pptDailyOut ? nextUtcMidnight() : now + (wait || 60_000)
 }
 
 // 무료 티어가 하루 100건(전체 방문자 공용)이라, 캐시 적중률이 곧 eBay가 얼마나 오래
