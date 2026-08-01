@@ -312,7 +312,10 @@ function mountSnkrdunkProxy(app: Mountable) {
       })
       const body = await upstream.text()
       const contentType = upstream.headers.get('content-type') ?? 'application/json'
-      cache.set(path, { body, status: upstream.status, contentType })
+      // ⚠️ 실패한 응답은 캐시하지 않는다. 스니커덩크가 가끔 403·5xx를 뱉는데(짧은 검색어에서
+      // 잦다), 그걸 담아 두면 5분 내내 같은 검색이 막힌다 — 실제로 "サナ"·"ギリー" 같은
+      // 짧은 이름이 계속 0건으로 나왔다. 직접 부르면 200이 오는데도 그랬다.
+      if (upstream.ok) cache.set(path, { body, status: upstream.status, contentType })
       res.statusCode = upstream.status
       res.setHeader('content-type', contentType)
       res.end(body)
