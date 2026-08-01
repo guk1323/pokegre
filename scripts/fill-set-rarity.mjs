@@ -54,6 +54,13 @@ const CODE_MAP = {
 }
 const llCode = (id) => CODE_MAP[id] ?? id
 
+// 북미판은 limitless가 완전히 다른 코드를 쓴다(우리 sv08 ↔ limitless SCR).
+// 이름으로 맞추면 틀리기 쉬워서 발매일+장수로 하나로 좁혀지는 것만 적었다
+// (scripts/en-limitless-map.json). 한 코드에 우리 세트가 둘 이상 붙는 것은 뺐다 —
+// 본세트와 트레이너갤러리처럼 같은 날 나온 것들이라 섞이면 엉뚱한 카드가 들어간다.
+import enMapRaw from './en-limitless-map.json' with { type: 'json' }
+const EN_MAP = enMapRaw
+
 async function get(url, tries = 3) {
   for (let i = 0; i < tries; i++) {
     try {
@@ -80,9 +87,9 @@ function parseRarity(html) {
   return out
 }
 
-const slugs = process.argv.filter((a) => a.startsWith('ja-'))
+const slugs = process.argv.filter((a) => a.startsWith('ja-') || a.startsWith('en-'))
 if (!slugs.length) {
-  console.log('세트 슬러그를 하나 이상 적어라 (예: node scripts/fill-set-rarity.mjs ja-S4a --write)')
+  console.log('세트 슬러그를 하나 이상 적어라 (예: node scripts/fill-set-rarity.mjs ja-S4a en-sv08 --write)')
   process.exit(1)
 }
 
@@ -96,7 +103,16 @@ for (const slug of slugs) {
     console.log(`  ${slug}: 파일 없음`)
     continue
   }
-  const html = await get(`https://limitlesstcg.com/cards/jp/${llCode(d.id)}?display=list`)
+  // 일본판은 /cards/jp/<코드>, 북미판은 /cards/<코드>다.
+  const url =
+    d.ed === 'en'
+      ? EN_MAP[d.id] && `https://limitlesstcg.com/cards/${EN_MAP[d.id]}?display=list`
+      : `https://limitlesstcg.com/cards/jp/${llCode(d.id)}?display=list`
+  if (!url) {
+    console.log(`  ${slug}: limitless 짝이 없어 건너뜀`)
+    continue
+  }
+  const html = await get(url)
   if (!html) {
     console.log(`  ${slug}: 받기 실패`)
     continue
