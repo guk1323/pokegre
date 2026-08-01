@@ -54,6 +54,20 @@ const CODE_MAP = {
 }
 const llCode = (id) => CODE_MAP[id] ?? id
 
+// 포켓몬 카드 포켓(A·B 시리즈)은 사이트가 따로다(pocket.limitlesstcg.com).
+// 코드는 우리와 그대로 맞고, 레어도를 다이아·별 기호로 적는다.
+const POCKET = /^[AB]\d/
+const POCKET_MAP = {
+  '◊': 'Common',
+  '◊◊': 'Uncommon',
+  '◊◊◊': 'Rare',
+  '◊◊◊◊': 'Double rare',       // ex 카드
+  '☆': 'Illustration rare',      // 풀아트
+  '☆☆': 'Special illustration rare',
+  '☆☆☆': 'Ultra Rare',           // 이머시브
+  'Crown Rare': 'Hyper rare',    // 왕관, 세트당 2~3장
+}
+
 // 북미판은 limitless가 완전히 다른 코드를 쓴다(우리 sv08 ↔ limitless SCR).
 // 이름으로 맞추면 틀리기 쉬워서 발매일+장수로 하나로 좁혀지는 것만 적었다
 // (scripts/en-limitless-map.json). 한 코드에 우리 세트가 둘 이상 붙는 것은 뺐다 —
@@ -75,13 +89,17 @@ async function get(url, tries = 3) {
 }
 
 // 카드 번호 → 레어도
-function parseRarity(html) {
+function parseRarity(html, pocket = false) {
   const out = new Map()
-  for (const [, body] of html.matchAll(/<tr data-hover="[^"]+">(.*?)<\/tr>/gs)) {
+  // 포켓 사이트는 data-hover가 없다. 표 줄을 그대로 읽는다.
+  const rows = pocket
+    ? [...html.matchAll(/<tr[^>]*>(.*?)<\/tr>/gs)].map((m) => [m[0], m[1]])
+    : [...html.matchAll(/<tr data-hover="[^"]+">(.*?)<\/tr>/gs)]
+  for (const [, body] of rows) {
     const td = [...body.matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => strip(m[1]))
     const [, n, , , rarity] = td
     if (!n || !rarity) continue
-    const mapped = MAP[rarity]
+    const mapped = pocket ? POCKET_MAP[rarity] : MAP[rarity]
     if (mapped) out.set(String(n).padStart(3, '0'), mapped)
   }
   return out
@@ -104,8 +122,10 @@ for (const slug of slugs) {
     continue
   }
   // 일본판은 /cards/jp/<코드>, 북미판은 /cards/<코드>다.
-  const url =
-    d.ed === 'en'
+  const pocket = d.ed === 'en' && POCKET.test(d.id)
+  const url = pocket
+    ? `https://pocket.limitlesstcg.com/cards/${d.id}?display=list`
+    : d.ed === 'en'
       ? EN_MAP[d.id] && `https://limitlesstcg.com/cards/${EN_MAP[d.id]}?display=list`
       : `https://limitlesstcg.com/cards/jp/${llCode(d.id)}?display=list`
   if (!url) {
@@ -117,7 +137,7 @@ for (const slug of slugs) {
     console.log(`  ${slug}: 받기 실패`)
     continue
   }
-  const rmap = parseRarity(html)
+  const rmap = parseRarity(html, pocket)
   let filled = 0
   for (const c of d.cards ?? []) {
     if (c.r) continue
