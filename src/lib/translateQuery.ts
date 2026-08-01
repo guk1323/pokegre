@@ -37,9 +37,27 @@ function withShortPackNames(entries: { ko: string; ja: string }[]): { ko: string
   return out;
 }
 
+// 팩 사전은 "썬&문 → 強化拡張パック サン&ムーン"처럼 한글 쪽이 짧고 일본어 쪽에만
+// 팩 종류가 붙어 있는 항목이 있다. 그대로 되돌리면 "썬&문 확장팩 태그볼트"가
+// "強化拡張パック サン&ムーン 拡張パック タッグボルト"가 되어 아무것도 안 나온다
+// (2026-08-01 실측 50건). 한글에 그 종류 이름이 없으면 일본어에서도 뗀다.
+const PACK_KIND: [string, string][] = [
+  ['強化拡張パック', '강화확장팩'],
+  ['ハイクラスパック', '하이클래스팩'],
+  ['拡張パック', '확장팩'],
+];
+const dropPackKind = (ja: string, ko: string) => {
+  for (const [jaKind, koKind] of PACK_KIND) {
+    if (ja.startsWith(jaKind) && !ko.includes(koKind)) return ja.slice(jaKind.length).trim() || ja;
+  }
+  return ja;
+};
+
 const sortedPackKo = withShortPackNames([
-  ...(packNames as PackName[]).filter((entry) => entry.ko && entry.ja).map((entry) => ({ ko: entry.ko, ja: entry.ja })),
-  ...MANUAL_PACK_OVERRIDES.map(([ja, ko]) => ({ ko, ja })),
+  ...(packNames as PackName[])
+    .filter((entry) => entry.ko && entry.ja)
+    .map((entry) => ({ ko: entry.ko, ja: dropPackKind(entry.ja, entry.ko) })),
+  ...MANUAL_PACK_OVERRIDES.map(([ja, ko]) => ({ ko, ja: dropPackKind(ja, ko) })),
 ]).sort((a, b) => b.ko.length - a.ko.length);
 
 // "샤이니트레저 ex"로 등록돼 있어도 "샤이니 트레저ex"라고 치는 사람이 더 많다. 글자
@@ -53,6 +71,17 @@ const packPatterns = sortedPackKo.map((e) => ({ re: spaceInsensitivePattern(e.ko
 
 // koreanizeTitle의 STRUCTURAL_TERMS(일본어→한글)를 뒤집어서 재사용한다. "메가"처럼
 // 카드명 접두사로 자주 붙는 말은 검색어 번역에서도 빠지면 안 되기 때문.
+// 같은 한글에 일본어가 여럿 붙어 있을 때 검색에 쓸 쪽을 고른다(실측으로 정했다).
+// ① 한자가 없는 쪽을 먼저 쓴다. 스니커덩크는 가나와 한자를 같은 것으로 보지만
+//    반대는 아니다 — "ひかるリザードン" 66건인데 "光るリザードン"은 0건이다.
+// ② 그다음은 짧은 쪽. 넓게 걸리는 게 낫고, 긴 쪽은 대개 그 말이 든 특정 이름이다
+//    ("闘ルガルガン" 1건 / "激闘ルガルガン" 0건).
+const hasKanji = (s: string) => /[一-鿿]/.test(s);
+const betterForSearch = (next: string, prev: string) => {
+  if (hasKanji(next) !== hasKanji(prev)) return !hasKanji(next);
+  return next.length < prev.length;
+};
+
 const reverseStructuralTerms = new Map<string, string>();
 for (const [ja, ko] of STRUCTURAL_TERMS) {
   // 왼쪽이 알파벳뿐인 항목은 건너뛴다. 그런 항목은 옛 세트의 깨진 원본 데이터를
@@ -60,12 +89,19 @@ for (const [ja, ko] of STRUCTURAL_TERMS) {
   // 그대로 뒤집으면 "호일"로 검색할 때 스니커덩크에 'Bugsy'를 보내게 되는데,
   // 거긴 일본어로 찾는 곳이라 아무것도 안 나온다. 제대로 된 짝(ツクシ)이 뒤쪽에 있다.
   if (!/[ぁ-んァ-ヶ一-鿿]/.test(ja)) continue;
-  if (!reverseStructuralTerms.has(ko)) reverseStructuralTerms.set(ko, ja);
+  // ヴ로 적힌 외래음 보조 규칙(ヴァ→바, ヴォ→보 …)은 읽기용이지 검색어가 아니다.
+  // 되돌리면 일본어 이름을 소리대로 적은 한글 안에 끼어든다(실측):
+  //   보우켄 → ヴォ우켄   코쿠바 → 코쿠ヴァ
+  // 한글 "바"의 짝은 バ이지 ヴァ가 아니다.
+  if (/^ヴ/.test(ja)) continue;
+  const prev = reverseStructuralTerms.get(ko);
+  if (prev === undefined || betterForSearch(ja, prev)) reverseStructuralTerms.set(ko, ja);
   // 지역폼 접두사처럼 한글 쪽에 띄어쓰기가 붙은 말("가라르 ")은 붙여 쓴 검색어
   // ("가라르야도란")에 안 걸린다. 그러면 남은 "가"가 엉뚱한 한자 규칙에 잡혀
   // "家라르ヤドラン"이 되어 검색이 통째로 망가진다. 공백 뺀 형태도 같이 등록한다.
   const tight = ko.trim();
-  if (tight !== ko && tight && !reverseStructuralTerms.has(tight)) reverseStructuralTerms.set(tight, ja);
+  const prevTight = reverseStructuralTerms.get(tight);
+  if (tight !== ko && tight && (prevTight === undefined || betterForSearch(ja, prevTight))) reverseStructuralTerms.set(tight, ja);
 }
 const sortedStructuralKo = [...reverseStructuralTerms.entries()].sort((a, b) => b[0].length - a[0].length);
 
@@ -87,19 +123,43 @@ export function translateSearchQuery(query: string): string {
       result = result.replace(re, ja);
     }
   }
-  // 포켓몬 이름 사전을 구조 단어보다 먼저 돌린다. 반대로 하면 "이상해씨"의 "이상",
-  // "단데기"의 "단"처럼 이름 속 조각이 먼저 한자로 바뀌어 이름 매칭이 깨진다
-  // (실제로 "이상해씨→以上해씨"가 되던 버그).
-  for (const entry of sortedPokemonKo) {
-    if (result.includes(entry.ko)) {
-      result = result.split(entry.ko).join(entry.ja);
+  // 포켓몬 이름과 구조 단어를 한 번에, 긴 것부터 돌린다.
+  // 포켓몬을 먼저 다 돌리면 "마그마단"의 "마그마"가 포켓몬 마그마(ブーバー)로 먼저
+  // 걸려 "ブーバー단"이 된다(실측). 반대로 구조 단어를 먼저 다 돌리면 "이상해씨"의
+  // "이상"이 한자가 되어 이름이 깨진다. 섞어서 긴 것부터 보면 둘 다 안 깨진다
+  // (한글→영어 쪽 translateQueryToEnglish도 같은 이유로 이렇게 고쳐 뒀다).
+  const merged: { ko: string; ja: string; short: boolean }[] = [
+    ...sortedPokemonKo.map((e) => ({ ko: e.ko, ja: e.ja, short: false })),
+    // 한글이 두 글자 이하이고 일본어가 한자뿐이면 낱말로 홀로 섰을 때만 바꾼다.
+    // 그냥 바꾸면 일본어 이름을 소리대로 적은 한글 안에 끼어들어 검색어를 망가뜨린다
+    // (2026-08-01 실측 90건: 긴가→긴家, 루자미네→루者미네, 9장세트→9状세트).
+    // "물 에너지"처럼 홀로 서는 짧은 말은 진짜 검색어라 그대로 살아난다.
+    // ⚠️ 공백을 떼고 재야 한다. ["초 ", "超 "]처럼 꼬리 공백이 붙은 항목이 있어서
+    //    그냥 재면 두 글자로 세어 이 검사를 빠져나가고 "망초 SR"이 "망超 SR"이 됐다.
+    ...sortedStructuralKo.map(([ko, ja]) => ({
+      ko,
+      ja,
+      short: ko.trim().length <= 2 && /^[一-鿿]+$/.test(ja.trim()),
+    })),
+  ].sort((a, b) => b.ko.length - a.ko.length);
+
+  for (const { ko, ja, short } of merged) {
+    if (!result.includes(ko)) continue;
+    if (short) {
+      result = result.replace(new RegExp(`(^|[^가-힣0-9])${ko}(?![가-힣])`, 'g'), `$1${ja}`);
+      continue;
     }
+    result = result.split(ko).join(ja);
   }
-  for (const [ko, ja] of sortedStructuralKo) {
-    if (result.includes(ko)) {
-      result = result.split(ko).join(ja);
-    }
-  }
+  // 화면에는 "마릴리 ex"처럼 띄어 보여주지만, 스니커덩크 상품명은 "マリルリex"로 붙어 있다.
+  // 사람들은 본 대로 치므로 여기서 붙여 준다. 실측: "マリルリ ex" 0건 / "マリルリex" 13건.
+  // (인기 카드는 띄어도 걸리지만 드문 카드는 통째로 0건이 된다.)
+  // 레어도(SAR·SR·UR…)는 상품명에서도 띄어 있으니 건드리지 않는다.
+  // "메가리자몽 X ex"처럼 두 번 붙여야 하는 것이 있어 두 번 돌린다(한 번 돌리면
+  // 앞쪽만 붙고 "メガリザードンX ex"로 남는다).
+  const glue = /([ぁ-んァ-ヶー一-鿿A-Za-z0-9])\s+(ex|EX|V|VMAX|VSTAR|GX|BREAK|LEGEND|X|Y)\b/g;
+  result = result.replace(glue, '$1$2').replace(glue, '$1$2');
+
   // 남은 소유격 "의"를 일본어 の로 바꾼다. 이름만 일본어로 바뀌고 "의"가 남으면
   // 스니커덩크에서 안 잡힌다("ロケット団의 ミュウツー"). 앞이 일본어(또는 N 같은
   // 알파벳)일 때만 바꾸므로, 아직 한글로 남은 이름의 "의"는 건드리지 않는다.
