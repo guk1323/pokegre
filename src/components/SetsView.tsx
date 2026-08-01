@@ -95,6 +95,9 @@ export function SetsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSlug, index]);
   const [cards, setCards] = useState<SetCard[] | null>(null);
+  // 값이 높은 순으로 고른 힛카드. 앨범 시세를 받아 둔 세트에서만 온다.
+  // 없는 세트는 예전처럼 레어도로 고른다(그때는 "주요 카드"라고 부른다).
+  const [hitCards, setHitCards] = useState<{ n: string; usd: number; name: string }[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [shown, setShown] = useState(PAGE);
 
@@ -107,10 +110,16 @@ export function SetsView({
     setCards(null);
     setShown(PAGE);
     setLoading(true);
+    setHitCards(null);
     loadSetCards(s.slug)
       .then(setCards)
       .catch(() => setCards([]))
       .finally(() => setLoading(false));
+    // 값 기준 힛카드. 실패하거나 시세가 없는 세트면 그냥 예전 방식으로 둔다.
+    fetch(`/api/local/set-hit-cards?slug=${encodeURIComponent(s.slug)}&limit=4`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setHitCards(d?.priced && d.cards?.length ? d.cards : null))
+      .catch(() => setHitCards(null));
   }
 
   // 세트 상세를 방문기록 한 칸으로: 뒤로가기 = 세트 목록으로.
@@ -147,7 +156,14 @@ export function SetsView({
   // ── 세트 한 개의 카드 그리드 ──────────────────────────────────────────────
   if (selected) {
     const visible = (cards ?? []).slice(0, shown);
-    const highlights = topCards(selected.ed, cards ?? []);
+    // 값으로 고른 카드가 있으면 그것을 쓴다. 세트 파일에서 같은 번호를 찾아 그림·이름을
+    // 가져온다(값만 있고 그림이 없으면 화면에 못 올린다).
+    const byNum = new Map((cards ?? []).map((c) => [String(Number(c.n)), c]));
+    const priced = (hitCards ?? [])
+      .map((h) => byNum.get(String(Number(h.n))))
+      .filter((c): c is SetCard => !!c && usable(c.img));
+    const highlights = priced.length >= 3 ? priced : topCards(selected.ed, cards ?? []);
+    const pricedMode = priced.length >= 3;
     return (
       <div className="mx-auto max-w-4xl">
         <button
@@ -200,7 +216,9 @@ export function SetsView({
                 많다). 없으면 이 줄을 통째로 감춘다 — 억지로 채우면 엉뚱한 카드가 올라간다. */}
             {highlights.length > 0 && (
               <div className="mb-6">
-                <p className="mb-2 text-sm font-bold text-black">이 세트의 주요 카드</p>
+                <p className="mb-2 text-sm font-bold text-black">
+                  {pricedMode ? '이 세트의 힛카드' : '이 세트의 주요 카드'}
+                </p>
                 <div className="grid grid-cols-4 gap-x-3">
                   {highlights.map((c) => {
                     const nm = koName(selected.ed, c.name);

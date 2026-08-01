@@ -39,7 +39,16 @@ export function CardTile({
       <div className="relative h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
         {/* 스니덩크 이미지는 배경제거된 가벼운 webp이고 CDN이 한국에서 빠르다(≈95ms).
             우리 프록시나 유럽 CDN을 거치면 오히려 첫 로딩이 느려져서 원본을 그대로 쓴다. */}
-        <img src={card.imageUrl} alt={card.title} className="h-full w-full object-contain" loading="lazy" />
+        {/* 스니덩크 이미지는 1000x730 가로 캔버스 한가운데에 카드가 가로 43%·세로 83%만
+            차지하도록 들어 있다. 그대로 두면 틀 안에서 카드가 작게 떠 있고 둘레가 텅 빈다
+            ("카드가 작게 보인다"는 제보). 둘레는 투명하니 키워서 잘라내면 카드가 틀을
+            꽉 채운다. 카드가 틀을 넘는 만큼은 위 overflow-hidden이 잘라 준다. */}
+        <img
+          src={card.imageUrl}
+          alt={card.title}
+          className="h-full w-full scale-[1.55] object-contain"
+          loading="lazy"
+        />
         {onToggleFavorite && <FavoriteButton active={!!isFavorite} onToggle={() => onToggleFavorite(card)} />}
       </div>
       {/* 카드 이름은 "이름 [세트 번호](팩 이름)" 한 덩어리로 온다. 그대로 두 줄로 자르면

@@ -5160,6 +5160,40 @@ function mountAuth(
 
 // 개발(vite)과 프로덕션(Express)이 똑같이 이걸 부른다. 여기 순서가 곧 라우팅
 // 순서이므로 양쪽이 갈리지 않는다 — 이 함수 하나만 유지하면 된다.
+// ── 세트별 힛카드 ─────────────────────────────────────────────────────────
+// "이 세트에서 값이 제일 높은 카드"를 돌려준다.
+//
+// 예전엔 화면에서 레어도만 보고 골랐다. 레어도가 높아도 싸게 풀린 카드가 있고 낮아도
+// 비싼 카드가 있어서, 그건 "힛카드"라기보다 "간판 카드"였다. 이제 실제 값으로 고른다.
+//
+// 값은 앨범 시세로 이미 받아 둔 것을 그대로 쓴다(크레딧을 새로 안 쓴다). 그래서 앨범
+// 목록에 있는 세트만 나온다. 없는 세트는 빈 배열을 주고, 화면이 예전 방식으로 돌아간다.
+function mountSetHitCards(app: Mountable) {
+  app.use('/api/local/set-hit-cards', async (req, res) => {
+    const url = new URL(req.url ?? '', 'http://localhost')
+    const slug = (url.searchParams.get('slug') ?? '').trim()
+    const limit = Math.min(12, Math.max(1, Number(url.searchParams.get('limit')) || 4))
+    if (!slug || !/^[a-zA-Z0-9._-]+$/.test(slug)) {
+      sendJson(res, 400, { error: 'bad slug' })
+      return
+    }
+    const hit = packPriceCache.get(slug)
+    if (!hit) {
+      // 아직 시세를 안 받은 세트다. 화면이 예전 방식(레어도)으로 돌아가게 알려 준다.
+      sendJson(res, 200, { slug, priced: false, cards: [] })
+      return
+    }
+    // 변형판 키(123~m 같은 것)는 빼고 기본판 번호만 본다.
+    const rows = Object.entries(hit.prices)
+      .filter(([n]) => !n.includes('~'))
+      .map(([n, usd]) => ({ n, usd, name: hit.names?.[n] ?? '' }))
+      .filter((r) => r.usd > 0)
+      .sort((a, b) => b.usd - a.usd)
+      .slice(0, limit)
+    sendJson(res, 200, { slug, priced: true, at: hit.at, cards: rows })
+  })
+}
+
 export function mountApi(app: Mountable, env: ApiEnv) {
   publicConfig = { openChatUrl: env.OPENCHAT_URL?.trim() || null }
   mountConfig(app)
@@ -5175,6 +5209,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   )
   mountSnkrdunkProxy(app)
   mountImageProxy(app)
+  mountSetHitCards(app)
   mountSearchTracker(app)
   mountVisitStats(app)
   mountScanFeedback(app)
