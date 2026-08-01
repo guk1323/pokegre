@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // 좁은 화면(폰)에서 상세를 아래에서 올라오는 시트로 덮어 보여준다. 큰 화면은 오른쪽
 // 2단이 자연스럽지만, 폰에서 상세가 목록 맨 아래에 붙으면 눌러도 화면이 안 바뀌어
@@ -15,6 +15,32 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
   // open에만 반응하게 한다.
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+
+  // 시트가 상단 메뉴를 덮지 않게, 머리말 높이만큼 자리를 비워 둔다.
+  // 예전엔 높이를 85dvh로 못 박아 뒀는데, 폰에서 스크롤하면 주소창이 숨으면서 dvh가
+  // 커져 시트가 그만큼 더 올라와 메뉴를 파고들었다("카테고리랑 겹쳐서 페이지가 안 넘어감").
+  // 머리말은 글자 줄바꿈에 따라 높이가 달라지므로 열 때 재서 쓴다.
+  const [topGap, setTopGap] = useState(160);
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const h = document.querySelector('header')?.getBoundingClientRect().height ?? 0;
+      // 머리말 아래로 조금 더 띄워 메뉴가 온전히 보이고 눌리게 한다.
+      setTopGap(Math.round(h) + 8);
+    };
+    measure();
+    // 머리말은 글꼴이 늦게 오거나 글자가 줄바꿈되면 높이가 뒤늦게 바뀐다. 열 때 한 번만
+    // 재면 그 전 높이로 굳어 시트가 메뉴를 파고든다(실제로 101px로 재서 그랬다).
+    // 크기가 바뀔 때마다 다시 잰다.
+    const header = document.querySelector('header');
+    const ro = header ? new ResizeObserver(measure) : null;
+    if (header && ro) ro.observe(header);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,13 +74,19 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
     // lg 이상에서는 오른쪽 2단을 쓰므로 시트를 감춘다.
     <div className="lg:hidden fixed inset-0 z-40 flex flex-col justify-end" role="dialog" aria-modal="true">
       {/* 바깥(어두운 곳)을 누르면 닫힌다. */}
+      {/* 어두운 막도 머리말 아래에서 시작한다. 화면을 통째로 덮으면 메뉴가 흐려 보이고,
+          메뉴를 눌러도 막이 먼저 먹어서 시트만 닫힌다 — 한 번에 안 넘어간다. */}
       <button
         type="button"
         aria-label="닫기"
         onClick={onClose}
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-x-0 bottom-0 bg-black/40"
+        style={{ top: topGap }}
       />
-      <div className="relative max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl">
+      <div
+        className="relative overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl"
+        style={{ maxHeight: `calc(100dvh - ${topGap}px)` }}
+      >
         {/* 손잡이를 눌러 닫는다(배경 어두운 곳 탭·뒤로가기로도 닫힘). 회색 바만 두면
             눌리는지 알 수 없어서, 위아래 여백까지 품은 버튼으로 만들어 손가락으로 누를
             영역을 넉넉히 준다. sticky로 위에 고정해 시트를 스크롤해도 손잡이가 늘 손에
