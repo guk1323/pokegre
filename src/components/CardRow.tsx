@@ -37,12 +37,14 @@ export function CardRow({
           {emptyText}
         </p>
       ) : (
+        // snap-x/snap-start: 옆으로 밀면 카드 경계에 딱 멈춘다. 안 그러면 줄 끝에
+        // 카드가 반쯤 잘려 "조각난 작은 카드"처럼 보인다("저렇게 작은 것도 있어").
         // overflow-x-auto는 세로축까지 클리핑으로 승격시켜서, 선택된 카드의
         // ring-offset(타일 바깥 4px)이 위/좌/우에서 잘린다. 여백을 4px 이상 주되
         // 음수 마진으로 상쇄해 제목과의 정렬은 그대로 둔다.
-        <div className="scroll-hint flex gap-4 overflow-x-auto -mx-1 px-1 pt-1 pb-2">
+        <div className="scroll-hint flex snap-x snap-mandatory gap-4 overflow-x-auto -mx-1 px-1 pt-1 pb-2">
           {items.map((card) => (
-            <div key={card.apparelId} className="w-44 flex-shrink-0">
+            <div key={card.apparelId} className="w-44 flex-shrink-0 snap-start">
               <CardTile
                 card={card}
                 selected={card.apparelId === selectedId}
