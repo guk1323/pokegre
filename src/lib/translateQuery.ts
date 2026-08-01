@@ -160,6 +160,15 @@ export function translateSearchQuery(query: string): string {
   const glue = /([ぁ-んァ-ヶー一-鿿A-Za-z0-9])\s+(ex|EX|V|VMAX|VSTAR|GX|BREAK|LEGEND|X|Y)\b/g;
   result = result.replace(glue, '$1$2').replace(glue, '$1$2');
 
+  // 화면에는 "독개굴 (델타종)"처럼 괄호로 갈래를 붙여 보여주지만, 스니커덩크 상품명에는
+  // 그 표기가 없다. 실측: "ドクロッグ（デルタ種）" 0건 / "ドクロッグ" 50건.
+  // 괄호 안이 갈래 표시일 때만 떼고, ex·V 같은 꼬리는 남긴다.
+  result = result.replace(/\s*[（(][^）)]*[）)]/g, ' ').replace(/ {2,}/g, ' ').trim();
+
+  // 골드스타는 화면에 ★로 보여주지만 스니커덩크 상품명엔 그 기호가 없다.
+  // 검색어에서만 뗀다("리자몽 ★" → "リザードン").
+  result = result.replace(/\s*★\s*/g, ' ').replace(/ {2,}/g, ' ').trim();
+
   // 남은 소유격 "의"를 일본어 の로 바꾼다. 이름만 일본어로 바뀌고 "의"가 남으면
   // 스니커덩크에서 안 잡힌다("ロケット団의 ミュウツー"). 앞이 일본어(또는 N 같은
   // 알파벳)일 때만 바꾸므로, 아직 한글로 남은 이름의 "의"는 건드리지 않는다.

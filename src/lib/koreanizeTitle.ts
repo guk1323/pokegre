@@ -67,7 +67,7 @@ export const EXACT_TITLES = new Map<string, string>([
   ['nidoranf', '니드런♀'],
   ['nidoranm', '니드런♂'],
   ['nidooking -048/092', '니드킹'],
-  ['seccepile ex（デルタ種）', '나무킹 ex（델타종）'], // Sceptile의 철자가 깨져 있다
+  ['seccepile ex（デルタ種）', '나무킹 ex (델타종)'], // Sceptile의 철자가 깨져 있다
   ['Mime Ex', '마임맨 ex'],
   ['ホロンエネルギーff', '홀론 에너지 FF'],
   ['ホロンエネルギーwp', '홀론 에너지 WP'],
@@ -243,6 +243,7 @@ export const STRUCTURAL_TERMS: [string, string][] = [
   // ⚠️ 통짜 이름으로만 잡는다 — 'スター'를 통으로 바꾸면 파르셀(クロイスター)이 깨진다.
   ['領土スター', '레지스틸 ★'],   // 領土=Registeel의 기계번역. PCG5 033
   ['ウエートレス', '웨이트리스'], // MC 700 서포트. 켄타로스가 아니다(카드 그림 확인 2026-08-02)
+  ['houndour（u）', '델빌 (u)'], // neo2 039. 원문이 영어라 뒤의 괄호 정리를 빠져나간다
   ['おはなのかんむり', '꽃의 왕관'],   // CP3 031 굿즈
   ['地底湖', '지저호수'],              // E4 087 스타디움. 地底가 그대로 남았다
   ['げんきのハチマキ', '기력의 머리띠'],
@@ -2343,6 +2344,16 @@ export function koreanizeTitle(title: string): string {
   // 원본 목록에 마침표가 딸려 온 이름이 있다("ロケットの管理者。"). 카드 이름에 마침표가
   // 붙어 있으면 잘못 들어간 것처럼 보이니 끝에 붙은 것만 뗀다.
   result = result.replace(/。\s*$/, '');
+
+  // 일본어 전각 괄호（）가 한글 사이에 그대로 남는다("독침붕（델타종）"). 한글 표기로 바꾸고
+  // 앞에 한 칸 띄운다 — 붙어 있으면 이름의 일부처럼 읽힌다.
+  // 닫는 괄호 뒤에 ex·V 같은 꼬리가 붙는 것도 띄운다("(델타종)ex" → "(델타종) ex").
+  result = result
+    .replace(/（/g, ' (')
+    .replace(/）/g, ')')
+    .replace(/\)(?=[A-Za-z가-힣])/g, ') ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
 
   // 옛 팩·에너지 이름에 홀로 남는 원소 한자. 포켓몬 이름은 이미 앞에서 바뀌었다.
   result = result.split('水').join('물').split('炎').join('불꽃').split('闇').join('어둠').split('草').join('풀');

@@ -2017,6 +2017,15 @@ export function koreanizeEnglishCardName(name: string): string {
   // 공백이 겹치는 일이 있다("히스이 의 동료들", "히스이  블레이범").
   // 한글 뒤에 붙는 조사 앞의 공백을 지우고, 겹친 공백은 한 칸으로 줄인다.
   result = result.replace(/(?<=[가-힣])\s+(?=의\s)/g, '').replace(/ {2,}/g, ' ');
+
+  // 옛 세트는 원본이 영어 이름을 넣어 둬서 이 경로를 탄다("houndour（u）").
+  // 일본어 전각 괄호가 섞여 오면 여기서도 한글 표기로 바꾼다(일본어 쪽과 같은 규칙).
+  result = result
+    .replace(/（/g, ' (')
+    .replace(/）/g, ')')
+    .replace(/\)(?=[A-Za-z가-힣])/g, ') ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
   return result;
 }
 
