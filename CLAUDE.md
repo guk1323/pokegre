@@ -91,6 +91,22 @@
 참고자료라 레포에서 뺐기 때문에 **지금은 건너뛴다**(일치 0/불일치 0으로 표시된다). 다시 받으려면 위 방법으로.
 **고치기 전후로 전체 카드명 렌더 결과를 떠서 diff할 것** — 2글자 규칙이 다른 이름을 깨뜨렸는지(예: `デンジ`가 `デンジャラス`를 깸) 이걸로만 잡힌다. 옛 세트(e시리즈·PCG·neo)는 **원본 TCGdex의 일본어 칸이 오염**(정식 일본명 대신 영어명 가타카나 음차: `デンリュウ`가 아니라 `アンファロス`)돼 있어 사전이 못 잡는 게 원인 — 우리 번역기 버그가 아니다. 포켓몬은 `src/data/pokemonNameAliases.json`, 굿즈·트레이너는 `STRUCTURAL_TERMS`에 추가. **별칭은 3글자 이상만**(2글자는 다른 이름에 끼어듦), 추가 전 트레이너 이름과 충돌 검사, 한글명은 `pokemonNames.json`에서 가져올 것. 상세는 메모리 [[pokegre-translation-batch-check]].
 
+## 검색 노출 (이미 등록돼 있음 — 다시 등록하지 말 것)
+
+| | 방식 | 확인법 |
+|---|---|---|
+| **구글 서치콘솔** | **DNS TXT 기록**(도메인 속성). index.html에 메타 태그 없음 | `dig +short TXT pokegre.com` |
+| **네이버** | index.html 메타 태그 `naver-site-verification` | |
+| **사이트맵** | `https://pokegre.com/sitemap.xml` — 2026-07-17 제출, 성공 | 서치콘솔 → Sitemaps |
+
+⚠️ 2026-08-01에 "구글에 등록 안 돼 있다"고 잘못 말했다. 메타 태그만 보고 DNS를 안 봤다.
+**등록 방식이 여러 가지라 한 곳만 보면 틀린다.**
+
+- 사이트맵은 `node scripts/gen-sitemap.mjs`로 다시 만든다(세트마다 `/set/<슬러그>`, 285개).
+- 세트별 힛카드 페이지는 `server/index.ts`의 `/set/:slug`가 카드 이름·값을 **글자로 미리** 넣어 보낸다.
+  브라우저가 그리는 화면은 크롤러에게 빈 페이지로 보이기 때문이다. 앱은 그 주소로 들어오면 그 세트를 연다.
+- 사이트맵 내용을 바꾸면 서치콘솔에서 같은 주소로 한 번 재제출하면 빨리 읽어간다.
+
 ## 신고함 처리
 `/data/translation-feedback.json`(번역 신고), `/data/community-reports.json`(게시글 신고). 운영자만 GET/DELETE. 서버 접근: `fly ssh console -a pokegre -C "..."`.
 
