@@ -26,8 +26,11 @@ export function CardTile({
     <button
       type="button"
       onClick={() => onSelect(card.apparelId)}
-      className={`text-left rounded-xl border border-neutral-200 bg-white p-3 transition hover:shadow-md focus:outline-none ${
-        selected ? 'ring-2 ring-black ring-offset-2' : ''
+      // 선택 표시는 타일 "안쪽"에 그린다. 바깥으로 그리면(ring-offset) 가로로 늘어놓은
+      // 줄에서 옆 카드를 침범한다 — 최근 본 카드·즐겨찾기 줄에서 선택된 카드만
+      // 옆 카드를 파고든다는 제보가 있었다. 안쪽이면 어떤 간격에서도 절대 안 겹친다.
+      className={`text-left rounded-xl bg-white p-3 transition hover:shadow-md focus:outline-none ${
+        selected ? 'ring-2 ring-inset ring-black' : 'ring-1 ring-inset ring-neutral-200'
       }`}
     >
       <div className="relative h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
