@@ -46,6 +46,17 @@ const packKoByCode = new Map(
 // 포켓몬 이름 앞에 붙는 수식어. "ex"/"V"/"VMAX"/"GX" 같은 접미사는 한국 공식 표기에서도
 // 영문 그대로 쓰기 때문에 건드리지 않는다.
 export const STRUCTURAL_EN_TO_KO: [string, string][] = [
+  // e카드 시절 타입별 굿즈 8종. "Fire Cube 01"처럼 번호가 붙어 와 통짜 조회가 안 걸리므로
+  // 낱말로 쪼개지기 전에 여기서 잡는다(안 그러면 "파이어큐브 01"로 띄어 나온다).
+  // 일본판과 같은 꼴로 붙여 쓴다. 파이어·워터·라이트닝·사이킥은 사용자 확인(2026-08-01).
+  ['Fire Cube', '파이어큐브'],
+  ['Water Cube', '워터큐브'],
+  ['Lightning Cube', '라이트닝큐브'],
+  ['Psychic Cube', '사이킥큐브'],
+  ['Grass Cube', '그라스큐브'],
+  ['Fighting Cube', '파이팅큐브'],
+  ['Metal Cube', '메탈큐브'],
+  ['Darkness Cube', '다크니스큐브'],
   // 소유격 카드명(Destined Rivals 등). 함수 초입에서 곧은 어포스트로피(')를 굽은
   // 것(’)으로 정규화하므로 여기 키도 굽은 표기다. 한글명은 전부 기존 트레이너
   // 사전에서 확정된 이름만 쓴다.
@@ -882,6 +893,11 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Pokémon Ranger': '포켓몬 레인저',
   'Power Memory': '파워 메모리',
   'Protection Cube': '프로텍트 큐브',
+  // e카드 시절 타입별 굿즈 8종. 일본판과 같은 꼴(붙여쓰기)로 맞춘다.
+  // 파이어·워터·라이트닝·사이킥은 사용자 확인(2026-08-01), 나머지 넷은 같은 규칙을 따랐다.
+  'Star Piece': '별의조각',
+  'Hand Extension': '핸드 익스텐션',
+  'Mystery Plate': '미스터리 플레이트',
   'Puzzle of Time': '시간의 파즐',
   'Random Receiver': '랜덤수신기',
   'Red Card': '레드카드',
@@ -926,7 +942,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Crystal Wall': '크리스탈 월',
   'Dark Claw': '다크 클로',
   Ether: '에테르',
-  Eviolite: '진화의돌',
+  Eviolite: '진화의휘석', // しんかのきせき. 게임 아이템 '진화의돌'(進化の石)과 다른 것이다
   'Frozen City': '얼어붙은 도시',
   'G Booster': 'G 부스터',
   'G Scope': 'G 스코프',
@@ -1466,7 +1482,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Thought Wave Machine (Rocket's Secret Machine)": "사고파 머신 (로켓단의 비밀메카)",
 
   // 옛 북미판 카드 5·6차 96종 — 2026-07-28 사용자 확인.
-  "Apricorn Forest": "규토리 숲",
+  "Apricorn Forest": "규토리의 숲", // 일본판(アプリコーンの森)과 같게 맞춤
   "Arcade Game": "오락실 게임",
   "Bill's Teleporter": "이수재의 텔레포터",
   "Blaine's Gamble": "강연의 도박",
@@ -1485,7 +1501,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Cinnabar City Gym": "홍련섬 체육관",
   "Counterattack Claws": "반격의 손톱",
   "Crystal Energy": "크리스탈 에너지",
-  "Darkness Cube 01": "다크니스 큐브 01",
+  "Darkness Cube 01": "다크니스큐브 01",
   "Ecogym": "에코 체육관",
   "Energy Ark": "에너지 방주",
   "Energy Flow": "에너지의 흐름",
@@ -1493,15 +1509,15 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Erika's Maids": "민화의 하녀들",
   "Erika's Perfume": "민화의 향수",
   "Fervor": "열정",
-  "Fighting Cube 01": "파이팅 큐브 01",
-  "Fire Cube 01": "파이어 큐브 01",
+  "Fighting Cube 01": "파이팅큐브 01",
+  "Fire Cube 01": "파이어큐브 01",
   "Forest Guardian": "숲의 수호자",
   "Fossil Egg": "화석 알",
   "Fuchsia City Gym": "연분홍시티 체육관",
   "Giovanni's Last Resort": "비주기의 궁극책",
   "Good Manners": "올바른 예의",
   "Goop Gas Attack": "끈적끈적 가스 공격",
-  "Grass Cube 01": "그라스 큐브 01",
+  "Grass Cube 01": "그라스큐브 01",
   "Healing Berry": "회복 열매",
   "Healing Field": "회복의 필드",
   "Hyper Devolution Spray": "하이퍼 퇴화스프레이",
@@ -1509,14 +1525,14 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Imposter Professor Oak": "가짜 오박사",
   "Impostor Professor Oak's Invention": "가짜 오박사의 발명품",
   "Koga's Ninja Trick": "독수의 닌자 술법",
-  "Lightning Cube 01": "라이트닝 큐브 01",
+  "Lightning Cube 01": "라이트닝큐브 01",
   "Lt. Surge's Secret Plan": "마티스의 비밀작전",
   "Lt. Surge's Treaty": "마티스의 조약",
   "Magnifier": "돋보기",
   "Mail from Bill": "이수재의 편지",
   "Mary": "호두",
   "Mary's Impulse": "호두의 충동",
-  "Metal Cube 01": "메탈 큐브 01",
+  "Metal Cube 01": "메탈큐브 01",
   "Minion of Team Rocket": "로켓단의 부하",
   "Mystery Plate Beta": "미스터리 플레이트 베타",
   "Mystery Plate Delta": "미스터리 플레이트 델타",
@@ -1531,7 +1547,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Pokémon March": "포켓몬 행진곡",
   "Pokémon Personality Test": "포켓몬 성격 진단",
   "Pokémon Tower": "포켓몬타워",
-  "Psychic Cube 01": "싸이킥 큐브 01",
+  "Psychic Cube 01": "사이킥큐브 01",
   "Radio Tower": "라디오타워",
   "Recall": "리콜",
   "Retro Energy": "레트로 에너지",
@@ -1558,7 +1574,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Undersea Ruins": "해저 유적",
   "Vermilion City Gym": "갈색시티 체육관",
   "Viridian City Gym": "상록시티 체육관",
-  "Water Cube 01": "워터 큐브 01",
+  "Water Cube 01": "워터큐브 01",
   "Weakness Guard": "약점 가드",
 
   // 일본 원판 'がくしゅうそうち' 하나를 북미판이 시대에 따라 다르게 불렀다.
@@ -1744,7 +1760,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Low Pressure System": "저기압",
   "Lysandre's Trump Card": "플라드리의 트럼프카드",
   "Maxie's Hidden Ball Trick": "마적의 비장의 카드",
-  "Memory Berry": "기억의 열매",
+  "Memory Berry": "메모리베리", // 사용자 확인 2026-08-01
   "Mr. Stone's Project": "나성호의 프로젝트",
   "Multi Technical Machine 01": "멀티 기술머신 01",
   "N": "N",
