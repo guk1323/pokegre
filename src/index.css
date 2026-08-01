@@ -39,3 +39,13 @@ select {
 .scroll-hint::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* 카드 상세 시트가 열린 동안, 폰에서만 머리말의 로고·소개글을 접는다.
+   시트는 메뉴를 덮지 않으려고 머리말 높이만큼 비워 두는데(DetailSheet의 topGap),
+   폰 머리말이 310px라 화면의 38%가 굳어 보였다. 메뉴 줄만 남기면 그만큼 시트가
+   올라온다. lg 이상은 시트를 안 쓰므로(오른쪽 2단) 건드리지 않는다. */
+@media (max-width: 1023px) {
+  :root[data-sheet='open'] .header-brand {
+    display: none;
+  }
+}

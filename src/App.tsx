@@ -1010,7 +1010,9 @@ function App() {
         <header className="border-b border-neutral-200 bg-white">
           <div className="px-4 py-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
+              {/* 카드 상세 시트가 열리면 이 덩어리를 접는다(index.css의 [data-sheet]).
+                  폰에서 시트가 올라올 자리를 늘리려는 것이고, 아래 메뉴 줄은 남긴다. */}
+              <div className="header-brand">
                 {/* 로고를 누르면 처음 화면(카드 시세 홈)으로. 검색·선택을 비우고 맨 위로
                     올린다. 사이트 아무 데서나 "처음으로" 돌아오는 흔한 길이다. */}
                 <h1 className="text-xl font-extrabold text-black tracking-tight">

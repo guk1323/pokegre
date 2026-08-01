@@ -52,6 +52,11 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
 
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    // 시트가 열린 동안 머리말의 로고·소개글을 접는다(index.css). 폰에서 머리말이
+    // 812px 중 310px를 차지한 채 굳어 있어 "위가 통째로 멈춘" 것처럼 보였다.
+    // 접으면 메뉴 줄만 남아 시트가 그만큼 더 올라온다. 메뉴는 그대로 눌린다.
+    // 접히면 머리말 높이가 줄고, 위 ResizeObserver가 그걸 보고 topGap을 다시 잰다.
+    document.documentElement.dataset.sheet = 'open';
     // 뒤로가기(안드로이드 물리 버튼 포함)로 닫히게 한다. 폰에서 X를 찾는 것보다
     // 뒤로가기가 자연스럽다.
     const onPop = () => onCloseRef.current();
@@ -61,6 +66,7 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
+      delete document.documentElement.dataset.sheet;
       window.removeEventListener('popstate', onPop);
       window.removeEventListener('keydown', onKey);
       // 우리가 쌓은 history 항목을 정리한다. 이미 뒤로가기로 닫혔으면 건너뛴다.
