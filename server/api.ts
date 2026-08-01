@@ -360,7 +360,13 @@ function mountImageProxy(app: Mountable) {
 
   async function fetchThumb(url: string, w: number): Promise<{ body: Buffer; contentType: string } | null> {
     const bare = url.replace(/^https?:\/\//, '')
-    const wsrv = `https://images.weserv.nl/?url=${encodeURIComponent(bare)}&w=${w}&output=webp&q=72`
+    // 스니커덩크의 배경제거 이미지는 1000x730 가로 캔버스 한가운데에 카드가 43%만
+    // 차지하도록 들어 있다. 그대로 쓰면 목록에서 카드가 작게 보이고 둘레가 텅 빈다.
+    // 투명한 여백을 잘라내면 카드가 틀을 꽉 채운다(320x234 → 320x449로 확인).
+    // 다른 곳 이미지(TCGdex·TCGplayer 등)는 여백이 없거나 흰 바탕이라 자르면 카드
+    // 테두리까지 깎일 수 있어 건드리지 않는다.
+    const trimmable = /(^|\.)snkrdunk\.com\/upload_bg_removed\//.test(bare)
+    const wsrv = `https://images.weserv.nl/?url=${encodeURIComponent(bare)}&w=${w}&output=webp&q=72${trimmable ? '&trim=10' : ''}`
     try {
       const r = await fetch(wsrv, {
         signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
