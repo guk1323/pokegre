@@ -37,7 +37,7 @@ const shortDate = (d: string) => (d ? d.slice(0, 7).replace('-', '.') : '');
 // 같은 이름이 여러 장이면(그림만 다른 같은 카드) 한 장만 남긴다.
 const POKEMON_KO = (pokemonNames as { ko: string }[]).map((p) => p.ko).filter((k) => k.length >= 2);
 
-function topCards(ed: 'ja' | 'en', cards: SetCard[], limit = 4): SetCard[] {
+function topCards(ed: 'ja' | 'en', cards: SetCard[], limit = 8): SetCard[] {
   const ranked = cards
     .filter((c) => rarityRank(c.r) >= 0)
     // 그림이 없는 카드는 뺀다. 간판으로 올려 놓고 "이미지 준비 중"이 뜨면 초라하다.
@@ -122,7 +122,7 @@ export function SetsView({
       .catch(() => setCards([]))
       .finally(() => setLoading(false));
     // 값 기준 힛카드. 실패하거나 시세가 없는 세트면 그냥 예전 방식으로 둔다.
-    fetch(`/api/local/set-hit-cards?slug=${encodeURIComponent(s.slug)}&limit=4`)
+    fetch(`/api/local/set-hit-cards?slug=${encodeURIComponent(s.slug)}&limit=8`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setHitCards(d?.priced && d.cards?.length ? d.cards : null))
       .catch(() => setHitCards(null));
@@ -234,7 +234,7 @@ export function SetsView({
                     <span className="text-[11px] text-neutral-400">TCGplayer 마켓가 · 미감정 기준</span>
                   )}
                 </div>
-                <div className="grid grid-cols-4 gap-x-3">
+                <div className="grid grid-cols-4 gap-x-3 gap-y-4">
                   {highlights.map((c) => {
                     const nm = koName(selected.ed, c.name);
                     return (
