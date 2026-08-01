@@ -5180,7 +5180,39 @@ export function topPricedCards(slug: string, limit = 4): { n: string; usd: numbe
     .slice(0, limit)
 }
 
+// 세트 목록에 쓸 표지. 값이 제일 높은 카드의 그림을 준다.
+// 세트 파일(dist/sets/*.json)에서 번호로 그림을 찾는다. 22세트뿐이고 파일도 안 바뀌니
+// 한 번 읽고 계속 들고 있는다.
+let setCoverCache: Record<string, string> | null = null
+async function bestCardCovers(): Promise<Record<string, string>> {
+  if (setCoverCache) return setCoverCache
+  const out: Record<string, string> = {}
+  for (const slug of packPriceCache.keys()) {
+    const top = topPricedCards(slug, 8)
+    if (!top.length) continue
+    try {
+      const raw = await readFile(path.resolve('dist/sets', `${slug}.json`), 'utf-8')
+      const d = JSON.parse(raw) as { cards?: { n: string; img?: string }[] }
+      const byNum = new Map((d.cards ?? []).map((c) => [String(Number(c.n)), c]))
+      // 값이 높은 순으로 보다가 그림이 있는 첫 카드를 쓴다.
+      for (const t of top) {
+        const img = byNum.get(String(Number(t.n)))?.img
+        if (img) { out[slug] = img; break }
+      }
+    } catch {
+      /* 세트 파일이 없으면 건너뛴다 */
+    }
+  }
+  setCoverCache = out
+  return out
+}
+
 function mountSetHitCards(app: Mountable) {
+  // 세트 목록용: 값이 제일 높은 카드 그림을 세트마다 하나씩.
+  app.use('/api/local/set-covers', async (_req, res) => {
+    sendJson(res, 200, { covers: await bestCardCovers() })
+  })
+
   app.use('/api/local/set-hit-cards', async (req, res) => {
     const url = new URL(req.url ?? '', 'http://localhost')
     const slug = (url.searchParams.get('slug') ?? '').trim()

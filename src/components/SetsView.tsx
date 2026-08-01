@@ -101,6 +101,16 @@ export function SetsView({
   const [hitCards, setHitCards] = useState<{ n: string; usd: number; name: string }[] | null>(null);
   // 힛카드 값을 원화로 보여주려고 환율을 한 번 받아 둔다. 못 받으면 달러로 적는다.
   const [usdToKrw, setUsdToKrw] = useState<number | null>(null);
+  // 값이 제일 높은 카드를 세트 표지로 쓴다. 원본이 주는 표지는 그 세트의 1번 카드라
+  // 대개 평범한 카드다 — 목록에서 어떤 세트인지 알아보기 어렵다.
+  // 시세를 받아 둔 세트만 온다. 없으면 지금까지 쓰던 표지를 그대로 쓴다.
+  const [bestCovers, setBestCovers] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch('/api/local/set-covers')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setBestCovers(d?.covers ?? {}))
+      .catch(() => undefined);
+  }, []);
   useEffect(() => {
     void fetchExchangeRates().then((r) => setUsdToKrw(r?.usdToKrw ?? null));
   }, []);
@@ -422,7 +432,11 @@ export function SetsView({
                 <button key={s.slug} type="button" onClick={() => openSet(s)} className="group text-left">
                   <div className="aspect-[5/7] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200/70 transition group-hover:shadow-lg group-hover:ring-neutral-300">
                     <img
-                      src={usable(s.cover) ? thumb(cardImg(s.cover), 200) : CARD_BACK}
+                      src={(() => {
+                        const best = bestCovers[s.slug];
+                        const pick = usable(best) ? best : s.cover;
+                        return usable(pick) ? thumb(cardImg(pick), 200) : CARD_BACK;
+                      })()}
                       alt={s.name}
                       loading="lazy"
                       decoding="async"
