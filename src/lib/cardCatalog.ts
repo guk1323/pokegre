@@ -86,8 +86,23 @@ export const usable = (url?: string) => !!url && !url.includes('snkrdunk');
 
 // 일본판은 일본어 변환 후, TCGdex에 영어로 섞여 오는 이름(옛 세트의 Koffing 등)까지
 // 영어 변환기로 한 번 더 잡는다. 북미판은 영어 변환만.
-export const koName = (ed: 'ja' | 'en', name: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
+// 일본어 글자가 하나도 없으면 영어 이름이다. 일본판 세트에도 영어 이름이 섞여 있다
+// (옛 세트의 깨진 원본 데이터, 그리고 PPT에서 받아 채운 시크릿 레어).
+// 그런 이름에 일본어 변환기를 먼저 돌리면 오히려 망가진다 — 일본어 사전에는 옛 세트를
+// 고치려고 넣은 조각들이 있어서("Rocket"→"로켓단", "Jasmine"→"규리"), 멀쩡한 영어
+// 이름이 "Team 로켓단의 Wobbuffet"처럼 반쪽이 된다. 영어면 영어 변환기만 태운다.
+const hasJapanese = (s: string) => /[ぁ-んァ-ヶ一-龯]/.test(s);
+
+export const koName = (ed: 'ja' | 'en', name: string) => {
+  if (ed !== 'ja') return koreanizeEnglishCardName(name);
+  if (hasJapanese(name)) return koreanizeEnglishCardName(koreanizeTitle(name));
+  // 영어 이름이다. 영어 사전이 통째로 아는 이름이면 그대로 쓴다.
+  const en = koreanizeEnglishCardName(name);
+  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return en;
+  // 영어 사전이 못 잡은 것만 일본어 사전에 맡긴다. 옛 세트에는 원본이 깨져 영어로 들어온
+  // 이름이 있는데("Bugsy's Pinsir", "Mime Ex"), 그건 일본어 쪽에 고치는 규칙을 넣어 뒀다.
+  return koreanizeEnglishCardName(koreanizeTitle(name));
+};
 
 export const koSet = (ed: 'ja' | 'en', name: string) =>
   ed === 'ja' ? koreanizeTitle(name) : koSetName(name);
