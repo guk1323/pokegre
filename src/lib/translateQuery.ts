@@ -113,5 +113,25 @@ export function translateSearchQuery(query: string): string {
 export function canonicalizeSearchTerm(query: string): string {
   const trimmed = query.trim();
   if (!trimmed) return trimmed;
-  return koreanizeTitle(translateSearchQuery(trimmed));
+  return tidySearchTerm(koreanizeTitle(translateSearchQuery(trimmed)));
+}
+
+// 인기 검색어에 올릴 만한 꼴로 다듬는다.
+//
+// 사진으로 찾으면 검색어가 카드 번호가 된다("M4 114/083"). 그게 그대로 순위에 오르면
+// 무슨 카드인지 아무도 모른다. 반대로 목록에서 고른 것을 그대로 두면 상품 제목이
+// 통째로 올라간다("명희의 격려 SAR [M3 115/080](확장팩「메가진화 : 니힐제로」)").
+// 사람이 읽을 수 있는 카드 이름만 남긴다.
+//
+// 이름이 하나도 안 남는 순수 번호는 빈 문자열로 돌려준다 — 부르는 쪽에서 집계를 건너뛴다.
+export function tidySearchTerm(term: string): string {
+  let t = term.trim();
+  // 상품 제목 꼬리: "[M3 115/080]" 뒤와 "(확장팩「…」)" 같은 괄호 설명을 떼어낸다.
+  t = t.replace(/\s*[[(（].*$/, '').trim();
+  // 앞뒤에 붙은 세트코드·번호를 떼어낸다("M4 114/083", "114/083 리자몽").
+  t = t.replace(/^\s*[A-Za-z0-9-]{1,8}\s+(?=\d)/, '');
+  t = t.replace(/\s*\b\d{1,4}\/[A-Za-z0-9-]+\b\s*/g, ' ').trim();
+  // 번호만 남은 것(또는 아무것도 안 남은 것)은 집계하지 않는다.
+  if (!t || !/[가-힣A-Za-z]/.test(t)) return '';
+  return t.replace(/\s+/g, ' ');
 }

@@ -640,7 +640,13 @@ function App() {
       // 끝나므로 이 시점의 ref는 지금 검색어의 결과를 담고 있다.
       const r = searchResultRef.current;
       if (r.query !== trimmed || r.count === 0) return;
-      void loadNameDict().then((d) => trackSearch(d.canonicalizeSearchTerm(trimmed)));
+      void loadNameDict().then((d) => {
+        // 사진으로 찾으면 검색어가 카드 번호라("M4 114/083") 그대로 순위에 올리면
+        // 무슨 카드인지 알 수 없다. 그럴 땐 읽어낸 카드 이름으로 집계한다.
+        const scanned = scannedResult?.pokemonNameEn ? d.koreanizeEnglishCardName(scannedResult.pokemonNameEn) : '';
+        const term = d.canonicalizeSearchTerm(trimmed) || scanned.trim();
+        if (term) trackSearch(term);
+      });
       // 어느 소스로 실제 검색이 이뤄졌는지만 센다(개인정보 없음).
       trackEvent(r.source === 'ebay' ? 'ebay_search' : r.source === 'tcgplayer' ? 'tcgplayer' : 'snkrdunk_search');
       loadPopularSearches();
