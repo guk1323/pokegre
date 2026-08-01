@@ -29,7 +29,10 @@ export function CardTile({
       // 선택 표시는 타일 "안쪽"에 그린다. 바깥으로 그리면(ring-offset) 가로로 늘어놓은
       // 줄에서 옆 카드를 침범한다 — 최근 본 카드·즐겨찾기 줄에서 선택된 카드만
       // 옆 카드를 파고든다는 제보가 있었다. 안쪽이면 어떤 간격에서도 절대 안 겹친다.
-      className={`text-left rounded-xl bg-white p-3 transition hover:shadow-md focus:outline-none ${
+      // w-full이 없으면 button은 제 내용만큼 넓어진다(inline-block). 제목에 띄어쓸 수
+      // 없는 긴 덩어리가 있으면("개굴닌자 프로모[PROMO339 S-P]") 자리(176px)를 넘어
+      // 198px까지 커져서 옆 카드를 침범한다. 딱 그 카드만 그래서 찾기 어려웠다.
+      className={`w-full text-left rounded-xl bg-white p-3 transition hover:shadow-md focus:outline-none ${
         selected ? 'ring-2 ring-inset ring-black' : 'ring-1 ring-inset ring-neutral-200'
       }`}
     >
