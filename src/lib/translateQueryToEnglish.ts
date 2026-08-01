@@ -177,6 +177,13 @@ const packJpPatterns = (packNames as PackName[])
 const JP_SEARCH_ONLY: Record<string, string> = {
   // 같은 카드인데 PPT가 다른 낱말로 적어 둔 것들. 세트 번호가 맞는 것만 담았다
   // (세트별로 일치율 70% 넘는 것만 믿는다). 화면 이름은 그대로 두고 검색만 맞춘다.
+  // 영국 축구협회 프로모 5종. 화면에는 "공을 안은 피카츄"로 쓰지만 수집가들은
+  // "피카츄 온 더 볼"로도 부른다. 그렇게 쳐도 찾게 검색어로만 받아 둔다.
+  '피카츄 온 더 볼': 'Pikachu on the Ball',
+  '이브이 온 더 볼': 'Eevee on the Ball',
+  '흥나숭 온 더 볼': 'Grookey on the Ball',
+  '염버니 온 더 볼': 'Scorbunny on the Ball',
+  '울머기 온 더 볼': 'Sobble on the Ball',
   '마티스의 거래': "Lt. Surge's Deal",
   로켓단의리시버: "Team Rocket's Transceiver",
   파이팅공: 'Fight Gong',
