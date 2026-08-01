@@ -387,6 +387,16 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
 // 아이템·에너지·화석·일반 역할 카드(영어 → 한글). 공식 한국 포켓몬 카드 표기.
 // 카드명 "전체"가 정확히 일치할 때만 바꾼다.
 const ITEM_EN_TO_KO: Record<string, string> = {
+  // 골드스타. 카드에는 ★로 인쇄돼 있다(일본판 쪽과 같은 표기로 맞춘다).
+  'Groudon Star': '그란돈 ★',
+  'Kyogre Star': '가이오가 ★',
+  'Metagross Star': '메타그로스 ★',
+  'Mewtwo Star': '뮤츠 ★',
+  'Pikachu Star': '피카츄 ★',
+  'Treecko Star': '나무지기 ★',
+  'Entei Star': '앤테이 ★',
+  'Suicune Star': '스이쿤 ★',
+  'Registeel Star': '레지스틸 ★',
   'Pikachu on the Ball': '공을 안은 피카츄',
   'Eevee on the Ball': '공을 안은 이브이',
   'Grookey on the Ball': '공을 안은 흥나숭',
