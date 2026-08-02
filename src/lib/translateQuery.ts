@@ -26,10 +26,41 @@ const aliasPairs = (pokemonNameAliases as { ko?: string; ja?: string }[])
   .filter((e) => e.ko && e.ja && /^[ぁ-んァ-ヶー]+$/.test(e.ja))
   .map((e) => ({ ko: e.ko as string, ja: e.ja as string }));
 
+// "메가디안시"처럼 메가 진화 이름이 붙어 오면 통째로 바꿔야 한다. 그냥 두면 안쪽의
+// "가디안"(サーナイト)이 먼저 걸려 "메サーナイト시"가 된다(방문자가 실제로 친 검색어에서
+// 나왔다). 반대로 메가자리(トロピウス)·메가니움(メガニウム)은 이름 자체가 메가로
+// 시작하므로, 원래 이름을 먼저 놓고 긴 것부터 맞춘다.
+// ⚠️ 한글→영어 쪽(translateQueryToEnglish)에는 진작 있던 처리인데 이쪽에만 빠져 있었다.
+//    두 방향은 따로 돌아가므로 한쪽을 고치면 다른 쪽도 봐야 한다.
+const withMega = (list: { ko: string; ja: string }[]) =>
+  [...list, ...list.map((e) => ({ ko: `메가${e.ko}`, ja: `メガ${e.ja}` }))].sort(
+    (a, b) => b.ko.length - a.ko.length,
+  );
+
+// 사람들이 실제로 치는 표기를 공식 한글 표기로 먼저 고친다. 검색어를 받는 쪽에만 두고
+// (일본어→한글 사전에 넣으면 카드 이름 자체가 이렇게 바뀐다), 일본어로 바로 바꾸지 않는다.
+//
+// 왜 한글→한글인가: 일본어로 바로 바꾸면 그 뒤에 이어지는 규칙이 안 걸린다. "이슬이"를
+// カスミ로 바로 바꾸면 "이슬이의 기력"이 「カスミの기력」에서 멈춘다 — 사전에 통째로
+// 등록된 이름이 「이슬의 기력」이라 그 모양이 되기 전에는 안 걸리기 때문이다.
+// 공식 표기로 먼저 고쳐 두면 그다음은 기존 규칙이 알아서 다 한다.
+//
+// 왜 필요한가: 방문자가 남긴 검색어 578종을 훑어보니, 공식 한글명 대신 일본 발음을
+// 그대로 적거나 이름 뒤에 '이'를 붙여 치는 경우가 있었다. 그대로 두면 한글이 남은 채
+// 스니커덩크로 나가 결과가 0건이 된다.
+const KO_SEARCH_ALIASES: [string, string][] = [
+  ['이슬이', '이슬'], // 공식명은 "이슬"(カスミ). 사람 이름처럼 '이'를 붙여 치는 사람이 있다
+  ['시로나', '난천'], // 공식명은 "난천"(シロナ)인데 일본 발음으로 치는 사람이 있다
+  ['구레닌자', '개굴닌자'], // 공식명은 "개굴닌자"(ゲッコウガ)
+  ['포케토몬스터', '포켓몬스터'],
+];
+
 // 긴 이름부터 치환해야 "리자드"가 "리자몽" 안에서 먼저 걸려 이름이 깨지는 걸 막을 수 있다.
-const sortedPokemonKo = [...(pokemonNames as PokemonName[]), ...aliasPairs]
-  .filter((entry) => entry.ko && entry.ja)
-  .sort((a, b) => b.ko.length - a.ko.length);
+const sortedPokemonKo = withMega(
+  [...(pokemonNames as PokemonName[]), ...aliasPairs]
+    .filter((entry) => entry.ko && entry.ja)
+    .map((e) => ({ ko: e.ko, ja: e.ja })),
+);
 
 // 팩 이름은 사전에 "스칼렛&바이올렛 : 흑염의 지배자"처럼 시리즈 접두사까지 붙어 있지만,
 // 사람들은 "흑염의 지배자"만 친다. ':' 뒤 뒷부분도 따로 등록해 둘 다 걸리게 한다.
@@ -126,6 +157,11 @@ export function translateSearchQuery(query: string): string {
   if (!trimmed) return trimmed;
 
   let result = trimmed;
+  // 사람들이 치는 표기를 공식 표기로 먼저 고친다. 아무것도 바꾸기 전에 해야
+  // 그다음 규칙들이 평소대로 걸린다(위 KO_SEARCH_ALIASES 설명).
+  for (const [typed, official] of KO_SEARCH_ALIASES) {
+    if (result.includes(typed)) result = result.split(typed).join(official);
+  }
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. "샤이니"·"포켓몬" 같은 짧은 일반어를
   // 먼저 바꾸면 "샤이니트레저 ex"·"포켓몬카드 151" 같은 팩 이름이 조각나 안 걸린다.
   for (const { re, ja } of packPatterns) {
