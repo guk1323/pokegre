@@ -139,6 +139,10 @@ for (const s of targets) {
   } else {
     console.log(`  ${s.slug.padEnd(12)} ${String(rows.length).padStart(4)}장 받았지만 값이 있는 카드가 없다  누적 ${spent}`)
   }
+  // ⚠️ 세트 하나 받을 때마다 저장한다. 예전엔 다 끝나고 한 번만 썼는데, 80세트를
+  //    받는 데 10분이 넘게 걸린다. 중간에 끊기면 그때까지 쓴 크레딧이 통째로 날아가고,
+  //    다음에 돌리면 같은 세트를 처음부터 다시 받는다.
+  if (WRITE) await writeFile(OUT, JSON.stringify(saved, null, 2))
   await sleep(5000)
 }
 
