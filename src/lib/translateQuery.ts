@@ -1,4 +1,5 @@
 import pokemonNames from '../data/pokemonNames.json';
+import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
 import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
 import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TRAINER_NAMES } from './koreanizeTitle';
@@ -16,8 +17,17 @@ interface PackName {
   ko: string;
 }
 
+// 모습이 다른 포켓몬(백마 버드렉스·히트로토무·리자몽 ★)은 기본 이름 사전이 아니라
+// 별칭 사전에만 있다. 여기 빼먹으면 "백마 버드렉스"가 「白馬」+「バドレックス」로 갈라져
+// 검색이 0건이 된다(실측: 白馬バドレックスV 0건 / はくばバドレックスV 24건).
+// ⚠️ 원본이 깨진 별칭이 섞여 있다(안농 7종의 일본어가 "未作外"·"ZなしZ"). 일본어가
+//    가나로만 돼 있는 것만 쓴다.
+const aliasPairs = (pokemonNameAliases as { ko?: string; ja?: string }[])
+  .filter((e) => e.ko && e.ja && /^[ぁ-んァ-ヶー]+$/.test(e.ja))
+  .map((e) => ({ ko: e.ko as string, ja: e.ja as string }));
+
 // 긴 이름부터 치환해야 "리자드"가 "리자몽" 안에서 먼저 걸려 이름이 깨지는 걸 막을 수 있다.
-const sortedPokemonKo = (pokemonNames as PokemonName[])
+const sortedPokemonKo = [...(pokemonNames as PokemonName[]), ...aliasPairs]
   .filter((entry) => entry.ko && entry.ja)
   .sort((a, b) => b.ko.length - a.ko.length);
 
@@ -138,10 +148,13 @@ export function translateSearchQuery(query: string): string {
     // "물 에너지"처럼 홀로 서는 짧은 말은 진짜 검색어라 그대로 살아난다.
     // ⚠️ 공백을 떼고 재야 한다. ["초 ", "超 "]처럼 꼬리 공백이 붙은 항목이 있어서
     //    그냥 재면 두 글자로 세어 이 검사를 빠져나가고 "망초 SR"이 "망超 SR"이 됐다.
+    // ⚠️ 한자 뒤에 붙는 히라가나(送り仮名)까지 한자뿐인 것으로 친다. ["入り", "입"]이
+    //    り 때문에 이 검사를 빠져나가, "옷갈아입은 피카츄"가 "옷갈아入り銀 ピカチュウ"가
+    //    됐다(→ 검색 0건). 가타카나로 시작하는 말(볼→ボール)은 그대로 두어야 한다.
     ...sortedStructuralKo.map(([ko, ja]) => ({
       ko,
       ja,
-      short: ko.trim().length <= 2 && /^[一-鿿]+$/.test(ja.trim()),
+      short: ko.trim().length <= 2 && /^[一-鿿]+[ぁ-ん]*$/.test(ja.trim()),
     })),
     // 트레이너 이름은 카드명 전체가 그 이름일 때만 쓰는 것이라, 검색어에서도
     // 낱말로 홀로 섰을 때만 되돌린다(short). "이수"(アズサ)를 그냥 바꾸면
@@ -152,7 +165,10 @@ export function translateSearchQuery(query: string): string {
   for (const { ko, ja, short } of merged) {
     if (!result.includes(ko)) continue;
     if (short) {
-      result = result.replace(new RegExp(`(^|[^가-힣0-9])${ko}(?![가-힣])`, 'g'), `$1${ja}`);
+      // 뒤에 조사 '의'가 붙는 건 낱말로 홀로 선 것으로 친다. 안 그러면 "강함의 매력"이
+      // 강함(強さ)을 못 바꾸고 "강함의 魅力"로 남는다. '의'는 뒤에서 の로 바뀐다.
+      // "이수재"(이수+재)처럼 진짜 다른 낱말은 여전히 막힌다.
+      result = result.replace(new RegExp(`(^|[^가-힣0-9])${ko}(의)?(?![가-힣])`, 'g'), `$1${ja}$2`);
       continue;
     }
     result = result.split(ko).join(ja);

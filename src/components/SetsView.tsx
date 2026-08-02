@@ -300,7 +300,9 @@ export function SetsView({
                         </div>
                         {/* 두 줄까지 보여준다. 한 줄로 자르면 "로켓단의 뮤츠 ex"처럼 접두사가
                             긴 카드가 폰에서 전부 "로켓단의…"로 나와 어느 카드인지 알 수 없다. */}
-                        <p className="mt-1.5 line-clamp-2 text-[11px] font-bold leading-snug text-black">{nm}</p>
+                        <p className="mt-1.5 line-clamp-2 min-h-[2rem] text-[11px] font-bold leading-snug text-black">
+                          {nm}
+                        </p>
                         {(() => {
                           const usd = usdByNum.get(String(Number(c.n)));
                           if (!usd) return null;
@@ -500,7 +502,11 @@ export function SetsView({
                       }}
                     />
                   </div>
-                  <p className="mt-1.5 line-clamp-2 text-xs font-bold leading-snug text-black">{koSet(s.ed, s.name)}</p>
+                  {/* 이름 칸을 두 줄로 고정한다. 안 그러면 이름이 긴 세트만 날짜 줄이 내려가
+                      옆 칸과 어긋난다(「스타트 덱 100 배틀컬렉션」). */}
+                  <p className="mt-1.5 line-clamp-2 min-h-[2.25rem] text-xs font-bold leading-snug text-black">
+                    {koSet(s.ed, s.name)}
+                  </p>
                   <p className="mt-0.5 text-[11px] tabular-nums text-neutral-400">
                     {s.count}종{s.releaseDate ? ` · ${shortDate(s.releaseDate)}` : ''}
                   </p>
