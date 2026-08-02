@@ -19,7 +19,7 @@
 | `POKEMON_PRICE_TRACKER_API_KEY` | **PPT** (pokemonpricetracker.com/api/v2). eBay·TCGplayer 시세, 등급별 히스토리 | **유료(Pro $10)** | server/api.ts (Bearer) | `/cards` 응답에 **카드 이미지도 포함**(`imageCdnUrl` 200/400/800, tcgplayer-cdn). `setName`으로 조회 가능. **rate limit 매우 빡빡 — 2~3연속 호출이면 429**. `page` 파라미터 없음(`limit`만, 최대 250). |
 | `POKEMONTCG_API_KEY` | **pokemontcg.io** 카드 이미지·데이터 | 무료 | **코드 미사용(데이터 작업용)** | 이미지 채우기 등 스크립트에서 `X-Api-Key` 헤더로. 키 없이 부르면 rate limit 걸림 → **반드시 이 키 사용**. 데이터 API가 가끔 500 뜸. |
 | `EBAY_APP_ID` / `EBAY_CERT_ID` | **이베이 Browse API** — 한글판(Korean Version) **현재 매물가(호가)**. server/api.ts `mountEbayKorean` → `/api/local/ebay-korean?q=` | 무료(Browse) | server/api.ts (OAuth client_credentials) | 이베이는 **매물 제목이 영어**라 `"카드명 Korean Version"`로 검색. **호가만**(체결가=Marketplace Insights는 별도 승인 필요, 403). 화면은 이베이 판 토글의 "한글판"(edition='korean' → KoreanEbayView). Fly엔 `fly secrets set`으로. |
-| `ANTHROPIC_API_KEY` | 카드 사진 스캔(이미지→카드 인식) | 종량제 | server/api.ts | scan-card는 인증 필요(요금 방지). |
+| `ANTHROPIC_API_KEY` | 카드 사진 스캔(이미지→카드 인식) | 종량제 | server/api.ts | **로그인은 안 건다**(시세 조회를 비로그인도 되게 한 것과 같은 뜻). 대신 횟수로 막는다 — 1인당 시간당 10번(`SCAN_RATE_LIMIT`) + 하루 전체 300번(`SCAN_DAILY_LIMIT`). 두 검사 모두 Anthropic을 부르기 **전에** 걸린다. 모델 `claude-sonnet-5`(홀로 카드 작은 글씨 판독). 받는 형식은 jpeg·png·webp·gif만(HEIC를 그냥 넘기면 요금만 쓰고 실패). |
 | `KAKAO_REST_API_KEY` / `KAKAO_CLIENT_SECRET` | 카카오 로그인 | 무료 | server/api.ts | |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 네이버 로그인 | 무료 | server/api.ts | |
 | `OPENCHAT_URL` | 커뮤니티 오픈채팅 링크 | — | server/api.ts | |
@@ -35,6 +35,16 @@
 - **⚠️ 429를 계속 내면 키가 정지된다** (2026-07-28 실제로 1시간 정지당함). **5분 안에 429 150번**(pro 기준)이 기준선이고, 반복하면 1시간 → 24시간 → 7일 → 영구. 정지 중에는 **429가 아니라 `403 {"error":"API key blocked for abuse"}` + `Retry-After`(초)** 로 온다. 하루치가 바닥나면 그 뒤 모든 응답이 429라, **"429를 받으면 그 시각까지 아예 안 부른다"** 가 유일한 안전장치다 — server/api.ts의 `pptGate`/`notePpt`가 그 역할을 하며, PPT를 부르는 코드는 반드시 이걸 거쳐야 한다. 새 스크립트도 429가 계속 나면 남은 세트를 두드리지 말고 통째로 멈출 것.
 - **크레딧 규칙**: `limit`(기본 50)에 과금 — 단건은 `limit=1`이나 `tcgPlayerId`로. history/ebay/cardmarket 각 +1/카드. **`page` 없음, `offset`은 됨**. limit을 크게 줘도 **한 번에 200행까지만** 준다 — 세트가 200행을 넘으면 offset=200,400…으로 이어받아야 앞번호 카드가 안 잘린다(2026-07-25 실측, 리자몽 6번이 이걸로 빠졌었다).
 - 이미지: `imageCdnUrl` 200/400/800(tcgplayer-cdn).
+- **⚠️ 크레딧은 서버가 뒤에서도 쓴다 — 스크립트만 세면 안 된다.** `warmPackPrices`가 카드 뽑기
+  세트의 시세를 미리 받아 둔다. 2026-08-02에 남겨 둔 4,000이 밤사이 0이 됐고, 원인이 셋이었다:
+  ① **배포하면 "남은 크레딧"을 잊었다** — 메모리에만 있어서 서버가 새로 뜰 때마다 "모른다(=무한대)"로
+     되돌아가 방문자 몫 8,000을 지키는 검사가 통과됐다. 그날만 여섯 번 배포했다.
+     → `/data/ppt-state.json`에 적고 뜰 때 읽는다(`loadPptState`). 날짜(UTC)를 같이 적어 어제 값은 버린다.
+  ② **실패한 세트를 5분마다 다시 두드렸다** — 첫 페이지가 실패하면 캐시에 아무것도 안 남겨
+     "아직 못 받은 세트"로 계속 잡혔다. → 실패해도 `triedAt`을 남기고 6시간은 안 건드린다(`packWarmDue`).
+  ③ **`PPT_SET_NAMES`를 늘리면 미리받기 범위가 같이 늘었다** — 23개→44개가 되며 한 바퀴가 최대
+     44,000크레딧(하루치 20,000)이 됐다. → **오늘 상점에 진열되는 6개**로 묶었다(`warmTargets`).
+  **카드 뽑기에 세트를 추가할 땐 크레딧 영향을 반드시 같이 볼 것.**
 - Scrydex와 비교: 팝수까지 PPT가 다회사로 커버하므로, 우리(포켓몬 전용)엔 Scrydex 고유 이점은 사진인식(이미 Claude로 있음)·멀티게임(불필요)뿐 → **갈 이유 없음**.
 
 ## 💰 요금제 · 월 비용 (사용자 확인, 2026-07 기준)
@@ -54,7 +64,11 @@
 
 **어떤 기능을 "추가하자/없다/안 쓴다"고 말하기 전에, 이 지도와 실제 코드부터 확인할 것.** (이미 있는 걸 잊고 새로 만들자 하거나 "안 쓴다"고 잘못 말한 적 있음 — 사용자 반복 지적.)
 
-**화면(App.tsx의 view):** `cards`(시세) · `artists`(일러스트레이터) · `centering`(센터링) · `community` · `mypage` · `sets`(운영자) · `reports`/`stats`(운영자)
+**화면(App.tsx의 `MainView`):**
+- 누구나: `cards`(시세) · `artists`(일러스트레이터) · `centering`(센터링) · `sets`(세트별 목록) · `packsim`(오늘의 상점) · `community` · `mypage`
+- 운영자만(`adminOnly`): `reports`(신고함) · `stats`(통계) · `scantest`(스캔 테스트) · `flea`(플리마켓)
+
+⚠️ 공개 범위는 App.tsx의 `adminOnly` 한 줄이 정한다. 여기 적힌 것과 코드가 다르면 코드가 맞다.
 
 **소스 → 기능 매핑 (핵심 — 자주 까먹음):**
 | 데이터 소스 | 앱에서 이미 하는 것 |
@@ -73,7 +87,8 @@
 
 - **세트별 카드 이미지**는 `public/sets/*.json`에 **빌드 시점에 박혀 있다**(런타임에 API 안 부름). 각 카드 `{n, name, img}`. 빈칸(img="") 채우려면 **pokemontcg.io(무료 키) 또는 PPT**로 받아 `--write`. 소스 매칭은 **번호+카드이름 둘 다 일치할 때만**(엉뚱한 이미지 방지 — 사용자 최우선 원칙: "틀린 것보다 빈칸").
 - **이미지 프록시** `/api/img`는 wsrv로 축소. **tcgplayer-cdn은 wsrv가 막혀** 302로 원본 폴백(그래도 표시됨). 화이트리스트는 server/api.ts `IMG_ALLOWED_HOSTS`.
-- **세트 화면(SetsView)은 현재 `isAdmin` 전용**(App.tsx). 일반 유저에겐 안 보임.
+- **세트 화면(SetsView)은 공개됐다**(2026-08 기준). "운영자 전용"이라고 적혀 있던 옛 메모를 믿고
+  "일반 유저에겐 안 보인다"고 잘못 말한 적 있다. 공개 여부는 App.tsx의 `adminOnly`를 볼 것.
 - **환율은 "어제 날짜"가 정상 = 버그 아님.** 유럽중앙은행 일일 발표값(Frankfurter `/latest`)이라 평일 하루 한 번, 보통 전날 값. "7.XX 환율 기준" 라벨은 의도된 표기(실시간 아님을 밝히는 것). FX 수수료로 어차피 2~5% 어긋나서 실시간 살 이유 없음 — 그렇게 설계함. **"환율 안 바뀐다/멈췄다"고 오해 말 것.**
 - **트레이너 이름 번역**: 예전 세션이 일본어 음역을 잘못 넣은 게 많았음 → [[pokegre-trainer-romaji-errors]] 참고. 나무위키/Fandom은 WebFetch가 402/403 → **인app 브라우저로 읽기**.
 - 배포: `fly deploy -a pokegre` (사용자 인가 하에). 프로덕션 `/data` 읽기는 집계만, PII 금지. **배포 전 검증은 `npm run build`로** — `npx tsc --noEmit`은 통과해도 빌드용 `tsc -b`(프로젝트참조·incremental)가 더 엄격해 다른 에러를 잡는다(한 번 배포 실패함). 새 서버 키는 `.env`뿐 아니라 `fly secrets set ... -a pokegre`도 필요(프로덕션은 .env 안 읽음).
@@ -102,10 +117,16 @@
 ⚠️ 2026-08-01에 "구글에 등록 안 돼 있다"고 잘못 말했다. 메타 태그만 보고 DNS를 안 봤다.
 **등록 방식이 여러 가지라 한 곳만 보면 틀린다.**
 
-- 사이트맵은 `node scripts/gen-sitemap.mjs`로 다시 만든다(세트마다 `/set/<슬러그>`, 285개).
-- 세트별 힛카드 페이지는 `server/index.ts`의 `/set/:slug`가 카드 이름·값을 **글자로 미리** 넣어 보낸다.
-  브라우저가 그리는 화면은 크롤러에게 빈 페이지로 보이기 때문이다. 앱은 그 주소로 들어오면 그 세트를 연다.
+- 사이트맵은 `node scripts/gen-sitemap.mjs`로 다시 만든다. **2026-08-02 기준 794개**:
+  홈 1 · 센터링 1 · 시리즈 33 · 세트 371 · 작가 388. (개수는 세트·작가가 늘면 같이 는다.
+  표준 상한은 5만 개라 아직 한참 여유가 있다.)
+- 크롤러가 빈 페이지를 보지 않도록, `server/index.ts`가 아래 주소마다 제목·본문을 **글자로 미리**
+  넣어 보낸다: `/set/:slug` · `/series/:slug` · `/artist/:slug` · `/centering`.
+  앱은 그 주소로 들어오면 해당 화면을 연다.
+  ⚠️ 시리즈 슬러그 규칙은 `src/lib/setNameKo.ts`의 `serieSlug`와 gen-sitemap.mjs가 **같아야** 한다.
+     한쪽만 고치면 사이트맵에 적힌 주소가 404가 된다.
 - 사이트맵 내용을 바꾸면 서치콘솔에서 같은 주소로 한 번 재제출하면 빨리 읽어간다.
+- 주소가 다 살아 있는지 확인: `<loc>`를 뽑아 전부 눌러 본다(2026-08-02 전수 확인 결과 404 0개).
 
 ## 신고함 처리
 `/data/translation-feedback.json`(번역 신고), `/data/community-reports.json`(게시글 신고). 운영자만 GET/DELETE. 서버 접근: `fly ssh console -a pokegre -C "..."`.
