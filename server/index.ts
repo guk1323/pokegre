@@ -384,7 +384,10 @@ app.get('/artist/:slug', async (req, res) => {
 // "소드실드 카드 목록"처럼 시리즈 이름으로 검색했을 때 걸리게 한다.
 app.get('/series/:slug', async (req, res) => {
   const slug = String(req.params.slug ?? '')
-  if (!/^[\w.-]+$/.test(slug)) {
+  // 시리즈 슬러그에는 일본어가 그대로 들어간다(ポケモンカードゲーム-mega).
+  // serieSlug가 한글·가나·한자를 살려 두기 때문이다 — 영문으로 억지로 옮기면
+  // 사람이 주소만 보고 무슨 시리즈인지 알 수 없다. /는 여전히 막는다.
+  if (!/^[\w가-힣ぁ-んァ-ヶー・一-鿿.-]+$/.test(slug)) {
     res.status(404).send(TEMPLATE)
     return
   }
