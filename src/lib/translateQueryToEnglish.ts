@@ -5,6 +5,7 @@ import {
   STRUCTURAL_EN_TO_KO,
 } from './koreanizeEnglishTitle';
 import pokemonNames from '../data/pokemonNames.json';
+import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
 
@@ -35,8 +36,30 @@ interface PackName {
   ko: string;
 }
 
+// 모습이 다른 포켓몬(오리진디아르가·오리진펄기아)은 기본 이름 사전에 없어 한글 그대로
+// 나갔다. 별칭 사전으로 그 빈칸만 메운다.
+// ⚠️ 빈칸만 메운다. 이름 사전이나 자동 사전이 이미 답을 갖고 있으면 그쪽이 이긴다.
+//    별칭의 영어가 정식 카드명과 다를 때가 있다(스핀로토무: 별칭 "Spin Rotom" /
+//    자동 사전 "Fan Rotom" — 정식은 Fan Rotom이다).
+// ⚠️ "리자몽 ★"류는 지금 "Charizard ★"로 나가고 그대로 검색이 되므로 건드리지 않는다.
+const aliasKoEn = (() => {
+  const known = new Set((pokemonNames as PokemonName[]).map((e) => e.ko).filter(Boolean));
+  const auto = cardNameKoEn as Record<string, string>;
+  return (pokemonNameAliases as { ko?: string; en?: string }[])
+    .filter(
+      (e) =>
+        e.ko &&
+        e.en &&
+        !known.has(e.ko) &&
+        !auto[e.ko] &&
+        !e.ko.includes('★') &&
+        /^[A-Za-z0-9 '.-]+$/.test(e.en),
+    )
+    .map((e) => ({ ko: e.ko as string, en: e.en as string }));
+})();
+
 // 긴 이름부터 치환해야 "리자드"가 "리자몽" 안에서 먼저 걸려 이름이 깨지는 걸 막을 수 있다.
-const sortedPokemonKoEn = (pokemonNames as PokemonName[])
+const sortedPokemonKoEn = [...(pokemonNames as PokemonName[]), ...aliasKoEn]
   .filter((entry) => entry.ko && entry.en)
   .sort((a, b) => b.ko.length - a.ko.length);
 
