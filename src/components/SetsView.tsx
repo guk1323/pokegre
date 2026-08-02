@@ -89,6 +89,10 @@ export function SetsView({
     const hit = index.find((e) => e.slug === initialSlug);
     if (hit) {
       setTab(hit.slug.startsWith('en-') ? 'en' : 'ja');
+      // 목록에서 누른 것과 똑같이 통계에 남긴다. 예전에는 여기서 안 남겨서
+      // 검색·공유 링크(/set/<슬러그>)로 바로 들어온 방문이 통째로 안 세어졌다.
+      // 사이트맵에 세트 366개를 올려 뒀으니 그 유입이 제일 큰 몫인데 안 보였다.
+      trackEvent('sets', koSet(hit.ed, hit.name));
       showSet(hit);
     }
     onInitialSlugDone?.();
