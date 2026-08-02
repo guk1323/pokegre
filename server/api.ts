@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 // 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
@@ -383,8 +383,63 @@ export function startCoverWarmup(): void {
   if (warmCovers) void warmCovers()
 }
 
+// 받아 둔 썸네일을 디스크에도 남긴다. 메모리 캐시는 배포할 때마다 통째로 날아가는데,
+// 원본(tcgdex)이 한 장에 7~11초라 그때마다 방문자가 그 시간을 다시 치른다
+// (실측: 북미판 세트 하나 여는 데 첫 24장 30초, 캐시가 살아 있으면 420ms).
+// /data 볼륨은 973MB 중 2MB만 쓰고 있어 자리가 넉넉하다. 카드 그림 전체를 담아도
+// 750MB쯤이라 상한 안에 든다.
+const IMG_DISK_DIR = path.join(DATA_DIR, 'imgcache')
+const IMG_DISK_MAX_BYTES = 600 * 1024 * 1024
+const diskKey = (key: string) => createHash('sha1').update(key).digest('hex')
+
 function mountImageProxy(app: Mountable) {
   const cache = new TtlCache<{ body: Buffer; contentType: string }>(IMG_CACHE_TTL_MS, IMG_CACHE_MAX)
+
+  // 디스크에서 읽기. 없거나 못 읽으면 null(그냥 원본을 받는다).
+  async function readDisk(key: string): Promise<{ body: Buffer; contentType: string } | null> {
+    try {
+      const body = await readFile(path.join(IMG_DISK_DIR, `${diskKey(key)}.webp`))
+      return { body, contentType: 'image/webp' }
+    } catch {
+      return null
+    }
+  }
+  // 디스크에 쓰기. 실패해도 서비스에 지장이 없으므로 조용히 넘긴다.
+  async function writeDisk(key: string, body: Buffer): Promise<void> {
+    try {
+      await mkdir(IMG_DISK_DIR, { recursive: true })
+      await writeFile(path.join(IMG_DISK_DIR, `${diskKey(key)}.webp`), body)
+    } catch {
+      /* 볼륨이 꽉 찼거나 못 쓰면 메모리 캐시만으로 간다 */
+    }
+  }
+  // 용량이 상한을 넘으면 오래 안 쓴 것부터 지운다. 기동할 때 한 번, 그 뒤 6시간마다.
+  async function trimDisk(): Promise<void> {
+    try {
+      const names = await readdir(IMG_DISK_DIR).catch(() => [])
+      if (!names.length) return
+      const files = await Promise.all(
+        names.map(async (n) => {
+          const st = await stat(path.join(IMG_DISK_DIR, n)).catch(() => null)
+          return st ? { n, size: st.size, at: st.atimeMs || st.mtimeMs } : null
+        }),
+      )
+      const alive = files.filter((f): f is { n: string; size: number; at: number } => !!f)
+      let total = alive.reduce((s, f) => s + f.size, 0)
+      if (total <= IMG_DISK_MAX_BYTES) return
+      alive.sort((a, b) => a.at - b.at)
+      for (const f of alive) {
+        if (total <= IMG_DISK_MAX_BYTES * 0.9) break
+        await rm(path.join(IMG_DISK_DIR, f.n), { force: true }).catch(() => undefined)
+        total -= f.size
+      }
+      console.log(`[pokegre] 그림 캐시를 ${Math.round(total / 1024 / 1024)}MB로 줄였습니다.`)
+    } catch {
+      /* 정리 실패는 무시 */
+    }
+  }
+  void trimDisk()
+  setInterval(() => void trimDisk(), 6 * 60 * 60 * 1000).unref()
   // 같은 이미지를 동시에 여러 명이 처음 요청하면 wsrv를 여러 번 부르지 않게 진행 중인
   // 요청을 공유한다(중복 방지).
   const inflight = new Map<string, Promise<{ body: Buffer; contentType: string } | null>>()
@@ -447,11 +502,17 @@ function mountImageProxy(app: Mountable) {
 
     let job = inflight.get(key)
     if (!job) {
-      job = fetchThumb(u, w).then((r) => {
-        if (r) cache.set(key, r)
-        inflight.delete(key)
-        return r
-      })
+      // 메모리에 없으면 디스크를 먼저 본다. 배포로 메모리가 비어도 여기서 살아난다.
+      job = readDisk(key)
+        .then((hit) => hit ?? fetchThumb(u, w).then((r) => {
+          if (r) void writeDisk(key, r.body)
+          return r
+        }))
+        .then((r) => {
+          if (r) cache.set(key, r)
+          inflight.delete(key)
+          return r
+        })
       inflight.set(key, job)
     }
     const result = await job
@@ -490,9 +551,10 @@ function mountImageProxy(app: Mountable) {
           const u = full(base)
           const key = `200|${u}`
           if (cache.get(key)) return
-          const r = await fetchThumb(u, 200).catch(() => null)
-          if (r) {
-            cache.set(key, r)
+          const hit = (await readDisk(key)) ?? (await fetchThumb(u, 200).catch(() => null))
+          if (hit) {
+            cache.set(key, hit)
+            void writeDisk(key, hit.body)
             done++
           }
         }),
