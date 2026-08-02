@@ -45,9 +45,12 @@ const norm = (s) => s.toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-鿿]/g, '
 //    limitless는 같은 카드를 일본어로 적으므로 글자로는 절대 안 맞는다. 그래서 등급이
 //    통째로 안 채워졌고, 그 세트들은 뽑기에서 SR·SAR이 아예 안 나왔다.
 //    양쪽을 우리 한글 사전으로 옮겨 같은 이름이 되는지로 판별한다.
+// ⚠️ 한 쪽에만 남는 영어 조각을 걷어낸다. "Team Rocket's Spidops"는 "Team 로켓단의
+//    트래피더"가 되는데 일본어 쪽은 "로켓단의 트래피더"라, 그 Team 하나 때문에 안 맞았다.
 const toKo = (s) =>
   koreanizeEnglishCardName(koreanizeTitle(s))
     .toLowerCase()
+    .replace(/\bteam\b/g, '')
     .replace(/[^가-힣a-z0-9]/g, '')
 const sameCard = (a, b) => {
   if (norm(a) === norm(b)) return true

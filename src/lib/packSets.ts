@@ -166,14 +166,63 @@ export type PackSet = {
   //    반드시 세트별로 지정한다.
   rarityAlias?: Record<string, string>;
 };
+// 일본판 세트 데이터의 등급 이름이 확률표와 한 칸씩 어긋나 있다.
+//
+// 일본판은 카드 번호가 곧 등급 순서다 — 기본 세트 뒤에 AR → SR → SAR → UR(금색)이
+// 붙는다. 실제 데이터를 번호순으로 보면(ja-SV2P 기준):
+//   72~83번  Illustration rare          12장  = AR
+//   84~91번  Secret Rare                 8장  = SR      ← 확률표는 이걸 'Ultra Rare'라 부른다
+//   92~96번  Special illustration rare   5장  = SAR
+//   97~99번  Ultra Rare                  3장  = UR(금색) ← 확률표는 이걸 'Hyper rare'라 부른다
+// 세트 25개 전부 같은 모양이고, 'Ultra Rare' 3장은 언제나 맨 끝 번호다.
+//
+// 그대로 두면 이런 일이 벌어졌다(2026-08-03 실측):
+//   · Secret Rare 8~17장이 순위표에 없어 **한 장도 안 뽑혔다**
+//   · 제일 귀한 금색 UR이 SR 확률(1/43팩)로 나왔다 — 실물은 1/350팩
+// ⚠️ 확률 숫자는 하나도 안 바꾼다(사용자가 조사·검증한 값이다). 그 확률이 어느 카드에
+//    걸리는지만 바로잡는다. 카드마다 c.r을 한 번만 찾아 바꾸므로 맞바꿈이 안전하다.
+const JP_RARITY_ALIAS: Record<string, string> = {
+  'Secret Rare': 'Ultra Rare',
+  'Ultra Rare': 'Hyper rare',
+};
+
+// ⚠️ 블랙볼트·화이트플레어는 이 어긋남이 없다. 'Secret Rare'가 아예 없고 번호도 다르다:
+//   159~166번 Ultra Rare 8장(= SR) · 167~173번 SAR 7장 · 174번 Black White Rare 1장(= 최상위)
+// 여기에 위 맞바꿈을 쓰면 SR 8장이 금색 UR 자리로 올라가 버린다. 최상위 이름만 바꾼다
+// (북미판 자매편 en-sv10.5b도 같은 처리를 하고 있다).
+const JP_BW_RARITY_ALIAS: Record<string, string> = { 'Black White Rare': 'Hyper rare' };
+
+// 일본판 메가 시리즈. 최상위 MUR이 데이터에는 'Mega Hyper Rare'로 적혀 있는데
+// (번호 맨 끝 1장 — M5 118번·M4 120번·M3 117번 등으로 확인) 확률표는
+// 'Mega Ultra Rare'를 찾는다. 이름이 달라 그 한 장이 아예 안 뽑혔다.
+// SR·UR 어긋남은 SV 세트와 같으므로 위 맞바꿈을 그대로 이어 쓴다.
+// ⚠️ M2(인페르노X)만 최상위가 'Ultra Rare'로 적혀 있어, 위 맞바꿈이 그걸
+//    'Hyper rare'로 올린다. 그 세트는 확률표에 Hyper rare가 없으므로 따로 지정한다.
+// M5·M4·M3·M1L은 SR 자리가 이미 'Ultra Rare'다(18장, 번호 94~). 맞바꾸면 그게 최상위로
+// 올라가 버리므로 최상위 이름만 바꾼다.
+const JP_MEGA_TOP_ONLY: Record<string, string> = { 'Mega Hyper Rare': 'Mega Ultra Rare' };
+// M1S만 SR 자리가 'Secret Rare'(11장, 번호 76~)라 SV 세트와 같은 맞바꿈이 필요하다.
+const JP_MEGA_RARITY_ALIAS: Record<string, string> = {
+  ...JP_RARITY_ALIAS,
+  'Mega Hyper Rare': 'Mega Ultra Rare',
+};
+const JP_M2_RARITY_ALIAS: Record<string, string> = {
+  'Secret Rare': 'Ultra Rare',
+  'Ultra Rare': 'Mega Ultra Rare',
+};
+
 const JP = (id: string, name: string, price = 1600, extra: Partial<PackSet> = {}): PackSet => ({
   slug: `ja-${id}`,
   label: `[일본판] ${name}`,
   src: `/packsim/ja-${id}.json`,
   jp: true,
-  profile: JP_REGULAR,
+  // ⚠️ 일본판 세트에는 ACE SPEC 카드가 한 장도 없다(2026-08-03 전수 확인). ACE를 확률표에
+  //    두면 절대 안 나오는 등급을 광고하는 셈이라 기본값에서 뺀다(위 withoutAce 설명 —
+  //    빠진 몫은 일반 레어로 가므로 다른 등급 확률은 그대로다).
+  profile: JP_REGULAR_NO_ACE,
   price,
   boxPacks: 30,
+  rarityAlias: JP_RARITY_ALIAS,
   ...extra,
 });
 const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500, extra: Partial<PackSet> = {}): PackSet => ({
@@ -190,13 +239,13 @@ const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500, extra:
 
 export const PACK_SETS: PackSet[] = [
   // 일본판 5장팩 — limitless에서 받은 데이터(시크릿 포함). scripts/gen-packsim.mjs
-  JP('M5', '어비스아이', 1800, { profile: JP_MEGA }),
-  JP('M4', '닌자스피너', 1800, { profile: JP_MEGA }), // 2026-05 세대부터 200엔
-  JP('M3', '니힐제로', 1600, { profile: JP_MEGA }),
-  JP('M1L', '메가브레이브', 1600, { profile: JP_MEGA }),
-  JP('M1S', '메가심포니아', 1600, { profile: JP_MEGA }),
-  JP('SV11B', '블랙볼트', 1600, { profile: JP_REGULAR_NO_ACE }), // ACE 수록 없음(세트 데이터 확인)
-  JP('SV11W', '화이트플레어', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('M5', '어비스아이', 1800, { profile: JP_MEGA, rarityAlias: JP_MEGA_TOP_ONLY }),
+  JP('M4', '닌자스피너', 1800, { profile: JP_MEGA, rarityAlias: JP_MEGA_TOP_ONLY }), // 2026-05 세대부터 200엔
+  JP('M3', '니힐제로', 1600, { profile: JP_MEGA, rarityAlias: JP_MEGA_TOP_ONLY }),
+  JP('M1L', '메가브레이브', 1600, { profile: JP_MEGA, rarityAlias: JP_MEGA_TOP_ONLY }),
+  JP('M1S', '메가심포니아', 1600, { profile: JP_MEGA, rarityAlias: JP_MEGA_RARITY_ALIAS }),
+  JP('SV11B', '블랙볼트', 1600, { profile: JP_REGULAR_NO_ACE, rarityAlias: JP_BW_RARITY_ALIAS }), // ACE 수록 없음(세트 데이터 확인)
+  JP('SV11W', '화이트플레어', 1600, { profile: JP_REGULAR_NO_ACE, rarityAlias: JP_BW_RARITY_ALIAS }),
   JP('SV10', '로켓단의 영광', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV9', '배틀파트너즈', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV8', '초전브레이커'),
@@ -223,7 +272,7 @@ export const PACK_SETS: PackSet[] = [
   JP('SV1V', '바이올렛 ex', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV1S', '스칼렛 ex', 1600, { profile: JP_REGULAR_NO_ACE }),
   // 일본판 메가 시리즈. 어비스아이와 등급 구성이 같아 같은 표(사용자 확인, 2026-08-02).
-  JP('M2', '인페르노X', 1600, { profile: JP_MEGA }),
+  JP('M2', '인페르노X', 1600, { profile: JP_MEGA, rarityAlias: JP_M2_RARITY_ALIAS }),
   // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
   // 이름은 정식 한글명이 따로 없어(한국판은 일본판 이름 체계) 영어명 음역을 쓴다.
   NA('me01', '메가 에볼루션', NA_MEGA),
