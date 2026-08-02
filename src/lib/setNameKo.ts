@@ -216,13 +216,17 @@ export const SET_KO: Record<string, string> = {
   'Scarlet & Violet Black Star Promos': 'SVP 블랙스타 프로모',
   'Scarlet & Violet Promos': 'SVP 블랙스타 프로모',
   // 원본 세트명에 콜론이 없다. 콜론을 넣어 두면 영영 안 걸린다(en-cel25cc).
-  'Celebrations Classic Collection': '셀러브레이션 클래식 컬렉션',
-  'Unseen Forces Unown Collection': '보이지 않는 힘 안농 컬렉션',
+  // ⚠️ 이름 앞부분은 부모 세트와 똑같이 쓴다. 목록에서 나란히 서기 때문에 다르게 쓰면
+  //    같은 시리즈로 안 보인다('Celebrations' = 셀레브레이션즈,
+  //    'Unseen Forces' = 금의 하늘, 은의 바다).
+  'Celebrations Classic Collection': '셀레브레이션즈 클래식 컬렉션',
+  'Unseen Forces Unown Collection': '금의 하늘, 은의 바다 안농 컬렉션',
   'Poké Card Creator Pack': '포케 카드 크리에이터 팩',
   'Yellow A Alternate': '옐로 A 알터네이트',
   'Mega Evolution Energy': '메가진화 에너지',
   'My First Battle': '마이 퍼스트 배틀',
-  'Scarlet & Violet Energy': '스칼렛&바이올렛 에너지',
+  // 부모 세트('Scarlet & Violet' = 스칼렛 & 바이올렛)와 띄어쓰기를 맞춘다.
+  'Scarlet & Violet Energy': '스칼렛 & 바이올렛 에너지',
   // 일본판이지만 이름이 영어로 붙어 있어 여기(영어 세트명 사전)로 들어온다(ja-S8a).
   '25th Anniversary': '25th 어니버서리 컬렉션',
   'EX Trainer Kit Latios': 'EX 트레이너 키트 (라티오스)',
