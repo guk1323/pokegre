@@ -10,6 +10,7 @@ import {
   maintenanceOn,
   mountApi,
   startCardNameStore,
+  startCoverWarmup,
   topPricedCards,
 } from './api.ts'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
@@ -103,6 +104,11 @@ mountApi(app, process.env)
 
 // 공유 링크 미리보기에 쓸 카드 이름을 파일에서 불러오고, 주기적으로 저장한다.
 startCardNameStore()
+
+// 세트 목록 표지를 미리 받아 둔다. 배포마다 기계가 새로 떠서 이미지 캐시가 비는데,
+// 그 상태로 방문자가 세트 목록을 열면 표지가 한참 비어 보인다. 천천히 도므로
+// 방문자 요청과 부딪히지 않는다.
+startCoverWarmup()
 
 // 데이터 백업: 기동할 때 한 번, 그 뒤로는 하루에 한 번. 배포마다 기계가 새로 뜨므로
 // 기동 시점 백업만으로도 "배포 직전 상태"가 늘 남는다.

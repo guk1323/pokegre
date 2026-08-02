@@ -374,6 +374,15 @@ const IMG_ALLOWED_HOSTS = new Set([
 const IMG_CACHE_MAX = 2500
 const IMG_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
+// 세트 목록 표지를 미리 받아 두는 일감. mountImageProxy가 채워 넣는다.
+// 배포할 때마다 기계가 새로 떠서 캐시가 비는데, 그 상태로 방문자가 세트 목록을 열면
+// 표지 366장을 원본에서 하나씩 받느라 한참 비어 보인다(실측: 데우기 전 20장 1,219ms /
+// 데운 뒤 689ms, 원본이 느린 tcgdex는 한 장에 8초까지 걸린다).
+let warmCovers: (() => Promise<void>) | null = null
+export function startCoverWarmup(): void {
+  if (warmCovers) void warmCovers()
+}
+
 function mountImageProxy(app: Mountable) {
   const cache = new TtlCache<{ body: Buffer; contentType: string }>(IMG_CACHE_TTL_MS, IMG_CACHE_MAX)
   // 같은 이미지를 동시에 여러 명이 처음 요청하면 wsrv를 여러 번 부르지 않게 진행 중인
@@ -455,6 +464,43 @@ function mountImageProxy(app: Mountable) {
     }
     serve(result)
   })
+
+  // 세트 목록 표지를 미리 받아 캐시에 채운다(위 startCoverWarmup이 부른다).
+  // 방문자 요청과 같은 길(fetchThumb → cache)을 쓰므로 데워 두면 그대로 히트한다.
+  // ⚠️ 천천히 돈다. 한꺼번에 366장을 두드리면 원본 서버가 막고, 우리 기계도 그동안
+  //    방문자 요청이 밀린다. 4장씩·사이 300ms면 5분쯤 걸리는데, 그동안에도 방문자는
+  //    자기가 보는 표지부터 받아 가므로 화면이 멈추지는 않는다.
+  warmCovers = async () => {
+    let list: { cover?: string }[]
+    try {
+      const raw = await readFile(path.resolve(process.cwd(), 'dist/sets/index.json'), 'utf-8').catch(() =>
+        readFile(path.resolve(process.cwd(), 'public/sets/index.json'), 'utf-8'),
+      )
+      list = JSON.parse(raw)
+    } catch {
+      return
+    }
+    // 화면(cardCatalog.cardImg)과 같은 규칙으로 주소를 만든다.
+    const full = (base: string) => (/\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`)
+    const urls = list.map((s) => s.cover).filter((c): c is string => !!c && !c.includes('snkrdunk'))
+    let done = 0
+    for (let i = 0; i < urls.length; i += 4) {
+      await Promise.all(
+        urls.slice(i, i + 4).map(async (base) => {
+          const u = full(base)
+          const key = `200|${u}`
+          if (cache.get(key)) return
+          const r = await fetchThumb(u, 200).catch(() => null)
+          if (r) {
+            cache.set(key, r)
+            done++
+          }
+        }),
+      )
+      await new Promise((r) => setTimeout(r, 300))
+    }
+    console.log(`[pokegre] 세트 표지 ${done}장을 미리 받아 뒀습니다.`)
+  }
 }
 
 // 환율은 유럽중앙은행이 평일 하루 한 번 발표하는 값을 Frankfurter가 그대로 넘겨준다.
