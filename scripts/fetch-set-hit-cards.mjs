@@ -16,6 +16,11 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { PPT_SET_NAMES } from '../src/lib/packSets.ts'
+// PPT가 세트를 뭐라고 부르는지. packSets.ts에는 뽑기에 쓰는 23개만 있어서, 나머지는
+// PPT의 /sets 목록(1크레딧)과 우리 세트 코드를 맞춰 따로 적어 뒀다.
+// ⚠️ 2026-08-02에 여기를 안 보고 돌려서 이미 값이 있는 23개를 그대로 다시 받았다.
+//    8,500크레딧을 헛썼다. 받기 전에 "이미 있는 것"을 반드시 빼야 한다.
+import EXTRA_SET_NAMES from '../src/data/pptSetNames.json' with { type: 'json' }
 
 const ROOT = process.cwd()
 const OUT = path.resolve(ROOT, 'src/data/setHitCards.json')
@@ -78,11 +83,12 @@ try {
 }
 
 // 최신 발매 순으로 돈다(사람들이 최신을 많이 찾는다). 이미 받아 둔 세트는 건너뛴다.
+const NAMES = { ...PPT_SET_NAMES, ...EXTRA_SET_NAMES }
 const targets = index
-  .filter((s) => PPT_SET_NAMES[s.slug] && !saved[s.slug])
+  .filter((s) => NAMES[s.slug] && !saved[s.slug])
   .sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))
 
-console.log(`PPT 이름을 아는 세트 ${Object.keys(PPT_SET_NAMES).length}개 / 아직 안 받은 것 ${targets.length}개`)
+console.log(`PPT 이름을 아는 세트 ${Object.keys(NAMES).length}개 / 아직 안 받은 것 ${targets.length}개`)
 console.log(`예산 ${BUDGET} 크레딧\n`)
 
 for (const s of targets) {
@@ -94,7 +100,7 @@ for (const s of targets) {
     break
   }
   const lang = s.ed === 'ja' ? 'japanese' : 'english'
-  const setName = encodeURIComponent(PPT_SET_NAMES[s.slug])
+  const setName = encodeURIComponent(NAMES[s.slug])
   const rows = []
   for (let offset = 0; offset < total + PAGE; offset += PAGE) {
     const got = await ask(
