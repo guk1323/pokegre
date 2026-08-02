@@ -104,8 +104,14 @@ export const koName = (ed: 'ja' | 'en', name: string) => {
   return koreanizeEnglishCardName(koreanizeTitle(name));
 };
 
-export const koSet = (ed: 'ja' | 'en', name: string) =>
-  ed === 'ja' ? koreanizeTitle(name) : koSetName(name);
+// 일본판 세트인데 이름이 영어로 붙은 것들이 있다(「Pokémon GO」, 「25th Anniversary」).
+// 일본어 사전은 이런 이름을 손대지 못해 영어 그대로 나갔다. 한글이 하나도 안 남으면
+// 영어 세트명 사전으로 한 번 더 시도한다.
+export const koSet = (ed: 'ja' | 'en', name: string) => {
+  if (ed !== 'ja') return koSetName(name);
+  const ko = koreanizeTitle(name);
+  return /[가-힣]/.test(ko) ? ko : koSetName(ko);
+};
 
 // 한 번 받은 건 다시 안 받는다. 세트 파일이 284개라 오가며 고를 때 체감이 크다.
 let indexCache: SetIndexEntry[] | null = null;

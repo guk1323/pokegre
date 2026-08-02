@@ -67,6 +67,8 @@ export const SET_KO: Record<string, string> = {
   'Astral Radiance': '아스트랄 라디언스',
   'Astral Radiance Trainer Gallery': '아스트랄 라디언스 트레이너 갤러리',
   'Pokémon GO': '포켓몬 GO',
+  // 상품 이름이 아니라 원본(TCGdex)이 묶어 둔 자루 이름이다. 그대로 두면 목록에 영어만 뜬다.
+  'Miscellaneous Promos': '기타 프로모',
   'Lost Origin': '로스트 오리진',
   'Lost Origin Trainer Gallery': '로스트 오리진 트레이너 갤러리',
   'Silver Tempest': '실버 템페스트',

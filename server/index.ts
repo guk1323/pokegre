@@ -19,7 +19,13 @@ import { koSetName, serieSlug } from '../src/lib/setNameKo.ts'
 
 // 화면(cardCatalog)과 같은 규칙으로 이름을 한글로 만든다. 그 파일은 브라우저 전용이라
 // 여기서 가져다 쓰지 않고 같은 내용만 옮겨 둔다.
-const koSet = (ed: 'ja' | 'en', name: string) => (ed === 'ja' ? koreanizeTitle(name) : koSetName(name))
+// 일본판인데 이름이 영어인 세트가 있다(「Pokémon GO」). 한글이 하나도 안 남으면
+// 영어 세트명 사전으로 한 번 더 시도한다. 규칙은 src/lib/cardCatalog.ts의 koSet과 같다.
+const koSet = (ed: 'ja' | 'en', name: string) => {
+  if (ed !== 'ja') return koSetName(name)
+  const ko = koreanizeTitle(name)
+  return /[가-힣]/.test(ko) ? ko : koSetName(ko)
+}
 const koName = (ed: 'ja' | 'en', name: string) => {
   if (ed !== 'ja') return koreanizeEnglishCardName(name)
   if (/[ぁ-んァ-ヶ一-龯]/.test(name)) return koreanizeEnglishCardName(koreanizeTitle(name))
