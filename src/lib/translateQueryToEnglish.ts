@@ -248,6 +248,11 @@ const JP_SEARCH_ONLY: Record<string, string> = {
   // (세트별로 일치율 70% 넘는 것만 믿는다). 화면 이름은 그대로 두고 검색만 맞춘다.
   // 영국 축구협회 프로모 5종. 화면에는 "공을 안은 피카츄"로 쓰지만 수집가들은
   // "피카츄 온 더 볼"로도 부른다. 그렇게 쳐도 찾게 검색어로만 받아 둔다.
+  // 방문자가 자주 찾는데 우리 카드 데이터에는 아직 없는 것(사용자가 공식명 확인,
+  // 2026-08-03). 데이터가 없으면 자동 사전이 못 만들어 주므로 여기 손으로 적는다.
+  캡틴피카츄: 'Captain Pikachu', // SV 프로모. 6번 검색됨
+  '붉은 섬광': 'Red Flash', // 세트 이름(ja-XY8b). 이베이 매물도 이 이름을 쓴다(실측)
+  '푸른 충격': 'Blue Shock', // 같은 시기 짝 세트(ja-XY8a). 이베이 실측으로 확인
   '피카츄 온 더 볼': 'Pikachu on the Ball',
   '이브이 온 더 볼': 'Eevee on the Ball',
   '흥나숭 온 더 볼': 'Grookey on the Ball',
@@ -317,15 +322,30 @@ export function translateSearchQueryToEnglish(
   // 트레이너·굿즈·스타디움 한글 카드명이 통째로 들어오면 그대로 영문명으로 바꾼다.
   // 짧은 이름(추명·이슬 등)도 여기서는 안전하다 — 전체가 일치할 때만이라서.
   // 띄어쓰기가 달라도 같은 카드로 본다("테라스탈오브" = "테라스탈 오브").
-  const noSpace = trimmed.replace(/[\s·]/g, '');
   // 같은 한글 이름이라도 판에 따라 영문명이 다르다. PPT는 일본판 카드에 자기네 영문
   // 번역을 붙이는데, 그게 북미판 정식 이름과 다른 경우가 많다
   // ("아이언 디펜더"가 북미판은 Iron Defender, 일본판은 Iron X Defense).
   // 그래서 일본판을 찾을 때는 PPT에서 받아 만든 자동 사전을 먼저 본다.
-  const auto = JP_SEARCH_ONLY[trimmed] ?? AUTO_KO_TO_EN.get(trimmed) ?? AUTO_KO_TO_EN_NOSPACE.get(noSpace);
-  const hand = CARD_NAME_KO_TO_EN.get(trimmed) ?? CARD_NAME_KO_TO_EN_NOSPACE.get(noSpace);
-  const exactCard = edition === 'japanese' ? (auto ?? hand) : (hand ?? auto);
+  const lookup = (ko: string) => {
+    const ns = ko.replace(/[\s·]/g, '');
+    const a = JP_SEARCH_ONLY[ko] ?? AUTO_KO_TO_EN.get(ko) ?? AUTO_KO_TO_EN_NOSPACE.get(ns);
+    const h = CARD_NAME_KO_TO_EN.get(ko) ?? CARD_NAME_KO_TO_EN_NOSPACE.get(ns);
+    return edition === 'japanese' ? (a ?? h) : (h ?? a);
+  };
+  const exactCard = lookup(trimmed);
   if (exactCard) return forPpt(exactCard);
+  // 뒤에 레어도를 붙여 치는 사람이 많다("보미카의 연주 sar"). 통이름 일치는 검색어가
+  // 딱 맞을 때만 되므로 그대로 두면 사전에 있는 카드도 못 찾는다 — 실제로 "보미카의
+  // 연주 sar"가 「Roxie's 연주 sar」로, "규리의 눈빛 sr"은 통째로 한글로 나갔다.
+  // 레어도만 떼고 한 번 더 보고, 찾으면 레어도를 도로 붙여 준다(매물 제목에도 붙어 있다).
+  // ⚠️ 사전이 변형판 표시를 달고 있는 이름이 있다("N's Reshiram (Energy Symbol
+  //    Pattern)"). 레어도를 따로 친 사람은 기본판을 찾는 것이므로 괄호는 뗀다 —
+  //    안 떼면 「… (Poke Ball Pattern) SAR」로 나가 매물이 하나도 안 걸린다(48건).
+  const rarityTail = trimmed.match(/^(.+?)\s+((?:SAR|SR|UR|AR|HR|RR|RRR|CHR|CSR|SSR|K|A)(?:\s+\S+)?)$/i);
+  if (rarityTail) {
+    const found = lookup(rarityTail[1].trim())?.replace(/\s*\([^)]*\)\s*$/, '');
+    if (found) return `${forPpt(found)} ${rarityTail[2].toUpperCase()}`;
+  }
 
   let result = trimmed;
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. 짧은 일반어를 먼저 바꾸면 팩 이름이
