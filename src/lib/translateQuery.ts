@@ -1,6 +1,7 @@
 import pokemonNames from '../data/pokemonNames.json';
 import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
+import setNameKoJa from '../data/setNameKoJa.json';
 import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
 import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TRAINER_NAMES } from './koreanizeTitle';
 
@@ -103,6 +104,14 @@ const sortedPackKo = withShortPackNames([
     .filter((entry) => entry.ko && entry.ja)
     .map((entry) => ({ ko: entry.ko, ja: dropPackKind(entry.ja, entry.ko) })),
   ...MANUAL_PACK_OVERRIDES.map(([ja, ko]) => ({ ko, ja: dropPackKind(ja, ko) })),
+  // 화면에 쓰는 세트 이름 → 일본어. 팩 사전은 한글 이름으로 짝을 짓는데 그 한글이
+  // 화면 이름과 다른 세트가 있다("스노해저드" vs 팩 사전 "…스노우해저드", 우 한 글자).
+  // 세트 코드로 이어 만든 것이라 표기가 어떻든 정확하다
+  // (scripts/gen-set-names.mts가 만든다. 세트가 늘면 다시 돌린다).
+  ...Object.entries(setNameKoJa as Record<string, string>).map(([ko, ja]) => ({
+    ko,
+    ja: dropPackKind(ja, ko),
+  })),
 ]).sort((a, b) => b.ko.length - a.ko.length);
 
 // "샤이니트레저 ex"로 등록돼 있어도 "샤이니 트레저ex"라고 치는 사람이 더 많다. 글자

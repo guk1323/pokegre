@@ -11,7 +11,7 @@ import pokemonNames from '../data/pokemonNames.json';
 import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
-// 북미판 세트의 "한글 이름 → 원래 영어 이름". scripts/gen-set-name-ko-en.mts가 만든다.
+// 북미판 세트의 "한글 이름 → 원래 영어 이름". scripts/gen-set-names.mts가 만든다.
 // 세트가 늘거나 한글 이름 규칙이 바뀌면 그 스크립트를 다시 돌린다.
 import setNameKoEn from '../data/setNameKoEn.json';
 
