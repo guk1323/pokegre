@@ -87,6 +87,9 @@ export type TrackedEvent =
   | 'packsim_value'
   | 'packsim_share'
   | 'sets'
+  // 검색으로 /series/<슬러그>에 바로 들어온 경우. 세트와 같은 순위표에 "(시리즈)"를
+  // 붙여 쌓는다(서버 track-event 참고).
+  | 'series'
   | 'ebay_korean'
   // 운영자 전용 화면(카드 뽑기·스캔 테스트). 운영자 사용은 서버가 집계에서 빼므로
   // 지금은 늘 0이지만, 나중에 공개로 돌리면 그때부터 바로 잡힌다.

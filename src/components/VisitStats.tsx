@@ -35,6 +35,7 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'centering', label: '센터링 측정', hint: '사진으로 측정 실행' },
   { key: 'artist', label: '작가별 조회', hint: '작가 한 명을 열 때(누구인지도 아래 순위에 집계)' },
   { key: 'sets', label: '세트별 목록 조회', hint: '세트 하나를 열 때(어느 세트인지도 아래 순위에 집계)' },
+  { key: 'series', label: '시리즈 목록 조회', hint: '검색으로 시리즈 주소(/series/…)에 바로 들어올 때' },
   { key: 'packsim', label: '오늘의 상점', hint: '팩·박스 구매와 개봉' },
   { key: 'packsim_checkin', label: '개봉 출석', hint: '출석 보상 받기' },
   { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩' },

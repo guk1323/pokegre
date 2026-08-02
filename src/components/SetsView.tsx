@@ -117,6 +117,9 @@ export function SetsView({
     if (!hit) return;
     serieApplied.current = true;
     setTab(hit.slug.startsWith('ja-') ? 'ja' : /pocket/i.test(hit.serie ?? '') ? 'pocket' : 'en');
+    // 사이트맵에 시리즈 33개를 올려 뒀는데 여기서 안 남겨서, 검색으로 들어온 방문이
+    // 통째로 안 세어졌다(세트 쪽에서 똑같은 걸 한 번 고쳤다 — 위 initialSlug 주석).
+    trackEvent('series', koSet(hit.ed, hit.serie ?? ''));
     // 탭이 바뀌고 목록이 그려진 뒤에 스크롤해야 자리를 찾는다.
     setTimeout(() => {
       document.getElementById(`serie-${initialSerie}`)?.scrollIntoView({ block: 'start' });

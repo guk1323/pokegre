@@ -1640,9 +1640,9 @@ const MAX_SET_KEYS = 500
 // 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
 // sets=세트별 목록에서 세트 열람, ebay_korean=이베이 한글판 시세 조회.
 const ALLOWED_EVENTS = new Set([
-  'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'ebay_korean',
-  'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value', 'packsim_share',
-  'share',
+  'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'series',
+  'ebay_korean', 'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value',
+  'packsim_share', 'share',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -2664,10 +2664,13 @@ function mountEventStats(app: Mountable) {
           }
         }
         // 세트별 목록도 어떤 세트를 열었는지 라벨(세트 한글명)로 따로 센다.
-        if (ev === 'sets' && label) {
+        // 시리즈는 세트와 같은 순위표에 넣는다. 세트별 목록 화면의 한 축이라 나눠 두면
+        // 두 표를 번갈아 봐야 하고, 시리즈 이름(예: "소드&실드")은 세트 이름과 안 겹친다.
+        if ((ev === 'sets' || ev === 'series') && label) {
           const tally = await loadSets()
-          if (label in tally || Object.keys(tally).length < MAX_SET_KEYS) {
-            tally[label] = (tally[label] ?? 0) + 1
+          const key = ev === 'series' ? `${label} (시리즈)` : label
+          if (key in tally || Object.keys(tally).length < MAX_SET_KEYS) {
+            tally[key] = (tally[key] ?? 0) + 1
             await writeJsonFile(SET_STATS_FILE, tally)
           }
         }
