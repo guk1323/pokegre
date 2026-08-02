@@ -190,6 +190,16 @@ function App() {
     // 주소는 그대로 둔다 — 새로고침·공유해도 같은 세트가 열린다.
     document.getElementById('seo-fallback')?.remove();
   }, []);
+  // /artist/<슬러그>·/series/<슬러그>·/centering도 같은 방식이다. 서버가 그 주소로
+  // 검색 노출용 페이지를 미리 만들어 보내므로, 사람이 눌러 들어오면 앱이 이어받는다.
+  useEffect(() => {
+    const p = window.location.pathname;
+    if (/^\/artist\//.test(p)) setView('artists');
+    else if (/^\/series\//.test(p)) setView('sets');
+    else if (/^\/centering\/?$/.test(p)) setView('centering');
+    else return;
+    document.getElementById('seo-fallback')?.remove();
+  }, []);
   // 팩 개봉의 "수록 카드 보기" → 세트 목록에서 그 세트를 바로 연다.
   // /set/<슬러그>로 들어와도 같은 자리로 보낸다(검색으로 들어오는 길).
   const [setsInitialSlug, setSetsInitialSlug] = useState<string | null>(
@@ -1181,6 +1191,7 @@ function App() {
           ) : view === 'sets' ? (
             <SetsView
               initialSlug={setsInitialSlug}
+              initialSerie={window.location.pathname.match(/^\/series\/([^/?#]+)/)?.[1] ?? null}
               onInitialSlugDone={() => setSetsInitialSlug(null)}
               onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
             />

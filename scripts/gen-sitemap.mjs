@@ -1,17 +1,54 @@
-// 사이트맵을 만든다. 세트마다 주소를 하나씩 넣어 "○○ 힛카드"로 검색됐을 때
-// 우리 페이지가 걸리게 한다(서버가 /set/<슬러그>에서 카드 이름·값을 글자로 내보낸다).
+// 사이트맵을 만든다. 검색엔진이 들어올 문을 주소마다 하나씩 열어 준다.
+// 서버(server/index.ts)가 각 주소에서 제목·본문을 글자로 미리 내보내므로, 크롤러가
+// 빈 페이지를 보지 않는다.
+//
+//   /                    홈
+//   /centering           센터링 측정 도구
+//   /series/<슬러그>     시리즈별 세트 목록
+//   /set/<슬러그>        세트별 카드 목록·힛카드
+//   /artist/<슬러그>     일러스트레이터별 카드
+//
+// ⚠️ 시리즈 슬러그 규칙은 src/lib/setNameKo.ts의 serieSlug와 같아야 한다.
+//    한쪽만 고치면 사이트맵에 적힌 주소가 404가 된다.
+//
+// 실행: node scripts/gen-sitemap.mjs
 import { readFile, writeFile } from 'node:fs/promises'
 
-const idx = JSON.parse(await readFile('public/sets/index.json', 'utf8'))
-// 최신 세트가 더 자주 검색되므로 우선순위를 높인다.
 const today = new Date().toISOString().slice(0, 10)
-const rows = idx
+const url = (loc, priority, changefreq = 'weekly') =>
+  `  <url>\n    <loc>https://pokegre.com${loc}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`
+
+const serieSlug = (serie) =>
+  serie
+    .toLowerCase()
+    .replace(/[^\w가-힣ぁ-んァ-ヶー・一-鿿]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'etc'
+
+const idx = JSON.parse(await readFile('public/sets/index.json', 'utf8'))
+
+// 세트 — 최신이 더 자주 검색되므로 우선순위를 높인다.
+const sets = idx
   .slice()
   .sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')))
-  .map((s, i) => {
-    const p = i < 40 ? '0.8' : i < 120 ? '0.6' : '0.4'
-    return `  <url>\n    <loc>https://pokegre.com/set/${s.slug}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${p}</priority>\n  </url>`
-  })
+  .map((s, i) => url(`/set/${s.slug}`, i < 40 ? '0.8' : i < 120 ? '0.6' : '0.4'))
+
+// 시리즈 — 세트를 묶는 상위 페이지라 세트보다 우선순위를 높게 둔다.
+const series = [...new Set(idx.map((s) => s.serie).filter(Boolean))].map((serie) =>
+  url(`/series/${serieSlug(serie)}`, '0.7', 'monthly'),
+)
+
+// 일러스트레이터 — 카드가 많은 사람부터.
+let artists = []
+try {
+  const list = JSON.parse(await readFile('public/artists/index.json', 'utf8'))
+  artists = list
+    .slice()
+    .sort((a, b) => (b.count ?? 0) - (a.count ?? 0))
+    .map((a, i) => url(`/artist/${a.slug}`, i < 60 ? '0.6' : '0.4', 'monthly'))
+} catch {
+  /* 작가 데이터가 없으면 건너뛴다 */
+}
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -20,8 +57,12 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
-${rows.join('\n')}
+${url('/centering', '0.7', 'monthly')}
+${series.join('\n')}
+${sets.join('\n')}
+${artists.join('\n')}
 </urlset>
 `
 await writeFile('public/sitemap.xml', xml)
-console.log(`사이트맵 ${rows.length + 1}개 주소`)
+console.log(`사이트맵 ${2 + series.length + sets.length + artists.length}개 주소`)
+console.log(`  홈 1 · 센터링 1 · 시리즈 ${series.length} · 세트 ${sets.length} · 작가 ${artists.length}`)

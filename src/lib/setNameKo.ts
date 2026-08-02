@@ -233,3 +233,12 @@ export function koSetName(name: string): string {
   if (promo) return `${promo[1]} 블랙스타 프로모`;
   return name;
 }
+
+// 시리즈 이름을 주소에 쓸 수 있는 꼴로 바꾼다("剣と盾" → "剣と盾", "Sword & Shield" → "sword-shield").
+// 서버(server/index.ts의 /series/:slug)와 화면·사이트맵이 같은 규칙을 써야 주소가 맞는다.
+export const serieSlug = (serie: string): string =>
+  serie
+    .toLowerCase()
+    .replace(/[^\w가-힣ぁ-んァ-ヶー・一-鿿]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'etc';

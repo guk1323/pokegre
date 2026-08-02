@@ -126,9 +126,15 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
         setIndex(list);
         indexRef.current = list;
         // 다른 화면에 갔다가 돌아왔을 때: 기록에 남은 상세를 복원한다.
-        const slug = (window.history.state as { sub?: { artist?: string } } | null)?.sub?.artist;
+        // /artist/<슬러그>로 바로 들어온 경우(검색·공유)도 같은 자리로 보낸다.
+        const fromUrl = window.location.pathname.match(/^\/artist\/([\w.-]+)/)?.[1];
+        const slug = fromUrl ?? (window.history.state as { sub?: { artist?: string } } | null)?.sub?.artist;
         const a = slug ? list.find((x) => x.slug === slug) : undefined;
-        if (a) showArtist(a);
+        if (a) {
+          showArtist(a);
+          // 주소로 들어온 것도 목록에서 누른 것과 똑같이 통계에 남긴다.
+          if (fromUrl) trackEvent('artist', a.en);
+        }
       })
       .catch(() => setIndex([]));
   }, []);
@@ -137,6 +143,8 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
     trackEvent('artist', a.en);
     showArtist(a);
     sub.push(a.slug);
+    // 주소를 남긴다 — 새로고침·공유해도 같은 작가가 열리고, 검색엔진이 들어올 문이 된다.
+    window.history.replaceState(window.history.state, '', `/artist/${a.slug}`);
   }
 
   // ── 작가 한 명의 카드 그리드 ────────────────────────────────────────────────

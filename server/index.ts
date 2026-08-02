@@ -15,7 +15,7 @@ import {
 } from './api.ts'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
-import { koSetName } from '../src/lib/setNameKo.ts'
+import { koSetName, serieSlug } from '../src/lib/setNameKo.ts'
 
 // 화면(cardCatalog)과 같은 규칙으로 이름을 한글로 만든다. 그 파일은 브라우저 전용이라
 // 여기서 가져다 쓰지 않고 같은 내용만 옮겨 둔다.
@@ -334,6 +334,119 @@ app.get('/set/:slug', async (req, res) => {
   }<p><a href="/set/${esc(slug)}">${esc(setName)} 전체 카드 보기</a></p></div>`
   html = html.replace('<body>', `<body>${body}`)
   res.set('Cache-Control', 'public, max-age=600').send(html)
+})
+
+// ── 일러스트레이터 페이지(/artist/<슬러그>) ────────────────────────────────
+// "사이토 미츠히로 포켓몬 카드"처럼 작가 이름으로 검색했을 때 걸리게 한다.
+// 세트 페이지와 같은 방식이다 — 서버가 이름·대표작을 글자로 미리 넣어 보내고,
+// 사람이 눌러 들어오면 앱이 이어받아 평소 화면을 그린다.
+app.get('/artist/:slug', async (req, res) => {
+  const slug = String(req.params.slug ?? '')
+  if (!/^[\w.-]+$/.test(slug)) {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  let a: { en?: string; ko?: string; note?: string; era?: string; count?: number; cards?: { name: string; set?: string }[] }
+  try {
+    a = JSON.parse(await readFile(path.join(DIST, 'artists', `${slug}.json`), 'utf-8'))
+  } catch {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  const name = (a.ko || a.en || '').trim()
+  if (!name) {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  const shown = (a.cards ?? []).slice(0, 12).map((c) => koreanizeEnglishCardName(c.name))
+  const title = `${name} 일러스트 카드 | pokegre`
+  const desc = `${name}이(가) 그린 포켓몬 카드 ${a.count ?? shown.length}장${
+    a.note ? ` — ${a.note}` : ''
+  }. ${shown.slice(0, 3).join(' · ')} 등.`
+  const url = `https://pokegre.com/artist/${slug}`
+
+  let html = TEMPLATE
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
+  html = setMeta(html, 'og:url', esc(url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+  const list = shown.map((n) => `<li>${esc(n)}</li>`).join('')
+  const body = `<div id="seo-fallback"><h1>${esc(name)} 일러스트 카드</h1>` +
+    `<p>${esc(name)}이(가) 그린 포켓몬 카드 ${a.count ?? shown.length}장입니다.` +
+    `${a.era ? ` 활동 시기 ${esc(a.era)}.` : ''}${a.note ? ` ${esc(a.note)}.` : ''}</p>` +
+    `<ul>${list}</ul></div>`
+  html = html.replace('<body>', `<body>${body}`)
+  res.set('Cache-Control', 'public, max-age=3600').send(html)
+})
+
+// ── 시리즈 페이지(/series/<슬러그>) ────────────────────────────────────────
+// "소드실드 카드 목록"처럼 시리즈 이름으로 검색했을 때 걸리게 한다.
+app.get('/series/:slug', async (req, res) => {
+  const slug = String(req.params.slug ?? '')
+  if (!/^[\w.-]+$/.test(slug)) {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  let idx: { slug: string; name: string; ed?: 'ja' | 'en'; serie?: string; count?: number; releaseDate?: string }[]
+  try {
+    idx = JSON.parse(await readFile(path.join(DIST, 'sets', 'index.json'), 'utf-8'))
+  } catch {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  const sets = idx.filter((s) => serieSlug(s.serie ?? '') === slug)
+  if (!sets.length) {
+    res.status(404).send(TEMPLATE)
+    return
+  }
+  const serieKo = koSet(sets[0].ed ?? 'ja', sets[0].serie ?? '')
+  const cards = sets.reduce((n, s) => n + (s.count ?? 0), 0)
+  const recent = sets
+    .slice()
+    .sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')))
+    .slice(0, 10)
+  const title = `${serieKo} 세트 목록 | pokegre`
+  const desc = `${serieKo} 시리즈 ${sets.length}개 세트, 카드 ${cards}장 — ${recent
+    .slice(0, 3)
+    .map((s) => koSet(s.ed ?? 'ja', s.name))
+    .join(' · ')} 등.`
+  const url = `https://pokegre.com/series/${slug}`
+
+  let html = TEMPLATE
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
+  html = setMeta(html, 'og:url', esc(url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+  const list = recent
+    .map((s) => `<li><a href="/set/${esc(s.slug)}">${esc(koSet(s.ed ?? 'ja', s.name))}</a> ${s.count ?? 0}종</li>`)
+    .join('')
+  const body = `<div id="seo-fallback"><h1>${esc(serieKo)} 세트 목록</h1>` +
+    `<p>${esc(serieKo)} 시리즈는 세트 ${sets.length}개, 카드 ${cards}장입니다.</p><ul>${list}</ul></div>`
+  html = html.replace('<body>', `<body>${body}`)
+  res.set('Cache-Control', 'public, max-age=3600').send(html)
+})
+
+// ── 센터링 도구(/centering) ───────────────────────────────────────────────
+app.get('/centering', (_req, res) => {
+  const title = '포켓몬 카드 센터링 측정 | pokegre'
+  const desc =
+    '카드 사진을 올리면 상하좌우 여백을 재서 센터링 비율을 알려줍니다. PSA 10을 노릴 때 미리 가늠해 볼 수 있습니다.'
+  const url = 'https://pokegre.com/centering'
+  let html = TEMPLATE
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
+  html = setMeta(html, 'og:url', esc(url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+  const body =
+    '<div id="seo-fallback"><h1>포켓몬 카드 센터링 측정</h1>' +
+    '<p>카드 사진을 올리면 상하좌우 여백을 재서 센터링 비율을 알려줍니다. ' +
+    'PSA·CGC 감정에서 센터링은 등급을 가르는 큰 기준이라, 보내기 전에 미리 가늠해 볼 수 있습니다.</p>' +
+    '<p>사진은 브라우저 안에서만 처리하고 서버에 저장하지 않습니다.</p></div>'
+  html = html.replace('<body>', `<body>${body}`)
+  res.set('Cache-Control', 'public, max-age=3600').send(html)
 })
 
 // 정적 파일 캐시 정책. 번들(assets/*)은 파일명에 해시가 있어 1년 캐시해도 안전하지만,

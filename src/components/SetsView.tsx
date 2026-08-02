@@ -13,6 +13,7 @@ import {
   type SetIndexEntry,
 } from '../lib/cardCatalog';
 import pokemonNames from '../data/pokemonNames.json';
+import { serieSlug } from '../lib/setNameKo';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
@@ -64,11 +65,15 @@ function topCards(ed: 'ja' | 'en', cards: SetCard[], limit = 8): SetCard[] {
 export function SetsView({
   onPickCard,
   initialSlug,
+  initialSerie,
   onInitialSlugDone,
 }: {
   onPickCard: (name: string) => void;
   // 팩 개봉 화면의 "수록 카드 보기"가 특정 세트를 바로 열 때 쓴다.
   initialSlug?: string | null;
+  // /series/<슬러그>로 들어왔을 때 그 시리즈가 있는 탭을 열고 거기로 스크롤한다.
+  // 안 해주면 "소드실드 카드 목록"으로 검색해 들어온 사람에게 엉뚱한 시리즈가 보인다.
+  initialSerie?: string | null;
   // 위 이동을 한 번 적용한 뒤 App의 기억을 지운다 — 안 지우면 세트별 목록에
   // 들어올 때마다 그 세트로 강제 이동돼 목록을 볼 수 없게 된다(실제 겪은 버그).
   onInitialSlugDone?: () => void;
@@ -99,6 +104,20 @@ export function SetsView({
     // showSet은 렌더마다 새로 만들어지는 일반 함수라 의존성에 넣지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSlug, index]);
+  // /series/<슬러그>로 들어온 경우: 그 시리즈가 있는 탭으로 옮기고 그 자리로 스크롤한다.
+  const serieApplied = useRef(false);
+  useEffect(() => {
+    if (!initialSerie || !index || serieApplied.current) return;
+    const hit = index.find((e) => serieSlug(e.serie ?? '') === initialSerie);
+    if (!hit) return;
+    serieApplied.current = true;
+    setTab(hit.slug.startsWith('ja-') ? 'ja' : /pocket/i.test(hit.serie ?? '') ? 'pocket' : 'en');
+    // 탭이 바뀌고 목록이 그려진 뒤에 스크롤해야 자리를 찾는다.
+    setTimeout(() => {
+      document.getElementById(`serie-${initialSerie}`)?.scrollIntoView({ block: 'start' });
+    }, 300);
+  }, [initialSerie, index]);
+
   const [cards, setCards] = useState<SetCard[] | null>(null);
   // 값이 높은 순으로 고른 힛카드. 앨범 시세를 받아 둔 세트에서만 온다.
   // 없는 세트는 예전처럼 레어도로 고른다(그때는 "주요 카드"라고 부른다).
@@ -430,7 +449,7 @@ export function SetsView({
         </div>
       ) : (
         groups.map((grp) => (
-          <section key={grp.serie} className="mb-8">
+          <section key={grp.serie} id={`serie-${serieSlug(grp.serie)}`} className="mb-8 scroll-mt-24">
             {/* 시리즈 헤더 */}
             <div className="mb-3 flex items-baseline gap-2">
               <h3 className="text-sm font-extrabold text-neutral-900">{koSerie(grp.sets[0]?.ed ?? 'en', grp.serie)}</h3>
