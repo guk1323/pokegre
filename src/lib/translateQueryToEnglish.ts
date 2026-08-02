@@ -118,6 +118,11 @@ const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['에너지', 'Energy'], // 북미판 카드 이름에 646번
   ['트레이너', 'Trainer'], // 카드 이름에 11번("Coach Trainer")
   ['초판', '1st Edition'], // 카드 이름이 아니라 이베이 매물에 붙는 말
+  // ⚠️ 긴 것을 먼저 놔야 한다. "포켓몬"만 넣었더니 "포켓몬스터"가 「Pokemon스터」로
+  //    쪼개졌다(아래 STRUCTURAL_EN_TERMS는 적힌 순서대로 돈다).
+  ['포켓몬스터', 'Pocket Monsters'], // 이베이 실측: 이 이름으로 매물이 잡힌다("…Pocket Monster Recover")
+  ['포켓몬', 'Pokémon'], // 북미판 카드 이름에 81번("Pokémon Flute"). é까지 그대로 쓴다
+  ['배틀', 'Battle'], // 카드·세트 이름에 15번("Battle City")
   // 트레이너 소유격. 우리 일본판 카드명과 북미판 카드명을 같은 포켓몬으로 짝지어
   // 확인한 것만 담았다(scripts로 뽑고 표가 갈리지 않는 것만 골랐다).
   ['웅의', "Brock's "],
