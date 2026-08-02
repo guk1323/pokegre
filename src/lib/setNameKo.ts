@@ -223,7 +223,8 @@ export const SET_KO: Record<string, string> = {
   'Unseen Forces Unown Collection': '금의 하늘, 은의 바다 안농 컬렉션',
   'Poké Card Creator Pack': '포케 카드 크리에이터 팩',
   'Yellow A Alternate': '옐로 A 알터네이트',
-  'Mega Evolution Energy': '메가진화 에너지',
+  // 부모 세트('Mega Evolution' = 메가 에볼루션)와 앞부분을 맞춘다.
+  'Mega Evolution Energy': '메가 에볼루션 에너지',
   'My First Battle': '마이 퍼스트 배틀',
   // 부모 세트('Scarlet & Violet' = 스칼렛 & 바이올렛)와 띄어쓰기를 맞춘다.
   'Scarlet & Violet Energy': '스칼렛 & 바이올렛 에너지',
