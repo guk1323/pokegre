@@ -1,7 +1,7 @@
 import pokemonNames from '../data/pokemonNames.json';
 import packNames from '../data/packNames.json';
 import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
-import { koreanizeTitle, STRUCTURAL_TERMS } from './koreanizeTitle';
+import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS } from './koreanizeTitle';
 
 interface PokemonName {
   id: number;
@@ -83,7 +83,9 @@ const betterForSearch = (next: string, prev: string) => {
 };
 
 const reverseStructuralTerms = new Map<string, string>();
-for (const [ja, ko] of STRUCTURAL_TERMS) {
+// COMPOUND_TERMS(포켓몬 이름을 품은 낱말)도 같이 뒤집는다 — "샌드위치"로 검색할 때
+// サンドウィッチ가 나가야지, 모래두지(サンド)로 나가면 안 된다.
+for (const [ja, ko] of [...COMPOUND_TERMS, ...STRUCTURAL_TERMS]) {
   // 왼쪽이 알파벳뿐인 항목은 건너뛴다. 그런 항목은 옛 세트의 깨진 원본 데이터를
   // 고치려고 넣은 것이지(원본에 'Bugsy'가 영어로 들어 있다) 검색어가 아니다.
   // 그대로 뒤집으면 "호일"로 검색할 때 스니커덩크에 'Bugsy'를 보내게 되는데,

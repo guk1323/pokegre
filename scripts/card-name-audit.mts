@@ -160,6 +160,54 @@ for (const [name, slug] of cleanNames) {
   }
 }
 
+// ⑥ 짧은 "뜻" 규칙이 더 긴 가타카나 낱말을 잘라 먹는지.
+// 치환은 낱말 경계를 안 보고 갈아끼우기만 한다. 두 글자짜리 이름이 더 긴 외래어
+// 한가운데 걸리면 그 자리를 잘라 먹는다 — 'カイ'(주혜) 때문에 スカイフィールド가
+// "스주혜피루도"가, 'ジム'(체육관) 때문에 ダメージムーバー가 "다메체육관바"가 됐다.
+//
+// ⑤(별칭)와 달리 여기는 STRUCTURAL_TERMS와 포켓몬 정식 이름까지 본다. 다만
+// 'ボール'→'볼'처럼 소리를 그대로 옮긴 규칙은 낱말 안에 들어가도 맞는 결과가 나오므로
+// 뺀다. 소리인지 뜻인지는 첫 글자의 첫소리로 가른다(보루/볼은 ㅂ으로 같고,
+// 지무/체육관은 ㅈ↔ㅊ으로 다르다).
+const firstJamo = (s: string) => {
+  const c = s.trim().charCodeAt(0)
+  return c >= 0xac00 && c <= 0xd7a3 ? Math.floor((c - 0xac00) / 588) : -1
+}
+const isSoundRule = (ja: string, ko: string) => firstJamo(kanaToHangul(ja)) === firstJamo(ko)
+const KATA = /[ァ-ヶー]/
+const KATA_KEY = /^[ァ-ヶー]{1,3}$/
+const meaningRules: [string, string][] = []
+for (const [ja, ko] of STRUCTURAL_TERMS) if (KATA_KEY.test(ja) && !isSoundRule(ja, ko)) meaningRules.push([ja, ko])
+for (const p of pokemonNames as { ja: string; ko: string }[])
+  if (KATA_KEY.test(p.ja) && !isSoundRule(p.ja, p.ko)) meaningRules.push([p.ja, p.ko])
+for (const a of pokemonNameAliases as { ja: string; ko: string }[])
+  if (KATA_KEY.test(a.ja) && !isSoundRule(a.ja, a.ko)) meaningRules.push([a.ja, a.ko])
+
+const bleedHits = new Map<string, { ko: string; ex: string[] }>()
+for (const [name, slug] of cleanNames) {
+  for (const [ja, ko] of meaningRules) {
+    if (name === ja) continue
+    let i = name.indexOf(ja)
+    let cut = false
+    while (i >= 0) {
+      const b = name[i - 1]
+      const a = name[i + ja.length]
+      if ((b && KATA.test(b)) || (a && KATA.test(a))) {
+        cut = true
+        break
+      }
+      i = name.indexOf(ja, i + 1)
+    }
+    // 결과에 그 규칙의 값이 실제로 박혔을 때만 사고다(더 긴 규칙이 먼저 잡았으면 무사하다).
+    if (!cut) continue
+    const got = koreanizeTitle(name)
+    if (!got.includes(ko.trim())) continue
+    const e = bleedHits.get(ja) ?? { ko, ex: [] }
+    if (e.ex.length < 4) e.ex.push(`${name} → ${got} [${slug}]`)
+    bleedHits.set(ja, e)
+  }
+}
+
 const sum = (m: Map<string, Row>) => [...m.values()].reduce((s, v) => s + v.n, 0)
 console.log(`카드명 ${total}건 검사`)
 console.log(`  ① 일본어·한자 잔여: ${cjkLeft.size}종 / ${sum(cjkLeft)}건`)
@@ -168,6 +216,7 @@ console.log(`  (공식 한글명 사전: ${koSet.size}종)`)
 console.log(`  ③ 포켓몬코리아 공식 카드명과 대조: 일치 ${officialOk.size}종 / 불일치 ${officialNg.size}종`)
 console.log(`  ④ 히라가나가 뜻 없이 소리로 남음: ${kanaLeft.size}종 / ${sum(kanaLeft)}건`)
 console.log(`  ⑤ 짧은 별칭이 멀쩡한 카드명에 끼어듦: ${aliasHits.size}종`)
+console.log(`  ⑥ 짧은 뜻 규칙이 긴 가타카나 낱말을 잘라 먹음: ${bleedHits.size}종`)
 console.log(`  (원본 일본어 칸이 오염된 옛 세트 ${dirtySets.size}개는 ④에서 뺐다: ${[...dirtySets].join(' ')})`)
 
 if (cjkLeft.size) {
@@ -195,6 +244,16 @@ if (aliasHits.size) {
   }
   console.log('\n고치는 법: 그 별칭을 지우거나(잘못 넣은 것이면), 카드명 전체가 그 이름일 때만')
   console.log('바꾸도록 koreanizeTitle.ts의 EXACT_ONLY_ALIASES에 넣는다.')
+}
+
+// ⑥은 건수가 적고 하나하나가 오역이라 --list 없이도 다 보여준다.
+if (bleedHits.size) {
+  console.log('\n⑥ 짧은 뜻 규칙이 긴 가타카나 낱말을 잘라 먹는다:')
+  for (const [ja, v] of bleedHits) {
+    console.log(`   ${ja} → ${v.ko}`)
+    for (const ex of v.ex) console.log(`       ${ex}`)
+  }
+  console.log('\n고치는 법: 잘린 쪽 낱말 전체를 STRUCTURAL_TERMS 맨 앞에 적는다(긴 것이 먼저 잡힌다).')
 }
 
 if (LIST && kataLeft.size) {
