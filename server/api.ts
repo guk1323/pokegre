@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -5204,15 +5205,64 @@ function mountAuth(
 // 값은 앨범 시세로 이미 받아 둔 것을 그대로 쓴다(크레딧을 새로 안 쓴다). 그래서 앨범
 // 목록에 있는 세트만 나온다. 없는 세트는 빈 배열을 주고, 화면이 예전 방식으로 돌아간다.
 // 세트에서 값이 높은 카드를 골라 준다. 화면(API)과 검색 노출 페이지가 같이 쓴다.
+// 앨범 시세를 안 받는 세트용. scripts/fetch-set-hit-cards.mjs가 미리 받아 둔 값을 읽는다.
+// 앨범 시세(packPriceCache)는 매일 갱신되는 22세트뿐이라, 나머지는 이 파일이 채운다.
+// 한 번 읽고 계속 들고 있는다(배포할 때마다 새로 읽힌다).
+let hitCardFile: Record<string, { at: number; cards: { n: string; usd: number }[] }> | null = null
+function loadHitCardFile() {
+  if (hitCardFile) return hitCardFile
+  try {
+    // 빌드가 dist로 옮겨 주지 않는 파일이라 소스 경로에서 읽는다(Dockerfile이 복사한다).
+    hitCardFile = JSON.parse(readFileSync(path.resolve('src/data/setHitCards.json'), 'utf-8'))
+  } catch {
+    hitCardFile = {}
+  }
+  return hitCardFile ?? {}
+}
+
 export function topPricedCards(slug: string, limit = 4): { n: string; usd: number; name: string }[] {
   const hit = packPriceCache.get(slug)
-  if (!hit) return []
+  if (!hit) {
+    // 앨범 시세가 없으면 미리 받아 둔 파일을 본다. 이름은 세트 파일에서 번호로 찾는다.
+    const saved = loadHitCardFile()[slug]
+    if (!saved?.cards?.length) return []
+    const names = setCardNames(slug)
+    return saved.cards
+      .slice(0, limit)
+      .map((c) => ({ n: c.n, usd: c.usd, name: names.get(String(Number(c.n))) ?? '' }))
+  }
   return Object.entries(hit.prices)
     .filter(([n]) => !n.includes('~'))
     .map(([n, usd]) => ({ n, usd, name: hit.names?.[n] ?? '' }))
     .filter((r) => r.usd > 0)
     .sort((a, b) => b.usd - a.usd)
     .slice(0, limit)
+}
+
+// 세트 파일에서 번호 → 이름·그림. 힛카드 파일에는 번호와 값만 있어서 여기서 채운다.
+const setCardCache = new Map<string, Map<string, { name: string; img: string }>>()
+function setCards(slug: string): Map<string, { name: string; img: string }> {
+  const hit = setCardCache.get(slug)
+  if (hit) return hit
+  const out = new Map<string, { name: string; img: string }>()
+  for (const base of ['dist/sets', 'public/sets']) {
+    try {
+      const d = JSON.parse(readFileSync(path.resolve(base, `${slug}.json`), 'utf-8')) as {
+        cards?: { n: string; name?: string; img?: string }[]
+      }
+      for (const c of d.cards ?? []) out.set(String(Number(c.n)), { name: c.name ?? '', img: c.img ?? '' })
+      break
+    } catch {
+      /* 다음 경로 */
+    }
+  }
+  setCardCache.set(slug, out)
+  return out
+}
+const setCardNames = (slug: string) => {
+  const m = new Map<string, string>()
+  for (const [n, v] of setCards(slug)) m.set(n, v.name)
+  return m
 }
 
 // 세트 목록에 쓸 표지. 값이 제일 높은 카드의 그림을 준다.
@@ -5222,20 +5272,19 @@ let setCoverCache: Record<string, string> | null = null
 async function bestCardCovers(): Promise<Record<string, string>> {
   if (setCoverCache) return setCoverCache
   const out: Record<string, string> = {}
-  for (const slug of packPriceCache.keys()) {
+  // 앨범 시세를 받는 세트 + 미리 받아 둔 파일에 있는 세트를 다 본다.
+  const slugs = new Set([...packPriceCache.keys(), ...Object.keys(loadHitCardFile())])
+  for (const slug of slugs) {
     const top = topPricedCards(slug, 8)
     if (!top.length) continue
-    try {
-      const raw = await readFile(path.resolve('dist/sets', `${slug}.json`), 'utf-8')
-      const d = JSON.parse(raw) as { cards?: { n: string; img?: string }[] }
-      const byNum = new Map((d.cards ?? []).map((c) => [String(Number(c.n)), c]))
-      // 값이 높은 순으로 보다가 그림이 있는 첫 카드를 쓴다.
-      for (const t of top) {
-        const img = byNum.get(String(Number(t.n)))?.img
-        if (img) { out[slug] = img; break }
+    const byNum = setCards(slug)
+    // 값이 높은 순으로 보다가 그림이 있는 첫 카드를 쓴다.
+    for (const t of top) {
+      const img = byNum.get(String(Number(t.n)))?.img
+      if (img) {
+        out[slug] = img
+        break
       }
-    } catch {
-      /* 세트 파일이 없으면 건너뛴다 */
     }
   }
   setCoverCache = out
