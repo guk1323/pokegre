@@ -79,6 +79,11 @@ export function SetsView({
   onInitialSlugDone?: () => void;
 }) {
   const [index, setIndex] = useState<SetIndexEntry[] | null>(null);
+  // 못 불러온 것과 "정말 비어 있는 것"은 다르다. 예전에는 실패해도 빈 목록으로 두어
+  // "검색 결과가 없습니다 · 다른 이름으로 찾아보세요"가 떴다 — 검색한 적도 없는데
+  // 사용자 잘못인 것처럼 보이고, 사이트에 세트가 없다고 오해하게 만든다.
+  // 배포 중(7초)이나 지하철에서 신호가 끊길 때 실제로 이 화면이 뜬다.
+  const [loadFailed, setLoadFailed] = useState(false);
   // 일본판 / 북미판 / 모바일 포켓 3분류. Pocket은 실물 아닌 디지털 게임(Pokémon TCG Pocket)이라
   // 실물 시세가 없어서 따로 뗀다 — 북미판에 섞이면 눌러도 시세가 빈 막다른 길이 됨.
   const [tab, setTab] = useState<'ja' | 'en' | 'pocket'>('ja');
@@ -171,9 +176,10 @@ export function SetsView({
     if (s) showSet(s);
   });
 
-  useEffect(() => {
+  const loadIndex = () => {
+    setLoadFailed(false);
+    setIndex(null);
     loadSetIndex()
-      .catch(() => [] as SetIndexEntry[])
       .then((list: SetIndexEntry[]) => {
         setIndex(list);
         indexRef.current = list;
@@ -182,8 +188,12 @@ export function SetsView({
         const s = slug ? list.find((x) => x.slug === slug) : undefined;
         if (s) showSet(s);
       })
-      .catch(() => setIndex([]));
-  }, []);
+      .catch(() => {
+        setIndex([]);
+        setLoadFailed(true);
+      });
+  };
+  useEffect(loadIndex, []);
 
   function openSet(s: SetIndexEntry) {
     // 어떤 세트를 열었는지 통계에 남긴다(운영자 방문 통계의 "세트별 조회" 랭킹). 라벨은 화면 한글명.
@@ -441,6 +451,18 @@ export function SetsView({
               <div className="mt-1 h-2.5 w-2/5 rounded bg-neutral-100" />
             </div>
           ))}
+        </div>
+      ) : loadFailed ? (
+        <div className="py-20 text-center">
+          <p className="text-sm font-semibold text-neutral-600">세트 목록을 불러오지 못했습니다</p>
+          <p className="mt-1 text-xs text-neutral-400">연결을 확인하고 다시 눌러 주세요.</p>
+          <button
+            type="button"
+            onClick={loadIndex}
+            className="mt-3 rounded-full bg-black px-4 py-1.5 text-xs font-semibold text-white"
+          >
+            다시 시도
+          </button>
         </div>
       ) : list.length === 0 ? (
         <div className="py-20 text-center">

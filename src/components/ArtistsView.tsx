@@ -84,6 +84,9 @@ function SearchInput({
 
 export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void }) {
   const [index, setIndex] = useState<ArtistIndexEntry[] | null>(null);
+  // 못 불러온 것과 "정말 비어 있는 것"은 다르다. 예전에는 실패해도 빈 목록으로 두어
+  // "작가 데이터를 준비 중입니다"가 떴다 — 데이터는 다 있는데 못 받은 것이라 사실이 아니다.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [selected, setSelected] = useState<ArtistIndexEntry | null>(null);
   const [cards, setCards] = useState<ArtistCard[] | null>(null);
   const [shown, setShown] = useState(PAGE);
@@ -119,7 +122,9 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
     if (a) showArtist(a);
   });
 
-  useEffect(() => {
+  const loadIndex = () => {
+    setLoadFailed(false);
+    setIndex(null);
     fetch('/artists/index.json')
       .then((r) => (r.ok ? r.json() : []))
       .then((list: ArtistIndexEntry[]) => {
@@ -136,8 +141,12 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
           if (fromUrl) trackEvent('artist', a.en);
         }
       })
-      .catch(() => setIndex([]));
-  }, []);
+      .catch(() => {
+        setIndex([]);
+        setLoadFailed(true);
+      });
+  };
+  useEffect(loadIndex, []);
 
   function openArtist(a: ArtistIndexEntry) {
     trackEvent('artist', a.en);
@@ -295,6 +304,18 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
 
       {index === null ? (
         <p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>
+      ) : loadFailed ? (
+        <div className="py-16 text-center">
+          <p className="text-sm font-semibold text-neutral-600">작가 목록을 불러오지 못했습니다</p>
+          <p className="mt-1 text-xs text-neutral-400">연결을 확인하고 다시 눌러 주세요.</p>
+          <button
+            type="button"
+            onClick={loadIndex}
+            className="mt-3 rounded-full bg-black px-4 py-1.5 text-xs font-semibold text-white"
+          >
+            다시 시도
+          </button>
+        </div>
       ) : index.length === 0 ? (
         <p className="py-16 text-center text-sm text-neutral-400">작가 데이터를 준비 중입니다.</p>
       ) : (
