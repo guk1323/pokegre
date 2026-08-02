@@ -3,6 +3,8 @@
 // 세트별 목록(SetsView)과 작가별 목록(ArtistsView)이 같은 세트를 같은 한글명으로
 // 보여줘야 해서 공용 모듈로 뒀다. 두 화면 모두 지연 로딩이라 컴포넌트끼리 import하면
 // 코드 분리가 깨지므로 lib에 둔다.
+import { koreanizeEnglishCardName } from './koreanizeEnglishTitle.ts';
+
 export const SET_KO: Record<string, string> = {
   // Pokémon TCG Pocket (한국어판 게임 공식 확장팩명, 나무위키 대조)
   'Genetic Apex': '최강의 유전자',
@@ -222,5 +224,12 @@ export function koSetName(name: string): string {
   if (SET_KO[name]) return SET_KO[name];
   const mcd = name.match(/^McDonald's Collection (\d{4})$/);
   if (mcd) return `맥도날드 컬렉션 ${mcd[1]}`;
+  // 트레이너킷은 "<시리즈> trainer Kit (<포켓몬>)" 꼴로 16개가 같은 모양이다.
+  // 하나씩 적는 대신 규칙으로 잡는다. 괄호 안 포켓몬 이름은 영문 사전으로 바꾼다.
+  const kit = name.match(/^(\w+) trainer Kit \(([^)]+)\)$/i);
+  if (kit) return `${kit[1]} 트레이너킷 (${koreanizeEnglishCardName(kit[2])})`;
+  // 블랙스타 프로모도 시리즈 코드만 다르다. 새 시리즈가 나와도 저절로 잡힌다.
+  const promo = name.match(/^(\w+) Black Star Promos$/);
+  if (promo) return `${promo[1]} 블랙스타 프로모`;
   return name;
 }
