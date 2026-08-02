@@ -67,6 +67,12 @@ const kataLeft = new Map<string, Row>()
 // (가타카나는 이름·외래어라 음역이 맞다), 변환 결과가 음역기와 똑같으면 사전에 없다는 뜻이다.
 // 실제로 'おねがい'가 '오네가이'로, 오거폰 가면 셋이 '카마도노멘'처럼 나가고 있었다.
 const kanaLeft = new Map<string, Row>()
+// ④의 예외: 소리로 옮긴 것이 곧 공식 한글명인 낱말. 뜻으로 바꾸면 오히려 틀린다.
+// (사용자가 포켓몬코리아 발매명으로 확인해 준 것만 넣는다 — 2026-08-02)
+const KANA_SOUND_IS_OFFICIAL = new Set([
+  'ふりそで', // 후리소데 — S11a '백열의 아르카나' 서포트 카드 정식명
+  'あばれる', // 아바레루군 — 일본 개그맨 이름이라 번역 대상이 아니다
+])
 const dirtySets = new Set<string>()
 // ⑤용: 오염되지 않은 세트의 일본어 카드명만 모은다.
 const cleanNames: [string, string][] = []
@@ -122,6 +128,7 @@ for (const dir of ['public/sets', 'public/packsim']) {
       // 사전에 없다는 뜻이다("おねがい"가 "부탁"이 아니라 "오네가이"로 나간 게 이 경우다).
       if (ed === 'ja' && !dirty) {
         for (const run of c.name.match(/[ぁ-ん]{2,}/g) ?? []) {
+          if (KANA_SOUND_IS_OFFICIAL.has(run)) continue // 소리로 옮긴 게 공식명이다
           const ko = koreanizeTitle(run)
           if (ko !== kanaToHangul(run)) continue // 사전에 있어 뜻으로 옮겨졌다
           if (!/^[가-힣]+$/.test(ko) || !got.includes(ko)) continue
