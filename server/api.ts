@@ -390,6 +390,9 @@ export function startCoverWarmup(): void {
 // 750MB쯤이라 상한 안에 든다.
 const IMG_DISK_DIR = path.join(DATA_DIR, 'imgcache')
 const IMG_DISK_MAX_BYTES = 600 * 1024 * 1024
+// 방문자를 기다리게 하지 않고 뒤에서 받을 때 쓰는 시간. 원본이 느려도 한 번만 참으면
+// 그 뒤로는 캐시에서 60ms에 나간다.
+const IMG_SLOW_RETRY_MS = 60_000
 const diskKey = (key: string) => createHash('sha1').update(key).digest('hex')
 
 function mountImageProxy(app: Mountable) {
@@ -443,8 +446,14 @@ function mountImageProxy(app: Mountable) {
   // 같은 이미지를 동시에 여러 명이 처음 요청하면 wsrv를 여러 번 부르지 않게 진행 중인
   // 요청을 공유한다(중복 방지).
   const inflight = new Map<string, Promise<{ body: Buffer; contentType: string } | null>>()
+  // 15초 안에 못 받은 것을 뒤에서 다시 받는 중인 목록(같은 걸 여러 번 받지 않게).
+  const slowJobs = new Set<string>()
 
-  async function fetchThumb(url: string, w: number): Promise<{ body: Buffer; contentType: string } | null> {
+  async function fetchThumb(
+    url: string,
+    w: number,
+    timeoutMs = UPSTREAM_SLOW_MS,
+  ): Promise<{ body: Buffer; contentType: string } | null> {
     const bare = url.replace(/^https?:\/\//, '')
     // 스니커덩크의 배경제거 이미지는 1000x730 가로 캔버스 한가운데에 카드가 43%만
     // 차지하도록 들어 있다. 그대로 쓰면 목록에서 카드가 작게 보이고 둘레가 텅 빈다.
@@ -455,7 +464,7 @@ function mountImageProxy(app: Mountable) {
     const wsrv = `https://images.weserv.nl/?url=${encodeURIComponent(bare)}&w=${w}&output=webp&q=72${trimmable ? '&trim=10' : ''}`
     try {
       const r = await fetch(wsrv, {
-        signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
+        signal: AbortSignal.timeout(timeoutMs),
         headers: { 'user-agent': 'pokegre-img/0.1' },
       })
       if (!r.ok) return null
@@ -517,6 +526,20 @@ function mountImageProxy(app: Mountable) {
     }
     const result = await job
     if (!result) {
+      // 못 받았으면 원본으로 리다이렉트해 화면이 비지 않게 한다. 다만 그걸로 끝내면
+      // 캐시에 아무것도 안 남아 다음 사람도 똑같이 기다린다 — tcgdex는 한 장에 7~15초라
+      // 이 경우가 꽤 된다. 방문자를 붙잡아 두지 않으면서 뒤에서 넉넉히 기다려 받아 둔다.
+      if (!slowJobs.has(key)) {
+        slowJobs.add(key)
+        void fetchThumb(u, w, IMG_SLOW_RETRY_MS)
+          .then((r) => {
+            if (r) {
+              cache.set(key, r)
+              void writeDisk(key, r.body)
+            }
+          })
+          .finally(() => slowJobs.delete(key))
+      }
       // wsrv 실패: 원본으로 리다이렉트해 화면이 비지 않게 한다.
       res.statusCode = 302
       res.setHeader('location', u)
@@ -551,7 +574,7 @@ function mountImageProxy(app: Mountable) {
           const u = full(base)
           const key = `200|${u}`
           if (cache.get(key)) return
-          const hit = (await readDisk(key)) ?? (await fetchThumb(u, 200).catch(() => null))
+          const hit = (await readDisk(key)) ?? (await fetchThumb(u, 200, IMG_SLOW_RETRY_MS).catch(() => null))
           if (hit) {
             cache.set(key, hit)
             void writeDisk(key, hit.body)
