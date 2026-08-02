@@ -1,4 +1,5 @@
 import type { SnkrdunkCard } from '../api/snkrdunk';
+import { thumb } from '../lib/cardCatalog';
 import { FavoriteButton } from './FavoriteButton';
 import { KrwHint } from './KrwHint';
 
@@ -37,17 +38,23 @@ export function CardTile({
       }`}
     >
       <div className="relative h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
-        {/* 스니덩크 이미지는 배경제거된 가벼운 webp이고 CDN이 한국에서 빠르다(≈95ms).
-            우리 프록시나 유럽 CDN을 거치면 오히려 첫 로딩이 느려져서 원본을 그대로 쓴다. */}
-        {/* 스니덩크 이미지는 1000x730 가로 캔버스 한가운데에 카드가 가로 43%·세로 83%만
-            차지하도록 들어 있다. 그대로 두면 틀 안에서 카드가 작게 떠 있고 둘레가 텅 빈다
-            ("카드가 작게 보인다"는 제보). 둘레는 투명하니 키워서 잘라내면 카드가 틀을
-            꽉 채운다. 카드가 틀을 넘는 만큼은 위 overflow-hidden이 잘라 준다. */}
+        {/* 스니덩크 원본은 1000x730 가로 캔버스 한가운데에 카드가 가로 44%·세로 84%만
+            차지하도록 들어 있다(카드 6장 실측, 여백은 늘 같다). 그대로 두면 카드가 작게
+            떠 있어서 예전에는 CSS로 1.55배 키웠는데, 그러면 이베이 탭보다 8% 작게 나오고
+            (스니덩크 96x133 / 이베이 104x144) 이미지가 틀을 넘어 잘렸다.
+            프록시가 투명한 여백을 잘라 주므로(trim) 카드만 남고, 확대 없이 이베이와
+            같은 크기가 된다. 파일도 절반이라(94KB→51KB) 폰에서 더 빠르다. */}
         <img
-          src={card.imageUrl}
+          src={thumb(card.imageUrl, 320)}
           alt={card.title}
-          className="h-full w-full scale-[1.55] object-contain"
+          className="h-full w-full object-contain"
           loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            // 프록시가 실패하면 원본을 그대로 쓴다(빈칸 방지).
+            const img = e.currentTarget;
+            if (img.src !== card.imageUrl) img.src = card.imageUrl;
+          }}
         />
         {onToggleFavorite && <FavoriteButton active={!!isFavorite} onToggle={() => onToggleFavorite(card)} />}
       </div>
