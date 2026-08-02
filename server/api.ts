@@ -15,6 +15,7 @@ import {
   STREAK_BONUS,
   STREAK_DAYS,
   isLive,
+  livePacks,
   packBySlug,
   PPT_SET_NAMES,
   type PackSet,
@@ -2000,6 +2001,54 @@ let pptDailyLeft = Number.POSITIVE_INFINITY
 // 세트 하나가 200~600크레딧이라 채우기 한 바퀴에 1만 안팎이 든다.
 const PPT_KEEP_FOR_VISITORS = 8000
 
+// ⚠️ 위 세 값은 메모리에만 있으면 배포할 때마다 지워진다. 그러면 "남은 크레딧을 아직
+//    모른다(=무한대)" 상태로 다시 시작해 방문자 몫 8,000을 지키는 검사가 통과되고,
+//    차단 중인 것도 잊고 다시 두드린다. 2026-08-02에 하루 여섯 번 배포하면서 이걸로
+//    남겨 둔 4,000이 밤사이 다 나갔다. 그래서 파일에 적어 두고 뜰 때 읽는다.
+const PPT_STATE_FILE = dataFile('ppt-state.json')
+interface PptState {
+  day: string // 어느 날짜의 잔량인지(UTC). 날이 바뀌면 버린다.
+  left: number
+  blockedUntil: number
+  dailyOut: boolean
+}
+const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
+
+let pptStateSaveAt = 0
+async function savePptState() {
+  // 부를 때마다 쓰면 디스크가 아프다. 10초에 한 번이면 배포 사이 상태를 지키기 충분하다.
+  if (Date.now() - pptStateSaveAt < 10_000) return
+  pptStateSaveAt = Date.now()
+  try {
+    await mkdir(path.dirname(PPT_STATE_FILE), { recursive: true })
+    await writeJsonFile(PPT_STATE_FILE, {
+      day: utcDay(),
+      left: Number.isFinite(pptDailyLeft) ? pptDailyLeft : -1,
+      blockedUntil: pptBlockedUntil,
+      dailyOut: pptDailyOut,
+    } satisfies PptState)
+  } catch {
+    /* 못 적어도 서비스는 돌아간다 */
+  }
+}
+
+export async function loadPptState() {
+  try {
+    const s = JSON.parse(await readFile(PPT_STATE_FILE, 'utf-8')) as PptState
+    // 하루치는 UTC 자정에 새로 찬다. 어제 것이면 그대로 쓰면 안 된다.
+    if (s.day !== utcDay()) return
+    if (typeof s.left === 'number' && s.left >= 0) pptDailyLeft = s.left
+    if (typeof s.blockedUntil === 'number') pptBlockedUntil = s.blockedUntil
+    pptDailyOut = !!s.dailyOut
+    console.log(
+      `[pokegre] PPT 상태를 이어받았습니다: 남은 크레딧 ${Number.isFinite(pptDailyLeft) ? pptDailyLeft : '모름'}` +
+        (pptBlockedUntil > Date.now() ? ` · ${new Date(pptBlockedUntil).toISOString()}까지 쉽니다` : ''),
+    )
+  } catch {
+    /* 처음 뜨는 것 */
+  }
+}
+
 // 하루치는 UTC 자정(한국시간 오전 9시)에 초기화된다.
 const nextUtcMidnight = (now = Date.now()) => {
   const d = new Date(now)
@@ -2013,6 +2062,15 @@ const pptGate = (): { ok: boolean; daily: boolean } =>
 // 응답을 보고 언제까지 쉴지 정한다.
 // 5xx는 PPT 쪽 장애라 한도와 무관하므로 판단을 바꾸지 않는다.
 function notePpt(status: number, headers: Headers) {
+  // 어떤 갈래로 끝나든 파일에 남긴다. 배포로 서버가 새로 떠도 이 판단을 이어받는다.
+  try {
+    return notePptInner(status, headers)
+  } finally {
+    void savePptState()
+  }
+}
+
+function notePptInner(status: number, headers: Headers) {
   const left = Number(headers.get('x-ratelimit-daily-remaining'))
   if (Number.isFinite(left)) pptDailyLeft = left
   const after = Number(headers.get('retry-after'))
@@ -4087,7 +4145,14 @@ async function readPackCards(pack: PackSet): Promise<PackCard[]> {
 // 화면에서도 읽히지 않아, 좋은 등급부터 이만큼만 보여준다.
 const PULL_CARD_LIMIT = 12
 
-type PackPriceEntry = { at: number; prices: Record<string, number>; names?: Record<string, string>; partial?: boolean }
+type PackPriceEntry = {
+  at: number
+  prices: Record<string, number>
+  names?: Record<string, string>
+  partial?: boolean
+  // 마지막으로 "받아 보려고 시도한" 시각. 성공했든 실패했든 남긴다.
+  triedAt?: number
+}
 const packPriceCache = new Map<string, PackPriceEntry>()
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 // 캐시를 그대로 써도 되는지. partial(뒤 페이지를 못 받음)이거나 names(영문 카드명)가
@@ -4095,6 +4160,16 @@ const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 // 그대로 두면 24시간마다 갱신돼도 영원히 안 채워져 일본판 "시세 보기"가 계속 빗나간다.
 const packPriceFresh = (hit: PackPriceEntry) =>
   !hit.partial && !!hit.names && Date.now() - hit.at < PACK_PRICE_TTL_MS
+
+// 한 번 실패한 세트를 얼마나 두었다 다시 받아 볼지.
+//
+// ⚠️ 예전엔 실패하면 캐시에 아무것도 안 남겼다. 그래서 "아직 못 받은 세트"로 계속 잡혀
+//    5분마다 처음부터 다시 받으러 갔다. 2026-08-02에 카드 뽑기 세트를 23개→44개로
+//    늘렸더니, 새로 들어온 21개가 이 고리에 걸려 한 바퀴 4,200크레딧을 반복해서 썼다.
+//    이제 실패해도 triedAt을 남기고, 그 뒤 6시간은 건드리지 않는다.
+const PACK_WARM_RETRY_MS = 6 * 60 * 60 * 1000
+const packWarmDue = (hit?: PackPriceEntry) =>
+  !hit || (!packPriceFresh(hit) && Date.now() - (hit.triedAt ?? hit.at) >= PACK_WARM_RETRY_MS)
 const PACK_PRICE_FILE = dataFile('pack-prices.json')
 const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
 
@@ -4114,13 +4189,33 @@ async function savePackPriceFile() {
   await writeJsonFile(PACK_PRICE_FILE, Object.fromEntries(packPriceCache))
 }
 
+// 미리 받을 세트를 고른다.
+//
+// ⚠️ 예전엔 PPT_SET_NAMES 전부를 돌았다. 카드 뽑기에 세트를 추가할 때마다 미리받기
+//    범위가 같이 늘어나는 구조라, 2026-08-02에 23개→44개로 늘리자 한 바퀴가 하루치를
+//    넘겼다. 이제 "오늘 상점에 진열되는 6개"로 묶는다 — 오늘 살 수 있는 팩의 시세만
+//    미리 있으면 되고, 예전에 산 팩의 시세는 이미 받아 둔 값이 앨범에 그대로 쓰인다.
+// ⚠️ 시세를 아직 한 번도 못 받은 세트는 진열 여부와 상관없이 하루 두 개까지 채운다.
+//    안 그러면 진열에 뽑히기 전까지 그 세트만 시세가 통째로 빈다.
+const WARM_BACKFILL_PER_ROUND = 2
+function warmTargets(): string[] {
+  const live = livePacks()
+    .map((p) => p.slug)
+    .filter((s) => PPT_SET_NAMES[s])
+  const never = Object.keys(PPT_SET_NAMES).filter((s) => {
+    const hit = packPriceCache.get(s)
+    return !hit || !Object.keys(hit.prices ?? {}).length
+  })
+  return [...new Set([...live, ...never.slice(0, WARM_BACKFILL_PER_ROUND)])]
+}
+
 let warming = false
 async function warmPackPrices(apiKey: string) {
   if (!apiKey || warming) return
   warming = true
   let outOfBudget = false
   try {
-    for (const slug of Object.keys(PPT_SET_NAMES)) {
+    for (const slug of warmTargets()) {
       // 한도에 걸렸으면 이번 바퀴는 접는다. 22세트를 계속 도는 건 헛일이고,
       // 풀린 뒤에 다시 오면 못 받은 것부터 이어서 채운다.
       if (!pptGate().ok) break
@@ -4130,8 +4225,8 @@ async function warmPackPrices(apiKey: string) {
         outOfBudget = true
         break
       }
-      const hit = packPriceCache.get(slug)
-      if (hit && packPriceFresh(hit)) continue
+      // 신선한 것과, 최근에 시도했다 실패한 것은 건너뛴다(위 packWarmDue 설명).
+      if (!packWarmDue(packPriceCache.get(slug))) continue
       await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 5_000 })
       await savePackPriceFile()
       // ⚠️ 분당 한도는 "크레딧 500"이 아니라 "요청 60번"이다(응답 헤더 x-ratelimit-
@@ -4142,16 +4237,18 @@ async function warmPackPrices(apiKey: string) {
   } finally {
     warming = false
   }
-  // 429로 부분만 받은 세트가 남았으면 5분 뒤 한 번 더 돈다.
-  const leftover = Object.keys(PPT_SET_NAMES).some((slug) => {
-    const hit = packPriceCache.get(slug)
-    return !hit || hit.partial || Date.now() - hit.at >= PACK_PRICE_TTL_MS
-  })
+  // 아직 받을 차례가 된 세트가 남았으면 다시 온다.
+  // ⚠️ "못 받은 것"이 아니라 "받을 차례가 된 것"으로 세야 한다. 예전엔 못 받은 것으로
+  //    셌기 때문에, 세트 이름이 틀렸다든지 해서 영영 못 받는 세트가 하나라도 있으면
+  //    5분마다 영원히 다시 돌았다.
+  const leftover = warmTargets().some((slug) => packWarmDue(packPriceCache.get(slug)))
   // 한도에 걸려서 접은 것이면 풀리는 시각까지 기다렸다 온다(5분마다 두드리지 않는다).
   // 방문자 몫을 남기려고 접은 것이면 하루치가 새로 차는 시각(한국시간 오전 9시)에 온다.
   if (leftover) {
     const until = outOfBudget ? nextUtcMidnight() : pptBlockedUntil
-    const wait = Math.max(5 * 60_000, until - Date.now() + 5_000)
+    // 아래 한도(30분)는 안전장치다. 실패한 세트는 위 packWarmDue가 6시간 막아 주지만,
+    // 이 타이머까지 5분이면 그 사이 서른 번 헛되이 깨어난다.
+    const wait = Math.max(30 * 60_000, until - Date.now() + 5_000)
     setTimeout(() => void warmPackPrices(apiKey), wait)
   }
 }
@@ -4209,7 +4306,18 @@ async function getSetPrices(
       const list = await fetchSetPage(setName, lang, apiKey, p * PPT_PAGE)
       if (list === null) {
         // 첫 페이지부터 실패(429 등)면 이전 캐시라도 쓴다. 뒤 페이지 실패면 받은 만큼(partial) 저장.
-        if (p === 0) return hit?.prices ?? null
+        if (p === 0) {
+          // ⚠️ 실패해도 "시도했다"는 것만은 남긴다. 안 남기면 '아직 못 받은 세트'로
+          //    계속 잡혀 5분마다 처음부터 다시 받으러 간다(2026-08-02 크레딧 소진 원인).
+          packPriceCache.set(slug, {
+            at: hit?.at ?? 0,
+            prices: hit?.prices ?? {},
+            ...(hit?.names ? { names: hit.names } : {}),
+            partial: true,
+            triedAt: Date.now(),
+          })
+          return hit?.prices ?? null
+        }
         break
       }
       for (const c of list) {
@@ -4248,6 +4356,7 @@ async function getSetPrices(
     const mergedNames = { ...(hit?.names ?? {}), ...names }
     packPriceCache.set(slug, {
       at: Date.now(),
+      triedAt: Date.now(),
       prices: merged,
       names: mergedNames,
       ...(complete ? {} : { partial: true }),
@@ -4420,10 +4529,13 @@ function mountAuth(
 ) {
   // 앨범 시세 캐시: 파일에서 복구하고, 프로덕션이면 뒤에서 미리 데워둔다.
   // (개발 서버는 재시작이 잦아 그때마다 크레딧을 태우지 않게 열 때만 받는다.)
-  void loadPackPriceFile().then(() => {
+  // ⚠️ PPT 상태(남은 크레딧·차단 시각)를 먼저 읽어야 한다. 안 읽고 데우러 나가면
+  //    "남은 크레딧을 모른다(=무한대)" 상태라 방문자 몫을 지키는 검사가 통과된다.
+  //    배포마다 이 구멍으로 크레딧이 샜다(2026-08-02).
+  void Promise.all([loadPptState(), loadPackPriceFile()]).then(() => {
     if (process.env.NODE_ENV === 'production') {
       setTimeout(() => void warmPackPrices(pptApiKey), 5_000)
-      setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, TTL 지난 것만 받는다
+      setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, 받을 차례가 된 것만
     }
   })
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
