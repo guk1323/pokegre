@@ -5305,13 +5305,13 @@ function mountSetHitCards(app: Mountable) {
       sendJson(res, 400, { error: 'bad slug' })
       return
     }
-    const hit = packPriceCache.get(slug)
-    if (!hit) {
-      // 아직 시세를 안 받은 세트다. 화면이 예전 방식(레어도)으로 돌아가게 알려 준다.
+    const cards = topPricedCards(slug, limit)
+    if (!cards.length) {
+      // 앨범 시세도 없고 미리 받아 둔 파일에도 없다. 화면이 레어도 방식으로 돌아간다.
       sendJson(res, 200, { slug, priced: false, cards: [] })
       return
     }
-    sendJson(res, 200, { slug, priced: true, at: hit.at, cards: topPricedCards(slug, limit) })
+    sendJson(res, 200, { slug, priced: true, at: packPriceCache.get(slug)?.at ?? 0, cards })
   })
 }
 
