@@ -1995,6 +1995,8 @@ let pptDailyOut = false
 let ppt429Since = 0
 // 오늘 남은 크레딧. 응답 헤더로만 알 수 있어서 부를 때마다 갱신한다.
 let pptDailyLeft = Number.POSITIVE_INFINITY
+// 그 숫자가 어느 날짜(UTC) 것인지. 날이 바뀌면 옛 숫자는 못 쓴다.
+let pptDailyLeftDay = ''
 // 방문자 몫으로 남겨 둘 크레딧. 뒤에서 도는 앨범 시세 채우기가 하루치를 다 쓰면
 // 그때부터 방문자의 eBay·TCGplayer 시세가 통째로 안 나온다. 실제로 그래 왔다 —
 // 2026-07-28에도 낮 한 시간 반 동안 22세트를 받아 하루치가 바닥났다.
@@ -2014,6 +2016,14 @@ interface PptState {
 }
 const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
 
+// 지금 기준으로 쓸 수 있는 "남은 크레딧".
+//
+// ⚠️ 날짜가 바뀌면 어제 숫자는 버리고 "아직 모른다"로 돌아가야 한다. 안 그러면 서버를
+//    안 내린 채 오전 9시를 넘겼을 때, 크레딧은 새로 찼는데 우리는 어제의 0을 들고 있어
+//    미리받기가 "예산 없음"으로 판단하고 하루를 통째로 건너뛴다.
+//    (방문자가 시세를 한 번 보면 헤더로 갱신되긴 하지만, 그걸 기다릴 이유가 없다.)
+const pptLeftNow = () => (pptDailyLeftDay === utcDay() ? pptDailyLeft : Number.POSITIVE_INFINITY)
+
 let pptStateSaveAt = 0
 async function savePptState() {
   // 부를 때마다 쓰면 디스크가 아프다. 10초에 한 번이면 배포 사이 상태를 지키기 충분하다.
@@ -2021,9 +2031,12 @@ async function savePptState() {
   pptStateSaveAt = Date.now()
   try {
     await mkdir(path.dirname(PPT_STATE_FILE), { recursive: true })
+    // ⚠️ pptDailyLeft를 그냥 쓰면 안 된다. 날짜가 바뀐 뒤 아직 한 번도 안 불러 봤다면
+    //    그 숫자는 어제 것인데, day에는 오늘을 적게 되어 어제의 0이 오늘 값으로 굳는다.
+    const left = pptLeftNow()
     await writeJsonFile(PPT_STATE_FILE, {
       day: utcDay(),
-      left: Number.isFinite(pptDailyLeft) ? pptDailyLeft : -1,
+      left: Number.isFinite(left) ? left : -1,
       blockedUntil: pptBlockedUntil,
       dailyOut: pptDailyOut,
     } satisfies PptState)
@@ -2037,11 +2050,14 @@ export async function loadPptState() {
     const s = JSON.parse(await readFile(PPT_STATE_FILE, 'utf-8')) as PptState
     // 하루치는 UTC 자정에 새로 찬다. 어제 것이면 그대로 쓰면 안 된다.
     if (s.day !== utcDay()) return
-    if (typeof s.left === 'number' && s.left >= 0) pptDailyLeft = s.left
+    if (typeof s.left === 'number' && s.left >= 0) {
+      pptDailyLeft = s.left
+      pptDailyLeftDay = s.day
+    }
     if (typeof s.blockedUntil === 'number') pptBlockedUntil = s.blockedUntil
     pptDailyOut = !!s.dailyOut
     console.log(
-      `[pokegre] PPT 상태를 이어받았습니다: 남은 크레딧 ${Number.isFinite(pptDailyLeft) ? pptDailyLeft : '모름'}` +
+      `[pokegre] PPT 상태를 이어받았습니다: 남은 크레딧 ${Number.isFinite(pptLeftNow()) ? pptLeftNow() : '모름'}` +
         (pptBlockedUntil > Date.now() ? ` · ${new Date(pptBlockedUntil).toISOString()}까지 쉽니다` : ''),
     )
   } catch {
@@ -2072,7 +2088,10 @@ function notePpt(status: number, headers: Headers) {
 
 function notePptInner(status: number, headers: Headers) {
   const left = Number(headers.get('x-ratelimit-daily-remaining'))
-  if (Number.isFinite(left)) pptDailyLeft = left
+  if (Number.isFinite(left)) {
+    pptDailyLeft = left
+    pptDailyLeftDay = utcDay()
+  }
   const after = Number(headers.get('retry-after'))
   const wait = Number.isFinite(after) && after > 0 ? after * 1000 : 0
 
@@ -4221,7 +4240,7 @@ async function warmPackPrices(apiKey: string) {
       if (!pptGate().ok) break
       // 방문자 몫까지 먹지는 않는다. 앨범 시세는 하루 이틀 묵어도 쓸 만하지만,
       // 카드 시세가 안 나오는 건 바로 보인다.
-      if (pptDailyLeft < PPT_KEEP_FOR_VISITORS) {
+      if (pptLeftNow() < PPT_KEEP_FOR_VISITORS) {
         outOfBudget = true
         break
       }
