@@ -4,6 +4,9 @@ import {
   CARD_NAME_KO_TO_EN_NOSPACE,
   STRUCTURAL_EN_TO_KO,
 } from './koreanizeEnglishTitle';
+// 사람들이 실제로 치는 표기 → 공식 한글 표기. 한글→일본어 쪽과 같은 목록을 쓴다
+// (거기가 원본이다. 한쪽에만 넣어 두면 이베이 검색만 계속 빗나간다).
+import { KO_SEARCH_ALIASES } from './translateQuery';
 import pokemonNames from '../data/pokemonNames.json';
 import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
@@ -105,6 +108,16 @@ const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['상냥한 ', 'Light '], // 상냥한 해루미 → Light Sunflora
   ['기술머신', 'Technical Machine'],
   ['화석', 'Fossil'],
+  // ── 2026-08-03: 방문자가 실제로 친 검색어 578종을 돌려 보고 찾은 것 ─────────
+  // 흔한 낱말인데 통째로 빠져 있어 한글이 그대로 이베이·TCGplayer로 나갔다.
+  // 카드 이름이 아니라 "어떤 카드를 찾는지" 좁히는 말이라, 우리 세트·카드 데이터에서
+  // 실제 표기를 확인한 것만 넣는다(추측 금지).
+  ['프로모', 'Promo'], // 세트 12개가 "…Promos". 9번 검색됨 — 이 목록에서 제일 많다
+  ['맥도날드', "McDonald's"], // 세트 12개가 "McDonald's Collection …"
+  ['체육관', 'Gym'], // 세트 "Gym Challenge"·카드 "Aspertia City Gym"
+  ['에너지', 'Energy'], // 북미판 카드 이름에 646번
+  ['트레이너', 'Trainer'], // 카드 이름에 11번("Coach Trainer")
+  ['초판', '1st Edition'], // 카드 이름이 아니라 이베이 매물에 붙는 말
   // 트레이너 소유격. 우리 일본판 카드명과 북미판 카드명을 같은 포켓몬으로 짝지어
   // 확인한 것만 담았다(scripts로 뽑고 표가 갈리지 않는 것만 골랐다).
   ['웅의', "Brock's "],
@@ -284,8 +297,13 @@ export function translateSearchQueryToEnglish(
   query: string,
   edition: 'japanese' | 'english' | 'korean' = 'japanese',
 ): string {
-  const trimmed = query.trim();
+  let trimmed = query.trim();
   if (!trimmed) return trimmed;
+  // 사람들이 치는 표기를 공식 표기로 먼저 고친다. 아래 "이름이 통째로 일치하나" 검사보다
+  // 앞이어야 한다 — "이슬이"를 고쳐 놔야 "이슬"로 통째 일치가 잡힌다.
+  for (const [typed, official] of KO_SEARCH_ALIASES) {
+    if (trimmed.includes(typed)) trimmed = trimmed.split(typed).join(official);
+  }
 
   // 검색어가 포켓몬 이름과 정확히 같으면 팩 매칭을 건너뛰고 바로 그 포켓몬으로 보낸다.
   // (팩 이름과 같은 이름이어도 포켓몬 카드 검색이 우선이다.)
