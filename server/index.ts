@@ -28,6 +28,16 @@ const koName = (ed: 'ja' | 'en', name: string) => {
   return koreanizeEnglishCardName(koreanizeTitle(name))
 }
 
+// 한글 이름 끝에 받침이 있는지 보고 조사를 고른다. 작가 388명 중 305명이 받침 없는
+// 이름이라("미츠히로 아리타") "이(가)"를 그대로 쓰면 대부분 어색하게 읽힌다.
+// 한글이 아닌 이름(5ban Graphics 등 69명)은 "가"를 쓴다 — 영문은 대개 모음으로 읽힌다.
+const subjectParticle = (name: string): string => {
+  const last = name.trim().slice(-1)
+  const code = last.charCodeAt(0)
+  if (code < 0xac00 || code > 0xd7a3) return '가'
+  return (code - 0xac00) % 28 === 0 ? '가' : '이'
+}
+
 // 프로덕션 진입점. 개발은 vite가 API(server/api.ts)와 프론트를 함께 띄우지만,
 // 배포에서는 이 프로세스가 둘 다 맡는다 — 같은 mountApi를 부르므로 라우팅은 개발과
 // 동일하고, 빌드된 정적 파일은 여기서 직접 서빙한다.
@@ -360,7 +370,7 @@ app.get('/artist/:slug', async (req, res) => {
   }
   const shown = (a.cards ?? []).slice(0, 12).map((c) => koreanizeEnglishCardName(c.name))
   const title = `${name} 일러스트 카드 | pokegre`
-  const desc = `${name}이(가) 그린 포켓몬 카드 ${a.count ?? shown.length}장${
+  const desc = `${name}${subjectParticle(name)} 그린 포켓몬 카드 ${a.count ?? shown.length}장${
     a.note ? ` — ${a.note}` : ''
   }. ${shown.slice(0, 3).join(' · ')} 등.`
   const url = `https://pokegre.com/artist/${slug}`
@@ -373,7 +383,7 @@ app.get('/artist/:slug', async (req, res) => {
   html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
   const list = shown.map((n) => `<li>${esc(n)}</li>`).join('')
   const body = `<div id="seo-fallback"><h1>${esc(name)} 일러스트 카드</h1>` +
-    `<p>${esc(name)}이(가) 그린 포켓몬 카드 ${a.count ?? shown.length}장입니다.` +
+    `<p>${esc(name)}${subjectParticle(name)} 그린 포켓몬 카드 ${a.count ?? shown.length}장입니다.` +
     `${a.era ? ` 활동 시기 ${esc(a.era)}.` : ''}${a.note ? ` ${esc(a.note)}.` : ''}</p>` +
     `<ul>${list}</ul></div>`
   html = html.replace('<body>', `<body>${body}`)
