@@ -75,6 +75,29 @@ const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['알로라', 'Alolan '],
   ['히스이', 'Hisuian '],
   ['팔데아', 'Paldean '],
+  // ── 2026-08-02: 이베이·TCGplayer 검색에서 한글로 남던 말들 ───────────────
+  // 북미판 세트 데이터에서 실제 표기를 확인하고 넣었다(δ는 이름 뒤에 붙는다).
+  ['(델타종)', 'δ'], // 독침붕 (델타종) → Beedrill δ. 150종
+  ['나쁜 ', 'Dark '], // 나쁜 냄새꼬 → Dark Koffing. 옛 로켓단 세트
+  ['가벼운 ', 'Light '], // 가벼운 해루미 → Light Sunflora
+  ['기술머신', 'Technical Machine'],
+  ['화석', 'Fossil'],
+  // 트레이너 소유격. 우리 일본판 카드명과 북미판 카드명을 같은 포켓몬으로 짝지어
+  // 확인한 것만 담았다(scripts로 뽑고 표가 갈리지 않는 것만 골랐다).
+  ['웅의', "Brock's "],
+  ['민화의', "Erika's "],
+  ['독수의', "Koga's "],
+  ['코가의', "Koga's "], // 같은 인물인데 옛 세트는 이름을 그대로 적어 뒀다
+  ['초련의', "Sabrina's "],
+  ['강연의', "Blaine's "],
+  ['마티스의', "Lt. Surge's "],
+  ['비주기의', "Giovanni's "],
+  ['청목의', "Larry's "],
+  ['N의', "N's "],
+  ['호브의', "Hop's "],
+  ['마그마단의', "Team Magma's "],
+  ['아쿠아단의', "Team Aqua's "],
+  ['홀론의', "Holon's "],
 ];
 
 // 화면에 쓰는 구조어 표(koreanizeEnglishTitle)를 뒤집어 검색 쪽을 자동으로 채운다.
@@ -141,15 +164,20 @@ const PACK_KO_EN: [string, string][] = [
 
 // "샤이니트레저 ex"로 등록돼 있어도 "샤이니 트레저ex"라고 치는 사람이 더 많아서,
 // 글자 사이 공백을 무시하고 맞춘다(translateQuery.ts와 같은 방식).
-function spaceInsensitivePattern(name: string): RegExp {
+//
+// 팩 이름 바로 뒤에 한글이 띄어쓰기 없이 이어지면 팩이 아니라 카드 이름이다.
+// PMCG4의 팩 이름이 "로켓단"이라 "로켓단의 뮤츠 Ex"가 "PMCG4's Mewtwo Ex"로,
+// "로켓단등장!"이 "PMCG4등장!"으로 나갔다(2026-08-02 실측 36건, 전부 로켓단 카드).
+// "로켓단"만 치거나 "로켓단 뮤츠"처럼 띄어 치면 팩 검색이 그대로 살아난다.
+function packPattern(name: string): RegExp {
   const body = [...name.replace(/\s+/g, '')].map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
-  return new RegExp(body, 'gi');
+  return new RegExp(`${body}(?![가-힣])`, 'gi');
 }
 
 const packEnPatterns = [...PACK_KO_EN]
   .filter(([ko]) => !pokemonKoSet.has(ko))
   .sort((a, b) => b[0].length - a[0].length)
-  .map(([ko, en]) => ({ re: spaceInsensitivePattern(ko), en }));
+  .map(([ko, en]) => ({ re: packPattern(ko), en }));
 
 // 일본판(japanese) 전용. PokemonPriceTracker의 일본판 세트명은 "SV3: Ruler of the
 // Black Flame"처럼 항상 팩 코드로 시작하고, 그 코드로 검색하면 해당 팩만 정확히
@@ -166,7 +194,7 @@ const packJpPatterns = (packNames as PackName[])
   // 이름이 통째로 포켓몬 이름인 팩(예: WCS23="피카츄")은 뺀다 — 포켓몬 검색을 가로챈다.
   .filter(({ ko }) => !pokemonKoSet.has(ko))
   .sort((a, b) => b.ko.length - a.ko.length)
-  .map(({ ko, en }) => ({ re: spaceInsensitivePattern(ko), en }));
+  .map(({ ko, en }) => ({ re: packPattern(ko), en }));
 
 // PokemonPriceTracker API의 search 파라미터는 TCGPlayer 표기(영문) 기준이라, 한글
 // 검색어를 영문 포켓몬 이름으로 치환해서 보낸다. translateQuery.ts(한글→일본어)와
