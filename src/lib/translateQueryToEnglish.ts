@@ -11,6 +11,9 @@ import pokemonNames from '../data/pokemonNames.json';
 import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
+// 북미판 세트의 "한글 이름 → 원래 영어 이름". scripts/gen-set-name-ko-en.mts가 만든다.
+// 세트가 늘거나 한글 이름 규칙이 바뀌면 그 스크립트를 다시 돌린다.
+import setNameKoEn from '../data/setNameKoEn.json';
 
 // 한글 카드명 → 영문 카드명. scripts/gen-ko-en-cards.mts가 자동으로 만든다(우리 일본어
 // 카드명을 화면에 나오는 한글로 바꾼 뒤, 같은 카드의 영문명을 PPT 자료에서 번호로 찾아
@@ -201,6 +204,70 @@ const PACK_KO_EN: [string, string][] = [
   ['얼터제네시스', 'Cosmic Eclipse'],
   ['빛나는 전설', 'Shining Legends'],
   ['명탐정 피카츄', 'Detective Pikachu'],
+
+  // ── 옛 일본판 확장팩 54종 (사용자가 공식 영문명 확인, 2026-08-03) ─────────────
+  // 여기 없으면 이베이·TCGplayer 검색에서 한글 그대로 나가거나, 더 나쁘게는 이름이
+  // 조각난다("팬텀게이트"의 팬텀이 포켓몬 Gengar로 먼저 걸려 「Gengar게이트」).
+  // 팩 이름은 포켓몬 이름보다 먼저 맞추므로 여기 넣으면 조각남이 함께 사라진다.
+  ['팬텀게이트', 'Phantom Gate'],
+  ['마그마단 VS 아쿠아단 더블 크라이시스', 'Double Crisis'],
+  ['파천의 분노', 'Rage of the Broken Heavens'],
+  ['화석의 비밀', 'Mystery of the Fossils'],
+  ['로켓단의 역습', 'Rocket Gang Strikes Back'],
+  ['피카츄와 새로운 동료들', 'Pikachu and New Friends'],
+  ['포켓몬 정글', 'Pokemon Jungle'],
+  ['포켓몬 카드게임 확장팩 20th Anniversary', '20th Anniversary'],
+  ['포켓몬 카드 ★web', 'Pokemon Card Web'],
+  ['포켓몬 카드 ★VS', 'Pokemon Card VS'],
+  ['스타트 덱 100 배틀컬렉션', 'Start Deck 100 Battle Collection'],
+  ['메가 프로모카드', 'Mega Promo Card'],
+  ['덱 빌드 BOX 스텔라미라클', 'Deck Build Box Stellar Miracle'],
+  ['스타터 세트 테라스탈타입: 스텔라 님피아 ex', 'Starter Set Terastal Type Stellar Sylveon ex'],
+  ['스타터 세트 테라스탈타입: 스텔라 창염마 ex', 'Starter Set Terastal Type Stellar Armarouge ex'],
+  ['25th 어니버서리 컬렉션', '25th Anniversary Collection'],
+  ['프리미엄챔피언팩 EX×M×BREAK', 'Premium Champion Pack'],
+  ['컬렉션X', 'Collection X'],
+  ['컬렉션Y', 'Collection Y'],
+  // XY 시대
+  ['냉혹의 반역자', 'Cruel Traitor'],
+  ['폭열의 투사', 'Fever-Burst Fighter'],
+  ['메자메루초왕', 'Awakening Psychic King'],
+  ['밴디트 링', 'Bandit Ring'],
+  ['에메랄드브레이크', 'Emerald Break'],
+  ['타이달스톰', 'Tidal Storm'],
+  ['가이아볼케이노', 'Gaia Volcano'],
+  ['라이징피스트', 'Rising Fist'],
+  ['와일드블레이즈', 'Wild Blaze'],
+  ['환상·전설 드림키라컬렉션', 'Mythical & Legendary Dream Shine Collection'],
+  ['포케큔컬렉션', 'PokeKyun Collection'],
+  ['전설키라컬렉션', 'Legendary Shine Collection'],
+  // PCG 시대
+  ['최후의 공방', 'Offensive and Defensive Clash'],
+  ['기적의 결정', 'Miracle Crystal'],
+  ['호론의 환영', 'Holon Phantom'],
+  ['호론의 연구탑', 'Holon Research Tower'],
+  ['환상의 숲', 'Mirage Forest'],
+  ['금의 하늘, 은의 바다', 'Golden Sky, Silvery Ocean'],
+  ['창공의 격돌', 'Clash of the Blue Sky'],
+  ['전설의 비상', 'Flight of Legends'],
+  // e카드 시대
+  ['신비한 산', 'Mysterious Mountains'],
+  ['갈라진 대지', 'Split Earth'],
+  ['바다에서의 바람', 'Wind from the Sea'],
+  ['지도에 없는 마을', 'Town On No Map'],
+  ['기본확장팩', 'Base Expansion Pack'],
+  // neo 시대
+  ['어둠, 그리고 빛으로...', 'Darkness, and to Light...'],
+  ['각성하는 전설', 'Awakening Legends'],
+  ['유적을 넘어서...', 'Crossing the Ruins...'],
+  ['금, 은, 신세계로...', 'Gold, Silver, to a New World...'],
+  // 그 밖
+  ['스톰에메랄드', 'Storm Emerald'],
+  ['스노해저드', 'Snow Hazard'],
+  ['새로운 시련의 저편', 'Beyond a New Trial'],
+  ['어둠에서의 도전', 'Challenge from the Darkness'],
+  ['리더스 스타디움', "Leaders' Stadium"],
+  ['확장팩 제1탄', 'Expansion Pack 1st Edition'],
 ];
 
 // "샤이니트레저 ex"로 등록돼 있어도 "샤이니 트레저ex"라고 치는 사람이 더 많아서,
@@ -215,10 +282,17 @@ function packPattern(name: string): RegExp {
   return new RegExp(`${body}(?![가-힣])`, 'gi');
 }
 
-const packEnPatterns = [...PACK_KO_EN]
+// ko를 남겨 둔다 — 아래에서 코드 목록과 합칠 때 긴 이름부터 맞추려면 길이가 필요하다.
+// 손으로 적은 PACK_KO_EN이 자동 사전보다 이긴다(손으로 적은 쪽이 더 정확하다).
+const packEnPatterns = [
+  ...PACK_KO_EN,
+  ...(Object.entries(setNameKoEn as Record<string, string>).filter(
+    ([ko]) => !PACK_KO_EN.some(([k]) => k === ko),
+  ) as [string, string][]),
+]
   .filter(([ko]) => !pokemonKoSet.has(ko))
   .sort((a, b) => b[0].length - a[0].length)
-  .map(([ko, en]) => ({ re: packPattern(ko), en }));
+  .map(([ko, en]) => ({ ko, re: packPattern(ko), en }));
 
 // 일본판(japanese) 전용. PokemonPriceTracker의 일본판 세트명은 "SV3: Ruler of the
 // Black Flame"처럼 항상 팩 코드로 시작하고, 그 코드로 검색하면 해당 팩만 정확히
@@ -235,7 +309,20 @@ const packJpPatterns = (packNames as PackName[])
   // 이름이 통째로 포켓몬 이름인 팩(예: WCS23="피카츄")은 뺀다 — 포켓몬 검색을 가로챈다.
   .filter(({ ko }) => !pokemonKoSet.has(ko))
   .sort((a, b) => b.ko.length - a.ko.length)
-  .map(({ ko, en }) => ({ re: packPattern(ko), en }));
+  .map(({ ko, en }) => ({ ko, re: packPattern(ko), en }));
+
+// 일본판 검색에서 쓸 목록. 코드가 있는 것과 영문 세트명뿐인 것을 합쳐 **긴 이름부터**
+// 맞춘다. 순서대로 두면 짧은 코드가 먼저 걸린다 — "덱 빌드 BOX 스텔라미라클"이
+// 안쪽의 "스텔라미라클"(SV7)에 걸려 「덱 빌드 BOX SV7」이 됐다.
+//
+// ⚠️ 같은 한글 이름이 양쪽에 다 있으면 **코드 쪽을 쓴다**. PPT의 일본판 세트명은
+//    코드로 시작해서 그게 제일 정확하다. 길이순으로만 정렬했더니 "포켓몬 카드 151"이
+//    SV2a 대신 「151」로, "썬 & 문"이 SM1p 대신 「Sun & Moon」으로 나갔다.
+const packJpKo = new Set(packJpPatterns.map((p) => p.ko.replace(/\s+/g, '')));
+const packJpAllPatterns = [
+  ...packJpPatterns,
+  ...packEnPatterns.filter((p) => !packJpKo.has(p.ko.replace(/\s+/g, ''))),
+].sort((a, b) => b.ko.length - a.ko.length);
 
 // PokemonPriceTracker API의 search 파라미터는 TCGPlayer 표기(영문) 기준이라, 한글
 // 검색어를 영문 포켓몬 이름으로 치환해서 보낸다. translateQuery.ts(한글→일본어)와
@@ -350,7 +437,12 @@ export function translateSearchQueryToEnglish(
   let result = trimmed;
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. 짧은 일반어를 먼저 바꾸면 팩 이름이
   // 조각나 안 걸린다. 일본판은 팩 코드로, 북미판은 영문 세트명으로 간다.
-  for (const { re, en } of edition === 'japanese' ? packJpPatterns : packEnPatterns) {
+  //
+  // ⚠️ 일본판이라도 팩 코드가 없는 옛 확장팩이 54개 있다(XY·PCG·e카드·neo 시대).
+  //    코드 목록(packNames.json)은 최근 세트만 담고 있어서, 그것만 보면 이 세트들은
+  //    한글 그대로 나가거나 이름이 조각난다("팬텀게이트" → 「Gengar게이트」).
+  //    코드 목록과 영문 세트명 목록을 합쳐 긴 이름부터 맞춘다(packJpAllPatterns).
+  for (const { re, en } of edition === 'japanese' ? packJpAllPatterns : packEnPatterns) {
     re.lastIndex = 0;
     if (re.test(result)) {
       re.lastIndex = 0;

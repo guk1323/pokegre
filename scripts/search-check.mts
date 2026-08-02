@@ -18,6 +18,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koSet } from '../src/lib/cardCatalog.ts'
 import { translateSearchQuery } from '../src/lib/translateQuery.ts'
 import { translateSearchQueryToEnglish } from '../src/lib/translateQueryToEnglish.ts'
 
@@ -38,6 +39,27 @@ function cardNames(): string[] {
       const ko = ja ? koreanizeEnglishCardName(koreanizeTitle(c.name)) : koreanizeEnglishCardName(c.name)
       if (hasKo(ko)) out.add(ko)
     }
+  }
+  return [...out]
+}
+
+// 세트(확장팩) 이름. 사람들은 "와일드블레이즈"처럼 팩 이름으로도 찾는다.
+// ⚠️ 처음엔 카드 이름만 봤다가, 옛 일본판 세트 54개가 영어 검색에서 통째로 한글로
+//    나가는 걸 이 검사가 못 잡았다(2026-08-03). 카드와 세트는 다른 목록이다.
+// ⚠️ 판을 나눠 잰다. 북미판 세트 이름("옵시디언 플레임")을 일본어로 바꿀 이유는 없다 —
+//    섞어서 재면 "일본어로 절반밖에 안 나간다"는 엉뚱한 숫자가 나온다.
+function setNames(want: 'ja' | 'en'): string[] {
+  const idx = JSON.parse(readFileSync('public/sets/index.json', 'utf8')) as {
+    slug: string
+    name: string
+    ed?: 'ja' | 'en'
+  }[]
+  const out = new Set<string>()
+  for (const s of idx) {
+    const ed = s.ed ?? (s.slug.startsWith('ja-') ? 'ja' : 'en')
+    if (ed !== want) continue
+    const ko = koSet(ed, s.name)
+    if (hasKo(ko)) out.add(ko)
   }
   return [...out]
 }
@@ -64,7 +86,8 @@ function readTerms(file: string): Map<string, number> {
   return out
 }
 
-function report(title: string, terms: Map<string, number>) {
+// only: 한 방향만 재고 싶을 때(북미판 세트 이름은 영어 쪽만 뜻이 있다).
+function report(title: string, terms: Map<string, number>, only?: 'ja' | 'en') {
   const total = [...terms.values()].reduce((s, n) => s + n, 0)
   let jaOk = 0
   let enOk = 0
@@ -81,13 +104,15 @@ function report(title: string, terms: Map<string, number>) {
     else jaBad.push([term, n, ja])
     if (enGood) enOk += n
     else enBad.push([term, n, en])
-    if (jaGood !== enGood) lopsided.push([term, n, ja, en])
+    if (!only && jaGood !== enGood) lopsided.push([term, n, ja, en])
   }
   const pct = (x: number) => ((x / total) * 100).toFixed(1)
   console.log(`\n── ${title} ─ ${terms.size}종 / ${total}번 ──`)
-  console.log(`  일본어(스니커덩크)로 온전히 나감  ${jaOk}/${total} (${pct(jaOk)}%) · 한글 남음 ${jaBad.length}종`)
-  console.log(`  영어(이베이·TCGplayer)로 온전히   ${enOk}/${total} (${pct(enOk)}%) · 한글 남음 ${enBad.length}종`)
-  console.log(`  ⚠️ 한쪽만 되는 것 ${lopsided.length}종  ← 한 방향만 고치고 잊은 자리`)
+  if (only !== 'en')
+    console.log(`  일본어(스니커덩크)로 온전히 나감  ${jaOk}/${total} (${pct(jaOk)}%) · 한글 남음 ${jaBad.length}종`)
+  if (only !== 'ja')
+    console.log(`  영어(이베이·TCGplayer)로 온전히   ${enOk}/${total} (${pct(enOk)}%) · 한글 남음 ${enBad.length}종`)
+  if (!only) console.log(`  ⚠️ 한쪽만 되는 것 ${lopsided.length}종  ← 한 방향만 고치고 잊은 자리`)
 
   const byCount = <T extends [string, number, ...unknown[]]>(a: T[]) => a.sort((x, y) => y[1] - x[1])
   if (lopsided.length) {
@@ -116,6 +141,9 @@ function report(title: string, terms: Map<string, number>) {
 
 const cards = new Map(cardNames().map((n) => [n, 1] as const))
 let lop = report('우리가 가진 카드 이름 전부', cards)
+lop += report('일본판 세트(확장팩) 이름', new Map(setNames('ja').map((n) => [n, 1] as const)))
+// 북미판 세트 이름은 이베이·TCGplayer로만 찾는다. 스니커덩크(일본판)에 던질 이름이 아니다.
+report('북미판 세트(확장팩) 이름 — 영어 쪽만', new Map(setNames('en').map((n) => [n, 1] as const)), 'en')
 
 if (termsArg >= 0 && process.argv[termsArg + 1]) {
   lop += report('방문자가 실제로 친 검색어', readTerms(process.argv[termsArg + 1]))
