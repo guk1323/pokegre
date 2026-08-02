@@ -27,6 +27,7 @@ import {
   STREAK_BONUS,
   STREAK_DAYS,
   packBySlug,
+  PACK_SETS,
   SHARE_BONUS,
   type PackSet,
 } from '../lib/packSets';
@@ -990,7 +991,7 @@ export function PackSim({
               </div>
             </div>
           ))}
-          <p className="mt-3 text-xs text-neutral-400">매일 자정에 진열이 바뀝니다. (전체 22종)</p>
+          <p className="mt-3 text-xs text-neutral-400">매일 자정에 진열이 바뀝니다. (전체 {PACK_SETS.length}종)</p>
 
           <p className="mt-2 text-xs text-neutral-400">
             비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, GP는 pokegre 안에서만
