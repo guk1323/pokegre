@@ -367,8 +367,11 @@ const IMG_ALLOWED_HOSTS = new Set([
   'cdn.artofpkm.com',
   'i.ebayimg.com', // 이베이 한글판 매물 사진(Browse API)
 ])
-// 썸네일은 장당 수 KB라, 800장이면 최대 수십 MB 정도다(512MB 램에 안전한 상한).
-const IMG_CACHE_MAX = 800
+// 썸네일은 320px webp라 장당 20KB 안팎이다.
+// 800장은 너무 빠듯했다 — 세트 하나가 100~300장이라 서너 개만 훑어도 캐시가 다 밀리고,
+// 그러면 방문자가 볼 때마다 원본을 다시 받는다(tcgdex 원본은 한 장에 8초까지 걸린다).
+// 2,500장이면 대략 50MB로, 실측 여유(2026-08-02 기준 사용 102MB / 여유 339MB) 안에 든다.
+const IMG_CACHE_MAX = 2500
 const IMG_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 function mountImageProxy(app: Mountable) {
