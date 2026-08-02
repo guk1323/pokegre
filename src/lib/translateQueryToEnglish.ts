@@ -79,7 +79,7 @@ const STRUCTURAL_EN_TERMS: [string, string][] = [
   // 북미판 세트 데이터에서 실제 표기를 확인하고 넣었다(δ는 이름 뒤에 붙는다).
   ['(델타종)', 'δ'], // 독침붕 (델타종) → Beedrill δ. 150종
   ['나쁜 ', 'Dark '], // 나쁜 냄새꼬 → Dark Koffing. 옛 로켓단 세트
-  ['가벼운 ', 'Light '], // 가벼운 해루미 → Light Sunflora
+  ['상냥한 ', 'Light '], // 상냥한 해루미 → Light Sunflora
   ['기술머신', 'Technical Machine'],
   ['화석', 'Fossil'],
   // 트레이너 소유격. 우리 일본판 카드명과 북미판 카드명을 같은 포켓몬으로 짝지어
