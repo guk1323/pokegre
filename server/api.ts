@@ -17,6 +17,7 @@ import {
   isLive,
   packBySlug,
   PPT_SET_NAMES,
+  type PackSet,
 } from '../src/lib/packSets.ts'
 import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
 
@@ -3918,16 +3919,21 @@ function dayDiff(from: string, to: string): number {
 }
 
 // 세트 카드 목록은 정적 파일이라 한 번 읽어 캐시한다. 배포본은 dist/, 개발은 public/에 있다.
+// rarityAlias가 있으면 여기서 등급 이름을 표준으로 바꾼다 — 원본 세트 파일은 그대로 두고
+// 뽑기·앨범만 통일된 이름을 쓴다(세트 화면 표기는 원본 그대로 유지).
 const packCardsCache = new Map<string, PackCard[]>()
-async function readPackCards(src: string): Promise<PackCard[]> {
-  const cached = packCardsCache.get(src)
+async function readPackCards(pack: PackSet): Promise<PackCard[]> {
+  const cached = packCardsCache.get(pack.src)
   if (cached) return cached
-  const rel = src.replace(/^\//, '')
+  const rel = pack.src.replace(/^\//, '')
+  const alias = pack.rarityAlias
   for (const base of ['dist', 'public']) {
     try {
       const raw = await readFile(path.resolve(process.cwd(), base, rel), 'utf-8')
-      const cards = usableCards((JSON.parse(raw) as { cards?: PackCard[] }).cards ?? [])
-      packCardsCache.set(src, cards)
+      let list = (JSON.parse(raw) as { cards?: PackCard[] }).cards ?? []
+      if (alias) list = list.map((c) => (c.r && alias[c.r] ? { ...c, r: alias[c.r] } : c))
+      const cards = usableCards(list)
+      packCardsCache.set(pack.src, cards)
       return cards
     } catch {
       /* 다음 경로 */
@@ -4602,7 +4608,7 @@ function mountAuth(
           return
         }
         // 카드 데이터를 먼저 읽는다(/open과 같은 이유 — 검사와 차감 사이에 await 금지).
-        const cards = await readPackCards(pack.src)
+        const cards = await readPackCards(pack)
         if (cards.length === 0) {
           sendJson(res, 500, { error: 'pack data missing' })
           return
@@ -4684,7 +4690,7 @@ function mountAuth(
         // ⚠️ 카드 데이터는 검사보다 먼저 읽는다. 검사와 차감 사이에 await가 끼면 그
         // 틈에 같은 요청이 또 들어와(빠른 두 번 클릭) 보관함 1팩으로 두 팩을 열거나
         // GP가 한 번만 빠질 수 있다. 아래로는 await 없이 검사→뽑기→차감을 끝낸다.
-        const cards = await readPackCards(pack.src)
+        const cards = await readPackCards(pack)
         if (cards.length === 0) {
           sendJson(res, 500, { error: 'pack data missing' })
           return
@@ -4789,7 +4795,7 @@ function mountAuth(
             if (typeof v === 'string') nameOf.set(String(k), v.replace(/\s+/g, ' ').trim().slice(0, 60))
           }
         }
-        const cards = await readPackCards(pack.src)
+        const cards = await readPackCards(pack)
         const byN = new Map(cards.map((c) => [c.n, c]))
         // 자랑글에 쓸 등급 약칭. 일본판은 풀아트를 SR, 금색을 UR이라 부르고 북미판은
         // UR·HR이라 부른다 — 어느 판 팩인지 알고 있으니 그 판 이름으로 적는다.

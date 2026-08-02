@@ -157,6 +157,14 @@ export type PackSet = {
   // 박스 구성 팩 수. 0이면 박스 판매 없음(북미 특별세트 — 실물에도 36팩 박스가 없다).
   // 일본판 박스는 보장 봉입(drawBox), 북미판 박스는 순수 독립시행이다.
   boxPacks?: number;
+  // 원본 세트 파일의 등급 이름을 뽑기 표준 이름으로 바꾼다.
+  // 원본(TCGdex)이 같은 자리를 세트마다 다르게 적어 둔 곳이 있다 — 북미 메가 시리즈의
+  // 최상위가 me01만 'Mega Hyper Rare'이고 me02~05는 'Secret Rare',
+  // 블랙볼트는 'Black White Rare'인데 자매편 화이트플레어는 'Secret Rare'다.
+  // 그대로 두면 RARITY_RANK에 없는 이름이라 그 카드가 뽑기에서 아예 안 나온다.
+  // ⚠️ 'Secret Rare'는 옛 세트에서는 그냥 시크릿을 뜻하므로 전역 치환하면 안 된다.
+  //    반드시 세트별로 지정한다.
+  rarityAlias?: Record<string, string>;
 };
 const JP = (id: string, name: string, price = 1600, extra: Partial<PackSet> = {}): PackSet => ({
   slug: `ja-${id}`,
@@ -196,6 +204,26 @@ export const PACK_SETS: PackSet[] = [
   JP('SV6', '변환의 가면'),
   JP('SV3', '흑염의 지배자', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV2a', '포켓몬 카드 151', 2600, { profile: JP_151, godRate: 1 / 750, mirror: 'jp151', boxPacks: 20 }), // 특수팩: 290엔·7장·20팩 박스·갓팩 존재
+  // ── SV 시대 5장팩(2023~2025) ─────────────────────────────────────────────
+  // 등급 구성이 초전브레이커·스텔라미라클과 같아(AR 12 · SR 9~10 · SAR 5 · UR 2~3 · RR 6)
+  // 같은 확률표를 쓴다 — 사용자 확인 완료(2026-08-02). ACE 수록 여부만 세트별로 갈린다
+  // (세트 데이터로 직접 확인). 전부 2026-04 이전 발매라 정가 180엔 ≈ 1,600원.
+  JP('SV9a', '열풍의 아레나', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV7a', '낙원드래고나'),
+  JP('SV6a', '나이트원더러'),
+  JP('SV5a', '크림슨헤이즈'),
+  JP('SV5M', '사이버저지'),
+  JP('SV5K', '와일드포스'),
+  JP('SV4M', '미래의 일섬', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV4K', '고대의 포효', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV3a', '레이징서프', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV2P', '스노해저드', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV2D', '클레이버스트', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV1a', '트리플렛비트', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV1V', '바이올렛 ex', 1600, { profile: JP_REGULAR_NO_ACE }),
+  JP('SV1S', '스칼렛 ex', 1600, { profile: JP_REGULAR_NO_ACE }),
+  // 일본판 메가 시리즈. 어비스아이와 등급 구성이 같아 같은 표(사용자 확인, 2026-08-02).
+  JP('M2', '인페르노X', 1600, { profile: JP_MEGA }),
   // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
   // 이름은 정식 한글명이 따로 없어(한국판은 일본판 이름 체계) 영어명 음역을 쓴다.
   NA('me01', '메가 에볼루션', NA_MEGA),
@@ -207,6 +235,17 @@ export const PACK_SETS: PackSet[] = [
   NA('sv06', '트와일라잇 마스커레이드'),
   NA('sv03.5', '151', NA_151, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트, 갓팩 존재
   NA('sv03', '옵시디언 플레임', NA_REGULAR_NO_ACE), // ACE 부활 이전 세트
+  // 북미판 메가 시리즈 — me01과 등급 구성이 같아 같은 표(사용자 확인, 2026-08-02).
+  // 최상위가 원본에 'Secret Rare'로 적혀 있어 me01의 MHR 자리로 바꿔 준다(세트당 1장).
+  NA('me05', '피치블랙', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
+  NA('me04', '카오스 라이징', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
+  NA('me03', '퍼펙트 오더', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
+  NA('me02', '팬타즈멀 플레임즈', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
+  // 북미판 블랙볼트·화이트플레어 — 일본판(SV11B·SV11W)의 북미 발매판. ACE 수록 없음.
+  // 최상위(일본판 금색 UR 자리)가 세트당 2장이고, 원본이 자매편끼리도 이름을 다르게
+  // 적어 뒀다. 확률은 그대로 두고 풀에 2장이 있으니 둘이 그 확률을 나눠 갖는다.
+  NA('sv10.5b', '블랙볼트', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Black White Rare': 'Hyper rare' } }),
+  NA('sv10.5w', '화이트플레어', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Secret Rare': 'Hyper rare' } }),
   // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
 ];
@@ -229,6 +268,21 @@ export const PPT_SET_NAMES: Record<string, string> = {
   'ja-SV6': 'SV6: Transformation Mask',
   'ja-SV3': 'SV3: Ruler of the Black Flame',
   'ja-SV2a': 'SV2a: Pokemon Card 151',
+  'ja-M2': 'M2: Inferno X',
+  'ja-SV9a': 'SV9a: Heat Wave Arena',
+  'ja-SV7a': 'SV7a: Paradise Dragona',
+  'ja-SV6a': 'SV6a: Night Wanderer',
+  'ja-SV5a': 'SV5a: Crimson Haze',
+  'ja-SV5M': 'SV5M: Cyber Judge',
+  'ja-SV5K': 'SV5K: Wild Force',
+  'ja-SV4M': 'SV4M: Future Flash',
+  'ja-SV4K': 'SV4K: Ancient Roar',
+  'ja-SV3a': 'SV3a: Raging Surf',
+  'ja-SV2P': 'SV2P: Snow Hazard',
+  'ja-SV2D': 'SV2D: Clay Burst',
+  'ja-SV1a': 'SV1a: Triplet Beat',
+  'ja-SV1V': 'SV1V: Violet ex',
+  'ja-SV1S': 'SV1S: Scarlet ex',
   // 북미판
   'en-me01': 'ME01: Mega Evolution',
   'en-sv10': 'SV10: Destined Rivals',
@@ -239,6 +293,12 @@ export const PPT_SET_NAMES: Record<string, string> = {
   'en-sv06': 'SV06: Twilight Masquerade',
   'en-sv03.5': 'SV: Scarlet & Violet 151',
   'en-sv03': 'SV03: Obsidian Flames',
+  'en-me05': 'ME05: Pitch Black',
+  'en-me04': 'ME04: Chaos Rising',
+  'en-me03': 'ME03: Perfect Order',
+  'en-me02': 'ME02: Phantasmal Flames',
+  'en-sv10.5b': 'SV: Black Bolt',
+  'en-sv10.5w': 'SV: White Flare',
 };
 
 // ── 오늘의 진열대 ─────────────────────────────────────────────────────────
