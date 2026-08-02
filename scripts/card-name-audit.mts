@@ -199,6 +199,7 @@ const BLEED_OK = new Set([
   'ジム', // クチバシティジム → 갈색시티체육관 — 맞다
   'ロコン', // アローラロコン → 알로라 식스테일 — 맞다
   'ハチク', // ジュジュベ&ハチクマン → 주주베&담죽맨 — 맞다
+  'サトシ', // サトシゲッコウガEX → 지우개굴닌자 EX — 맞다
 ])
 
 const bleedHits = new Map<string, { ko: string; ex: string[] }>()

@@ -102,6 +102,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://pokegre.com/series/ブラック-ホワイト</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://pokegre.com/series/heartgold-soulsilver</loc>
     <lastmod>2026-08-02</lastmod>
     <changefreq>monthly</changefreq>
@@ -708,6 +714,12 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://pokegre.com/set/ja-SVP</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://pokegre.com/set/ja-S12a</loc>
     <lastmod>2026-08-02</lastmod>
     <changefreq>weekly</changefreq>
@@ -921,7 +933,7 @@
     <loc>https://pokegre.com/set/en-swsh4.5sv</loc>
     <lastmod>2026-08-02</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.4</priority>
   </url>
   <url>
     <loc>https://pokegre.com/set/en-swsh4.5</loc>
@@ -1033,6 +1045,12 @@
   </url>
   <url>
     <loc>https://pokegre.com/set/ja-S1W</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://pokegre.com/set/ja-SP</loc>
     <lastmod>2026-08-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
@@ -1398,6 +1416,12 @@
     <priority>0.4</priority>
   </url>
   <url>
+    <loc>https://pokegre.com/set/ja-SMP</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
     <loc>https://pokegre.com/set/ja-SM0</loc>
     <lastmod>2026-08-02</lastmod>
     <changefreq>weekly</changefreq>
@@ -1692,6 +1716,12 @@
     <priority>0.4</priority>
   </url>
   <url>
+    <loc>https://pokegre.com/set/ja-XYP</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
     <loc>https://pokegre.com/set/en-bw11</loc>
     <lastmod>2026-08-02</lastmod>
     <changefreq>weekly</changefreq>
@@ -1801,6 +1831,12 @@
   </url>
   <url>
     <loc>https://pokegre.com/set/en-col1</loc>
+    <lastmod>2026-08-02</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://pokegre.com/set/ja-BWP</loc>
     <lastmod>2026-08-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.4</priority>
