@@ -183,10 +183,27 @@ for (const p of pokemonNames as { ja: string; ko: string }[])
 for (const a of pokemonNameAliases as { ja: string; ko: string }[])
   if (KATA_KEY.test(a.ja) && !isSoundRule(a.ja, a.ko)) meaningRules.push([a.ja, a.ko])
 
+// 결과를 하나하나 눈으로 확인해 "이건 맞다"고 판정한 규칙(2026-08-02). 빼주지 않으면
+// 매번 같은 열 줄을 다시 훑게 되고, 진짜 새 사고가 그 사이에 묻힌다.
+// 예: ボール→볼처럼 소리 규칙은 자동으로 빠지지만, ゲンシ→"원시 "는 뜻 규칙이라
+// 걸리는데 ゲンシグラードン(원시 그란돈)은 그게 맞는 결과다.
+const BLEED_OK = new Set([
+  'ゲンシ', // 원시 그란돈·원시 가이오가 — 맞다
+  'ヤクデ', // マルヤクデ → 다태우지네 — 맞다
+  'パモ', // パモット → 빠모트 — 맞다
+  'タッツ', // タッツー → 쏘드라 — 맞다
+  'カブト', // カブトプス → 투구푸스 — 맞다
+  'タケシ', // タケシのサンド → 웅의 모래두지 — 맞다
+  'サンド', // アローラサンド → 알로라 모래두지 — 맞다
+  'ジム', // クチバシティジム → 갈색시티체육관 — 맞다
+  'ロコン', // アローラロコン → 알로라 식스테일 — 맞다
+  'ハチク', // ジュジュベ&ハチクマン → 주주베&담죽맨 — 맞다
+])
+
 const bleedHits = new Map<string, { ko: string; ex: string[] }>()
 for (const [name, slug] of cleanNames) {
   for (const [ja, ko] of meaningRules) {
-    if (name === ja) continue
+    if (name === ja || BLEED_OK.has(ja)) continue
     let i = name.indexOf(ja)
     let cut = false
     while (i >= 0) {
