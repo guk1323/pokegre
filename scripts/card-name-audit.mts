@@ -225,6 +225,29 @@ for (const [name, slug] of cleanNames) {
   }
 }
 
+// ⑦ 자동 사전(cardNameKoEn.json)의 한글 키가 지금 화면에 나오는 이름과 어긋나는지.
+// 이 사전은 "한글 카드명 → 영문 카드명"인데, 영문→한글 방향으로 뒤집어서도 쓴다.
+// 그래서 키가 옛 이름으로 남아 있으면 손으로 고쳐 둔 이름을 도로 덮어 버린다 —
+// 일본판 이름을 "페퍼의 샌드위치"로 고쳤는데 북미판 화면에서는 여전히
+// "페퍼의 모래두지위치"로 나오던 것이 이 경우였다(자동 사전이 먼저 조회된다).
+const autoKo = JSON.parse(readFileSync(join(ROOT, 'src/data/cardNameKoEn.json'), 'utf8')) as Record<string, string>
+const liveKo = new Set<string>()
+for (const [name, slug] of cleanNames) void slug, liveKo.add(render('ja', name))
+// 같은 영문에 한글이 여럿 붙은 항목(박사의 연구(마박사)·(올림박사)…)은 역방향 맵에
+// 아예 안 들어간다(koreanizeEnglishTitle이 count===1인 것만 뒤집는다). 그런 건
+// 키가 화면 이름과 달라도 아무 데도 영향을 안 주므로 뺀다.
+const enCount = new Map<string, number>()
+for (const en of Object.values(autoKo)) enCount.set(en, (enCount.get(en) ?? 0) + 1)
+const staleAuto: string[] = []
+for (const [ko, en] of Object.entries(autoKo)) {
+  if (enCount.get(en) !== 1) continue
+  // 화면에 그 이름으로 나오는 카드가 하나도 없으면 낡은 키일 수 있다.
+  // 북미판에만 있는 카드도 있으므로, 영문명을 한글로 바꾼 값과도 견줘 본다.
+  if (liveKo.has(ko)) continue
+  const fromEn = koreanizeEnglishCardName(en)
+  if (fromEn !== ko && /[가-힣]/.test(fromEn)) staleAuto.push(`${ko}  →  지금은 "${fromEn}"  (${en})`)
+}
+
 const sum = (m: Map<string, Row>) => [...m.values()].reduce((s, v) => s + v.n, 0)
 console.log(`카드명 ${total}건 검사`)
 console.log(`  ① 일본어·한자 잔여: ${cjkLeft.size}종 / ${sum(cjkLeft)}건`)
@@ -234,6 +257,7 @@ console.log(`  ③ 포켓몬코리아 공식 카드명과 대조: 일치 ${offic
 console.log(`  ④ 히라가나가 뜻 없이 소리로 남음: ${kanaLeft.size}종 / ${sum(kanaLeft)}건`)
 console.log(`  ⑤ 짧은 별칭이 멀쩡한 카드명에 끼어듦: ${aliasHits.size}종`)
 console.log(`  ⑥ 짧은 뜻 규칙이 긴 가타카나 낱말을 잘라 먹음: ${bleedHits.size}종`)
+console.log(`  ⑦ 자동 사전 키가 지금 이름과 어긋남: ${staleAuto.length}종`)
 console.log(`  (원본 일본어 칸이 오염된 옛 세트 ${dirtySets.size}개는 ④에서 뺐다: ${[...dirtySets].join(' ')})`)
 
 if (cjkLeft.size) {
@@ -271,6 +295,14 @@ if (bleedHits.size) {
     for (const ex of v.ex) console.log(`       ${ex}`)
   }
   console.log('\n고치는 법: 잘린 쪽 낱말 전체를 STRUCTURAL_TERMS 맨 앞에 적는다(긴 것이 먼저 잡힌다).')
+}
+
+if (staleAuto.length) {
+  console.log('\n⑦ 자동 사전(src/data/cardNameKoEn.json)의 키가 지금 이름과 다르다:')
+  for (const x of staleAuto.slice(0, 30)) console.log(`   ${x}`)
+  if (staleAuto.length > 30) console.log(`   …외 ${staleAuto.length - 30}종`)
+  console.log('\n고치는 법: 그 키만 지금 이름으로 바꾼다. ⚠️ 파일을 통째로 다시 만들지 말 것')
+  console.log('(예전에 재생성했다가 손으로 검증한 이름들이 기계 번역으로 덮였다).')
 }
 
 if (LIST && kataLeft.size) {
