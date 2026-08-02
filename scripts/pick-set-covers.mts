@@ -49,7 +49,12 @@ for (const s of idx) {
     continue
   }
   const cards = (d.cards ?? []).filter((c) => usable(c.img))
-  const all = cards.filter((c) => rarityRank(c.r) > 0)
+  const graded = cards.filter((c) => rarityRank(c.r) > 0)
+  // 등급이 한 장도 없는 세트가 있다(프로모·에너지 세트는 원래 등급이 없다). 그럴 땐
+  // 등급을 포기하고 그림 있는 카드 중에서 고른다 — 카드 뒷면보다 실제 카드가 낫다.
+  // ⚠️ 표지가 이미 있는 세트는 이 폴백을 안 쓴다. 등급으로 고른 표지를 등급 없는
+  //    카드로 바꿔치기하면 오히려 나빠진다.
+  const all = graded.length ? graded : s.cover ? [] : cards
   if (!all.length) continue
   // 포켓몬 카드가 있으면 그 안에서만 고른다.
   const mons = all.filter((c) => isPokemon(c.name, s.slug.startsWith('ja-')))
