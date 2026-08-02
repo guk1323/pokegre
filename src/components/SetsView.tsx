@@ -265,7 +265,9 @@ export function SetsView({
                             }}
                           />
                         </div>
-                        <p className="mt-1.5 line-clamp-1 text-[11px] font-bold text-black">{nm}</p>
+                        {/* 두 줄까지 보여준다. 한 줄로 자르면 "로켓단의 뮤츠 ex"처럼 접두사가
+                            긴 카드가 폰에서 전부 "로켓단의…"로 나와 어느 카드인지 알 수 없다. */}
+                        <p className="mt-1.5 line-clamp-2 text-[11px] font-bold leading-snug text-black">{nm}</p>
                         {(() => {
                           const usd = usdByNum.get(String(Number(c.n)));
                           if (!usd) return null;
@@ -311,7 +313,7 @@ export function SetsView({
                       />
                     </div>
                     <div className="mt-1.5 flex items-start justify-between gap-1.5">
-                      <p className="line-clamp-1 text-xs font-bold text-black">{nm}</p>
+                      <p className="line-clamp-2 text-xs font-bold leading-snug text-black">{nm}</p>
                       <span className="flex-shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-neutral-500">
                         {c.n}
                       </span>
