@@ -16,6 +16,7 @@ import { dirname, join } from 'path'
 import { koreanizeTitle, STRUCTURAL_TERMS, EXACT_TITLES } from '../src/lib/koreanizeTitle.ts'
 import { kanaToHangul } from '../src/lib/kanaToHangul.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { translateSearchQueryToEnglish } from '../src/lib/translateQueryToEnglish.ts'
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 import pokemonNameAliases from '../src/data/pokemonNameAliases.json' with { type: 'json' }
 
@@ -238,14 +239,22 @@ for (const [name, slug] of cleanNames) void slug, liveKo.add(render('ja', name))
 // 키가 화면 이름과 달라도 아무 데도 영향을 안 주므로 뺀다.
 const enCount = new Map<string, number>()
 for (const en of Object.values(autoKo)) enCount.set(en, (enCount.get(en) ?? 0) + 1)
+// ⚠️ 영문→한글로 되돌려 비교하면 안 된다. 그 변환이 자동 사전을 먼저 보므로 자기
+//    값을 되돌려받아 늘 "같다"가 나온다(실제로 "기본강철에너지"를 못 잡았다).
+//    일본판 화면 이름을 영어로 바꿔 짝을 만들고, 그 짝과 견준다.
+const enToLive = new Map<string, string>()
+for (const [name, slug] of cleanNames) {
+  void slug
+  const ko = render('ja', name)
+  const en = translateSearchQueryToEnglish(ko, 'japanese')
+  if (!enToLive.has(en)) enToLive.set(en, ko)
+}
 const staleAuto: string[] = []
 for (const [ko, en] of Object.entries(autoKo)) {
   if (enCount.get(en) !== 1) continue
-  // 화면에 그 이름으로 나오는 카드가 하나도 없으면 낡은 키일 수 있다.
-  // 북미판에만 있는 카드도 있으므로, 영문명을 한글로 바꾼 값과도 견줘 본다.
   if (liveKo.has(ko)) continue
-  const fromEn = koreanizeEnglishCardName(en)
-  if (fromEn !== ko && /[가-힣]/.test(fromEn)) staleAuto.push(`${ko}  →  지금은 "${fromEn}"  (${en})`)
+  const live = enToLive.get(en)
+  if (live && live !== ko) staleAuto.push(`${ko}  →  지금은 "${live}"  (${en})`)
 }
 
 const sum = (m: Map<string, Row>) => [...m.values()].reduce((s, v) => s + v.n, 0)

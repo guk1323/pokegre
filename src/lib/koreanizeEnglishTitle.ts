@@ -124,8 +124,16 @@ export const STRUCTURAL_EN_TO_KO: [string, string][] = [
   ['Ancient ', '고대 '],
   ['Frost ', '프로스트 '],
   ['Drone ', '드론 '],
-  ['Dark ', '다크 '],
+  ['Dark ', '나쁜 '], // 한국 정식 발매명은 "나쁜 리자몽"이다(2026-08-02 확인)
   ['Light ', '라이트 '],
+  // ── 2026-08-02 사용자 확인 ──────────────────────────────────────────
+  // δ(델타종)는 한국 정식 발매본이 괄호 표기를 쓴다. 이름 뒤에 붙으므로 공백째 잡는다.
+  [' δ', ' (델타종)'],
+  // 폼체인지·특수 형태 포켓몬 고유명사는 붙여 쓰는 것이 원칙이다.
+  // 아래 세 줄은 'Black '·'White '·'Ultra ' 조각 규칙보다 먼저 와야 한다.
+  ['Black Kyurem', '블랙큐레무'],
+  ['White Kyurem', '화이트큐레무'],
+  ['Ultra Necrozma', '울트라네크로즈마'],
   ['White ', '화이트 '],
   ['Black ', '블랙 '],
   ['Ultra ', '울트라 '],
@@ -1277,7 +1285,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Pokégear 3.0': '포켓기어3.0',
   PokéNav: '포켓내비',
   'Pal Pad': '팔패드',
-  'Super Rod': '슈퍼로드',
+  'Super Rod': '대단한 낚싯대',
   'Air Balloon': '풍선',
   'Rocky Helmet': '울퉁불퉁멧', // 공식 카드 SV1V 073으로 확인
   'Pokémon Catcher': '포켓몬 캐처',
@@ -1312,7 +1320,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Dragon Energy': '기본 드래곤 에너지',
   'Rainbow Energy': '무지개 에너지',
   'Multi Energy': '멀티 에너지',
-  'Double Colorless Energy': '더블무색 에너지',
+  'Double Colorless Energy': '더블 무색 에너지',
   'Double Rainbow Energy': '더블무지개 에너지',
   'Boost Energy': '부스트 에너지',
   'Basic Water Energy': '기본 물 에너지',
@@ -1478,7 +1486,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   'Pikachu Libre': '옷차림 피카츄',
   'Pichu Bros.': '피츄 형제',
   'Pikachu with Grey Felt Hat': '회색 페레모를 쓴 피카츄',
-  'Rotom Dex': '로토무 도감',
+  'Rotom Dex': '로토무도감',
   'Rotom Dex—Poké Finder Mode': '로토무 도감 포켓파인더 모드',
   "Lillie's Poké Doll": '릴리에의 삐삐인형',
   'Level Max': '레벨 MAX',
@@ -1723,7 +1731,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Engineer's Adjustments": "정비사의 조정",
   "First Ticket": "우선 티켓",
   "Flint's Willpower": "대엽의 의지",
-  "Flower Shop Lady": "꽃집 누나",
+  "Flower Shop Lady": "꽃집 언니", // 花屋のおねえさん
   "Galactic HQ": "갤럭시단 아지트",
   "Ho Oh": "칠색조",
   "Indigo Plateau": "석영고원",
@@ -2017,6 +2025,11 @@ export function koreanizeEnglishCardName(name: string): string {
   // 공백이 겹치는 일이 있다("히스이 의 동료들", "히스이  블레이범").
   // 한글 뒤에 붙는 조사 앞의 공백을 지우고, 겹친 공백은 한 칸으로 줄인다.
   result = result.replace(/(?<=[가-힣])\s+(?=의\s)/g, '').replace(/ {2,}/g, ' ');
+
+  // 에너지 카드는 "[이름] 에너지"가 공식 표기다(2026-08-02 사용자 확인). 조각들이
+  // 붙어 조립된 결과에 공백을 넣는다 — 일본어 쪽(koreanizeTitle)과 같은 규칙이라
+  // 두 판의 이름이 어긋나지 않는다.
+  result = result.replace(/([^\s])에너지/g, '$1 에너지');
 
   // 옛 세트는 원본이 영어 이름을 넣어 둬서 이 경로를 탄다("houndour（u）").
   // 일본어 전각 괄호가 섞여 오면 여기서도 한글 표기로 바꾼다(일본어 쪽과 같은 규칙).
