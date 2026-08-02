@@ -1,7 +1,7 @@
 import pokemonNames from '../data/pokemonNames.json';
 import packNames from '../data/packNames.json';
 import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
-import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS } from './koreanizeTitle';
+import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TRAINER_NAMES } from './koreanizeTitle';
 
 interface PokemonName {
   id: number;
@@ -143,6 +143,10 @@ export function translateSearchQuery(query: string): string {
       ja,
       short: ko.trim().length <= 2 && /^[一-鿿]+$/.test(ja.trim()),
     })),
+    // 트레이너 이름은 카드명 전체가 그 이름일 때만 쓰는 것이라, 검색어에서도
+    // 낱말로 홀로 섰을 때만 되돌린다(short). "이수"(アズサ)를 그냥 바꾸면
+    // "이수재"(マサキ)가 "アズサ재"로 갈라진다.
+    ...EXACT_TRAINER_NAMES.map(([ja, ko]) => ({ ko, ja, short: true })),
   ].sort((a, b) => b.ko.length - a.ko.length);
 
   for (const { ko, ja, short } of merged) {
