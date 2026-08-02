@@ -9,11 +9,19 @@
 // ⚠️ 이미 등급이 있는 카드는 건드리지 않는다. 덮어쓰기가 아니라 빈칸 메우기다.
 // ⚠️ 프로모 세트(SVP·SMP·XYP…)는 원래 등급이 없다. limitless에도 비어 있어 안 채워진다.
 //
-// 쓰기: node scripts/fill-card-rarity.mjs                (전체, 몇 장인지만)
-//       node scripts/fill-card-rarity.mjs --write        (저장)
-//       node scripts/fill-card-rarity.mjs ja-SV4a --write (세트 지정)
+// 쓰기: npx tsx scripts/fill-card-rarity.mts                (전체, 몇 장인지만)
+//       npx tsx scripts/fill-card-rarity.mts --write        (저장)
+//       npx tsx scripts/fill-card-rarity.mts ja-SV4a --write (세트 지정)
 import { readFile, writeFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+
+// ⚠️ 원본이 "등급 없음"을 빈 문자열이 아니라 'None'이라는 값으로 적어 둔 세트가 있다
+//    (2026-08-03 기준 48개 세트 1,795장). 순위표에 없는 이름이라 등급이 없는 것과 똑같이
+//    취급되는데, 스크립트는 "이미 등급이 있다"고 보고 건너뛰었다. 그래서 ja-SV7·SV9는
+//    뽑기에서 SR·SAR이 아예 안 나오는데도 채워지지 않았다.
+const isBlank = (r) => !(r || '').trim() || r === 'None'
 
 const OUT = path.resolve(process.cwd(), 'public/sets')
 const WRITE = process.argv.includes('--write')
@@ -32,6 +40,22 @@ const unescape = (s) =>
 const strip = (s) => unescape(s.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
 // 이름 비교는 표기 차이를 지우고 한다("Mr. Mime" / "Mr Mime").
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-鿿]/g, '')
+
+// ⚠️ 원본(TCGdex)이 세트 뒷번호 카드만 영어 이름으로 적어 둔 세트가 있다(ja-SV6·SV8·SV10).
+//    limitless는 같은 카드를 일본어로 적으므로 글자로는 절대 안 맞는다. 그래서 등급이
+//    통째로 안 채워졌고, 그 세트들은 뽑기에서 SR·SAR이 아예 안 나왔다.
+//    양쪽을 우리 한글 사전으로 옮겨 같은 이름이 되는지로 판별한다.
+const toKo = (s) =>
+  koreanizeEnglishCardName(koreanizeTitle(s))
+    .toLowerCase()
+    .replace(/[^가-힣a-z0-9]/g, '')
+const sameCard = (a, b) => {
+  if (norm(a) === norm(b)) return true
+  const ka = toKo(a)
+  const kb = toKo(b)
+  // 한글로 못 옮기는 이름이면 판단할 수 없다 — 그럴 땐 안 채운다(틀린 것보다 빈칸).
+  return !!ka && ka === kb && /[가-힣]/.test(ka)
+}
 
 // limitless와 우리 데이터(TCGdex)가 같은 등급을 다르게 적는다. 여기서 맞춰 두지 않으면
 // src/lib/cardCatalog.ts의 RARITY_ORDER에 안 걸려, 채워 넣고도 등급이 없는 것과 똑같아진다.
@@ -93,7 +117,7 @@ for (const f of files) {
   } catch {
     continue
   }
-  const blank = (d.cards ?? []).filter((c) => !(c.r || '').trim()).length
+  const blank = (d.cards ?? []).filter((c) => isBlank(c.r)).length
   if (blank) targets.push({ slug, file: f, d, blank })
 }
 console.log(`등급이 빈 카드가 있는 세트 ${targets.length}개 (빈 카드 ${targets.reduce((a, t) => a + t.blank, 0)}장)\n`)
@@ -126,10 +150,10 @@ for (const t of targets) {
   const skipped = []
   const unknown = new Set()
   for (const c of t.d.cards ?? []) {
-    if ((c.r || '').trim()) continue
+    if (!isBlank(c.r)) continue
     const hit = src.get(c.n)
     if (!hit) continue
-    if (norm(c.name) !== norm(hit.name)) {
+    if (!sameCard(c.name, hit.name)) {
       if (skipped.length < 3) skipped.push(`${c.n} ${c.name}≠${hit.name}`)
       continue
     }

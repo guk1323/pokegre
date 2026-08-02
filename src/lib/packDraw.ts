@@ -218,13 +218,27 @@ export function drawBox(
   const takeIdx = () => free.pop();
 
   // SR이상 1장 — 내부 배분은 확률표 비율 그대로(SAR ≈ 4.8박스당 1장, 금UR ≈ 12박스당 1장).
+  //
+  // ⚠️ 그 세트에 **실제로 카드가 있는** 등급 중에서만 고른다. 확률표는 시대별로 공용이라
+  //    그 세트에 없는 등급이 섞여 있고, 없는 등급이 뽑히면 보장이 빈손이 된다.
+  //    (ja-SV2P는 Hyper rare 카드가 0장인데 확률표에 0.0028이 있어, 박스 8.1%가
+  //     상위등급 없이 나왔다 — 2026-08-03 실측. "박스에 SR 이상 1장"이 깨지고 있었다.)
   const lastRolls = profile.slots[profile.slots.length - 1].rolls;
-  const srRolls = lastRolls.filter(([t]) =>
-    ['Mega Ultra Rare', 'Hyper rare', 'Special illustration rare', 'Ultra Rare'].includes(t),
+  const srRolls = lastRolls.filter(
+    ([t]) =>
+      ['Mega Ultra Rare', 'Hyper rare', 'Special illustration rare', 'Ultra Rare'].includes(t) &&
+      (pools[t]?.length ?? 0) > 0,
   );
   const srTotal = srRolls.reduce((a, [, p]) => a + p, 0);
   let x = Math.random() * srTotal;
-  let srTier = 'Ultra Rare';
+  // 기본값도 그 세트에 있는 등급이어야 한다. 확률표에 걸리는 게 하나도 없으면
+  // 가진 것 중 제일 높은 등급으로 준다(빈손보다 낫다).
+  let srTier =
+    srRolls[0]?.[0] ??
+    Object.keys(pools)
+      .filter((t) => (pools[t]?.length ?? 0) > 0)
+      .sort((a, b) => (RARITY_RANK[b] ?? -1) - (RARITY_RANK[a] ?? -1))[0] ??
+    'Ultra Rare';
   for (const [t, p] of srRolls) {
     if (x < p) {
       srTier = t;
