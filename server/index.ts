@@ -143,13 +143,21 @@ async function fetchShareCard(id: string): Promise<ShareCard | null> {
         minPrice?: number
         name?: string
       }
-      const image = j.primaryMedia?.imageUrl ?? ''
-      const price = j.usedMinPrice || j.minPrice || 0
-      // 스니커덩크 이름은 일본어라 화면과 같은 방식으로 한글로 바꾼다. 예전엔 이걸 서버에서
-      // 못 해서 링크에 ?n=<한글 이름>을 붙여 보냈는데, 한글이 %EB%A6%AC…로 늘어나
-      // 주소가 세 배로 길어졌다(91자 → 28자).
-      const name = j.name ? shareName(koreanizeEnglishCardName(koreanizeTitle(j.name))) : ''
-      if (image) data = { image, price, name }
+      // 스니커덩크는 스니커즈·명품도 파는 곳이라, 아무 번호나 넣으면 그 상품이 나온다.
+      // 상세 응답에는 브랜드 칸이 없어서 이름 형식으로 가른다 — 포켓몬 카드는 늘
+      // "이름 [세트 번호](팩 이름)" 꼴이다(검색 결과 24건 전부 확인).
+      // 이게 없으면 남이 아무 번호로 링크를 만들어 "CELINE 가방 시세 | pokegre"라는
+      // 미리보기를 카톡에 퍼뜨릴 수 있고, 검색엔진도 그 페이지를 우리 것으로 색인한다.
+      const looksLikeCard = /\[[^\]]+\]/.test(j.name ?? '')
+      if (looksLikeCard) {
+        const image = j.primaryMedia?.imageUrl ?? ''
+        const price = j.usedMinPrice || j.minPrice || 0
+        // 스니커덩크 이름은 일본어라 화면과 같은 방식으로 한글로 바꾼다. 예전엔 이걸 서버에서
+        // 못 해서 링크에 ?n=<한글 이름>을 붙여 보냈는데, 한글이 %EB%A6%AC…로 늘어나
+        // 주소가 세 배로 길어졌다(91자 → 28자).
+        const name = j.name ? shareName(koreanizeEnglishCardName(koreanizeTitle(j.name))) : ''
+        if (image) data = { image, price, name }
+      }
     }
   } catch {
     // 실패하면 이름만으로 미리보기(이미지·시세 없이)
