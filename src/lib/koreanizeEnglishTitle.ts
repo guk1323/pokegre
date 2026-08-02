@@ -487,7 +487,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Neo Upper Energy': '네오 어퍼 에너지',
   'Neutralization Zone': '뉴트럴센터',
   'Paradise Resort': '파라다이스 리조트',
-  'Parasol Lady': '파라솔 누나',
+  'Parasol Lady': '파라솔 언니', // パラソルおねえさん
   'Perilous Jungle': '위협의 정글',
   'Picnic Basket': '피크닉 바스켓',
   'Poké Vital A': '포케바이탈A',
@@ -505,7 +505,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Vitality Band': '활력의 머리띠',
   Youngster: '반바지 어린이',
   'Arc Phone': '알세우스폰',
-  'Aroma Lady': '아로마 레이디',
+  'Aroma Lady': '아로마 언니', // アロマなおねえさん — 일본판과 같은 카드
   'Aromatic Grass Energy': '아로마 풀 에너지',
   'Aurora Energy': '오로라 에너지',
   Avery: '세이버',
@@ -1338,7 +1338,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'TV Reporter': 'TV 리포터',
   'Gym Trainer': '체육관 트레이너',
   'Pokémon Fan Club': '포켓몬 팬클럽',
-  'Pokémon Center Lady': '포켓몬센터 누나',
+  'Pokémon Center Lady': '포켓몬센터 언니', // ポケモンセンターのお姉さん
   Maintenance: '메인터넌스',
   'Night Maintenance': '나이트 메인터넌스',
   Revive: '기력의 조각',
