@@ -21,6 +21,7 @@ import { PPT_SET_NAMES } from '../src/lib/packSets.ts'
 // ⚠️ 2026-08-02에 여기를 안 보고 돌려서 이미 값이 있는 23개를 그대로 다시 받았다.
 //    8,500크레딧을 헛썼다. 받기 전에 "이미 있는 것"을 반드시 빼야 한다.
 import EXTRA_SET_NAMES from '../src/data/pptSetNames.json' with { type: 'json' }
+import { assertFloor, noteLeft } from './ppt-floor.mjs'
 
 const ROOT = process.cwd()
 const OUT = path.resolve(ROOT, 'src/data/setHitCards.json')
@@ -53,9 +54,11 @@ let stop = ''
 
 // 한 번 부르고 쓴 크레딧을 센다. limit=N이 곧 N크레딧이다.
 async function ask(url, cost) {
+  // 크레딧 바닥선. 예산(--budget)과 별개로, 남은 양이 5,000 밑으로 갈 일은 아예 안 한다.
+  if (!assertFloor(cost)) { stop = '크레딧 바닥선'; return null }
   spent += cost
   const r = await fetch(url, { headers: { accept: 'application/json', authorization: `Bearer ${key}` } })
-  const left = Number(r.headers.get('x-ratelimit-daily-remaining'))
+  const left = noteLeft(r.headers.get('x-ratelimit-daily-remaining'))
   if (r.status === 429 && Number.isFinite(left) && left > 2000) {
     // 하루치가 넉넉히 남았으면 분당 한도다. 한 번만 기다렸다 다시 해 본다.
     console.log(`    (분당 한도 — 70초 쉬고 다시)`)

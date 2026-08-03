@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
+import { assertFloor, noteLeft } from './ppt-floor.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = join(ROOT, 'scripts/en-card-names.json')
@@ -71,6 +72,8 @@ for (const { code, count } of sets) {
   // 프로모·특전으로 실제 장수가 목록보다 많은 세트가 있어 조금 여유를 둔다.
   const page = Math.min(PAGE, Math.max(50, Math.ceil((count * 1.3) / 50) * 50))
   for (let offset = 0; ; offset += page) {
+    // 크레딧 바닥선(5,000). 여기를 넘어서는 절대 안 부른다.
+    if (!assertFloor(page)) return null
     const url = `https://www.pokemonpricetracker.com/api/v2/cards?language=japanese&setName=${encodeURIComponent(SET_ALIAS[code] ?? code)}&limit=${page}&offset=${offset}`
     // 429는 "잠깐 쉬라"는 뜻이다. 분당 한도(60요청)는 1분이면 풀리므로 몇 번 더 기다려
     // 본다. 예전엔 한 번만 재시도해서, 검증 작업으로 분당 한도를 쓴 직후에 돌리면
@@ -84,7 +87,7 @@ for (const { code, count } of sets) {
       await sleep(wait * 1000)
     }
     // 남은 크레딧은 헤더로만 알 수 있다. 다음 세트로 넘어갈지 여기서 판단한다.
-    const left = Number(r.headers.get('x-ratelimit-daily-remaining'))
+    const left = noteLeft(r.headers.get('x-ratelimit-daily-remaining')) ?? NaN
     if (Number.isFinite(left)) remaining = left
     // 세 번 쉬고도 429면 분당 한도가 아니라 하루치가 바닥난 것이다. 이때는 남은 세트를
     // 계속 두드려도 전부 429인데, 그 429가 쌓이면 PPT가 키를 정지시킨다(1시간 → 24시간

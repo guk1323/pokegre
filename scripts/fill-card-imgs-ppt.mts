@@ -12,6 +12,7 @@
 //       npx tsx scripts/fill-card-imgs-ppt.mts --budget 1000 --write    (저장)
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { assertFloor, noteLeft } from './ppt-floor.mjs'
 
 // 우리 세트 → PPT 세트 이름. PPT /sets 목록에서 확인한 정확한 이름이다(2026-08-03).
 const PAIRS: [string, string][] = [
@@ -56,12 +57,14 @@ const stripNo = (s: string) => s.replace(/\s*-\s*[\dA-Za-z]+\/[\dA-Za-z]+\s*$/, 
 type Row = { cardNumber?: string; name?: string; imageCdnUrl?: unknown }
 
 async function fetchPage(setName: string, offset: number): Promise<Row[] | null> {
+  // 크레딧 바닥선(5,000). 예산과 별개로 여기를 넘어서는 절대 안 부른다.
+  if (!assertFloor(PAGE)) return null
   spent += PAGE
   const u =
     `https://www.pokemonpricetracker.com/api/v2/cards?language=english` +
     `&setName=${encodeURIComponent(setName)}&limit=${PAGE}&offset=${offset}`
   const r = await fetch(u, { headers: { accept: 'application/json', authorization: `Bearer ${key}` } })
-  const left = Number(r.headers.get('x-ratelimit-daily-remaining'))
+  const left = noteLeft(r.headers.get('x-ratelimit-daily-remaining')) ?? NaN
   if (r.status === 429 || r.status === 403) {
     if (r.status === 429 && Number.isFinite(left) && left > 1000) {
       console.log('    (분당 한도 — 70초 쉬고 다시)')

@@ -21,6 +21,7 @@
 //   다 쓰고 나면 올리고 서버를 재시작해야 반영된다(서버가 메모리에 들고 있다).
 import { readFile, writeFile } from 'node:fs/promises'
 import { PPT_SET_NAMES } from '../src/lib/packSets.ts'
+import { assertFloor, noteLeft } from './ppt-floor.mjs'
 
 const argOf = (name: string, fallback: number) => {
   const i = process.argv.indexOf(name)
@@ -57,12 +58,14 @@ let stop = ''
 type Row = { cardNumber?: string; name?: string; prices?: { market?: number } }
 
 async function fetchPage(setName: string, lang: string, offset: number): Promise<Row[] | null> {
+  // 크레딧 바닥선(5,000). 예산과 별개로 여기를 넘어서는 절대 안 부른다.
+  if (!assertFloor(PAGE)) return null
   spent += PAGE
   const u =
     `https://www.pokemonpricetracker.com/api/v2/cards?language=${lang}` +
     `&setName=${encodeURIComponent(setName)}&limit=${PAGE}&offset=${offset}`
   const r = await fetch(u, { headers: { accept: 'application/json', authorization: `Bearer ${key}` } })
-  const left = Number(r.headers.get('x-ratelimit-daily-remaining'))
+  const left = noteLeft(r.headers.get('x-ratelimit-daily-remaining')) ?? NaN
   if (r.status === 429 || r.status === 403) {
     // ⚠️ 429는 두 가지다. 하루치가 남아 있으면 **분당 한도**(요청 60번)이므로 한 번은
     //    기다렸다 다시 해 본다 — 서버 미리받기와 부딪히면 흔히 난다.
