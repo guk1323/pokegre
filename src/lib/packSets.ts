@@ -181,10 +181,15 @@ export type PackSet = {
 //   · 제일 귀한 금색 UR이 SR 확률(1/43팩)로 나왔다 — 실물은 1/350팩
 // ⚠️ 확률 숫자는 하나도 안 바꾼다(사용자가 조사·검증한 값이다). 그 확률이 어느 카드에
 //    걸리는지만 바로잡는다. 카드마다 c.r을 한 번만 찾아 바꾸므로 맞바꿈이 안전하다.
-const JP_RARITY_ALIAS: Record<string, string> = {
-  'Secret Rare': 'Ultra Rare',
-  'Ultra Rare': 'Hyper rare',
-};
+// ⚠️ 2026-08-03: 이 맞바꿈을 걷어냈다. 원본 데이터가 바뀌었기 때문이다.
+//    위 설명은 세트 파일에 'Secret Rare'가 있던 시절 이야기인데, 지금은 21개 세트
+//    **전부** 'Secret Rare'가 0장이고 그 자리가 'Ultra Rare'로 적혀 있다.
+//    (M5·SV11B처럼 처음부터 표준 이름이던 세트와 이제 똑같아졌다.)
+//    그대로 두면 반대로 망가진다 — 원본 Ultra Rare 8~17장이 통째로 Hyper rare로
+//    올라가서, 확률표의 Ultra Rare 자리(2.35%)가 텅 비고 그 몫이 일반 레어로 샜다.
+//    실측(ja-SV3 2만 팩): Ultra Rare 확률표 2.35% → 실제 0장.
+//    빈 것이 있는지는 `npx tsx scripts/check-packsets.mts`가 알려준다.
+const JP_RARITY_ALIAS: Record<string, string> | undefined = undefined;
 
 // ⚠️ 블랙볼트·화이트플레어는 이 어긋남이 없다. 'Secret Rare'가 아예 없고 번호도 다르다:
 //   159~166번 Ultra Rare 8장(= SR) · 167~173번 SAR 7장 · 174번 Black White Rare 1장(= 최상위)
@@ -201,24 +206,21 @@ const JP_BW_RARITY_ALIAS: Record<string, string> = { 'Black White Rare': 'Hyper 
 // M5·M4·M3·M1L은 SR 자리가 이미 'Ultra Rare'다(18장, 번호 94~). 맞바꾸면 그게 최상위로
 // 올라가 버리므로 최상위 이름만 바꾼다.
 const JP_MEGA_TOP_ONLY: Record<string, string> = { 'Mega Hyper Rare': 'Mega Ultra Rare' };
-// M1S만 SR 자리가 'Secret Rare'(11장, 번호 76~)라 SV 세트와 같은 맞바꿈이 필요하다.
-const JP_MEGA_RARITY_ALIAS: Record<string, string> = {
-  ...JP_RARITY_ALIAS,
-  'Mega Hyper Rare': 'Mega Ultra Rare',
-};
-const JP_M2_RARITY_ALIAS: Record<string, string> = {
-  'Secret Rare': 'Ultra Rare',
-  'Ultra Rare': 'Mega Ultra Rare',
-};
+// M1S도 이제 SR 자리가 'Ultra Rare'다(11장). 최상위 이름만 바꾸면 된다.
+const JP_MEGA_RARITY_ALIAS: Record<string, string> = { 'Mega Hyper Rare': 'Mega Ultra Rare' };
+// M2(인페르노X)는 최상위가 이미 'Mega Ultra Rare' 1장으로 적혀 있어 바꿀 게 없다.
+const JP_M2_RARITY_ALIAS: Record<string, string> | undefined = undefined;
 
 const JP = (id: string, name: string, price = 1600, extra: Partial<PackSet> = {}): PackSet => ({
   slug: `ja-${id}`,
   label: `[일본판] ${name}`,
   src: `/packsim/ja-${id}.json`,
   jp: true,
-  // ⚠️ 일본판 세트에는 ACE SPEC 카드가 한 장도 없다(2026-08-03 전수 확인). ACE를 확률표에
-  //    두면 절대 안 나오는 등급을 광고하는 셈이라 기본값에서 뺀다(위 withoutAce 설명 —
-  //    빠진 몫은 일반 레어로 가므로 다른 등급 확률은 그대로다).
+  // ⚠️ 일본판은 대부분 ACE SPEC 카드가 없다(27개 중 21개). ACE를 확률표에 두면 절대
+  //    안 나오는 등급을 광고하는 셈이라 기본값에서 뺀다(위 withoutAce 설명 — 빠진 몫은
+  //    일반 레어로 가므로 다른 등급 확률은 그대로다).
+  //    ⚠️ 다만 SV5K·SV5a·SV6·SV7·SV7a·SV8 여섯 세트는 ACE가 2~3장 들어 있다. 그 여섯만
+  //       JP_REGULAR(ACE 포함)를 따로 준다 — 안 그러면 그 카드들이 영영 안 나온다.
   profile: JP_REGULAR_NO_ACE,
   price,
   boxPacks: 30,
@@ -248,9 +250,9 @@ export const PACK_SETS: PackSet[] = [
   JP('SV11W', '화이트플레어', 1600, { profile: JP_REGULAR_NO_ACE, rarityAlias: JP_BW_RARITY_ALIAS }),
   JP('SV10', '로켓단의 영광', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV9', '배틀파트너즈', 1600, { profile: JP_REGULAR_NO_ACE }),
-  JP('SV8', '초전브레이커'),
-  JP('SV7', '스텔라미라클'),
-  JP('SV6', '변환의 가면'),
+  JP('SV8', '초전브레이커', 1600, { profile: JP_REGULAR }), // ACE SPEC 2장 수록 — 확률표에 ACE를 둬야 나온다
+  JP('SV7', '스텔라미라클', 1600, { profile: JP_REGULAR }), // ACE SPEC 3장 수록 — 확률표에 ACE를 둬야 나온다
+  JP('SV6', '변환의 가면', 1600, { profile: JP_REGULAR }), // ACE SPEC 2장 수록 — 확률표에 ACE를 둬야 나온다
   JP('SV3', '흑염의 지배자', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV2a', '포켓몬 카드 151', 2600, { profile: JP_151, godRate: 1 / 750, mirror: 'jp151', boxPacks: 20 }), // 특수팩: 290엔·7장·20팩 박스·갓팩 존재
   // ── SV 시대 5장팩(2023~2025) ─────────────────────────────────────────────
@@ -258,9 +260,9 @@ export const PACK_SETS: PackSet[] = [
   // 같은 확률표를 쓴다 — 사용자 확인 완료(2026-08-02). ACE 수록 여부만 세트별로 갈린다
   // (세트 데이터로 직접 확인). 전부 2026-04 이전 발매라 정가 180엔 ≈ 1,600원.
   JP('SV9a', '열풍의 아레나', 1600, { profile: JP_REGULAR_NO_ACE }),
-  JP('SV7a', '낙원드래고나'),
-  JP('SV5a', '크림슨헤이즈'),
-  JP('SV5K', '와일드포스'),
+  JP('SV7a', '낙원드래고나', 1600, { profile: JP_REGULAR }), // ACE SPEC 2장 수록 — 확률표에 ACE를 둬야 나온다
+  JP('SV5a', '크림슨헤이즈', 1600, { profile: JP_REGULAR }), // ACE SPEC 3장 수록 — 확률표에 ACE를 둬야 나온다
+  JP('SV5K', '와일드포스', 1600, { profile: JP_REGULAR }), // ACE SPEC 2장 수록 — 확률표에 ACE를 둬야 나온다
   JP('SV4M', '미래의 일섬', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV4K', '고대의 포효', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV3a', '레이징서프', 1600, { profile: JP_REGULAR_NO_ACE }),
