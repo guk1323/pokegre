@@ -2887,6 +2887,12 @@ export function koreanizeTitle(title: string): string {
   // 단독 "シールド"가 먼저 걸려 戦만 남는다. 어떤 맥락이든 "전"이라 한쪽 방향으로 마무리.
   result = result.split('戦').join('전');
 
+  // 옛 e카드 세트(ja-E2)는 카드 이름 뒤에 번호가 붙어 있다("MUK -004/092" 44장).
+  // 화면에는 이름만 나와야 한다 — 번호는 대괄호로 따로 붙는다.
+  // ⚠️ 앞에 붙임표가 있을 때만 뗀다. 「호론의 연구탑하프덱1/2」처럼 이름의 일부인
+  //    분수는 붙임표가 없어 안 걸린다.
+  result = result.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim();
+
   return spaceCardSuffix(kanaToHangul(result));
 }
 
