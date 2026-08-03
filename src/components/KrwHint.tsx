@@ -5,6 +5,8 @@ import { fetchExchangeRates, formatKrwApprox, formatRateDate, type ExchangeRates
 // 화면 하나 그리는 데 요청이 스무 번씩 나가므로, 모듈 바깥에 한 번만 받아 공유한다.
 let cached: ExchangeRates | null = null;
 let inFlight: Promise<ExchangeRates | null> | null = null;
+// 실패했을 때 다시 받아 보는 횟수. 무한히 두드리지 않도록 상한을 둔다.
+let retriesLeft = 3;
 
 function useExchangeRates(): ExchangeRates | null {
   const [rates, setRates] = useState<ExchangeRates | null>(cached);
@@ -15,11 +17,28 @@ function useExchangeRates(): ExchangeRates | null {
     inFlight ??= fetchExchangeRates();
     let alive = true;
     inFlight.then((r) => {
-      cached = r;
+      // ⚠️ 실패(null)는 캐시하지 않는다. 예전엔 실패도 그대로 담아 둬서, 배포 직후처럼
+      //    서버가 뜨는 중(502)에 화면이 먼저 열리면 그 세션 내내 환율이 영영 안 붙었다.
+      //    원화가 주 표시가 된 뒤로는 화면이 고장난 것처럼 보인다(실제로 겪음).
+      //    실패하면 묶어 둔 요청을 풀어, 다음에 그려질 때 다시 받아 본다.
+      if (r) cached = r;
+      else inFlight = null;
       if (alive) setRates(r);
     });
+    // 화면이 그대로면 다시 그려질 일이 없어 영영 안 받는다. 실패했으면 잠깐 뒤 한 번 더
+    // 부른다(최대 3번). 서버가 뜨는 데 몇 초 걸리는 배포 직후를 넘기기 위한 것이다.
+    const retry = setTimeout(() => {
+      if (cached || retriesLeft <= 0) return;
+      retriesLeft -= 1;
+      inFlight = null;
+      fetchExchangeRates().then((r) => {
+        if (r) cached = r;
+        if (alive && r) setRates(r);
+      });
+    }, 3000);
     return () => {
       alive = false;
+      clearTimeout(retry);
     };
   }, []);
 
