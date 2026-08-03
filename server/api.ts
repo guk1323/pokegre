@@ -2020,6 +2020,10 @@ interface PptState {
   left: number
   blockedUntil: number
   dailyOut: boolean
+  // ⚠️ 오늘 "채우기"에 쓴 크레딧(WARM_FILL_BUDGET). 이것도 메모리에만 두면 배포할
+  //    때마다 0으로 돌아가 하루 예산이 배포 횟수만큼 늘어난다. 2026-08-03에 이걸로
+  //    하루치 20,000이 통째로 나갔다 — 위 left와 똑같은 실수를 한 번 더 한 것이다.
+  fillSpent?: number
 }
 const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
 
@@ -2046,6 +2050,7 @@ async function savePptState() {
       left: Number.isFinite(left) ? left : -1,
       blockedUntil: pptBlockedUntil,
       dailyOut: pptDailyOut,
+      fillSpent: fillSpentToday(),
     } satisfies PptState)
   } catch {
     /* 못 적어도 서비스는 돌아간다 */
@@ -2063,6 +2068,10 @@ export async function loadPptState() {
     }
     if (typeof s.blockedUntil === 'number') pptBlockedUntil = s.blockedUntil
     pptDailyOut = !!s.dailyOut
+    if (typeof s.fillSpent === 'number' && s.fillSpent >= 0) {
+      fillSpent = s.fillSpent
+      fillSpentDay = s.day
+    }
     console.log(
       `[pokegre] PPT 상태를 이어받았습니다: 남은 크레딧 ${Number.isFinite(pptLeftNow()) ? pptLeftNow() : '모름'}` +
         (pptBlockedUntil > Date.now() ? ` · ${new Date(pptBlockedUntil).toISOString()}까지 쉽니다` : ''),
@@ -4271,6 +4280,8 @@ const noteFillSpend = (n: number) => {
   const d = utcDay()
   if (fillSpentDay !== d) { fillSpentDay = d; fillSpent = 0 }
   fillSpent += n
+  // 배포로 서버가 새로 떠도 오늘 쓴 양을 이어받게 파일에 남긴다.
+  void savePptState()
 }
 const fillSpentToday = () => (fillSpentDay === utcDay() ? fillSpent : 0)
 
@@ -4461,6 +4472,11 @@ async function getSetPrices(
     const basePriced = new Set<string>() // 기본판 값을 이미 받은 번호
     let complete = false
     for (let p = 0; p < pages; p++) {
+      // 방문자 몫은 페이지마다 다시 본다. 세트 단위로만 보면 검사를 통과한 뒤
+      // 한 세트가 최대 5장(1,000크레딧)을 더 써서 그만큼 넘어선다.
+      // ⚠️ 첫 장은 그냥 간다 — 여기서 멈추면 앞번호만 받고 만 partial이 되어
+      //    다음 바퀴에 처음부터 다시 받게 되고, 오히려 더 쓴다.
+      if (p > 0 && pptLeftNow() < PPT_KEEP_FOR_VISITORS) break
       // 한 장에 PPT_PAGE(200)만큼 나간다. 헤더만 믿지 않고 직접 센다.
       noteFillSpend(PPT_PAGE)
       const list = await fetchSetPage(setName, lang, apiKey, p * PPT_PAGE)
