@@ -5,6 +5,7 @@ import { ShareButton } from './ShareButton';
 import {
   fetchConditionPrices,
   fetchPriceHistory,
+  fetchTradedGrades,
   koreanizeGrade,
   RAW_GRADE_DESCRIPTION,
   type ConditionGroup,
@@ -30,9 +31,9 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   const [condition, setCondition] = useState('');
   // 카드 이름(한글화) 오류 신고를 한 번 누르면 감사 문구로 바꾼다.
   const [titleReported, setTitleReported] = useState(false);
-  // 그래프에 실거래 기록이 하나도 없는 것으로 확인된 등급. 골라 보기 전에는 알 수 없어서,
-  // 한 번 골라 보고 비어 있으면 여기 적어 두고 목록에서 뺀다(카드를 바꾸면 비운다).
-  const [emptyGrades, setEmptyGrades] = useState<Set<string>>(new Set());
+  // 실거래 기록이 있는 등급. 카드를 열 때 등급마다 한 번씩 물어 알아낸다(무료).
+  // null이면 아직 확인 전이라 목록을 거르지 않는다.
+  const [tradedGrades, setTradedGrades] = useState<Set<string> | null>(null);
   // 수량은 항상 1개(1장)로 고정한다. 사용자가 고를 일이 없고("10박스 묶음 시세"를
   // 보고 싶은 사람은 없다), 안 고정하면 박스 시세가 묶음 총액과 섞여 부풀려진다.
   const [variantId, setVariantId] = useState<number | null>(null);
@@ -57,7 +58,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     setCondition('');
     setVariantId(null);
     setTitleReported(false);
-    setEmptyGrades(new Set());
+    setTradedGrades(null);
   }, [card.apparelId]);
 
   useEffect(() => {
@@ -68,11 +69,6 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       .then((result) => {
         if (cancelled || !result) return;
         setHistory(result);
-        // 이 등급으로 골랐는데 점이 하나도 없으면 그래프가 그려지지 않는다.
-        // 목록에 남겨 두면 골라 봐야 "실거래 기록이 없습니다"만 나오므로 빼둔다.
-        if (condition && result.points.length === 0) {
-          setEmptyGrades((prev) => (prev.has(condition) ? prev : new Set(prev).add(condition)));
-        }
         // 첫 조회에서 필터 목록을 받아오면, 그걸로 기본값을 정해 다시 조회한다.
         // 목록은 상품마다 달라서(박스는 등급이 없고 수량 단위도 個/枚로 다름)
         // 코드를 박아두지 않고 API가 주는 첫 항목을 쓴다.
@@ -93,18 +89,32 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     };
   }, [card.apparelId, range, condition, variantId]);
 
-  // 그래프에 띄울 등급 목록.
+  // 등급 목록을 받으면, 어느 등급에 실거래 기록이 있는지 한 번 훑어 둔다.
+  // 카드마다 한 번만 한다(등급이나 기간을 바꿔도 다시 하지 않는다).
+  const gradeCodes = (history?.conditions ?? []).map((c) => c.code).join(',');
+  useEffect(() => {
+    if (!gradeCodes || tradedGrades) return;
+    let cancelled = false;
+    fetchTradedGrades(card.apparelId, gradeCodes.split(','))
+      .then((set) => {
+        if (!cancelled) setTradedGrades(set);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // tradedGrades는 "한 번만"을 지키는 조건이라 의존성에 넣으면 매번 다시 돈다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.apparelId, gradeCodes]);
+
+  // 그래프에 띄울 등급 목록 — 실거래 기록이 있는 등급만.
   //
-  // ⚠️ "매물이 있는 등급"으로 거르면 안 된다. 그래프는 **실거래 기록**이고 아래
-  //    등급별 최저가는 **지금 올라온 매물**이라 서로 다른 자료다. 매물 기준으로
-  //    거르면, 예전에 거래는 됐는데 지금 매물이 없는 등급의 기록을 통째로 숨긴다
-  //    (한 번 그렇게 만들었다가 사용자 지적으로 되돌렸다).
-  //
-  // 어느 등급에 기록이 있는지는 API가 미리 알려주지 않는다. 골라 봐야 안다.
-  // 그래서 골라 봤더니 비어 있던 등급만 빼고, 나머지는 스니커덩크가 준 그대로 둔다.
-  // ⚠️ 지금 고른 등급은 빼지 않는다 — 빼면 선택칸이 그 자리에서 사라져 화면이 튄다.
+  // ⚠️ "매물이 있는 등급"으로 거르면 안 된다. 그래프는 실거래 기록이고 아래 등급별
+  //    최저가는 지금 올라온 매물이라 서로 다른 자료다(그렇게 만들었다가 되돌렸다).
+  // ⚠️ 아직 다 훑기 전(null)에는 거르지 않는다. 지금 고른 등급도 항상 남긴다 —
+  //    빼면 선택칸이 그 자리에서 사라져 화면이 튄다.
   const pickedConditions = (history?.conditions ?? []).filter(
-    (c) => c.code === condition || !emptyGrades.has(c.code),
+    (c) => !tradedGrades || c.code === condition || tradedGrades.has(c.code),
   );
 
   return (

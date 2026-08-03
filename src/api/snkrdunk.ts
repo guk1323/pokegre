@@ -332,6 +332,49 @@ export async function fetchPriceHistory(
   };
 }
 
+// 어느 등급에 "실거래 기록"이 있는지 알아낸다.
+//
+// 왜 필요한가: 스니커덩크는 그 카드에 거래가 한 건도 없는 등급까지 선택 목록에 다
+// 넣어 준다. 골라 봐야 "실거래 기록이 없습니다"만 나오는 칸이 절반이 넘는다.
+// 목록만 봐서는 알 수 없고, 응답 어디에도 미리 알려주는 값이 없다(옵션에 code와
+// name뿐이고, chart.lines도 등급별로 나뉘지 않는다). 등급마다 한 번씩 물어보는 수밖에 없다.
+//
+// ⚠️ 매물(size-chips)로 대신 재면 안 된다. 그건 "지금 팔려고 내놓은 것"이고 그래프는
+//    "실제로 팔린 것"이라 서로 다른 자료다. 매물 기준으로 거르면 예전에 거래된 등급의
+//    기록이 통째로 숨는다(2026-08-03에 그렇게 만들었다가 되돌렸다).
+//
+// ⚠️ range는 항상 'all'로 본다. 기간을 좁히면 "그 기간에만" 거래가 없는 등급까지
+//    빠지는데, 그건 목록에서 지울 일이 아니라 그래프가 비어 있다고 말할 일이다.
+// ⚠️ 스니커덩크는 무료지만 한 번에 열여섯 번을 몰아 보내지는 않는다. 넷씩 끊어 보낸다.
+export async function fetchTradedGrades(apparelId: number, codes: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!codes.length) return out;
+  const detailRes = await fetch(`/api/snkrdunk/v1/apparels/${apparelId}`);
+  if (!detailRes.ok) return out;
+  const detail: ApparelDetailResponse = await detailRes.json();
+  const productCatalogId = detail.productCatalogId;
+  if (!productCatalogId) return out;
+
+  const queue = [...codes];
+  const worker = async () => {
+    for (let code = queue.shift(); code; code = queue.shift()) {
+      try {
+        const res = await fetch(
+          `/api/snkrdunk/v3/products/${productCatalogId}/trading-history?range=all&condition_code=${encodeURIComponent(code)}`,
+        );
+        if (!res.ok) continue;
+        const data: TradingHistoryResponse = await res.json();
+        if (data.chart?.lines?.some((l) => l.points?.length)) out.add(code);
+      } catch {
+        // 한 등급을 못 받아도 나머지는 계속 본다. 못 받은 등급은 목록에 남는다(안전한 쪽).
+        out.add(code);
+      }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return out;
+}
+
 const CONDITION_GROUPS: { label: string; codes: string[] }[] = [
   { label: '싱글 카드', codes: ['like_new', 'minor_scratches', 'moderate_scratches', 'significant_damage'] },
   { label: 'PSA', codes: ['psa_10', 'psa_9', 'psa_8_below'] },
