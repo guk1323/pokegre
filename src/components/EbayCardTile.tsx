@@ -1,7 +1,6 @@
 import { formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
-import { KrwHint } from './KrwHint';
+import { Price } from './KrwHint';
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 export function EbayCardTile({
   card,
@@ -45,17 +44,14 @@ export function EbayCardTile({
       {variant === 'tcgplayer'
         ? tcg && (
             <>
-              <p className="text-base font-bold text-black">{usd.format(tcg.market)}</p>
-              <KrwHint amount={tcg.market} currency="usd" />
+              <Price amount={tcg.market} currency="usd" />
             </>
           )
         : topGrade &&
           top && (
             <>
-              <p className="text-base font-bold text-black">
-                {formatGradeLabel(topGrade.grade)} {usd.format(top.price)}
-              </p>
-              <KrwHint amount={top.price} currency="usd" />
+              <p className="text-[11px] font-semibold text-neutral-500">{formatGradeLabel(topGrade.grade)}</p>
+              <Price amount={top.price} currency="usd" />
             </>
           )}
       {onCompare && (

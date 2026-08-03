@@ -59,3 +59,43 @@ export function KrwRateNote() {
   if (!rates) return null;
   return <p className="text-[11px] text-neutral-400 mt-2">원화는 {formatRateDate(rates.date)} 참고값입니다.</p>;
 }
+
+const YEN = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
+const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+// 가격 한 덩어리. 원화를 크게, 원본 화폐(엔·달러)를 작게 보여준다.
+//
+// 왜 원화가 위인가: 엔과 달러가 한 화면에 섞여 나오는데(스니커덩크는 엔, 이베이·
+// TCGplayer는 달러), 원본만 크면 어느 게 비싼지 한눈에 안 들어온다.
+// 왜 원본을 지우지 않나: 환율이 유럽중앙은행 하루 한 번 발표값이라 실시간이 아니고,
+// 카드 결제에는 해외 수수료가 2~5% 더 붙는다. 원화만 남기면 그 금액을 그대로
+// 내는 줄 알게 된다. 그래서 "약"을 붙이고 원본 금액을 함께 남긴다.
+// ⚠️ 환율을 못 받아왔으면 원본을 크게 보여준다 — 원화 때문에 가격 자체를 못 보게
+//    만들면 안 된다.
+export function Price({
+  amount,
+  currency,
+  className = 'text-base font-bold text-black',
+  showDate = false,
+}: {
+  amount: number;
+  currency: 'jpy' | 'usd';
+  /** 큰 줄(원화)에 입힐 글자 크기·굵기. 쓰는 자리마다 다르다. */
+  className?: string;
+  showDate?: boolean;
+}) {
+  const rates = useExchangeRates();
+  const orig = currency === 'jpy' ? YEN.format(amount) : USD.format(amount);
+  if (!rates || amount <= 0) return <p className={className}>{orig}</p>;
+
+  const krw = amount * (currency === 'jpy' ? rates.jpyToKrw : rates.usdToKrw);
+  return (
+    <>
+      <p className={className}>{formatKrwApprox(krw)}</p>
+      <p className="text-xs text-neutral-400">
+        {orig}
+        {showDate && ` · ${formatRateDate(rates.date)}`}
+      </p>
+    </>
+  );
+}

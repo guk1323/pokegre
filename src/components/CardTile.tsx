@@ -1,9 +1,8 @@
 import type { SnkrdunkCard } from '../api/snkrdunk';
 import { thumb } from '../lib/cardCatalog';
 import { FavoriteButton } from './FavoriteButton';
-import { KrwHint } from './KrwHint';
+import { Price } from './KrwHint';
 
-const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
 
 export function CardTile({
   card,
@@ -74,8 +73,7 @@ export function CardTile({
           숨기고 안내만 남긴다. */}
       {Number.isFinite(card.price) && card.price > 0 ? (
         <>
-          <p className="text-base font-bold text-black">{yen.format(card.price)}</p>
-          <KrwHint amount={card.price} currency="jpy" />
+          <Price amount={card.price} currency="jpy" />
         </>
       ) : (
         <p className="text-sm font-semibold text-neutral-400">시세 없음</p>

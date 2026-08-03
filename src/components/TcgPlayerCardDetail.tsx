@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { EbayCard, EbayGradeStat } from '../api/ebayPrices';
-import { KrwHint, KrwRateNote } from './KrwHint';
+import { Price, KrwRateNote } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 function shortDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -85,16 +84,14 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
               <p className="text-[11px] text-neutral-400">미감정(로우) 기준 · 눌러서 TCGplayer ↗</p>
             </div>
             <div className="flex-shrink-0 text-right">
-              <p className="text-lg font-bold text-black leading-tight">{usd.format(t.market)}</p>
-              <KrwHint amount={t.market} currency="usd" />
+              <Price amount={t.market} currency="usd" className="text-lg font-bold text-black leading-tight" />
             </div>
           </div>
           {t.low > 0 && (
             <div className="flex items-center justify-between gap-2 border-t border-neutral-100 px-4 py-2">
               <p className="text-xs text-neutral-500">현재 최저가</p>
               <div className="text-right">
-                <p className="text-sm font-semibold text-neutral-700 leading-tight">{usd.format(t.low)}</p>
-                <KrwHint amount={t.low} currency="usd" />
+                <Price amount={t.low} currency="usd" className="text-sm font-semibold text-neutral-700 leading-tight" />
               </div>
             </div>
           )}

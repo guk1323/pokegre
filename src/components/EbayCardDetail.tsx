@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
-import { KrwHint, KrwRateNote } from './KrwHint';
+import { Price, KrwRateNote } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
@@ -91,8 +91,7 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
                     </p>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <p className="text-sm font-bold text-black leading-tight">{usd.format(price)}</p>
-                    <KrwHint amount={price} currency="usd" />
+                    <Price amount={price} currency="usd" className="text-sm font-bold text-black leading-tight" />
                     {isSmart && (
                       <p className="text-[11px] text-neutral-400 leading-tight">중앙값 {usd.format(g.medianPrice)}</p>
                     )}
