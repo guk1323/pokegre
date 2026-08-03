@@ -1,1 +1,375 @@
-{"ed":"ja","id":"SM10b","name":"스카이레전드","cards":[{"n":"001","name":"モクロー&アローラナッシーGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_1_R_JP_SM.png","r":"Double rare"},{"n":"002","name":"イシズマイ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_2_R_JP_SM.png","r":"Common"},{"n":"003","name":"イワパレス","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_3_R_JP_SM.png","r":"Uncommon"},{"n":"004","name":"カリキリ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_4_R_JP_SM.png","r":"Common"},{"n":"005","name":"ラランテス","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_5_R_JP_SM.png","r":"Common"},{"n":"006","name":"アマカジ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_6_R_JP_SM.png","r":"Common"},{"n":"007","name":"アママイコ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_7_R_JP_SM.png","r":"Common"},{"n":"008","name":"アマージョ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_8_R_JP_SM.png","r":"Rare"},{"n":"009","name":"ドンメル","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_9_R_JP_SM.png","r":"Common"},{"n":"010","name":"バクーダ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_10_R_JP_SM.png","r":"Uncommon"},{"n":"011","name":"ビクティニ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_11_R_JP_SM.png","r":"Rare"},{"n":"012","name":"ヒノヤコマ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_12_R_JP_SM.png","r":"Common"},{"n":"013","name":"ファイアロー","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_13_R_JP_SM.png","r":"Uncommon"},{"n":"014","name":"ユキワラシ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_14_R_JP_SM.png","r":"Common"},{"n":"015","name":"ユキメノコ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_15_R_JP_SM.png","r":"Rare"},{"n":"016","name":"ユキカブリ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_16_R_JP_SM.png","r":"Common"},{"n":"017","name":"ユキノオー","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_17_R_JP_SM.png","r":"Uncommon"},{"n":"018","name":"フリージオ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_18_R_JP_SM.png","r":"Common"},{"n":"019","name":"ケルディオGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_19_R_JP_SM.png","r":"Double rare"},{"n":"020","name":"カプ・レヒレ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_20_R_JP_SM.png","r":"Uncommon"},{"n":"021","name":"コイル","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_21_R_JP_SM.png","r":"Common"},{"n":"022","name":"レアコイル","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_22_R_JP_SM.png","r":"Common"},{"n":"023","name":"ジバコイル","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_23_R_JP_SM.png","r":"Rare"},{"n":"024","name":"デンジュモク","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_24_R_JP_SM.png","r":"Uncommon"},{"n":"025","name":"アーボ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_25_R_JP_SM.png","r":"Common"},{"n":"026","name":"アーボック","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_26_R_JP_SM.png","r":"Uncommon"},{"n":"027","name":"ドガース","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_27_R_JP_SM.png","r":"Common"},{"n":"028","name":"マタドガス","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_28_R_JP_SM.png","r":"Uncommon"},{"n":"029","name":"ユクシー","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_29_R_JP_SM.png","r":"Rare"},{"n":"030","name":"エムリット","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_30_R_JP_SM.png","r":"Common"},{"n":"031","name":"アグノム","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_31_R_JP_SM.png","r":"Common"},{"n":"032","name":"ベベノム","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_32_R_JP_SM.png","r":"Common"},{"n":"033","name":"クリムガン","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_33_R_JP_SM.png","r":"Common"},{"n":"034","name":"アーゴヨンGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_34_R_JP_SM.png","r":"Double rare"},{"n":"035","name":"ファイヤー&サンダー&フリーザーGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_35_R_JP_SM.png","r":"Double rare"},{"n":"036","name":"ベロリンガ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_36_R_JP_SM.png","r":"Common"},{"n":"037","name":"ベロベルト","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_37_R_JP_SM.png","r":"Uncommon"},{"n":"038","name":"ホーホー","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_38_R_JP_SM.png","r":"Common"},{"n":"039","name":"ヨルノズク","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_39_R_JP_SM.png","r":"Common"},{"n":"040","name":"タブンネ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_40_R_JP_SM.png","r":"Uncommon"},{"n":"041","name":"ヤヤコマ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_41_R_JP_SM.png","r":"Common"},{"n":"042","name":"タイプ：ヌル","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_42_R_JP_SM.png","r":"Common"},{"n":"043","name":"シルヴァディ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_43_R_JP_SM.png","r":"Rare"},{"n":"044","name":"ノーマルZたいあたり","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_44_R_JP_SM.png","r":"Uncommon"},{"n":"045","name":"ヒコウZエアスラッシュ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_45_R_JP_SM.png","r":"Uncommon"},{"n":"046","name":"Uターンボード","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_46_R_JP_SM.png","r":"Uncommon"},{"n":"047","name":"かいじゅうマニア","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_47_R_JP_SM.png","r":"Uncommon"},{"n":"048","name":"ムサシとコジロウ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_48_R_JP_SM.png","r":"Rare"},{"n":"049","name":"ブリザードタウン","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_49_R_JP_SM.png","r":"Uncommon"},{"n":"050","name":"リサイクルエネルギー","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_50_R_JP_SM.png","r":"Uncommon"},{"n":"051","name":"ネットボール","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_51_R_JP_SM.png"},{"n":"052","name":"グラジオ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_52_R_JP_SM.png"},{"n":"053","name":"リーリエ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_53_R_JP_SM.png"},{"n":"054","name":"ルザミーネ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_54_R_JP_SM.png"},{"n":"055","name":"モクロー&アローラナッシーGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_55_R_JP_SM.png","r":"Secret Rare"},{"n":"056","name":"モクロー&アローラナッシーGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_56_R_JP_SM.png","r":"Secret Rare"},{"n":"057","name":"ケルディオGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_57_R_JP_SM.png","r":"Secret Rare"},{"n":"058","name":"アーゴヨンGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_58_R_JP_SM.png","r":"Secret Rare"},{"n":"059","name":"ファイヤー&サンダー&フリーザーGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_59_R_JP_SM.png","r":"Secret Rare"},{"n":"060","name":"ファイヤー&サンダー&フリーザーGX","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_60_R_JP_SM.png","r":"Secret Rare"},{"n":"061","name":"かいじゅうマニア","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_61_R_JP_SM.png","r":"Secret Rare"},{"n":"062","name":"ムサシとコジロウ","img":"https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_62_R_JP_SM.png","r":"Secret Rare"}]}
+{
+ "ed": "ja",
+ "id": "SM10b",
+ "name": "스카이레전드",
+ "cards": [
+  {
+   "n": "001",
+   "name": "モクロー&アローラナッシーGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_1_R_JP_SM.png",
+   "r": "Double rare"
+  },
+  {
+   "n": "002",
+   "name": "イシズマイ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_2_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "003",
+   "name": "イワパレス",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_3_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "004",
+   "name": "カリキリ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_4_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "005",
+   "name": "ラランテス",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_5_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "006",
+   "name": "アマカジ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_6_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "007",
+   "name": "アママイコ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_7_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "008",
+   "name": "アマージョ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_8_R_JP_SM.png",
+   "r": "Rare"
+  },
+  {
+   "n": "009",
+   "name": "ドンメル",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_9_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "010",
+   "name": "バクーダ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_10_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "011",
+   "name": "ビクティニ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_11_R_JP_SM.png",
+   "r": "Rare"
+  },
+  {
+   "n": "012",
+   "name": "ヒノヤコマ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_12_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "013",
+   "name": "ファイアロー",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_13_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "014",
+   "name": "ユキワラシ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_14_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "015",
+   "name": "ユキメノコ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_15_R_JP_SM.png",
+   "r": "Rare"
+  },
+  {
+   "n": "016",
+   "name": "ユキカブリ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_16_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "017",
+   "name": "ユキノオー",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_17_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "018",
+   "name": "フリージオ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_18_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "019",
+   "name": "ケルディオGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_19_R_JP_SM.png",
+   "r": "Double rare"
+  },
+  {
+   "n": "020",
+   "name": "カプ・レヒレ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_20_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "021",
+   "name": "コイル",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_21_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "022",
+   "name": "レアコイル",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_22_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "023",
+   "name": "ジバコイル",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_23_R_JP_SM.png",
+   "r": "Rare"
+  },
+  {
+   "n": "024",
+   "name": "デンジュモク",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_24_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "025",
+   "name": "アーボ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_25_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "026",
+   "name": "アーボック",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_26_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "027",
+   "name": "ドガース",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_27_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "028",
+   "name": "マタドガス",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_28_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "029",
+   "name": "ユクシー",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_29_R_JP_SM.png",
+   "r": "Rare"
+  },
+  {
+   "n": "030",
+   "name": "エムリット",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_30_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "031",
+   "name": "アグノム",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_31_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "032",
+   "name": "ベベノム",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_32_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "033",
+   "name": "クリムガン",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_33_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "034",
+   "name": "アーゴヨンGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_34_R_JP_SM.png",
+   "r": "Double rare"
+  },
+  {
+   "n": "035",
+   "name": "ファイヤー&サンダー&フリーザーGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_35_R_JP_SM.png",
+   "r": "Double rare"
+  },
+  {
+   "n": "036",
+   "name": "ベロリンガ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_36_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "037",
+   "name": "ベロベルト",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_37_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "038",
+   "name": "ホーホー",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_38_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "039",
+   "name": "ヨルノズク",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_39_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "040",
+   "name": "タブンネ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_40_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "041",
+   "name": "ヤヤコマ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_41_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "042",
+   "name": "タイプ：ヌル",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_42_R_JP_SM.png",
+   "r": "Common"
+  },
+  {
+   "n": "043",
+   "name": "シルヴァディ",
+   "img": "",
+   "r": "Rare"
+  },
+  {
+   "n": "044",
+   "name": "ノーマルZたいあたり",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_44_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "045",
+   "name": "ヒコウZエアスラッシュ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_45_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "046",
+   "name": "Uターンボード",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_46_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "047",
+   "name": "かいじゅうマニア",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_47_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "048",
+   "name": "ムサシとコジロウ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_48_R_JP_SM.png",
+   "r": "Rare"
+  },
+  {
+   "n": "049",
+   "name": "ブリザードタウン",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_49_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "050",
+   "name": "リサイクルエネルギー",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_50_R_JP_SM.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "051",
+   "name": "ネットボール",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_51_R_JP_SM.png"
+  },
+  {
+   "n": "052",
+   "name": "グラジオ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_52_R_JP_SM.png"
+  },
+  {
+   "n": "053",
+   "name": "リーリエ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_53_R_JP_SM.png"
+  },
+  {
+   "n": "054",
+   "name": "ルザミーネ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_54_R_JP_SM.png"
+  },
+  {
+   "n": "055",
+   "name": "モクロー&アローラナッシーGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_55_R_JP_SM.png",
+   "r": "Secret Rare"
+  },
+  {
+   "n": "056",
+   "name": "モクロー&アローラナッシーGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_56_R_JP_SM.png",
+   "r": "Secret Rare"
+  },
+  {
+   "n": "057",
+   "name": "ケルディオGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_57_R_JP_SM.png",
+   "r": "Secret Rare"
+  },
+  {
+   "n": "058",
+   "name": "アーゴヨンGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_58_R_JP_SM.png",
+   "r": "Secret Rare"
+  },
+  {
+   "n": "059",
+   "name": "ファイヤー&サンダー&フリーザーGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_59_R_JP_SM.png",
+   "r": "Secret Rare"
+  },
+  {
+   "n": "060",
+   "name": "ファイヤー&サンダー&フリーザーGX",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_60_R_JP_SM.png",
+   "r": "Secret Rare"
+  },
+  {
+   "n": "061",
+   "name": "かいじゅうマニア",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_61_R_JP_SM.png",
+   "r": "Secret Rare"
+  },
+  {
+   "n": "062",
+   "name": "ムサシとコジロウ",
+   "img": "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/SM10b/SM10b_62_R_JP_SM.png",
+   "r": "Secret Rare"
+  }
+ ]
+}

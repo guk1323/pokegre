@@ -24,6 +24,22 @@ import path from 'node:path'
 
 const OUT = path.resolve(process.cwd(), 'public/sets')
 const WRITE = process.argv.includes('--write')
+// 그림이 실제로 있는지 열어 본다. 화면과 같은 규칙으로 /high.webp 를 붙여서 본다
+// (그걸 빼고 재면 멀쩡한 주소가 404로 보인다 — 실제로 한 번 헷갈렸다).
+const aliveCache = new Map<string, boolean>()
+async function imageAlive(url: string): Promise<boolean> {
+  const full = /\.(png|jpe?g|webp)(\?|$)/i.test(url) ? url : `${url.replace(/\/$/, '')}/high.webp`
+  const known = aliveCache.get(full)
+  if (known !== undefined) return known
+  let ok = false
+  try {
+    ok = (await fetch(full, { method: 'HEAD' })).ok
+  } catch {
+    ok = false
+  }
+  aliveCache.set(full, ok)
+  return ok
+}
 // ⚠️ "--recent 90"의 90을 세트 이름으로 오해하면 안 된다(그러면 90.json을 찾다가
 //    아무것도 안 나온다). --로 시작하는 것과 그 바로 뒤 값은 뺀다.
 const only = process.argv.slice(2).filter((a, i, arr) => !a.startsWith('--') && !arr[i - 1]?.startsWith('--'))
@@ -137,17 +153,26 @@ for (const f of files) {
   await sleep(500)
 
   let filled = 0
+  let dead = 0
   const used = new Set<string>()
   for (const c of blanks) {
     for (const [name, m] of srcs) {
       const hit = m.get(pad(c.n))
       if (!hit || norm(c.name) !== norm(hit.name)) continue
+      // ⚠️ 목록에 있다고 그림이 있는 게 아니다. TCGdex는 세트·번호로 주소를 만들어
+      //    주는데 실제 파일이 없는 세트가 있다(en-B1·en-P-A 등 57장이 전부 404였다).
+      //    깨진 그림은 빈칸보다 나쁘다 — 넣기 전에 하나씩 열어 본다.
+      if (!(await imageAlive(hit.img))) {
+        dead++
+        continue
+      }
       c.img = hit.img
       filled++
       used.add(name)
       break
     }
   }
+  if (dead) lines.push(`  ${slug.padEnd(15)} 주소는 있는데 그림이 없다(404) ${dead}장 — 빈칸으로 둔다`)
   totalFound += filled
   if (filled) {
     lines.push(`  ${slug.padEnd(15)} 빈칸 ${String(blanks.length).padStart(3)}장 중 ${String(filled).padStart(3)}장 찾음  (${[...used].join(', ')})`)
