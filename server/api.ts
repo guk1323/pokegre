@@ -15,7 +15,6 @@ import {
   STREAK_BONUS,
   STREAK_DAYS,
   isLive,
-  livePacks,
   packBySlug,
   PPT_SET_NAMES,
   type PackSet,
@@ -4217,24 +4216,48 @@ async function savePackPriceFile() {
   await writeJsonFile(PACK_PRICE_FILE, Object.fromEntries(packPriceCache))
 }
 
-// 미리 받을 세트를 고른다.
+// 미리 받을 세트를 고른다 — 순번제. 세트를 정해진 순서로 줄 세우고 매일 그중 몇 개만
+// 갱신해, 7일이면 44개가 한 바퀴 돈다.
 //
-// ⚠️ 예전엔 PPT_SET_NAMES 전부를 돌았다. 카드 뽑기에 세트를 추가할 때마다 미리받기
-//    범위가 같이 늘어나는 구조라, 2026-08-02에 23개→44개로 늘리자 한 바퀴가 하루치를
-//    넘겼다. 이제 "오늘 상점에 진열되는 6개"로 묶는다 — 오늘 살 수 있는 팩의 시세만
-//    미리 있으면 되고, 예전에 산 팩의 시세는 이미 받아 둔 값이 앨범에 그대로 쓰인다.
-// ⚠️ 시세를 아직 한 번도 못 받은 세트는 진열 여부와 상관없이 하루 두 개까지 채운다.
-//    안 그러면 진열에 뽑히기 전까지 그 세트만 시세가 통째로 빈다.
-const WARM_BACKFILL_PER_ROUND = 2
+// 왜 이렇게 하나 (2026-08-03 사용자와 정한 방식):
+//   · 예전엔 PPT_SET_NAMES 전부를 돌았다. 카드 뽑기에 세트를 추가할 때마다 범위가 같이
+//     늘어나는 구조라, 23개→44개가 되자 한 바퀴가 하루치(20,000)를 넘겼다.
+//   · 그다음엔 "오늘 진열되는 6개"로 묶었다. 싸지만 진열이 랜덤이라 운 나쁘면 43일 동안
+//     한 번도 안 뽑히는 세트가 생긴다(실측: ja-SV8 최대 43일).
+//   · 순번제는 비용이 거의 같으면서 **어느 세트든 7일 안에 반드시** 갱신된다.
+//
+// ⚠️ 날짜로 순번을 정한다. 서버가 꺼졌다 켜져도 순서가 안 밀리고, 하루에 여러 번 돌아도
+//    같은 날은 같은 세트만 본다(그날 몫을 다 받으면 그 뒤 바퀴는 할 일이 없다).
+// ⚠️ 44개를 7일로 나누면 7·7·6·6·6·6·6이다. 마지막 날만 2개 같은 들쭉날쭉을 피하려고
+//    앞에서부터 하나씩 더 얹는다.
+const WARM_CYCLE_DAYS = 7
+// 이 날짜(한국시간)까지는 순번제를 쉰다. 2026-08-03에 44개 시세를 한꺼번에 채우느라
+// 하루치를 많이 썼기 때문에, 그날은 더 받지 않고 다음 날부터 시작한다.
+// 지난 날짜라 아무 영향이 없어졌으면 이 줄과 아래 검사를 지우면 된다.
+const WARM_SKIP_UNTIL_KST = '2026-08-03'
+const kstDay = (ms = Date.now()) => new Date(ms + 9 * 3600_000).toISOString().slice(0, 10)
+
 function warmTargets(): string[] {
-  const live = livePacks()
-    .map((p) => p.slug)
-    .filter((s) => PPT_SET_NAMES[s])
-  const never = Object.keys(PPT_SET_NAMES).filter((s) => {
-    const hit = packPriceCache.get(s)
-    return !hit || !Object.keys(hit.prices ?? {}).length
-  })
-  return [...new Set([...live, ...never.slice(0, WARM_BACKFILL_PER_ROUND)])]
+  const all = Object.keys(PPT_SET_NAMES).sort() // 순서가 매일 같아야 한다
+  if (!all.length) return []
+  // 쉬는 날이라도 "시세가 아예 없는 세트"는 채운다 — 앨범에서 값이 통째로 비어 보이는
+  // 것은 크레딧을 아끼는 것보다 나쁘다. 지금은 44개가 다 차 있어 해당 없음.
+  if (kstDay() <= WARM_SKIP_UNTIL_KST) {
+    return all.filter((s) => !Object.keys(packPriceCache.get(s)?.prices ?? {}).length)
+  }
+  // 시세가 아예 없는 세트는 순번과 상관없이 먼저 채운다 — 앨범에서 값이 통째로 비어
+  // 보이는 것이 제일 나쁘다(새 팩을 추가한 날 그런 상태가 된다).
+  const never = all.filter((s) => !Object.keys(packPriceCache.get(s)?.prices ?? {}).length)
+  if (never.length) return never.slice(0, Math.ceil(all.length / WARM_CYCLE_DAYS))
+
+  // 오늘이 한 바퀴 중 몇 번째 날인지. 한국시간 기준으로 끊는다(진열도 한국시간 자정에 바뀐다).
+  const dayNo = Math.floor((Date.now() + 9 * 3600_000) / 86400_000)
+  const slot = dayNo % WARM_CYCLE_DAYS
+  const per = Math.floor(all.length / WARM_CYCLE_DAYS)
+  const extra = all.length % WARM_CYCLE_DAYS
+  // 앞 extra일은 한 개씩 더 맡는다. 시작 위치는 그걸 감안해 센다.
+  const start = slot * per + Math.min(slot, extra)
+  return all.slice(start, start + per + (slot < extra ? 1 : 0))
 }
 
 let warming = false
@@ -5212,33 +5235,22 @@ function mountAuth(
         const prices: Record<string, Record<string, number>> = {}
         const names: Record<string, Record<string, string>> = {}
         const pending: string[] = []
-        // PPT는 분당 크레딧 500인데 세트 하나 받는 데 250이 든다. 한 요청에 두 세트를
-        // 받으면 그 분의 남은 호출이 전부 429라, 업스트림은 요청당 1세트만 부르고
-        // 나머지는 pending으로 알린다. 화면이 1분쯤 뒤 다시 부르면 하나씩 채워진다.
-        let fetched = false
+        // ⚠️ 여기서는 시세를 **새로 받지 않는다**(2026-08-03 사용자와 정함).
+        //    예전에는 낡은 세트를 만나면 그 자리에서 받아왔다. 그러면 크레딧이 얼마나
+        //    나갈지 아무도 모른다 — 사람이 늘고 앨범에 세트가 쌓일수록 늘어나고,
+        //    방문자 몫을 지키는 안전장치도 이 길에는 안 걸려 있었다.
+        //    이제 갱신은 순번제 미리받기(warmTargets)가 전담한다. 어느 세트든 7일 안에
+        //    갱신되므로, 앨범은 저장된 값을 그대로 보여주면 된다.
+        //    → 앨범을 아무리 많이 열어도 크레딧은 0이다.
         for (const slug of slugs) {
           const cached = packPriceCache.get(slug)
-          const fresh = !!cached && packPriceFresh(cached)
-          if (fresh) {
-            prices[slug] = cached.prices
-            if (cached.names) names[slug] = cached.names
+          if (Object.keys(cached?.prices ?? {}).length) {
+            prices[slug] = cached!.prices
+            if (cached!.names) names[slug] = cached!.names
             continue
           }
-          if (!fetched && !warming && PPT_SET_NAMES[slug]) {
-            fetched = true
-            const p = await getSetPrices(slug, pptApiKey)
-            const after = packPriceCache.get(slug)
-            if (p && after) {
-              prices[slug] = p
-              if (after.names) names[slug] = after.names
-            } else if (PPT_SET_NAMES[slug]) pending.push(slug)
-          } else if (PPT_SET_NAMES[slug]) {
-            if (cached) {
-              prices[slug] = cached.prices // 만료·부분이어도 있으면 일단 보여준다
-              if (cached.names) names[slug] = cached.names
-            }
-            pending.push(slug)
-          }
+          // 아직 한 번도 못 받은 세트만 "준비 중"으로 알린다. 순번제가 제일 먼저 채운다.
+          if (PPT_SET_NAMES[slug]) pending.push(slug)
         }
         let totalUsd = 0
         let priced = 0
