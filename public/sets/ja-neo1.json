@@ -1,1 +1,583 @@
-{"ed": "ja", "id": "neo1", "name": "금, 은, 신세계로...", "cards": [{"n": "001", "name": "奇妙な", "img": "https://den-cards.pokellector.com/324/Oddish.NEO1.1.38520.thumb.png", "r": "Common"}, {"n": "002", "name": "チコリータ", "img": "https://den-cards.pokellector.com/324/Chikorita.NEO1.2.38521.thumb.png", "r": "Common"}, {"n": "003", "name": "レディバ", "img": "https://den-cards.pokellector.com/324/Ledyba.NEO1.3.38522.thumb.png", "r": "Common"}, {"n": "004", "name": "スパラク", "img": "https://den-cards.pokellector.com/324/Spinarak.NEO1.4.38523.thumb.png", "r": "Common"}, {"n": "005", "name": "ホッピップ", "img": "https://den-cards.pokellector.com/324/Hoppip.NEO1.5.38524.thumb.png", "r": "Common"}, {"n": "006", "name": "サンカーン", "img": "https://den-cards.pokellector.com/324/Sunkern.NEO1.6.38525.thumb.png", "r": "Common"}, {"n": "007", "name": "シャックル", "img": "https://den-cards.pokellector.com/324/Shuckle.NEO1.7.38526.thumb.png", "r": "Common"}, {"n": "008", "name": "クサイハナ", "img": "https://den-cards.pokellector.com/324/Gloom.NEO1.8.38527.thumb.png", "r": "Uncommon"}, {"n": "009", "name": "Bayleef", "img": "https://den-cards.pokellector.com/324/Bayleef.NEO1.9.38528.thumb.png", "r": "Uncommon"}, {"n": "010", "name": "レディアン", "img": "https://den-cards.pokellector.com/324/Ledian.NEO1.10.38529.thumb.png", "r": "Uncommon"}, {"n": "011", "name": "アリアドス", "img": "https://den-cards.pokellector.com/324/Ariados.NEO1.11.38530.thumb.png", "r": "Uncommon"}, {"n": "012", "name": "スキプルーム", "img": "https://den-cards.pokellector.com/324/Skiploom.NEO1.12.38531.thumb.png", "r": "Uncommon"}, {"n": "013", "name": "サンフロラ", "img": "https://den-cards.pokellector.com/324/Sunflora.NEO1.13.38532.thumb.png", "r": "Uncommon"}, {"n": "014", "name": "ミーガニウム", "img": "https://den-cards.pokellector.com/324/Meganium.NEO1.14.38533.thumb.png", "r": "Holo Rare"}, {"n": "015", "name": "Bellossom", "img": "https://den-cards.pokellector.com/324/Bellossom.NEO1.15.38534.thumb.png", "r": "Holo Rare"}, {"n": "016", "name": "ジャンプラフ", "img": "https://den-cards.pokellector.com/324/Jumpluff.NEO1.16.38535.thumb.png", "r": "Holo Rare"}, {"n": "017", "name": "ヘラクロス", "img": "https://den-cards.pokellector.com/324/Heracross.NEO1.17.38536.thumb.png", "r": "Holo Rare"}, {"n": "018", "name": "シンダキル", "img": "https://den-cards.pokellector.com/324/Cyndaquil.NEO1.18.38537.thumb.png", "r": "Common"}, {"n": "019", "name": "マグマー", "img": "https://den-cards.pokellector.com/324/Magmar.NEO1.19.38538.thumb.png", "r": "Uncommon"}, {"n": "020", "name": "キラバ", "img": "https://den-cards.pokellector.com/324/Quilava.NEO1.20.38539.thumb.png", "r": "Uncommon"}, {"n": "021", "name": "バクフーン", "img": "https://den-cards.pokellector.com/324/Typhlosion.NEO1.21.38540.thumb.png", "r": "Holo Rare"}, {"n": "022", "name": "マグビー", "img": "https://den-cards.pokellector.com/324/Magby.NEO1.22.38541.thumb.png", "r": "Rare"}, {"n": "023", "name": "タッツー", "img": "https://den-cards.pokellector.com/324/Horsea.NEO1.23.38542.thumb.png", "r": "Common"}, {"n": "024", "name": "totodile", "img": "https://den-cards.pokellector.com/324/Totodile.NEO1.24.38543.thumb.png", "r": "Common"}, {"n": "025", "name": "マリル", "img": "https://den-cards.pokellector.com/324/Marill.NEO1.25.38544.thumb.png", "r": "Common"}, {"n": "026", "name": "ウーパー", "img": "https://den-cards.pokellector.com/324/Wooper.NEO1.26.38545.thumb.png", "r": "Common"}, {"n": "027", "name": "swinub", "img": "https://den-cards.pokellector.com/324/Swinub.NEO1.27.38546.thumb.png", "r": "Common"}, {"n": "028", "name": "マンティン", "img": "https://den-cards.pokellector.com/324/Mantine.NEO1.28.38547.thumb.png", "r": "Common"}, {"n": "029", "name": "シードラ", "img": "https://den-cards.pokellector.com/324/Seadra.NEO1.29.38548.thumb.png", "r": "Uncommon"}, {"n": "030", "name": "クロコノー", "img": "https://den-cards.pokellector.com/324/Croconaw.NEO1.30.38549.thumb.png", "r": "Uncommon"}, {"n": "031", "name": "quagsire", "img": "https://den-cards.pokellector.com/324/Quagsire.NEO1.31.38550.thumb.png", "r": "Uncommon"}, {"n": "032", "name": "ピロスワイン", "img": "https://den-cards.pokellector.com/324/Piloswine.NEO1.32.38551.thumb.png", "r": "Uncommon"}, {"n": "033", "name": "feraligatr", "img": "https://den-cards.pokellector.com/324/Feraligatr.NEO1.33.38552.thumb.png", "r": "Holo Rare"}, {"n": "034", "name": "アズマリル", "img": "https://den-cards.pokellector.com/324/Azumarill.NEO1.34.38553.thumb.png", "r": "Holo Rare"}, {"n": "035", "name": "キングドラ", "img": "https://den-cards.pokellector.com/324/Kingdra.NEO1.35.38554.thumb.png", "r": "Holo Rare"}, {"n": "036", "name": "ピカチュウ", "img": "https://den-cards.pokellector.com/324/Pikachu.NEO1.36.38555.thumb.png", "r": "Common"}, {"n": "037", "name": "チンチョウ", "img": "https://den-cards.pokellector.com/324/Chinchou.NEO1.37.38556.thumb.png", "r": "Common"}, {"n": "038", "name": "Mareep", "img": "https://den-cards.pokellector.com/324/Mareep.NEO1.38.38557.thumb.png", "r": "Common"}, {"n": "039", "name": "Electabuzz", "img": "https://den-cards.pokellector.com/324/Electabuzz.NEO1.39.38558.thumb.png", "r": "Uncommon"}, {"n": "040", "name": "ラントン", "img": "https://den-cards.pokellector.com/324/Lanturn.NEO1.40.38559.thumb.png", "r": "Uncommon"}, {"n": "041", "name": "フラフィー", "img": "https://den-cards.pokellector.com/324/Flaaffy.NEO1.41.38560.thumb.png", "r": "Uncommon"}, {"n": "042", "name": "ピチュ", "img": "https://den-cards.pokellector.com/324/Pichu.NEO1.42.38561.thumb.png", "r": "Holo Rare"}, {"n": "043", "name": "アンファロス", "img": "https://den-cards.pokellector.com/324/Ampharos.NEO1.43.38562.thumb.png", "r": "Holo Rare"}, {"n": "044", "name": "Elekid", "img": "https://den-cards.pokellector.com/324/Elekid.NEO1.44.38563.thumb.png", "r": "Rare"}, {"n": "045", "name": "slowpoke", "img": "https://den-cards.pokellector.com/324/Slowpoke.NEO1.45.38564.thumb.png", "r": "Common"}, {"n": "046", "name": "natu", "img": "https://den-cards.pokellector.com/324/Natu.NEO1.46.38565.thumb.png", "r": "Common"}, {"n": "047", "name": "Girafarig", "img": "https://den-cards.pokellector.com/324/Girafarig.NEO1.47.38566.thumb.png", "r": "Common"}, {"n": "048", "name": "xatu", "img": "https://den-cards.pokellector.com/324/Xatu.NEO1.48.38567.thumb.png", "r": "Uncommon"}, {"n": "049", "name": "スローキング", "img": "https://den-cards.pokellector.com/324/Slowking.NEO1.49.38568.thumb.png", "r": "Holo Rare"}, {"n": "050", "name": "onix", "img": "https://den-cards.pokellector.com/324/Onix.NEO1.50.38569.thumb.png", "r": "Common"}, {"n": "051", "name": "sudowoodo", "img": "https://den-cards.pokellector.com/324/Sudowoodo.NEO1.51.38570.thumb.png", "r": "Common"}, {"n": "052", "name": "グリガー", "img": "https://den-cards.pokellector.com/324/Gligar.NEO1.52.38571.thumb.png", "r": "Common"}, {"n": "053", "name": "ファンピー", "img": "https://den-cards.pokellector.com/324/Phanpy.NEO1.53.38572.thumb.png", "r": "Uncommon"}, {"n": "054", "name": "ドンファン", "img": "https://den-cards.pokellector.com/324/Donphan.NEO1.54.38573.thumb.png", "r": "Rare"}, {"n": "055", "name": "マークロウ", "img": "https://den-cards.pokellector.com/324/Murkrow.NEO1.55.38574.thumb.png", "r": "Rare"}, {"n": "056", "name": "スニーエル", "img": "https://den-cards.pokellector.com/324/Sneasel.NEO1.56.38575.thumb.png", "r": "Rare"}, {"n": "057", "name": "Steelix", "img": "https://den-cards.pokellector.com/324/Steelix.NEO1.57.38576.thumb.png", "r": "Holo Rare"}, {"n": "058", "name": "スカルモリー", "img": "https://den-cards.pokellector.com/324/Skarmory.NEO1.58.38577.thumb.png", "r": "Holo Rare"}, {"n": "059", "name": "セントレット", "img": "https://den-cards.pokellector.com/324/Sentret.NEO1.59.38578.thumb.png", "r": "Common"}, {"n": "060", "name": "hoothoot", "img": "https://den-cards.pokellector.com/324/Hoothoot.NEO1.60.38579.thumb.png", "r": "Common"}, {"n": "061", "name": "Snubbull", "img": "https://den-cards.pokellector.com/324/Snubbull.NEO1.61.38580.thumb.png", "r": "Common"}, {"n": "062", "name": "スタントラー", "img": "https://den-cards.pokellector.com/324/Stantler.NEO1.62.38581.thumb.png", "r": "Common"}, {"n": "063", "name": "クリーフ", "img": "https://den-cards.pokellector.com/324/Clefairy.NEO1.63.38582.thumb.png", "r": "Uncommon"}, {"n": "064", "name": "Furret", "img": "https://den-cards.pokellector.com/324/Furret.NEO1.64.38583.thumb.png", "r": "Uncommon"}, {"n": "065", "name": "ノクトウル", "img": "https://den-cards.pokellector.com/324/Noctowl.NEO1.65.38584.thumb.png", "r": "Uncommon"}, {"n": "066", "name": "togepi", "img": "https://den-cards.pokellector.com/324/Togepi.NEO1.66.38585.thumb.png", "r": "Uncommon"}, {"n": "067", "name": "aipom", "img": "https://den-cards.pokellector.com/324/Aipom.NEO1.67.38586.thumb.png", "r": "Uncommon"}, {"n": "068", "name": "グランブル", "img": "https://den-cards.pokellector.com/324/Granbull.NEO1.68.38587.thumb.png", "r": "Uncommon"}, {"n": "069", "name": "ミルタンク", "img": "https://den-cards.pokellector.com/324/Miltank.NEO1.69.38588.thumb.png", "r": "Uncommon"}, {"n": "070", "name": "クレファ", "img": "https://den-cards.pokellector.com/324/Cleffa.NEO1.70.38589.thumb.png", "r": "Rare"}, {"n": "071", "name": "togetic", "img": "https://den-cards.pokellector.com/324/Togetic.NEO1.71.38590.thumb.png", "r": "Holo Rare"}, {"n": "072", "name": "ルギア", "img": "https://den-cards.pokellector.com/324/Lugia.NEO1.72.38591.thumb.png", "r": "Holo Rare"}, {"n": "073", "name": "ベリー", "img": "https://den-cards.pokellector.com/324/Berry.NEO1.73.38592.thumb.png", "r": "Common"}, {"n": "074", "name": "スーパーロッド", "img": "https://den-cards.pokellector.com/324/Super-Rod.NEO1.74.38593.thumb.png", "r": "Common"}, {"n": "075", "name": "二重突風", "img": "https://den-cards.pokellector.com/324/Double-Gust.NEO1.75.38594.thumb.png", "r": "Common"}, {"n": "076", "name": "ポケモンマーチ", "img": "https://den-cards.pokellector.com/324/Pokmon-March.NEO1.76.38595.thumb.png", "r": "Common"}, {"n": "077", "name": "Moomooミルク", "img": "https://den-cards.pokellector.com/324/Moo-Moo-Milk.NEO1.77.38596.thumb.png", "r": "Common"}, {"n": "078", "name": "エルム教授", "img": "https://den-cards.pokellector.com/324/Professor-Elm.NEO1.78.38597.thumb.png", "r": "Uncommon"}, {"n": "079", "name": "ゴールドベリー", "img": "https://den-cards.pokellector.com/324/Gold-Berry.NEO1.79.38598.thumb.png", "r": "Uncommon"}, {"n": "080", "name": "カードフリップゲーム", "img": "https://den-cards.pokellector.com/324/Card-Flip-Game.NEO1.80.38599.thumb.png", "r": "Uncommon"}, {"n": "081", "name": "ミラクルベリー", "img": "https://den-cards.pokellector.com/324/Miracle-Berry.NEO1.81.38600.thumb.png", "r": "Uncommon"}, {"n": "082", "name": "新しいpokedex", "img": "https://den-cards.pokellector.com/324/New-Pokdex.NEO1.82.38601.thumb.png", "r": "Uncommon"}, {"n": "083", "name": "スーパースクープアップ", "img": "https://den-cards.pokellector.com/324/Super-Scoop-Up.NEO1.83.38602.thumb.png", "r": "Uncommon"}, {"n": "084", "name": "ビルのテレポーター", "img": "https://den-cards.pokellector.com/324/Bills-Teleporter.NEO1.84.38603.thumb.png", "r": "Uncommon"}, {"n": "085", "name": "スプラウトタワー", "img": "https://den-cards.pokellector.com/324/Sprout-Tower.NEO1.85.38604.thumb.png", "r": "Uncommon"}, {"n": "086", "name": "ecogym", "img": "https://den-cards.pokellector.com/324/Ecogym.NEO1.86.38605.thumb.png", "r": "Rare"}, {"n": "087", "name": "エネルギー電荷", "img": "https://den-cards.pokellector.com/324/Energy-Charge.NEO1.87.38606.thumb.png", "r": "Rare"}, {"n": "088", "name": "フォーカスバンド", "img": "https://den-cards.pokellector.com/324/Focus-Band.NEO1.88.38607.thumb.png", "r": "Rare"}, {"n": "089", "name": "メアリー", "img": "https://den-cards.pokellector.com/324/Mary.NEO1.89.38608.thumb.png", "r": "Rare"}, {"n": "090", "name": "アーケードゲーム", "img": "https://den-cards.pokellector.com/324/Arcade-Game.NEO1.90.38609.thumb.png", "r": "Rare"}, {"n": "091", "name": "タイムカプセル", "img": "https://den-cards.pokellector.com/324/Time-Capsule.NEO1.91.38610.thumb.png", "r": "Rare"}, {"n": "092", "name": "スーパーエネルギー検索", "img": "https://den-cards.pokellector.com/324/Super-Energy-Retrieval.NEO1.92.38611.thumb.png", "r": "Rare"}, {"n": "093", "name": "ポクギア", "img": "https://den-cards.pokellector.com/324/PokGear.NEO1.93.38612.thumb.png", "r": "Rare"}, {"n": "094", "name": "闇のエネルギー", "img": "https://den-cards.pokellector.com/324/Darkness-Energy.NEO1.94.38613.thumb.png", "r": "Rare"}, {"n": "095", "name": "金属エネルギー", "img": "https://den-cards.pokellector.com/324/Metal-Energy.NEO1.95.38614.thumb.png", "r": "Holo Rare"}, {"n": "096", "name": "エネルギーをリサイクルします", "img": "https://den-cards.pokellector.com/324/Recycle-Energy.NEO1.96.38615.thumb.png", "r": "Rare"}]}
+{
+ "ed": "ja",
+ "id": "neo1",
+ "name": "금, 은, 신세계로...",
+ "cards": [
+  {
+   "n": "001",
+   "name": "Oddish",
+   "img": "https://den-cards.pokellector.com/324/Oddish.NEO1.1.38520.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "002",
+   "name": "チコリータ",
+   "img": "https://den-cards.pokellector.com/324/Chikorita.NEO1.2.38521.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "003",
+   "name": "レディバ",
+   "img": "https://den-cards.pokellector.com/324/Ledyba.NEO1.3.38522.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "004",
+   "name": "スパラク",
+   "img": "https://den-cards.pokellector.com/324/Spinarak.NEO1.4.38523.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "005",
+   "name": "ホッピップ",
+   "img": "https://den-cards.pokellector.com/324/Hoppip.NEO1.5.38524.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "006",
+   "name": "サンカーン",
+   "img": "https://den-cards.pokellector.com/324/Sunkern.NEO1.6.38525.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "007",
+   "name": "シャックル",
+   "img": "https://den-cards.pokellector.com/324/Shuckle.NEO1.7.38526.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "008",
+   "name": "クサイハナ",
+   "img": "https://den-cards.pokellector.com/324/Gloom.NEO1.8.38527.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "009",
+   "name": "Bayleef",
+   "img": "https://den-cards.pokellector.com/324/Bayleef.NEO1.9.38528.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "010",
+   "name": "レディアン",
+   "img": "https://den-cards.pokellector.com/324/Ledian.NEO1.10.38529.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "011",
+   "name": "アリアドス",
+   "img": "https://den-cards.pokellector.com/324/Ariados.NEO1.11.38530.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "012",
+   "name": "スキプルーム",
+   "img": "https://den-cards.pokellector.com/324/Skiploom.NEO1.12.38531.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "013",
+   "name": "サンフロラ",
+   "img": "https://den-cards.pokellector.com/324/Sunflora.NEO1.13.38532.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "014",
+   "name": "ミーガニウム",
+   "img": "https://den-cards.pokellector.com/324/Meganium.NEO1.14.38533.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "015",
+   "name": "Bellossom",
+   "img": "https://den-cards.pokellector.com/324/Bellossom.NEO1.15.38534.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "016",
+   "name": "ジャンプラフ",
+   "img": "https://den-cards.pokellector.com/324/Jumpluff.NEO1.16.38535.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "017",
+   "name": "ヘラクロス",
+   "img": "https://den-cards.pokellector.com/324/Heracross.NEO1.17.38536.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "018",
+   "name": "シンダキル",
+   "img": "https://den-cards.pokellector.com/324/Cyndaquil.NEO1.18.38537.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "019",
+   "name": "マグマー",
+   "img": "https://den-cards.pokellector.com/324/Magmar.NEO1.19.38538.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "020",
+   "name": "Quilava",
+   "img": "https://den-cards.pokellector.com/324/Quilava.NEO1.20.38539.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "021",
+   "name": "バクフーン",
+   "img": "https://den-cards.pokellector.com/324/Typhlosion.NEO1.21.38540.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "022",
+   "name": "マグビー",
+   "img": "https://den-cards.pokellector.com/324/Magby.NEO1.22.38541.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "023",
+   "name": "タッツー",
+   "img": "https://den-cards.pokellector.com/324/Horsea.NEO1.23.38542.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "024",
+   "name": "totodile",
+   "img": "https://den-cards.pokellector.com/324/Totodile.NEO1.24.38543.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "025",
+   "name": "マリル",
+   "img": "https://den-cards.pokellector.com/324/Marill.NEO1.25.38544.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "026",
+   "name": "ウーパー",
+   "img": "https://den-cards.pokellector.com/324/Wooper.NEO1.26.38545.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "027",
+   "name": "swinub",
+   "img": "https://den-cards.pokellector.com/324/Swinub.NEO1.27.38546.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "028",
+   "name": "マンティン",
+   "img": "https://den-cards.pokellector.com/324/Mantine.NEO1.28.38547.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "029",
+   "name": "シードラ",
+   "img": "https://den-cards.pokellector.com/324/Seadra.NEO1.29.38548.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "030",
+   "name": "クロコノー",
+   "img": "https://den-cards.pokellector.com/324/Croconaw.NEO1.30.38549.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "031",
+   "name": "quagsire",
+   "img": "https://den-cards.pokellector.com/324/Quagsire.NEO1.31.38550.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "032",
+   "name": "ピロスワイン",
+   "img": "https://den-cards.pokellector.com/324/Piloswine.NEO1.32.38551.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "033",
+   "name": "feraligatr",
+   "img": "https://den-cards.pokellector.com/324/Feraligatr.NEO1.33.38552.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "034",
+   "name": "アズマリル",
+   "img": "https://den-cards.pokellector.com/324/Azumarill.NEO1.34.38553.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "035",
+   "name": "キングドラ",
+   "img": "https://den-cards.pokellector.com/324/Kingdra.NEO1.35.38554.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "036",
+   "name": "ピカチュウ",
+   "img": "https://den-cards.pokellector.com/324/Pikachu.NEO1.36.38555.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "037",
+   "name": "チンチョウ",
+   "img": "https://den-cards.pokellector.com/324/Chinchou.NEO1.37.38556.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "038",
+   "name": "Mareep",
+   "img": "https://den-cards.pokellector.com/324/Mareep.NEO1.38.38557.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "039",
+   "name": "Electabuzz",
+   "img": "https://den-cards.pokellector.com/324/Electabuzz.NEO1.39.38558.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "040",
+   "name": "ラントン",
+   "img": "https://den-cards.pokellector.com/324/Lanturn.NEO1.40.38559.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "041",
+   "name": "フラフィー",
+   "img": "https://den-cards.pokellector.com/324/Flaaffy.NEO1.41.38560.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "042",
+   "name": "ピチュ",
+   "img": "https://den-cards.pokellector.com/324/Pichu.NEO1.42.38561.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "043",
+   "name": "アンファロス",
+   "img": "https://den-cards.pokellector.com/324/Ampharos.NEO1.43.38562.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "044",
+   "name": "Elekid",
+   "img": "https://den-cards.pokellector.com/324/Elekid.NEO1.44.38563.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "045",
+   "name": "slowpoke",
+   "img": "https://den-cards.pokellector.com/324/Slowpoke.NEO1.45.38564.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "046",
+   "name": "natu",
+   "img": "https://den-cards.pokellector.com/324/Natu.NEO1.46.38565.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "047",
+   "name": "Girafarig",
+   "img": "https://den-cards.pokellector.com/324/Girafarig.NEO1.47.38566.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "048",
+   "name": "xatu",
+   "img": "https://den-cards.pokellector.com/324/Xatu.NEO1.48.38567.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "049",
+   "name": "スローキング",
+   "img": "https://den-cards.pokellector.com/324/Slowking.NEO1.49.38568.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "050",
+   "name": "onix",
+   "img": "https://den-cards.pokellector.com/324/Onix.NEO1.50.38569.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "051",
+   "name": "sudowoodo",
+   "img": "https://den-cards.pokellector.com/324/Sudowoodo.NEO1.51.38570.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "052",
+   "name": "グリガー",
+   "img": "https://den-cards.pokellector.com/324/Gligar.NEO1.52.38571.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "053",
+   "name": "ファンピー",
+   "img": "https://den-cards.pokellector.com/324/Phanpy.NEO1.53.38572.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "054",
+   "name": "ドンファン",
+   "img": "https://den-cards.pokellector.com/324/Donphan.NEO1.54.38573.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "055",
+   "name": "マークロウ",
+   "img": "https://den-cards.pokellector.com/324/Murkrow.NEO1.55.38574.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "056",
+   "name": "スニーエル",
+   "img": "https://den-cards.pokellector.com/324/Sneasel.NEO1.56.38575.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "057",
+   "name": "Steelix",
+   "img": "https://den-cards.pokellector.com/324/Steelix.NEO1.57.38576.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "058",
+   "name": "スカルモリー",
+   "img": "https://den-cards.pokellector.com/324/Skarmory.NEO1.58.38577.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "059",
+   "name": "セントレット",
+   "img": "https://den-cards.pokellector.com/324/Sentret.NEO1.59.38578.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "060",
+   "name": "hoothoot",
+   "img": "https://den-cards.pokellector.com/324/Hoothoot.NEO1.60.38579.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "061",
+   "name": "Snubbull",
+   "img": "https://den-cards.pokellector.com/324/Snubbull.NEO1.61.38580.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "062",
+   "name": "スタントラー",
+   "img": "https://den-cards.pokellector.com/324/Stantler.NEO1.62.38581.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "063",
+   "name": "クリーフ",
+   "img": "https://den-cards.pokellector.com/324/Clefairy.NEO1.63.38582.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "064",
+   "name": "Furret",
+   "img": "https://den-cards.pokellector.com/324/Furret.NEO1.64.38583.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "065",
+   "name": "ノクトウル",
+   "img": "https://den-cards.pokellector.com/324/Noctowl.NEO1.65.38584.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "066",
+   "name": "togepi",
+   "img": "https://den-cards.pokellector.com/324/Togepi.NEO1.66.38585.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "067",
+   "name": "aipom",
+   "img": "https://den-cards.pokellector.com/324/Aipom.NEO1.67.38586.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "068",
+   "name": "グランブル",
+   "img": "https://den-cards.pokellector.com/324/Granbull.NEO1.68.38587.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "069",
+   "name": "ミルタンク",
+   "img": "https://den-cards.pokellector.com/324/Miltank.NEO1.69.38588.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "070",
+   "name": "クレファ",
+   "img": "https://den-cards.pokellector.com/324/Cleffa.NEO1.70.38589.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "071",
+   "name": "togetic",
+   "img": "https://den-cards.pokellector.com/324/Togetic.NEO1.71.38590.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "072",
+   "name": "ルギア",
+   "img": "https://den-cards.pokellector.com/324/Lugia.NEO1.72.38591.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "073",
+   "name": "ベリー",
+   "img": "https://den-cards.pokellector.com/324/Berry.NEO1.73.38592.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "074",
+   "name": "スーパーロッド",
+   "img": "https://den-cards.pokellector.com/324/Super-Rod.NEO1.74.38593.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "075",
+   "name": "二重突風",
+   "img": "https://den-cards.pokellector.com/324/Double-Gust.NEO1.75.38594.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "076",
+   "name": "ポケモンマーチ",
+   "img": "https://den-cards.pokellector.com/324/Pokmon-March.NEO1.76.38595.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "077",
+   "name": "Moomooミルク",
+   "img": "https://den-cards.pokellector.com/324/Moo-Moo-Milk.NEO1.77.38596.thumb.png",
+   "r": "Common"
+  },
+  {
+   "n": "078",
+   "name": "エルム教授",
+   "img": "https://den-cards.pokellector.com/324/Professor-Elm.NEO1.78.38597.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "079",
+   "name": "ゴールドベリー",
+   "img": "https://den-cards.pokellector.com/324/Gold-Berry.NEO1.79.38598.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "080",
+   "name": "カードフリップゲーム",
+   "img": "https://den-cards.pokellector.com/324/Card-Flip-Game.NEO1.80.38599.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "081",
+   "name": "ミラクルベリー",
+   "img": "https://den-cards.pokellector.com/324/Miracle-Berry.NEO1.81.38600.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "082",
+   "name": "新しいpokedex",
+   "img": "https://den-cards.pokellector.com/324/New-Pokdex.NEO1.82.38601.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "083",
+   "name": "スーパースクープアップ",
+   "img": "https://den-cards.pokellector.com/324/Super-Scoop-Up.NEO1.83.38602.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "084",
+   "name": "ビルのテレポーター",
+   "img": "https://den-cards.pokellector.com/324/Bills-Teleporter.NEO1.84.38603.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "085",
+   "name": "スプラウトタワー",
+   "img": "https://den-cards.pokellector.com/324/Sprout-Tower.NEO1.85.38604.thumb.png",
+   "r": "Uncommon"
+  },
+  {
+   "n": "086",
+   "name": "ecogym",
+   "img": "https://den-cards.pokellector.com/324/Ecogym.NEO1.86.38605.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "087",
+   "name": "エネルギー電荷",
+   "img": "https://den-cards.pokellector.com/324/Energy-Charge.NEO1.87.38606.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "088",
+   "name": "フォーカスバンド",
+   "img": "https://den-cards.pokellector.com/324/Focus-Band.NEO1.88.38607.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "089",
+   "name": "メアリー",
+   "img": "https://den-cards.pokellector.com/324/Mary.NEO1.89.38608.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "090",
+   "name": "アーケードゲーム",
+   "img": "https://den-cards.pokellector.com/324/Arcade-Game.NEO1.90.38609.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "091",
+   "name": "タイムカプセル",
+   "img": "https://den-cards.pokellector.com/324/Time-Capsule.NEO1.91.38610.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "092",
+   "name": "スーパーエネルギー検索",
+   "img": "https://den-cards.pokellector.com/324/Super-Energy-Retrieval.NEO1.92.38611.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "093",
+   "name": "ポクギア",
+   "img": "https://den-cards.pokellector.com/324/PokGear.NEO1.93.38612.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "094",
+   "name": "闇のエネルギー",
+   "img": "https://den-cards.pokellector.com/324/Darkness-Energy.NEO1.94.38613.thumb.png",
+   "r": "Rare"
+  },
+  {
+   "n": "095",
+   "name": "金属エネルギー",
+   "img": "https://den-cards.pokellector.com/324/Metal-Energy.NEO1.95.38614.thumb.png",
+   "r": "Holo Rare"
+  },
+  {
+   "n": "096",
+   "name": "エネルギーをリサイクルします",
+   "img": "https://den-cards.pokellector.com/324/Recycle-Energy.NEO1.96.38615.thumb.png",
+   "r": "Rare"
+  }
+ ]
+}
