@@ -80,6 +80,9 @@ const KANA_SOUND_IS_OFFICIAL = new Set([
 const dirtySets = new Set<string>()
 // ⑤용: 오염되지 않은 세트의 일본어 카드명만 모은다.
 const cleanNames: [string, string][] = []
+// ⑧용: 오염 세트까지 포함한 모든 일본판 카드의 화면 이름. cleanNames는 오염 세트를
+// 빼기 때문에 그걸로 재면 멀쩡한 표를 낡았다고 잘못 짚는다(실제로 73종을 오판했다).
+const liveKoAll = new Set<string>()
 const aliases = (pokemonNameAliases as { ja: string; ko: string }[]).filter((a) => a.ja.length <= 4)
 let total = 0
 const officialOk = new Set<string>()
@@ -115,6 +118,7 @@ for (const dir of ['public/sets', 'public/packsim']) {
       if (!c.name) continue
       total++
       if (ed === 'ja' && !dirty) cleanNames.push([c.name, slug])
+      if (ed === 'ja') liveKoAll.add(render('ja', c.name))
       const got = render(ed, c.name)
       if (CJK.test(got)) {
         const cur = cjkLeft.get(c.name) ?? { n: 0, got, year, set: slug }
@@ -278,7 +282,15 @@ console.log(`  ③ 포켓몬코리아 공식 카드명과 대조: 일치 ${offic
 console.log(`  ④ 히라가나가 뜻 없이 소리로 남음: ${kanaLeft.size}종 / ${sum(kanaLeft)}건`)
 console.log(`  ⑤ 짧은 별칭이 멀쩡한 카드명에 끼어듦: ${aliasHits.size}종`)
 console.log(`  ⑥ 짧은 뜻 규칙이 긴 가타카나 낱말을 잘라 먹음: ${bleedHits.size}종`)
+// ⑧ 한글→일본어 검색 표(cardNameKoJa.json)의 키가 낡았는지.
+// 이 표는 "규칙이 못 옮기는 이름"만 담는 통짜 사전이라, 화면 이름이 바뀌면 키가 안 맞아
+// 조용히 아무 일도 안 하게 된다(에러도 안 난다). 키는 전부 지금 화면에 나오는 이름이어야
+// 한다. 어긋나면 `npx tsx scripts/gen-ko-ja-cards.mts --write`로 다시 만든다.
+const koJa = JSON.parse(readFileSync(join(ROOT, 'src/data/cardNameKoJa.json'), 'utf8')) as Record<string, string>
+const staleKoJa = Object.keys(koJa).filter((ko) => !liveKoAll.has(ko))
+
 console.log(`  ⑦ 자동 사전 키가 지금 이름과 어긋남: ${staleAuto.length}종`)
+console.log(`  ⑧ 검색 표(한글→일본어) 키가 낡음: ${staleKoJa.length}종 / ${Object.keys(koJa).length}종`)
 console.log(`  (원본 일본어 칸이 오염된 옛 세트 ${dirtySets.size}개는 ④에서 뺐다: ${[...dirtySets].join(' ')})`)
 
 if (cjkLeft.size) {
@@ -324,6 +336,13 @@ if (staleAuto.length) {
   if (staleAuto.length > 30) console.log(`   …외 ${staleAuto.length - 30}종`)
   console.log('\n고치는 법: 그 키만 지금 이름으로 바꾼다. ⚠️ 파일을 통째로 다시 만들지 말 것')
   console.log('(예전에 재생성했다가 손으로 검증한 이름들이 기계 번역으로 덮였다).')
+}
+
+if (staleKoJa.length) {
+  console.log('\n⑧ 검색 표(src/data/cardNameKoJa.json)의 키가 지금 이름과 다르다:')
+  for (const x of staleKoJa.slice(0, 20)) console.log(`   ${x}  →  ${koJa[x]}`)
+  if (staleKoJa.length > 20) console.log(`   …외 ${staleKoJa.length - 20}종`)
+  console.log('\n고치는 법: npx tsx scripts/gen-ko-ja-cards.mts --write')
 }
 
 if (LIST && kataLeft.size) {

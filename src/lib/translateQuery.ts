@@ -2,6 +2,7 @@ import pokemonNames from '../data/pokemonNames.json';
 import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
 import setNameKoJa from '../data/setNameKoJa.json';
+import cardNameKoJa from '../data/cardNameKoJa.json';
 import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
 import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TRAINER_NAMES, EXACT_TITLES } from './koreanizeTitle';
 
@@ -264,9 +265,18 @@ export function translateSearchQuery(query: string): string {
   if (/[가-힣]/.test(result)) {
     const whole = exactTitleByKo.get(trimmed);
     if (whole) return whole;
+    // 같은 그물의 두 번째 겹. 우리 세트 파일에는 카드마다 일본어 원문이 그대로 있으니,
+    // 규칙이 못 옮긴 이름은 그 원문을 바로 준다("스타단의 조무래기" → スター団のしたっぱ).
+    // scripts/gen-ko-ja-cards.mts 가 "규칙이 못 옮기는 것만" 골라 만든 표라 190종뿐이다.
+    const fromCards = cardKoToJa.get(trimmed);
+    if (fromCards) return fromCards;
   }
   return result;
 }
+
+// 한글 카드명 → 일본어 원문(scripts/gen-ko-ja-cards.mts 가 만든다).
+// 세트 파일을 고쳐 이름이 바뀌면 이 표도 다시 만들어야 한다.
+const cardKoToJa = new Map<string, string>(Object.entries(cardNameKoJa as Record<string, string>));
 
 // EXACT_TITLES를 한글→일본어로 뒤집은 것. 알파벳만인 왼쪽(옛 세트의 깨진 원본을
 // 고치려고 넣은 것)은 스니커덩크에서 못 찾으므로 뺀다 — 위 reverseStructuralTerms와 같은 이유.
