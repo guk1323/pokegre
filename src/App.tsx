@@ -1017,9 +1017,26 @@ function App() {
       {ebayError ? (
         <p className="text-sm text-rose-500 py-12 text-center">{ebayError}</p>
       ) : !ebayLoading && ebayItems.length === 0 ? (
-        <p className="text-sm text-neutral-400 py-12 text-center">
-          {isTcg ? 'TCGplayer 시세가 없습니다.' : 'eBay 낙찰 데이터가 없습니다.'}
-        </p>
+        // 왜 없는지까지 알려준다. 그냥 "없습니다"만 뜨면 고장난 줄 안다.
+        // 이베이·TCGplayer 시세는 PPT를 통해 보는데, PPT는 북미판·일본판만 다룬다.
+        // 인도네시아·중국·태국판 같은 지역 한정 카드는 거기에 아예 없다(사용자 제보:
+        // 사진으로 찾은 인도네시아 프로모 피카츄가 스니커덩크에는 있는데 여기선 빈 화면).
+        <div className="py-12 text-center">
+          <p className="text-sm text-neutral-500">
+            {isTcg ? 'TCGplayer 시세가 없습니다.' : 'eBay 낙찰 데이터가 없습니다.'}
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
+            이베이·TCGplayer는 북미판과 일본판을 주로 다룹니다. 인도네시아·중국·태국판처럼
+            일부 나라에서만 나온 카드는 여기에 올라오지 않습니다.
+          </p>
+          <button
+            type="button"
+            onClick={() => switchSource('snkrdunk')}
+            className="mt-4 rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black hover:text-black"
+          >
+            스니커덩크에서 찾아보기
+          </button>
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
