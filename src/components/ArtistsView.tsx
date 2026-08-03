@@ -3,6 +3,8 @@ import { trackEvent } from '../api/localStats';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 import { koSetName } from '../lib/setNameKo';
 import { useSubScreen } from '../lib/useSubScreen';
+// 표지 주소가 죽은 작가가 있어 카드 뒷면으로 대체한다(세트 화면과 같은 그림).
+import { CARD_BACK } from '../lib/cardCatalog';
 
 // 작가별 카드 모음. 스니커덩크엔 일러스트레이터 정보가 없어서, 작가 정보가 있는 해외
 // 카드 DB(pokemontcg.io)에서 미리 긁어 public/artists/에 저장해둔 데이터를 읽는다.
@@ -15,7 +17,7 @@ interface ArtistIndexEntry {
   note: string;
   era: string;
   count: number;
-  cover: string;
+  cover?: string;
 }
 
 interface ArtistCard {
@@ -178,14 +180,17 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
         </button>
         {/* 작가 프로필 — 카드 그리드 위에 소개·활동시기·종수를 한 칸에 */}
         <div className="mb-5 flex gap-4 rounded-2xl border border-neutral-200 bg-white p-4">
+          {/* 표지 주소가 죽어 있는 작가가 있다(원본에서 그림이 내려간 경우). 비워 두면
+              깨진 아이콘이 뜨므로 카드 뒷면으로 대체한다 — 세트 화면과 같은 방식이다. */}
           <img
-            src={thumb(selected.cover, 200)}
+            src={selected.cover ? thumb(selected.cover, 200) : CARD_BACK}
             alt={selected.en}
             loading="lazy"
             decoding="async"
             onError={(e) => {
               const t = e.currentTarget;
-              if (t.src !== selected.cover) t.src = selected.cover;
+              if (selected.cover && t.src !== selected.cover) t.src = selected.cover;
+              else if (!t.src.endsWith(CARD_BACK)) t.src = CARD_BACK;
             }}
             className="h-[110px] w-[79px] flex-shrink-0 rounded-lg object-cover"
           />
@@ -351,13 +356,14 @@ function ArtistList({
               className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 text-left hover:shadow-md"
             >
               <img
-                src={thumb(a.cover, 140)}
+                src={a.cover ? thumb(a.cover, 140) : CARD_BACK}
                 alt={a.en}
                 loading="lazy"
                 decoding="async"
                 onError={(e) => {
                   const t = e.currentTarget;
-                  if (t.src !== a.cover) t.src = a.cover;
+                  if (a.cover && t.src !== a.cover) t.src = a.cover;
+                  else if (!t.src.endsWith(CARD_BACK)) t.src = CARD_BACK;
                 }}
                 className="h-[84px] w-[60px] flex-shrink-0 rounded object-cover"
               />
