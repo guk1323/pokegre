@@ -117,19 +117,27 @@ export function PriceChart({
           각각 어느 정도 상태인지는 스니커덩크가 밝히지 않아 우리가 풀어 쓰지 않고,
           "무엇을 고르는 칸인지"만 적는다. */}
       {conditions.length > 0 && (
-        <label className="mb-2 block">
-          <span className="mb-1 block text-[11px] font-semibold text-neutral-400">카드 상태·감정 등급</span>
-        <select
-          value={condition}
-          onChange={(e) => onConditionChange(e.target.value)}
-          className="w-full rounded-lg border border-neutral-200 px-2 py-1 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-1 focus:ring-black"
-        >
-          {conditions.map((c) => (
-            <option key={c.code} value={c.code}>
-              {koreanizeGrade(c.name)}
-            </option>
-          ))}
-        </select>
+        // 화면 폭을 꽉 채운 회색 상자에 "A"만 덩그러니 떠 있어 어색했다(지적받음).
+        // 이름표를 옆에 붙이고 칸은 내용에 맞게 줄여, 흔히 보는 작은 선택기로 만든다.
+        // 화살표는 직접 그린다 — 기본 화살표는 기기마다 모양·위치가 제각각이다.
+        <label className="mb-3 flex items-center gap-2">
+          <span className="shrink-0 text-[11px] font-semibold text-neutral-400">등급</span>
+          <span className="relative inline-flex">
+            <select
+              value={condition}
+              onChange={(e) => onConditionChange(e.target.value)}
+              className="appearance-none rounded-full border border-neutral-200 bg-white py-1 pl-3 pr-7 text-xs font-semibold text-neutral-700 focus:border-black focus:outline-none"
+            >
+              {conditions.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {koreanizeGrade(c.name)}
+                </option>
+              ))}
+            </select>
+            <span aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-neutral-400">
+              ▼
+            </span>
+          </span>
         </label>
       )}
 

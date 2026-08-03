@@ -93,20 +93,19 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     };
   }, [card.apparelId, range, condition, variantId]);
 
-  // 등급 드롭다운에서 매물이 없는 등급은 뺀다. 스니커덩크는 그 카드에 매물이 하나도
-  // 없는 등급까지 다 내려주기 때문에, 골라 봐야 "실거래 기록이 없습니다"만 나온다.
+  // 그래프에 띄울 등급 목록.
   //
-  // ⚠️ 두 목록은 코드 형식이 서로 다르다(드롭다운 'trading_card_single_psa10' vs
-  //    매물 'psa_10'). 그래서 화면에 보이는 이름(A·PSA10…)으로 맞춘다.
-  // ⚠️ 매물 목록을 아직 못 받았으면 거르지 않는다 — 잠깐 드롭다운이 비면 더 이상하다.
-  const liveGradeNames = new Set(
-    groups.flatMap((g) => g.chips.filter((c) => c.hasListing).map((c) => c.text)),
-  );
-  const all = history?.conditions ?? [];
-  const byListing = liveGradeNames.size ? all.filter((c) => liveGradeNames.has(c.name)) : all;
-  // 매물은 있는데 실거래 기록이 없는 등급도 있다. 골라 보고 빈 것으로 확인된 등급을 뺀다.
+  // ⚠️ "매물이 있는 등급"으로 거르면 안 된다. 그래프는 **실거래 기록**이고 아래
+  //    등급별 최저가는 **지금 올라온 매물**이라 서로 다른 자료다. 매물 기준으로
+  //    거르면, 예전에 거래는 됐는데 지금 매물이 없는 등급의 기록을 통째로 숨긴다
+  //    (한 번 그렇게 만들었다가 사용자 지적으로 되돌렸다).
+  //
+  // 어느 등급에 기록이 있는지는 API가 미리 알려주지 않는다. 골라 봐야 안다.
+  // 그래서 골라 봤더니 비어 있던 등급만 빼고, 나머지는 스니커덩크가 준 그대로 둔다.
   // ⚠️ 지금 고른 등급은 빼지 않는다 — 빼면 선택칸이 그 자리에서 사라져 화면이 튄다.
-  const pickedConditions = byListing.filter((c) => c.code === condition || !emptyGrades.has(c.code));
+  const pickedConditions = (history?.conditions ?? []).filter(
+    (c) => c.code === condition || !emptyGrades.has(c.code),
+  );
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
