@@ -7,14 +7,22 @@ import path from 'node:path'
 const OUT = path.resolve(process.cwd(), 'public/sets')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function api(pathq, key) {
-  try {
-    const r = await fetch(`https://api.pokemontcg.io/v2${pathq}`, { headers: { 'X-Api-Key': key } })
-    if (!r.ok) return null
-    return await r.json()
-  } catch {
-    return null
+// ⚠️ pokemontcg.io는 멀쩡한 요청에도 500·502를 자주 낸다(2026-08-03 실측: 같은 주소를
+//    연달아 불러도 절반쯤 실패). 한 번 실패했다고 포기하면 "세트 0개 로드"가 되어
+//    아무것도 못 채우면서 "대응 세트 못 찾음"이라고 잘못 보고한다. 몇 번 다시 해 본다.
+async function api(pathq, key, tries = 4) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(`https://api.pokemontcg.io/v2${pathq}`, { headers: { 'X-Api-Key': key } })
+      if (r.ok) return await r.json()
+      // 4xx는 다시 해도 같다(잘못된 질의). 5xx만 재시도한다.
+      if (r.status < 500) return null
+    } catch {
+      /* 그물 문제 — 재시도 */
+    }
+    await sleep(1200 + i * 1200)
   }
+  return null
 }
 
 // "001"→"1", "H01"→"H1", "TG01"→"TG1" — 글자 접두어 뒤 앞자리 0을 뗀다
