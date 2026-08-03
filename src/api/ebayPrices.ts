@@ -72,6 +72,8 @@ export interface EbaySearchResult {
   cards: EbayCard[];
   // 더 받을 게 남았는지. 원본 페이지가 꽉 찼으면(=요청한 만큼 왔으면) 뒤에 더 있다고 본다.
   hasMore: boolean;
+  /** 실제로 보낸 영문 검색어. 결과가 없을 때 "이베이에서 직접 찾아보기" 링크에 쓴다. */
+  translated?: string;
 }
 
 // 서버 프록시(shapeEbayCards)가 원본 PokemonPriceTracker 응답을 재배포하지 않도록
@@ -121,7 +123,7 @@ export async function searchEbayCards(
     name: dict.koreanizeEnglishCardName(card.name),
     setName: dict.koreanizeEnglishSetName(card.setName),
   }));
-  return { cards, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE };
+  return { cards, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE, translated };
 }
 
 // 신뢰도 표기. PPT의 high/medium/low를 한글로. 그 외 값은 그대로 둔다.

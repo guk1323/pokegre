@@ -173,6 +173,8 @@ function App() {
   const [ebayItems, setEbayItems] = useState<EbayCard[]>([]);
   const [ebayLoading, setEbayLoading] = useState(false);
   const [ebayError, setEbayError] = useState<string | null>(null);
+  // 이베이에 실제로 보낸 영문 검색어. 결과가 없을 때 "직접 찾아보기" 링크에 쓴다.
+  const [ebayQueryEn, setEbayQueryEn] = useState('');
   const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
   // 공유 링크(/e/·/t/)로 들어왔을 때 열어야 할 카드. 번호로 미리 받아 두고, 검색 결과가
   // 오면 그 안에서 고른다. 결과에 없으면(다른 세트가 먼저 잡히는 등) 받아 둔 카드를
@@ -640,7 +642,8 @@ function App() {
       setEbayLoading(true);
       setEbayError(null);
       searchEbayCards(trimmed, edition, 0, market)
-        .then(({ cards, hasMore }) => {
+        .then(({ cards, hasMore, translated }) => {
+          setEbayQueryEn(translated ?? '');
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
           const fb = scanFallbackRef.current;
           if (cards.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
@@ -1021,21 +1024,34 @@ function App() {
         // 이베이·TCGplayer 시세는 PPT를 통해 보는데, PPT는 북미판·일본판만 다룬다.
         // 인도네시아·중국·태국판 같은 지역 한정 카드는 거기에 아예 없다(사용자 제보:
         // 사진으로 찾은 인도네시아 프로모 피카츄가 스니커덩크에는 있는데 여기선 빈 화면).
+        // ⚠️ 왜 없는지는 단정하지 않는다. 우리 데이터에 있는데 검색어가 안 맞아 못
+        //    찾는 것일 수도 있고, 이베이에는 매물이 있는데 우리 데이터에만 없는 것일
+        //    수도 있다. 확인할 방법이 없는 것을 사실처럼 적으면 안 된다.
+        //    대신 다음에 해볼 수 있는 것을 준다.
         <div className="py-12 text-center">
           <p className="text-sm text-neutral-500">
-            {isTcg ? 'TCGplayer 시세가 없습니다.' : 'eBay 낙찰 데이터가 없습니다.'}
+            {isTcg ? 'TCGplayer에서 이 검색어로 찾지 못했습니다.' : 'eBay에서 이 검색어로 찾지 못했습니다.'}
           </p>
           <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
-            이베이·TCGplayer는 북미판과 일본판을 주로 다룹니다. 인도네시아·중국·태국판처럼
-            일부 나라에서만 나온 카드는 여기에 올라오지 않습니다.
+            카드 번호 대신 카드 이름으로, 또는 영어 이름으로 바꿔 보시면 나올 수 있습니다.
           </p>
-          <button
-            type="button"
-            onClick={() => switchSource('snkrdunk')}
-            className="mt-4 rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black hover:text-black"
-          >
-            스니커덩크에서 찾아보기
-          </button>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => switchSource('snkrdunk')}
+              className="rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black hover:text-black"
+            >
+              스니커덩크에서 찾아보기
+            </button>
+            <a
+              href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(ebayQueryEn || query.trim())}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black hover:text-black"
+            >
+              이베이에서 직접 찾아보기 ↗
+            </a>
+          </div>
         </div>
       ) : (
         <>
