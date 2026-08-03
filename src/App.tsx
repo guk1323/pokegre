@@ -595,6 +595,11 @@ function App() {
           if (items.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
             scanFallbackRef.current = null;
             setScanFellBack(true);
+            // ⚠️ 대체한 검색어를 그 소스 자리에 다시 적어 둔다. 안 그러면 아래
+            //    switchSource가 "사람이 손으로 고쳤다"고 보고, 탭을 되돌려도 원래
+            //    검색어로 안 돌아온다(사진으로 찾은 인도네시아 피카츄가 이베이에서
+            //    "Pikachu"로 대체된 뒤, 스니커덩크로 와도 계속 "Pikachu"였다).
+            if (scanQueriesRef.current) scanQueriesRef.current = { ...scanQueriesRef.current, snkrdunk: fb };
             setQuery(fb);
             return;
           }
@@ -641,6 +646,11 @@ function App() {
           if (cards.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
             scanFallbackRef.current = null;
             setScanFellBack(true);
+            // ⚠️ 대체한 검색어를 그 소스 자리에 다시 적어 둔다. 안 그러면 아래
+            //    switchSource가 "사람이 손으로 고쳤다"고 보고, 탭을 되돌려도 원래
+            //    검색어로 안 돌아온다(사진으로 찾은 인도네시아 피카츄가 이베이에서
+            //    "Pikachu"로 대체된 뒤, 스니커덩크로 와도 계속 "Pikachu"였다).
+            if (scanQueriesRef.current) scanQueriesRef.current = { ...scanQueriesRef.current, ebay: fb };
             setQuery(fb);
             return;
           }
