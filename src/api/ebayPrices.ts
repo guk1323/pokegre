@@ -74,6 +74,12 @@ export interface EbaySearchResult {
   hasMore: boolean;
   /** 실제로 보낸 영문 검색어. 결과가 없을 때 "이베이에서 직접 찾아보기" 링크에 쓴다. */
   translated?: string;
+  /**
+   * 지금 받은 게 아니라 지난번에 받아 둔 시세일 때, 그때 받은 시각(ISO).
+   * 하루치 크레딧을 다 썼거나 통신이 실패하면 서버가 이걸 붙여 지난 값을 준다 —
+   * 아무것도 안 보여주는 것보다 "언제 기준인지 밝히고 보여주는 것"이 낫기 때문이다.
+   */
+  asOf?: string;
 }
 
 // 서버 프록시(shapeEbayCards)가 원본 PokemonPriceTracker 응답을 재배포하지 않도록
@@ -143,7 +149,7 @@ export async function searchEbayCards(
 
   // 서버가 내려주는 이름은 TCGPlayer 영문 표기라, SNKRDUNK 결과(koreanizeTitle)와
   // 나란히 놓았을 때 이질적이다. 화면에 뿌리기 전에 한글 표기로 맞춰준다.
-  const json = (await res.json()) as { cards?: EbayCard[]; rawCount?: number };
+  const json = (await res.json()) as { cards?: EbayCard[]; rawCount?: number; asOf?: string };
   const cards = (json.cards ?? []).map((card) => ({
     ...card,
     // 원본 영문 이름은 이베이 검색 링크용으로 남겨두고, 표시용 이름만 한글로 바꾼다.
@@ -154,7 +160,7 @@ export async function searchEbayCards(
   // 정렬만으로는 다 안 밀린다. 이름이 실제로 맞는 카드를 앞으로 올린다(빼지는 않는다 —
   // 세트 이름으로 찾는 사람도 있고, 우리가 못 알아본 표기일 수도 있다).
   const ranked = rankByNameMatch(cards, translated);
-  return { cards: ranked, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE, translated };
+  return { cards: ranked, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE, translated, asOf: json.asOf };
 }
 
 // 신뢰도 표기. PPT의 high/medium/low를 한글로. 그 외 값은 그대로 둔다.

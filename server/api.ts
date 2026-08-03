@@ -3421,6 +3421,65 @@ function mountFleaMarket(app: Mountable) {
 // 이베이 등급별(PSA/CGC/BGS) 실거래가를 PokemonPriceTracker API에서 대신 받아온다.
 // 무료 티어가 하루 100크레딧뿐이라 캐시를 길게(6시간) 잡아서 아낀다. API 키는 서버에서만
 // 붙이고 클라이언트에는 절대 내려주지 않는다.
+// 마지막으로 받아 둔 시세. 위 TtlCache와 따로 두는 이유가 둘이다.
+//
+// ① 크레딧이 바닥나면 방문자에게 시세가 통째로 안 보였다(2026-08-03에 실제로 그랬다).
+//    하루가 지난 값이라도 "언제 기준인지" 밝히고 보여주는 게 아무것도 안 보이는 것보다 낫다.
+// ② 메모리에만 두면 배포할 때마다 지워져서, 이미 받아 둔 카드를 방문자가 다시 열 때
+//    크레딧을 또 쓴다. 하루에 여러 번 배포하는 날엔 이게 크다.
+const LAST_PRICE_FILE = dataFile('card-prices-last.json')
+const LAST_PRICE_MAX = 400
+const lastPrice = new Map<string, { body: string; at: number }>()
+let lastPriceSaveAt = 0
+
+async function saveLastPrices() {
+  // 10초에 한 번이면 배포 사이 상태를 지키기 충분하다(ppt-state와 같은 이유).
+  if (Date.now() - lastPriceSaveAt < 10_000) return
+  lastPriceSaveAt = Date.now()
+  try {
+    const rows = [...lastPrice.entries()].slice(-LAST_PRICE_MAX).map(([k, v]) => [k, v.body, v.at])
+    await writeJsonFile(LAST_PRICE_FILE, rows)
+  } catch {
+    /* 못 적어도 서비스는 돌아간다 */
+  }
+}
+
+export async function loadLastPrices() {
+  try {
+    const rows = JSON.parse(await readFile(LAST_PRICE_FILE, 'utf-8')) as [string, string, number][]
+    for (const [k, body, at] of rows) {
+      if (typeof k === 'string' && typeof body === 'string' && typeof at === 'number') {
+        lastPrice.set(k, { body, at })
+      }
+    }
+    console.log(`[pokegre] 지난 시세 ${lastPrice.size}건을 이어받았습니다`)
+  } catch {
+    /* 처음 뜨는 것 */
+  }
+}
+
+function rememberPrice(key: string, body: string) {
+  lastPrice.delete(key) // 다시 넣어 순서를 뒤로 — 넘칠 때 오래된 것부터 버린다
+  lastPrice.set(key, { body, at: Date.now() })
+  while (lastPrice.size > LAST_PRICE_MAX) {
+    const oldest = lastPrice.keys().next().value
+    if (oldest === undefined) break
+    lastPrice.delete(oldest)
+  }
+  void saveLastPrices()
+}
+
+/** 지금 못 받을 때 쓸 "지난 시세". 언제 받은 것인지 함께 실어 보낸다. */
+function stalePrice(key: string): string | null {
+  const hit = lastPrice.get(key)
+  if (!hit) return null
+  try {
+    return JSON.stringify({ ...(JSON.parse(hit.body) as object), asOf: new Date(hit.at).toISOString() })
+  } catch {
+    return null
+  }
+}
+
 function mountEbayPrice(app: Mountable, apiKey: string) {
   const cache = new TtlCache<string>(PRICE_TRACKER_CACHE_TTL_MS, PRICE_TRACKER_MAX_ENTRIES)
   const allow = rateLimiter(PRICE_TRACKER_RATE_LIMIT, PRICE_TRACKER_RATE_WINDOW_MS)
@@ -3462,6 +3521,15 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
     // 그 429가 쌓이면 키가 정지된다(위 pptGate 설명).
     const gate = pptGate()
     if (!gate.ok) {
+      // 크레딧이 없어도 아무것도 안 보여주지는 않는다. 지난번에 받아 둔 값이 있으면
+      // "언제 기준인지"를 붙여 그걸 준다(사용자 편의 우선, 2026-08-04).
+      const stale = stalePrice(cacheKey)
+      if (stale) {
+        res.statusCode = 200
+        res.setHeader('content-type', 'application/json')
+        res.end(stale)
+        return
+      }
       res.statusCode = 429
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ error: gate.daily ? 'daily_limit' : 'upstream_error', status: 429 }))
@@ -3499,6 +3567,13 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
         // 헛되이 새로고침하지 않는다.
         const dailyLeft = Number(upstream.headers.get('x-ratelimit-daily-remaining'))
         const daily = upstream.status === 429 && Number.isFinite(dailyLeft) && dailyLeft <= 0
+        const stale = stalePrice(cacheKey)
+        if (stale) {
+          res.statusCode = 200
+          res.setHeader('content-type', 'application/json')
+          res.end(stale)
+          return
+        }
         res.statusCode = upstream.status
         res.setHeader('content-type', 'application/json')
         res.end(JSON.stringify({ error: daily ? 'daily_limit' : 'upstream_error', status: upstream.status }))
@@ -3528,10 +3603,19 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       }
       const body = JSON.stringify({ cards: shapeEbayCards(rawJson, have), rawCount: rawList.length })
       cache.set(cacheKey, body)
+      rememberPrice(cacheKey, body)
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')
       res.end(body)
     } catch {
+      // 통신 자체가 실패해도 지난 시세가 있으면 그걸 준다.
+      const stale = stalePrice(cacheKey)
+      if (stale) {
+        res.statusCode = 200
+        res.setHeader('content-type', 'application/json')
+        res.end(stale)
+        return
+      }
       res.statusCode = 502
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ error: 'upstream_fetch_failed' }))
@@ -4709,7 +4793,7 @@ function mountAuth(
   // ⚠️ PPT 상태(남은 크레딧·차단 시각)를 먼저 읽어야 한다. 안 읽고 데우러 나가면
   //    "남은 크레딧을 모른다(=무한대)" 상태라 방문자 몫을 지키는 검사가 통과된다.
   //    배포마다 이 구멍으로 크레딧이 샜다(2026-08-02).
-  void Promise.all([loadPptState(), loadPackPriceFile()]).then(() => {
+  void Promise.all([loadPptState(), loadPackPriceFile(), loadLastPrices()]).then(() => {
     if (process.env.NODE_ENV === 'production') {
       setTimeout(() => void warmPackPrices(pptApiKey), 5_000)
       setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, 받을 차례가 된 것만

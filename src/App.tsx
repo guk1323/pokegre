@@ -118,6 +118,17 @@ function savedNav(): {
   }
 }
 
+// "3시간 전"·"어제" 처럼 사람이 읽는 말로 바꾼다. 정확한 시각보다 이게 읽기 쉽다.
+function asOfLabel(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '조금 전';
+  const h = Math.floor((Date.now() - t) / 3_600_000);
+  if (h < 1) return '조금 전';
+  if (h < 24) return `${h}시간 전`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? '어제' : `${d}일 전`;
+}
+
 function App() {
   const [view, setView] = useState<MainView>(() => savedNav().view ?? 'cards');
   // 상단 드롭다운(더보기·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
@@ -173,6 +184,9 @@ function App() {
   const [ebayItems, setEbayItems] = useState<EbayCard[]>([]);
   const [ebayLoading, setEbayLoading] = useState(false);
   const [ebayError, setEbayError] = useState<string | null>(null);
+  // 지금 받은 게 아니라 지난번 값일 때 그 시각. 크레딧을 다 썼거나 통신이 실패하면
+  // 서버가 지난 시세를 대신 준다 — 화면에 언제 기준인지 밝혀야 오해가 없다.
+  const [ebayAsOf, setEbayAsOf] = useState<string | null>(null);
   // 이베이에 실제로 보낸 영문 검색어. 결과가 없을 때 "직접 찾아보기" 링크에 쓴다.
   const [ebayQueryEn, setEbayQueryEn] = useState('');
   const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
@@ -642,7 +656,7 @@ function App() {
       setEbayLoading(true);
       setEbayError(null);
       searchEbayCards(trimmed, edition, 0, market)
-        .then(({ cards, hasMore, translated }) => {
+        .then(({ cards, hasMore, translated, asOf }) => {
           setEbayQueryEn(translated ?? '');
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
           const fb = scanFallbackRef.current;
@@ -658,6 +672,7 @@ function App() {
             return;
           }
           setEbayItems(cards);
+          setEbayAsOf(asOf ?? null);
           searchResultRef.current = { query: trimmed, count: cards.length, source };
           setEbayOffset(EBAY_PAGE_SIZE);
           setEbayHasMore(hasMore);
@@ -680,6 +695,7 @@ function App() {
           // 이전 검색 결과가 남아 있으면 에러 문구 아래에 엉뚱한 카드가 계속
           // 보이므로(특히 발매판을 바꿨을 때) 같이 비워준다.
           setEbayItems([]);
+          setEbayAsOf(null);
           setEbaySelectedId(null);
           setEbayHasMore(false);
         })
@@ -1014,6 +1030,14 @@ function App() {
           {ebayLoading
             ? '검색 중...'
             : `${isTcg ? 'TCGplayer 시세' : 'eBay 등급 데이터'} ${ebayItems.length}종 표시`}
+        </p>
+      )}
+
+      {/* 지금 받은 값이 아닐 때만 밝힌다. 아무것도 안 보여주는 것보다 낫지만,
+          언제 기준인지 안 적으면 지금 시세로 오해한다. */}
+      {!ebayError && !ebayLoading && ebayAsOf && (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          오늘 볼 수 있는 시세 조회량을 다 써서 {asOfLabel(ebayAsOf)} 받아 둔 시세를 보여드립니다. 오전 9시에 다시 열립니다.
         </p>
       )}
 
