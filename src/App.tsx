@@ -104,7 +104,13 @@ function DetailLayout({
 // 새로고침해도 보던 화면에 남아 있게 한다. 화면 이동마다 history.state.nav에 적어 두므로
 // (navigate·아래 replaceState) 새로 뜰 때 그걸 그대로 되읽으면 된다.
 // 예전엔 안 읽어서, 뽑기나 커뮤니티를 보다가 새로고침하면 무조건 홈으로 튕겼다.
-function savedNav(): { view?: MainView; query?: string; source?: PriceSource; edition?: CardEdition } {
+function savedNav(): {
+  view?: MainView
+  query?: string
+  source?: PriceSource
+  edition?: CardEdition
+  scanQueries?: { snkrdunk: string; ebay: string } | null
+} {
   try {
     return (window.history.state as { nav?: Record<string, unknown> } | null)?.nav ?? {};
   } catch {
@@ -127,7 +133,12 @@ function App() {
   // 사진으로 찾은 카드는 소스마다 검색어가 다르다. 스니커덩크는 일본판 카탈로그라
   // "세트코드 번호"(M4 086/083)로 찾는 게 정확하고, 이베이·TCGplayer는 영문 이름이
   // 있어야 걸린다(Charizard ex 086/083). 탭만 바꿨을 때 갈아 끼우려고 둘 다 들고 있는다.
-  const scanQueriesRef = useRef<{ snkrdunk: string; ebay: string } | null>(null);
+  //
+  // ⚠️ 방문기록(history.state.nav)에도 같이 싣는다. 예전엔 여기(메모리)에만 뒀더니,
+  //    다른 화면에 갔다 오거나 새로고침하면 사라져서 탭을 바꿔도 검색어가 안 갈렸다.
+  //    스니커덩크용 "다크라이 :1ED [CP5 024/036](콘셉트팩…)"을 그대로 들고 이베이로
+  //    가서 0건이 됐다(사용자 제보 2026-08-03).
+  const scanQueriesRef = useRef<{ snkrdunk: string; ebay: string } | null>(savedNav().scanQueries ?? null);
   // 백업(이름) 재검색이 실제로 일어났음을 알리는 안내.
   const [scanFellBack, setScanFellBack] = useState(false);
   // 번호 대신 일러스트레이터로 찾아낸 경우 그 사실을 알려 준다(후보가 여럿이면 몇 개인지).
@@ -349,7 +360,9 @@ function App() {
     if (next.query !== undefined) setQuery(snap.query);
     if (next.source !== undefined) setSource(snap.source);
     if (next.edition !== undefined) setEdition(snap.edition);
-    if (!same) window.history.pushState({ nav: snap }, '');
+    // 소스별 검색어도 새 방문기록에 실어 둔다. 안 그러면 커뮤니티 등에 갔다 뒤로 왔을 때
+    // 탭을 바꿔도 검색어가 안 갈린다(위 scanQueriesRef 설명).
+    if (!same) window.history.pushState({ nav: { ...snap, scanQueries: scanQueriesRef.current } }, '');
   };
 
   // 처음 화면(카드 시세 홈)으로. 검색·선택·화면을 비우고 맨 위로 올린다.
@@ -431,7 +444,13 @@ function App() {
     const onPop = (e: PopStateEvent) => {
       const st = e.state as {
         sheet?: boolean
-        nav?: { view: MainView; query: string; source: PriceSource; edition: CardEdition }
+        nav?: {
+          view: MainView
+          query: string
+          source: PriceSource
+          edition: CardEdition
+          scanQueries?: { snkrdunk: string; ebay: string } | null
+        }
       } | null;
       if (st?.sheet) return;
       const nav = st?.nav;
@@ -440,6 +459,8 @@ function App() {
       setQuery(nav.query);
       setSource(nav.source);
       setEdition(nav.edition);
+      // 소스별 검색어도 같이 되살린다 — 없으면 뒤로 온 뒤 탭을 바꿔도 안 갈린다.
+      scanQueriesRef.current = nav.scanQueries ?? null;
       setSelectedId(null);
       setEbaySelectedId(null);
       setInterestSelectedId(null);
@@ -451,9 +472,14 @@ function App() {
   // 지금 화면 상태를 현재 방문기록 항목에 계속 반영해 둔다. 검색어 타이핑은 새 항목을
   // 쌓지 않고(navigate가 아니므로) 이 항목만 갱신 → 카드 상세를 열었다 뒤로가기로 닫아도
   // 검색어가 남는다. sheet 등 다른 표식은 보존한다.
+  // scanQueries도 같이 싣는다 — 사진으로 찾은 카드의 소스별 검색어라, 이게 없으면
+  // 화면을 떠났다 온 뒤 탭을 바꿔도 검색어가 안 갈린다(위 scanQueriesRef 설명).
   useEffect(() => {
-    window.history.replaceState({ ...window.history.state, nav: { view, query, source, edition } }, '');
-  }, [view, query, source, edition]);
+    window.history.replaceState(
+      { ...window.history.state, nav: { view, query, source, edition, scanQueries: scanQueriesRef.current } },
+      '',
+    );
+  }, [view, query, source, edition, scannedResult]);
 
   async function handleLogout() {
     await logout();
