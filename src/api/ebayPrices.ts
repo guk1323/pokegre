@@ -82,6 +82,27 @@ export interface EbaySearchResult {
 // TCGplayer 마켓가가 있는 카드만 서버가 추려 준다(have 파라미터).
 export type PriceMarket = 'ebay' | 'tcgplayer';
 
+// 검색어와 카드 이름이 실제로 맞는 것을 앞으로 올린다.
+//
+// 왜 필요한가: PPT의 search가 세트 이름에도 걸리기 때문이다. "Bulbasaur"를 찾으면
+// 「Intro Pack (Bulbasaur)」의 모든 카드가 딸려 온다 — 이름이 이상해씨가 아닌 것들이다.
+// 순서만 바꾸고 빼지는 않는다(세트 이름으로 찾는 경우도 있다).
+//
+// 검색어에 번호나 등급이 섞여 있어도(예: "Pikachu 191") 글자 부분만 본다.
+function rankByNameMatch<T extends { nameEn?: string; name: string }>(cards: T[], query: string): T[] {
+  const words = query
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((w) => w.length >= 3);
+  if (!words.length) return cards;
+  const score = (c: T) => {
+    const n = String(c.nameEn ?? c.name).toLowerCase();
+    return words.some((w) => n.includes(w)) ? 0 : 1;
+  };
+  // 안정 정렬 — 같은 점수끼리는 PPT가 준 순서(값 높은 순)를 지킨다.
+  return cards.map((c, i) => ({ c, i, s: score(c) })).sort((a, b) => a.s - b.s || a.i - b.i).map((x) => x.c);
+}
+
 export async function searchEbayCards(
   query: string,
   edition: CardEdition = 'japanese',
@@ -101,6 +122,13 @@ export async function searchEbayCards(
     includeEbay: 'true',
     limit: String(EBAY_PAGE_SIZE),
     offset: String(offset),
+    // ⚠️ PPT의 search는 카드 이름만 보는 게 아니라 세트 이름까지 뒤진다.
+    //    "Bulbasaur"로 찾으면 「Intro Pack (Bulbasaur)」 세트가 걸려서 그 세트의
+    //    포션·에너지·피카츄가 올라온다(사용자 제보: 이상해씨를 찾았는데 엉뚱한 카드).
+    //    값이 높은 순으로 받으면 그런 잡동사니가 뒤로 밀린다. 이름만 찾는 파라미터는
+    //    없다(name을 보내면 400 — 쓸 수 있는 건 search뿐).
+    sortBy: 'price',
+    sortOrder: 'desc',
   });
   if (market === 'tcgplayer') params.set('have', 'tcgplayer');
 
@@ -123,7 +151,10 @@ export async function searchEbayCards(
     name: dict.koreanizeEnglishCardName(card.name),
     setName: dict.koreanizeEnglishSetName(card.setName),
   }));
-  return { cards, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE, translated };
+  // 정렬만으로는 다 안 밀린다. 이름이 실제로 맞는 카드를 앞으로 올린다(빼지는 않는다 —
+  // 세트 이름으로 찾는 사람도 있고, 우리가 못 알아본 표기일 수도 있다).
+  const ranked = rankByNameMatch(cards, translated);
+  return { cards: ranked, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE, translated };
 }
 
 // 신뢰도 표기. PPT의 high/medium/low를 한글로. 그 외 값은 그대로 둔다.
