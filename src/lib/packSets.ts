@@ -259,9 +259,7 @@ export const PACK_SETS: PackSet[] = [
   // (세트 데이터로 직접 확인). 전부 2026-04 이전 발매라 정가 180엔 ≈ 1,600원.
   JP('SV9a', '열풍의 아레나', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV7a', '낙원드래고나'),
-  JP('SV6a', '나이트원더러'),
   JP('SV5a', '크림슨헤이즈'),
-  JP('SV5M', '사이버저지'),
   JP('SV5K', '와일드포스'),
   JP('SV4M', '미래의 일섬', 1600, { profile: JP_REGULAR_NO_ACE }),
   JP('SV4K', '고대의 포효', 1600, { profile: JP_REGULAR_NO_ACE }),

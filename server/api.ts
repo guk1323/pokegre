@@ -16,6 +16,7 @@ import {
   STREAK_DAYS,
   isLive,
   packBySlug,
+  PACK_SETS,
   PPT_SET_NAMES,
   type PackSet,
 } from '../src/lib/packSets.ts'
@@ -4242,6 +4243,8 @@ async function savePackPriceFile() {
 // ⚠️ 이름이 늘었다고 받는 양이 늘지는 않는다. 무엇을 받을지는 아래 warmTargets가 정한다.
 const SET_NAMES: Record<string, string> = { ...(pptSetNames as Record<string, string>), ...PPT_SET_NAMES }
 
+// 카드 뽑기 42개(일본 27 + 북미 15)를 7일에 한 바퀴 = 하루 6개.
+// 진열이 매일 일본 3 + 북미 3이라 양쪽 다 3의 배수로 맞춰 뒀다(사용자 확인 2026-08-03).
 const WARM_CYCLE_DAYS = 7
 // 이 날짜(한국시간)까지는 순번제를 쉰다. 2026-08-03에 44개 시세를 한꺼번에 채우느라
 // 하루치를 많이 썼기 때문에, 그날은 더 받지 않고 다음 날부터 시작한다.
@@ -4250,13 +4253,18 @@ const WARM_SKIP_UNTIL_KST = '2026-08-03'
 const kstDay = (ms = Date.now()) => new Date(ms + 9 * 3600_000).toISOString().slice(0, 10)
 
 function warmTargets(): string[] {
-  // ⚠️ 여기는 일부러 좁게 잡는다(SET_NAMES 265개가 아니라 카드 뽑기 44개).
-  //    이름 사전은 265개로 넓혔지만, 넓힌 만큼 다 받으면 하루치를 훌쩍 넘긴다.
-  //    범위를 넓힐 땐 한 바퀴 일수(WARM_CYCLE_DAYS)와 세트당 비용을 같이 손봐야 한다.
-  const all = Object.keys(PPT_SET_NAMES).sort() // 순서가 매일 같아야 한다
+  // ⚠️ 여기는 일부러 좁게 잡는다(이름을 아는 330개가 아니라 카드 뽑기 42개).
+  //    이름 사전은 넓혔지만, 넓힌 만큼 다 받으면 하루치를 훌쩍 넘긴다.
+  //    범위를 넓힐 땐 한 바퀴 일수(WARM_CYCLE_DAYS)와 세트당 비용을 같이 봐야 한다.
+  // ⚠️ 뽑기 목록(PACK_SETS)을 직접 본다. 예전엔 이름 사전(PPT_SET_NAMES)을 셌는데,
+  //    그건 손으로 적어 둔 이름 모음이라 팩을 빼도 줄지 않는다. 실제로 팩을 44→42로
+  //    줄였을 때 미리받기만 44개를 계속 돌 뻔했다.
+  const all = PACK_SETS.map((p) => p.slug)
+    .filter((s) => SET_NAMES[s])
+    .sort() // 순서가 매일 같아야 한다
   if (!all.length) return []
   // 쉬는 날이라도 "시세가 아예 없는 세트"는 채운다 — 앨범에서 값이 통째로 비어 보이는
-  // 것은 크레딧을 아끼는 것보다 나쁘다. 지금은 44개가 다 차 있어 해당 없음.
+  // 것은 크레딧을 아끼는 것보다 나쁘다.
   if (kstDay() <= WARM_SKIP_UNTIL_KST) {
     return all.filter((s) => !Object.keys(packPriceCache.get(s)?.prices ?? {}).length)
   }
