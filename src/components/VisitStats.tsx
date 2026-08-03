@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   fetchEventStats,
   fetchVisitStats,
+  type VisitStatsResponse,
   type ArtistStat,
   type EventDayBuckets,
   type VisitStat,
@@ -108,6 +109,7 @@ export function VisitStats() {
   const [items, setItems] = useState<VisitStat[]>([]);
   const [total, setTotal] = useState(0);
   const [memberCount, setMemberCount] = useState(0);
+  const [credits, setCredits] = useState<VisitStatsResponse['credits']>(undefined);
   const [events, setEvents] = useState<EventDayBuckets>({});
   const [artists, setArtists] = useState<ArtistStat[]>([]);
   const [sets, setSets] = useState<ArtistStat[]>([]);
@@ -120,6 +122,7 @@ export function VisitStats() {
         setItems(r.items);
         setTotal(r.total);
         setMemberCount(r.memberCount);
+        setCredits(r.credits);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
@@ -155,9 +158,56 @@ export function VisitStats() {
     }
   }
 
+  // ── 시세 조회 크레딧 ──
+  // 이게 0이 되면 방문자에게 이베이·TCGplayer 시세가 통째로 안 보인다. 전에는 서버
+  // 로그를 봐야 알 수 있어서 바닥난 걸 한참 뒤에 알았다(2026-08-03).
+  const cr = credits;
+  const crLeft = cr?.left ?? null;
+  const crPct = cr && crLeft !== null ? Math.round((crLeft / cr.daily) * 100) : null;
+  const crTone =
+    crLeft === null ? 'text-neutral-400'
+      : crLeft <= 0 ? 'text-rose-600'
+        : crLeft < (cr?.keepForVisitors ?? 8000) ? 'text-amber-600'
+          : 'text-black';
+
   return (
     <div>
       <h2 className="text-base font-bold text-black mb-4">방문 통계</h2>
+
+      {cr && (
+        <div className="mb-6 rounded-xl border border-neutral-200 p-4">
+          <div className="flex items-baseline justify-between">
+            <p className="text-xs text-neutral-500">오늘 남은 시세 조회 크레딧</p>
+            <p className="text-[11px] text-neutral-400">
+              {new Date(cr.resetAt).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}에 다시 참
+            </p>
+          </div>
+          <p className={`mt-1 text-2xl font-bold ${crTone}`}>
+            {crLeft === null ? '아직 모름' : crLeft.toLocaleString()}
+            <span className="ml-1 text-sm font-normal text-neutral-400">/ {cr.daily.toLocaleString()}</span>
+          </p>
+          {crPct !== null && (
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+              <div
+                className={`h-full rounded-full ${(crLeft ?? 0) <= 0 ? 'bg-rose-500' : (crLeft ?? 0) < cr.keepForVisitors ? 'bg-amber-500' : 'bg-black'}`}
+                style={{ width: `${Math.max(0, Math.min(100, crPct))}%` }}
+              />
+            </div>
+          )}
+          <p className="mt-2 text-xs text-neutral-500">
+            세트 시세 채우기에 오늘 {cr.fillSpent.toLocaleString()} / {cr.fillBudget.toLocaleString()} 씀 ·
+            방문자 몫 {cr.keepForVisitors.toLocaleString()}은 채우기가 안 건드림
+          </p>
+          {crLeft !== null && crLeft <= 0 && (
+            <p className="mt-2 text-xs text-rose-600">
+              다 썼습니다. 방문자에게는 사흘 안에 받아 둔 시세를 대신 보여줍니다.
+            </p>
+          )}
+          {cr.blocked && crLeft !== null && crLeft > 0 && (
+            <p className="mt-2 text-xs text-amber-600">지금 잠시 쉬는 중입니다(분당 한도).</p>
+          )}
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-neutral-200 p-4">

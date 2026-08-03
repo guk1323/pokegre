@@ -145,6 +145,16 @@ export interface VisitStatsResponse {
   total: number;
   // 가입 회원 수(개수만). 회원번호 등 개인정보는 서버가 내려주지 않는다.
   memberCount: number;
+  // 오늘 시세 조회 크레딧. 이게 0이 되면 방문자에게 이베이·TCGplayer 시세가 안 보인다.
+  credits?: {
+    left: number | null; // null = 아직 한 번도 안 불러서 모름
+    daily: number;
+    fillSpent: number; // 오늘 세트 시세 채우기에 쓴 것
+    fillBudget: number;
+    keepForVisitors: number; // 채우기가 넘지 않는 선
+    resetAt: string; // 다시 차는 시각(한국시간 오전 9시)
+    blocked: boolean; // 지금 한도에 걸려 쉬는 중인지
+  };
 }
 
 // 카드 제목·시리즈명 한글화가 이상할 때 사용자가 알려주는 신고. 화면에 보인 제목,

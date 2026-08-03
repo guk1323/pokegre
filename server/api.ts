@@ -2008,6 +2008,8 @@ let pptDailyLeftDay = ''
 // 그때부터 방문자의 eBay·TCGplayer 시세가 통째로 안 나온다. 실제로 그래 왔다 —
 // 2026-07-28에도 낮 한 시간 반 동안 22세트를 받아 하루치가 바닥났다.
 // 세트 하나가 200~600크레딧이라 채우기 한 바퀴에 1만 안팎이 든다.
+// PPT 유료 플랜(월 $10)의 하루치. 한국시간 오전 9시(UTC 0시)에 다시 찬다.
+const PPT_DAILY_LIMIT = 20_000
 const PPT_KEEP_FOR_VISITORS = 8000
 
 // ⚠️ 위 세 값은 메모리에만 있으면 배포할 때마다 지워진다. 그러면 "남은 크레딧을 아직
@@ -2453,9 +2455,21 @@ function mountVisitStats(app: Mountable) {
       .sort((a, b) => a.date.localeCompare(b.date))
     // 가입 회원 수(개수만). 회원번호 등 내용은 절대 안 내보낸다.
     const memberCount = (await loadUsers()).length
+    // 오늘 시세 조회 크레딧이 얼마나 남았는지. 이게 0이 되면 방문자에게 이베이·
+    // TCGplayer 시세가 안 보이므로, 운영자가 서버 로그를 뒤지지 않고 바로 보게 한다.
+    const left = pptLeftNow()
+    const credits = {
+      left: Number.isFinite(left) ? left : null, // null = 아직 한 번도 안 불러서 모름
+      daily: PPT_DAILY_LIMIT,
+      fillSpent: fillSpentToday(),
+      fillBudget: WARM_FILL_BUDGET,
+      keepForVisitors: PPT_KEEP_FOR_VISITORS,
+      resetAt: new Date(nextUtcMidnight()).toISOString(), // 한국시간 오전 9시
+      blocked: Date.now() < pptBlockedUntil,
+    }
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ items, total: items.reduce((s, i) => s + i.count, 0), memberCount }))
+    res.end(JSON.stringify({ items, total: items.reduce((s, i) => s + i.count, 0), memberCount, credits }))
   })
 }
 
