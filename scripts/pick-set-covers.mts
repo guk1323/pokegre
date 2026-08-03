@@ -54,7 +54,11 @@ for (const s of idx) {
   // 등급을 포기하고 그림 있는 카드 중에서 고른다 — 카드 뒷면보다 실제 카드가 낫다.
   // ⚠️ 표지가 이미 있는 세트는 이 폴백을 안 쓴다. 등급으로 고른 표지를 등급 없는
   //    카드로 바꿔치기하면 오히려 나빠진다.
-  const all = graded.length ? graded : s.cover ? [] : cards
+  // ⚠️ 단, 스니커덩크 주소는 "있는" 것으로 치지 않는다. 화면(cardCatalog의 usable)이
+  //    판매자 실물 사진이라 보고 통째로 걸러서, 표지가 있는데도 카드 뒷면이 뜬다
+  //    (ja-M-P 메가 프로모카드가 그랬다 — 카드 83장은 멀쩡한 주소인데 표지만 스니커덩크).
+  const hasCover = usable(s.cover)
+  const all = graded.length ? graded : hasCover ? [] : cards
   if (!all.length) continue
   // 포켓몬 카드가 있으면 그 안에서만 고른다.
   const mons = all.filter((c) => isPokemon(c.name, s.slug.startsWith('ja-')))
