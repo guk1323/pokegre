@@ -126,7 +126,21 @@ export async function searchPokemonCards(
 // 검색 결과의 imageUrl은 개별 판매자가 올린 실물 사진인 경우가 많아 화질/구도가 제각각이다.
 // 상품 상세(apparels/{id})의 primaryMedia는 스니커덩크가 배경을 정리해 올린 대표 이미지라
 // 카드 목록에는 이쪽을 우선 사용한다.
-export async function fetchApparelDetail(apparelId: number): Promise<{ title: string; imageUrl: string; price: number; stock: number } | null> {
+// 같은 순간에 같은 카드를 두 곳에서 부르면 요청을 하나로 합친다.
+// 홈 화면이 "즐겨찾기"와 "최근 본 카드"를 각자 되살리는데, 양쪽에 다 있는 카드는
+// 같은 주소를 두 번 불렀다(실측: 8종을 13번). 시세는 계속 새로 받아야 하므로
+// 결과를 오래 들고 있지는 않는다 — 진행 중인 요청만 나눠 쓰고 끝나면 지운다.
+const detailInFlight = new Map<number, Promise<{ title: string; imageUrl: string; price: number; stock: number } | null>>();
+
+export function fetchApparelDetail(apparelId: number) {
+  const running = detailInFlight.get(apparelId);
+  if (running) return running;
+  const job = fetchApparelDetailOnce(apparelId).finally(() => detailInFlight.delete(apparelId));
+  detailInFlight.set(apparelId, job);
+  return job;
+}
+
+async function fetchApparelDetailOnce(apparelId: number): Promise<{ title: string; imageUrl: string; price: number; stock: number } | null> {
   const res = await fetch(`/api/snkrdunk/v1/apparels/${apparelId}`);
   if (!res.ok) return null;
   const data: ApparelDetailResponse = await res.json();
