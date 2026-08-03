@@ -13,9 +13,18 @@ function readRefs(key: string): StoredCardRef[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as (StoredCardRef | SnkrdunkCard)[];
     // 예전 형식(카드 통째로)이 남아 있을 수 있으니 필요한 필드만 뽑아 쓴다.
-    return parsed
-      .filter((item) => typeof item?.apparelId === 'number')
-      .map((item) => ({ apparelId: item.apparelId, category: item.category ?? 'card' }));
+    // ⚠️ 같은 카드가 두 번 들어 있는 기록이 실제로 있다(즐겨찾기 3장이 6개로). 담고
+    //    빼는 쪽은 중복을 거르지만, 한 번 이렇게 저장돼 버리면 스스로 낫지 않는다.
+    //    화면은 카드 번호를 목록의 키로 쓰기 때문에 중복이 있으면 리액트가 카드를
+    //    빠뜨리거나 겹쳐 그린다. 읽는 이 자리에서 거르면 어떤 경로로 생겼든 낫는다.
+    const seen = new Set<number>();
+    const out: StoredCardRef[] = [];
+    for (const item of parsed) {
+      if (typeof item?.apparelId !== 'number' || seen.has(item.apparelId)) continue;
+      seen.add(item.apparelId);
+      out.push({ apparelId: item.apparelId, category: item.category ?? 'card' });
+    }
+    return out;
   } catch {
     return [];
   }
