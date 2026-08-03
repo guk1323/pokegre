@@ -167,6 +167,14 @@ const longestFirstTerms = [
 // 다르다) 가장 가까운 세트로 잇는다. 팩 이름을 친 사람은 "그 시기 그 카드들"을 찾는
 // 것이므로 이 정도면 목적에 닿는다.
 const PACK_KO_EN: [string, string][] = [
+  // 나가바 유 콜라보. 이베이·TCGplayer 매물 제목은 "Yu Nagaba"로 적힌다.
+  // 스니커덩크 쪽은 manualPackOverrides가 맡는다 — 두 길은 따로 도니 양쪽에 넣어야 한다.
+  // ⚠️ 긴 것부터. "브이즈"(이브이 진화형 모음)는 영어 매물 제목엔 안 쓰이는 말이라
+  //    그냥 두면 한글이 남아 이베이에서 0건이 된다.
+  ['유나가바 브이즈', 'Yu Nagaba Eevee'],
+  ['나가바 브이즈', 'Nagaba Eevee'],
+  ['유나가바', 'Yu Nagaba'],
+  ['나가바', 'Nagaba'],
   ['포켓몬카드 151', '151'],
   ['흑염의 지배자', 'Obsidian Flames'],
   ['클레이버스트', 'Paldea Evolved'],
