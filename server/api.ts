@@ -2074,6 +2074,7 @@ export async function loadPptState() {
     }
     console.log(
       `[pokegre] PPT 상태를 이어받았습니다: 남은 크레딧 ${Number.isFinite(pptLeftNow()) ? pptLeftNow() : '모름'}` +
+        ` · 오늘 채우기에 쓴 것 ${fillSpentToday().toLocaleString()}/${WARM_FILL_BUDGET.toLocaleString()}` +
         (pptBlockedUntil > Date.now() ? ` · ${new Date(pptBlockedUntil).toISOString()}까지 쉽니다` : ''),
     )
   } catch {
