@@ -4245,6 +4245,50 @@ const SET_NAMES: Record<string, string> = { ...(pptSetNames as Record<string, st
 
 // 카드 뽑기 42개(일본 27 + 북미 15)를 7일에 한 바퀴 = 하루 6개.
 // 진열이 매일 일본 3 + 북미 3이라 양쪽 다 3의 배수로 맞춰 뒀다(사용자 확인 2026-08-03).
+// ── 시세를 언제 얼마나 받을지 (2026-08-03 사용자와 정함) ──────────────────
+// 세 가지가 같은 창고를 쓴다.
+//   A. 카드 뽑기 42개 — 앨범 값이라 자주 갱신한다. 7일에 한 바퀴(하루 6개).
+//   B. 나머지 288개  — 세트별 목록의 "값 높은 카드"에만 쓴다. 45일에 한 바퀴.
+//   채우기 — 아직 한 번도 못 받은 세트를 최신순으로. 하루 10,000까지.
+//
+// 하루치 20,000 중
+//   채우는 동안: 채우기 10,000 + A 1,857 + 방문자 800 ≈ 12,700
+//   다 채운 뒤 : A 1,857 + B 1,569 + 방문자 800 ≈ 4,200
+// 방문자 몫 8,000(PPT_KEEP_FOR_VISITORS)은 어느 경우에도 건드리지 않는다.
+const WARM_FILL_BUDGET = 10_000
+const WARM_SLOW_CYCLE_DAYS = 45
+
+// 오늘 채우기에 쓴 크레딧. 한국시간이 아니라 크레딧이 새로 차는 UTC 0시로 끊는다.
+let fillSpent = 0
+let fillSpentDay = ''
+const noteFillSpend = (n: number) => {
+  const d = utcDay()
+  if (fillSpentDay !== d) { fillSpentDay = d; fillSpent = 0 }
+  fillSpent += n
+}
+const fillSpentToday = () => (fillSpentDay === utcDay() ? fillSpent : 0)
+
+// 세트 발매일 — 채울 때 최신 것부터 받으려고 쓴다. 한 번 읽고 들고 있는다.
+let setDateCache: Map<string, string> | null = null
+function setReleaseDates(): Map<string, string> {
+  if (setDateCache) return setDateCache
+  const m = new Map<string, string>()
+  for (const base of ['dist/sets', 'public/sets']) {
+    try {
+      const list = JSON.parse(readFileSync(path.resolve(base, 'index.json'), 'utf-8')) as {
+        slug: string
+        releaseDate?: string
+      }[]
+      for (const s of list) m.set(s.slug, s.releaseDate ?? '')
+      break
+    } catch {
+      /* 다음 경로 */
+    }
+  }
+  setDateCache = m
+  return m
+}
+
 const WARM_CYCLE_DAYS = 7
 // 이 날짜(한국시간)까지는 순번제를 쉰다. 2026-08-03에 44개 시세를 한꺼번에 채우느라
 // 하루치를 많이 썼기 때문에, 그날은 더 받지 않고 다음 날부터 시작한다.
@@ -4280,7 +4324,38 @@ function warmTargets(): string[] {
   const extra = all.length % WARM_CYCLE_DAYS
   // 앞 extra일은 한 개씩 더 맡는다. 시작 위치는 그걸 감안해 센다.
   const start = slot * per + Math.min(slot, extra)
-  return all.slice(start, start + per + (slot < extra ? 1 : 0))
+  return [...all.slice(start, start + per + (slot < extra ? 1 : 0)), ...fillTargets(), ...slowTargets()]
+}
+
+const hasPrices = (slug: string) => !!Object.keys(packPriceCache.get(slug)?.prices ?? {}).length
+
+// 아직 한 번도 못 받은 세트를 최신순으로 채운다. 하루 예산까지만.
+//
+// 왜 최신순인가: 사람들이 찾는 건 대부분 최근 몇 년 세트다. 첫날에 값어치가 몰린다.
+// 왜 예산을 두나: 한 번에 다 받으면 64,000이라 하루치(20,000)를 세 배 넘긴다.
+// ⚠️ 예산을 다 쓰면 빈 배열을 준다 — 그래야 warmPackPrices가 "할 일 없음"으로 보고
+//    다음 날까지 조용히 기다린다.
+function fillTargets(): string[] {
+  if (fillSpentToday() >= WARM_FILL_BUDGET) return []
+  const dates = setReleaseDates()
+  return Object.keys(SET_NAMES)
+    .filter((s) => !hasPrices(s))
+    .sort((a, b) => (dates.get(b) ?? '').localeCompare(dates.get(a) ?? '') || a.localeCompare(b))
+}
+
+// 다 채운 뒤 천천히 도는 몫 — 뽑기에 없는 세트를 45일에 한 바퀴.
+// 세트별 목록의 "값 높은 카드"에만 쓰이므로 한 달 반쯤 묵어도 괜찮다.
+// ⚠️ 아직 채울 게 남아 있으면 이쪽은 쉰다. 채우는 게 먼저다.
+function slowTargets(): string[] {
+  const packs = new Set(PACK_SETS.map((p) => p.slug))
+  const rest = Object.keys(SET_NAMES).filter((s) => !packs.has(s)).sort()
+  if (!rest.length || rest.some((s) => !hasPrices(s))) return []
+  const dayNo = Math.floor((Date.now() + 9 * 3600_000) / 86400_000)
+  const slot = dayNo % WARM_SLOW_CYCLE_DAYS
+  const per = Math.floor(rest.length / WARM_SLOW_CYCLE_DAYS)
+  const extra = rest.length % WARM_SLOW_CYCLE_DAYS
+  const from = slot * per + Math.min(slot, extra)
+  return rest.slice(from, from + per + (slot < extra ? 1 : 0))
 }
 
 let warming = false
@@ -4299,6 +4374,9 @@ async function warmPackPrices(apiKey: string) {
         outOfBudget = true
         break
       }
+      // 오늘 채우기 몫을 다 썼으면 "처음 받는 세트"는 더 건드리지 않는다.
+      // ⚠️ 목록은 시작할 때 한 번 만들어지므로, 여기서 매번 다시 봐야 예산을 넘지 않는다.
+      if (!hasPrices(slug) && fillSpentToday() >= WARM_FILL_BUDGET) continue
       // 신선한 것과, 최근에 시도했다 실패한 것은 건너뛴다(위 packWarmDue 설명).
       if (!packWarmDue(packPriceCache.get(slug))) continue
       await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 5_000 })
@@ -4377,6 +4455,8 @@ async function getSetPrices(
     const basePriced = new Set<string>() // 기본판 값을 이미 받은 번호
     let complete = false
     for (let p = 0; p < pages; p++) {
+      // 한 장에 PPT_PAGE(200)만큼 나간다. 헤더만 믿지 않고 직접 센다.
+      noteFillSpend(PPT_PAGE)
       const list = await fetchSetPage(setName, lang, apiKey, p * PPT_PAGE)
       if (list === null) {
         // 첫 페이지부터 실패(429 등)면 이전 캐시라도 쓴다. 뒤 페이지 실패면 받은 만큼(partial) 저장.
