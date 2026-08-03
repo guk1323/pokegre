@@ -67,22 +67,10 @@ export interface SetFile {
   cards: SetCard[];
 }
 
-// TCGdex는 베이스 주소라 /high.webp를 붙인다(low.webp는 245px라 320px 표시에서 뿌옇게
-// 확대돼, 600px high를 받아 프록시가 선명하게 축소한다). 다른 소스는 완성된 주소 그대로.
-export const cardImg = (base: string) =>
-  !base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`;
-
-// 썸네일은 원본(로고 127KB·박스 59KB)을 그대로 받으면 느리다. 무료 CDN(wsrv.nl)으로
-// 필요한 크기의 WebP로 줄여 받는다(~5KB). w는 표시의 2배(레티나).
-export const thumb = (url: string, w: number) => (url ? `/api/img?u=${encodeURIComponent(url)}&w=${w}` : '');
-
-// 이미지가 아직 없는 카드(옛 프로모·트레이너킷 등)의 임시 대체. 빈 회색칸 대신
-// "뒷면(이미지 준비 중)"을 보여줘 일관성을 지킨다.
-export const CARD_BACK = '/card-back.svg';
-
-// 스니덩크는 "마켓 거래 사진"(슬랩·손·책상 위 등)이라 공식 카드 렌더가 아니다.
-// 경로 불문 "이미지 없음"으로 취급해 뒷면으로 대체한다.
-export const usable = (url?: string) => !!url && !url.includes('snkrdunk');
+// 이미지 주소 규칙은 cardImg.ts로 옮겼다 — 사전을 안 쓰는 것들이라, 첫 화면에 늘 있는
+// CardTile이 thumb() 하나 때문에 이름 사전 109KB를 같이 받던 것을 끊기 위해서다.
+// 쓰는 쪽이 안 바뀌도록 여기서 그대로 다시 내보낸다.
+export { cardImg, thumb, CARD_BACK, usable } from './cardImg';
 
 // 일본판은 일본어 변환 후, TCGdex에 영어로 섞여 오는 이름(옛 세트의 Koffing 등)까지
 // 영어 변환기로 한 번 더 잡는다. 북미판은 영어 변환만.

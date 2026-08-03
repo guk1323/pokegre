@@ -1,5 +1,5 @@
 import type { SnkrdunkCard } from '../api/snkrdunk';
-import { thumb } from '../lib/cardCatalog';
+import { thumb } from '../lib/cardImg';
 import { FavoriteButton } from './FavoriteButton';
 import { Price } from './KrwHint';
 
