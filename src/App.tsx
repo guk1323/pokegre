@@ -290,7 +290,18 @@ function App() {
 
   // 참조가 바뀔 때마다 현재 시세로 다시 채운다. 마이페이지를 열 때마다 최신 가격이
   // 보이는 이유이고, SNKRDUNK 조회는 크레딧을 쓰지 않아 부담이 없다.
+  // 마이페이지를 한 번이라도 열었는지. 즐겨찾기·최근 본 카드의 "지금 시세와 한글 이름"은
+  // 그 화면에서만 쓴다. 그런데 첫 화면에서 미리 받으면 이름 사전(115KB)까지 딸려 와서,
+  // 한 번이라도 카드를 담아 본 사람은 홈에 들어올 때마다 그걸 다 받고 있었다
+  // (처음 오는 사람 91KB / 다시 오는 사람 215KB — 2026-08-04 운영에서 실측).
+  // ⚠️ 카드 옆 북마크 표시는 참조(favoriteRefs)만 보므로 여기 영향을 안 받는다.
+  const [interestNeeded, setInterestNeeded] = useState(false);
   useEffect(() => {
+    if (view === 'mypage') setInterestNeeded(true);
+  }, [view]);
+
+  useEffect(() => {
+    if (!interestNeeded) return;
     let cancelled = false;
     resolveStoredCards(favoriteRefs).then((cards) => {
       if (!cancelled) setFavorites(cards);
@@ -298,9 +309,10 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [favoriteRefs]);
+  }, [favoriteRefs, interestNeeded]);
 
   useEffect(() => {
+    if (!interestNeeded) return;
     let cancelled = false;
     resolveStoredCards(recentRefs).then((cards) => {
       if (!cancelled) setRecentlyViewed(cards);
@@ -308,7 +320,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [recentRefs]);
+  }, [recentRefs, interestNeeded]);
 
   // 카카오 콜백이 /?setNickname=1 로 돌려보내면 최초 로그인이라 닉네임 설정을 띄운다.
   // 주소창에 흔적을 남기지 않도록 확인 후 쿼리는 지운다.
