@@ -346,7 +346,13 @@ export async function fetchPriceHistory(
 // ⚠️ range는 항상 'all'로 본다. 기간을 좁히면 "그 기간에만" 거래가 없는 등급까지
 //    빠지는데, 그건 목록에서 지울 일이 아니라 그래프가 비어 있다고 말할 일이다.
 // ⚠️ 스니커덩크는 무료지만 한 번에 열여섯 번을 몰아 보내지는 않는다. 넷씩 끊어 보낸다.
+// 카드마다 한 번만 훑는다. 같은 카드를 다시 열면 그때 알아낸 것을 그대로 쓴다
+// (안 그러면 카드를 열 때마다 열여섯 번씩 다시 물어본다).
+const tradedGradeCache = new Map<number, Set<string>>();
+
 export async function fetchTradedGrades(apparelId: number, codes: string[]): Promise<Set<string>> {
+  const cached = tradedGradeCache.get(apparelId);
+  if (cached) return cached;
   const out = new Set<string>();
   if (!codes.length) return out;
   const detailRes = await fetch(`/api/snkrdunk/v1/apparels/${apparelId}`);
@@ -372,6 +378,7 @@ export async function fetchTradedGrades(apparelId: number, codes: string[]): Pro
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
+  tradedGradeCache.set(apparelId, out);
   return out;
 }
 
