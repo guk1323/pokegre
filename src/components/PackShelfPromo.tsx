@@ -38,6 +38,9 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
       <button
         type="button"
         onClick={onEnter}
+        // 안쪽이 전부 그림·짧은 글자라 화면 읽기 프로그램에는 그냥 "버튼"으로 읽힌다.
+        // 무엇을 하는 버튼인지 이름을 붙인다.
+        aria-label="오늘의 상점 열기"
         className="group block w-full rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:border-neutral-300 hover:shadow"
       >
         {/* 좁은 화면에서는 6칸을 3열로 쪼개면 그림이 너무 작아진다. 2열로 줄여
