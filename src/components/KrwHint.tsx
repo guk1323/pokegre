@@ -118,3 +118,14 @@ export function Price({
     </>
   );
 }
+
+// 금액 하나를 원화 글자로 바꿔 준다. 등급 칸처럼 좁아서 <Price>를 통째로 넣기
+// 어려운 자리에서 쓴다.
+// ⚠️ 환율을 못 받았을 때만 원본 화폐로 적는다 — 그때도 금액은 보여야 한다.
+export function useKrw(): (amount: number, currency: 'jpy' | 'usd') => string {
+  const rates = useExchangeRates();
+  return (amount, currency) => {
+    if (!rates || !(amount > 0)) return currency === 'jpy' ? YEN.format(amount) : USD.format(amount);
+    return formatKrwApprox(amount * (currency === 'jpy' ? rates.jpyToKrw : rates.usdToKrw));
+  };
+}

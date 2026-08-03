@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
-import { Price, KrwRateNote } from './KrwHint';
+import { Price, KrwRateNote, useKrw } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 function shortDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -15,6 +14,8 @@ function shortDate(iso: string | null): string | null {
 }
 
 export function EbayCardDetail({ card }: { card: EbayCard }) {
+  // 중앙값도 원화로 적는다(가격 표시를 원화로 통일).
+  const krw = useKrw();
   // 카드 이름 한글화가 이상하면 사용자가 알려준다(스니덩크 상세와 같은 방식).
   // 다른 카드를 열면 버튼이 되살아나도록 카드가 바뀔 때 초기화한다.
   const [titleReported, setTitleReported] = useState(false);
@@ -93,7 +94,7 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
                   <div className="flex-shrink-0 text-right">
                     <Price amount={price} currency="usd" className="text-sm font-bold text-black leading-tight" />
                     {isSmart && (
-                      <p className="text-[11px] text-neutral-400 leading-tight">중앙값 {usd.format(g.medianPrice)}</p>
+                      <p className="text-[11px] text-neutral-400 leading-tight">중앙값 {krw(g.medianPrice, 'usd')}</p>
                     )}
                   </div>
                 </a>

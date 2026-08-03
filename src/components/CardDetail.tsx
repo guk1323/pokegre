@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Price } from './KrwHint';
+import { Price, useKrw } from './KrwHint';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
 import {
@@ -14,9 +14,11 @@ import {
 } from '../api/snkrdunk';
 import { PriceChart } from './PriceChart';
 
-const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' });
 
 export function CardDetail({ card }: { card: SnkrdunkCard }) {
+  // 등급 칸은 3열이라 좁다. 엔화와 원화를 같이 넣으면 글자가 넘쳐서
+  // 원화만 적는다(사용자 결정 2026-08-03).
+  const krw = useKrw();
   const isBox = card.category === 'box';
   const [groups, setGroups] = useState<ConditionGroup[]>([]);
   const [loading, setLoading] = useState(!isBox);
@@ -76,10 +78,23 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       .finally(() => {
         if (!cancelled) setHistoryLoading(false);
       });
-    return () => {
+  
+  return () => {
       cancelled = true;
     };
   }, [card.apparelId, range, condition, variantId]);
+
+  // 등급 드롭다운에서 매물이 없는 등급은 뺀다. 스니커덩크는 그 카드에 매물이 하나도
+  // 없는 등급까지 다 내려주기 때문에, 골라 봐야 "실거래 기록이 없습니다"만 나온다.
+  //
+  // ⚠️ 두 목록은 코드 형식이 서로 다르다(드롭다운 'trading_card_single_psa10' vs
+  //    매물 'psa_10'). 그래서 화면에 보이는 이름(A·PSA10…)으로 맞춘다.
+  // ⚠️ 매물 목록을 아직 못 받았으면 거르지 않는다 — 잠깐 드롭다운이 비면 더 이상하다.
+  const liveGradeNames = new Set(
+    groups.flatMap((g) => g.chips.filter((c) => c.hasListing).map((c) => c.text)),
+  );
+  const all = history?.conditions ?? [];
+  const pickedConditions = liveGradeNames.size ? all.filter((c) => liveGradeNames.has(c.name)) : all;
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
@@ -141,7 +156,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
           ranges={history?.ranges ?? []}
           range={range}
           onRangeChange={setRange}
-          conditions={history?.conditions ?? []}
+          conditions={pickedConditions}
           condition={condition}
           onConditionChange={setCondition}
           unitLabel={history?.variants[0]?.name}
@@ -187,7 +202,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
                         className="rounded-lg border border-neutral-200 p-2 text-center"
                       >
                         <p className="text-[11px] font-semibold text-neutral-600">{koreanizeGrade(chip.text)}</p>
-                        <p className="text-xs font-bold text-black">{yen.format(chip.usedMinPrice ?? 0)}</p>
+                        <p className="text-xs font-bold text-black">{krw(chip.usedMinPrice ?? 0, 'jpy')}</p>
                       </div>
                     ))}
                   </div>
