@@ -3429,6 +3429,8 @@ function mountFleaMarket(app: Mountable) {
 //    크레딧을 또 쓴다. 하루에 여러 번 배포하는 날엔 이게 크다.
 const LAST_PRICE_FILE = dataFile('card-prices-last.json')
 const LAST_PRICE_MAX = 400
+// 지난 시세를 보여줄 최대 나이. 이보다 오래된 것은 안 보여주고 예전처럼 안내만 뜬다.
+const STALE_PRICE_MAX_MS = 3 * 24 * 60 * 60 * 1000
 const lastPrice = new Map<string, { body: string; at: number }>()
 let lastPriceSaveAt = 0
 
@@ -3473,6 +3475,10 @@ function rememberPrice(key: string, body: string) {
 function stalePrice(key: string): string | null {
   const hit = lastPrice.get(key)
   if (!hit) return null
+  // 너무 오래된 값은 안 보여준다. 날짜를 적어 두긴 하지만 그 줄을 놓치고
+  // 지금 시세로 오해할 수 있다. 크레딧은 보통 다음 날 오전 9시면 다시 차므로
+  // 사흘이면 충분하다(사용자 확인 2026-08-04).
+  if (Date.now() - hit.at > STALE_PRICE_MAX_MS) return null
   try {
     return JSON.stringify({ ...(JSON.parse(hit.body) as object), asOf: new Date(hit.at).toISOString() })
   } catch {
