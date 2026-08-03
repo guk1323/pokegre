@@ -162,33 +162,33 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
           <p className="text-xs text-neutral-400 py-4 text-center">불러오는 중...</p>
         ) : error ? (
           <p className="text-xs text-rose-500 py-4 text-center">{error}</p>
-        ) : groups.length === 0 ? (
+        ) : !groups.some((g) => g.chips.some((c) => c.hasListing)) ? (
           <p className="text-xs text-neutral-400 py-4 text-center">등급별 매물이 없습니다.</p>
         ) : (
+          // 매물이 있는 등급만 보여준다. 예전엔 없는 등급까지 흐리게 다 그려서
+          // "매물없음" 칸이 화면을 가득 채웠다(등급이 열 몇 개라 대부분 빈칸이다).
+          // 이베이 상세도 값이 있는 등급만 내려주므로 두 화면이 같은 방식이 된다.
           <div className="space-y-3">
-            {groups.map((group) => (
-              <div key={group.label}>
-                <p className="text-[11px] font-semibold text-neutral-400 mb-1">{group.label}</p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {group.chips.map((chip) => (
-                    <div
-                      key={chip.conditionId}
-                      title={RAW_GRADE_DESCRIPTION[chip.filterConditionId]}
-                      className={`rounded-lg border p-2 text-center ${
-                        chip.hasListing ? 'border-neutral-200' : 'border-neutral-100 opacity-50'
-                      }`}
-                    >
-                      <p className="text-[11px] font-semibold text-neutral-600">{koreanizeGrade(chip.text)}</p>
-                      {chip.hasListing ? (
+            {groups
+              .map((group) => ({ ...group, chips: group.chips.filter((c) => c.hasListing) }))
+              .filter((group) => group.chips.length > 0)
+              .map((group) => (
+                <div key={group.label}>
+                  <p className="text-[11px] font-semibold text-neutral-400 mb-1">{group.label}</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {group.chips.map((chip) => (
+                      <div
+                        key={chip.conditionId}
+                        title={RAW_GRADE_DESCRIPTION[chip.filterConditionId]}
+                        className="rounded-lg border border-neutral-200 p-2 text-center"
+                      >
+                        <p className="text-[11px] font-semibold text-neutral-600">{koreanizeGrade(chip.text)}</p>
                         <p className="text-xs font-bold text-black">{yen.format(chip.usedMinPrice ?? 0)}</p>
-                      ) : (
-                        <p className="text-[11px] text-neutral-400">매물없음</p>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>

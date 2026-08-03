@@ -24,9 +24,14 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
   useEffect(() => {
     if (!open) return;
     const measure = () => {
-      const h = document.querySelector('header')?.getBoundingClientRect().height ?? 0;
+      // ⚠️ 높이(height)가 아니라 화면에서 머리말이 "끝나는 자리"(bottom)를 쓴다.
+      //    높이로 재면 페이지가 스크롤돼 머리말이 위로 밀려 나갔을 때도 그 높이만큼
+      //    비워 버려서, 시트 위에 검색창 같은 뒷 내용이 어중간하게 남는다(지적받음).
+      //    스크롤로 머리말이 다 지나갔으면 bottom이 음수가 되므로 0으로 붙잡아,
+      //    시트가 화면을 거의 꽉 채우게 한다.
+      const bottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
       // 머리말 아래로 조금 더 띄워 메뉴가 온전히 보이고 눌리게 한다.
-      setTopGap(Math.round(h) + 8);
+      setTopGap(Math.max(0, Math.round(bottom)) + 8);
     };
     measure();
     // 머리말은 글꼴이 늦게 오거나 글자가 줄바꿈되면 높이가 뒤늦게 바뀐다. 열 때 한 번만
@@ -36,9 +41,14 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
     const ro = header ? new ResizeObserver(measure) : null;
     if (header && ro) ro.observe(header);
     window.addEventListener('resize', measure);
+    // 시트를 여는 순간의 스크롤 위치에 따라 머리말이 얼마나 보이는지가 달라진다.
+    // 열린 뒤에는 뒤 목록이 잠기므로 한 번 더 재는 것으로 충분하지만, 주소창이
+    // 접히거나 펴지면 위치가 밀리므로 스크롤도 같이 듣는다.
+    window.addEventListener('scroll', measure, { passive: true });
     return () => {
       ro?.disconnect();
       window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure);
     };
   }, [open]);
 
@@ -86,11 +96,14 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
         type="button"
         aria-label="닫기"
         onClick={onClose}
-        className="absolute inset-x-0 bottom-0 bg-black/40"
+        className="sheet-backdrop absolute inset-x-0 bottom-0 bg-black/40"
         style={{ top: topGap }}
       />
+      {/* 폰에서는 화면 폭을 꽉 채우고, 태블릿·좁은 PC(768~1023px)에서는 가운데로 모아
+          너무 옆으로 늘어지지 않게 한다 — 아래에서 올라오는 시트의 보편적인 모양이다.
+          sm 이상에서는 아래쪽 모서리도 둥글리고 살짝 띄운다. */}
       <div
-        className="relative overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl"
+        className="sheet-panel relative mx-auto w-full overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl sm:mb-3 sm:max-w-lg sm:rounded-2xl"
         style={{ maxHeight: `calc(100dvh - ${topGap}px)` }}
       >
         {/* 손잡이를 눌러 닫는다(배경 어두운 곳 탭·뒤로가기로도 닫힘). 회색 바만 두면
