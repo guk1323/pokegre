@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { koreanizeGrade } from '../api/snkrdunk';
 import type { ConditionOption, PricePoint, PriceRange, RangeOption } from '../api/snkrdunk';
+import { useKrw } from './KrwHint';
 
-const yen = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
 
 // 기간이 해를 넘기는 경우가 많아("25.11 ~ 26.7") 연도를 빼면 어느 시점인지 모호해진다.
 // Intl의 ko-KR 표기는 "25. 11. 26."처럼 공백이 끼어 좁은 패널에서 지저분해서 직접 만든다.
@@ -56,6 +56,8 @@ export function PriceChart({
   unitLabel?: string;
   loading: boolean;
 }) {
+  // 그래프 눈금도 원화로 적는다(화면 전체를 원화로 통일).
+  const krw = useKrw();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
 
@@ -202,7 +204,7 @@ export function PriceChart({
                   left: `${Math.min(Math.max((geom.coords[hover].cx / VIEW_W) * 100, 12), 88)}%`,
                 }}
               >
-                {yen.format(geom.coords[hover].price)}
+                {krw(geom.coords[hover].price, 'jpy')}
                 <span className="ml-1 font-normal text-neutral-400">
                   {compactDate(geom.coords[hover].timestamp)}
                 </span>
@@ -213,13 +215,13 @@ export function PriceChart({
           {/* 모든 점에 숫자를 달지 않고 최고/최저만 직접 라벨링한다. */}
           <div className="mt-1 flex justify-between text-[11px] text-neutral-400">
             <span>
-              최저 <span className="font-semibold text-neutral-600">{yen.format(geom.pMin)}</span>
+              최저 <span className="font-semibold text-neutral-600">{krw(geom.pMin, 'jpy')}</span>
             </span>
             <span>
               {compactDate(points[0].timestamp)} ~ {compactDate(points[points.length - 1].timestamp)}
             </span>
             <span>
-              최고 <span className="font-semibold text-neutral-600">{yen.format(geom.pMax)}</span>
+              최고 <span className="font-semibold text-neutral-600">{krw(geom.pMax, 'jpy')}</span>
             </span>
           </div>
         </>

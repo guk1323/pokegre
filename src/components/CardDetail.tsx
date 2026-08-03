@@ -30,6 +30,9 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   const [condition, setCondition] = useState('');
   // 카드 이름(한글화) 오류 신고를 한 번 누르면 감사 문구로 바꾼다.
   const [titleReported, setTitleReported] = useState(false);
+  // 그래프에 실거래 기록이 하나도 없는 것으로 확인된 등급. 골라 보기 전에는 알 수 없어서,
+  // 한 번 골라 보고 비어 있으면 여기 적어 두고 목록에서 뺀다(카드를 바꾸면 비운다).
+  const [emptyGrades, setEmptyGrades] = useState<Set<string>>(new Set());
   // 수량은 항상 1개(1장)로 고정한다. 사용자가 고를 일이 없고("10박스 묶음 시세"를
   // 보고 싶은 사람은 없다), 안 고정하면 박스 시세가 묶음 총액과 섞여 부풀려진다.
   const [variantId, setVariantId] = useState<number | null>(null);
@@ -54,6 +57,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     setCondition('');
     setVariantId(null);
     setTitleReported(false);
+    setEmptyGrades(new Set());
   }, [card.apparelId]);
 
   useEffect(() => {
@@ -64,6 +68,11 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       .then((result) => {
         if (cancelled || !result) return;
         setHistory(result);
+        // 이 등급으로 골랐는데 점이 하나도 없으면 그래프가 그려지지 않는다.
+        // 목록에 남겨 두면 골라 봐야 "실거래 기록이 없습니다"만 나오므로 빼둔다.
+        if (condition && result.points.length === 0) {
+          setEmptyGrades((prev) => (prev.has(condition) ? prev : new Set(prev).add(condition)));
+        }
         // 첫 조회에서 필터 목록을 받아오면, 그걸로 기본값을 정해 다시 조회한다.
         // 목록은 상품마다 달라서(박스는 등급이 없고 수량 단위도 個/枚로 다름)
         // 코드를 박아두지 않고 API가 주는 첫 항목을 쓴다.
@@ -94,7 +103,10 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     groups.flatMap((g) => g.chips.filter((c) => c.hasListing).map((c) => c.text)),
   );
   const all = history?.conditions ?? [];
-  const pickedConditions = liveGradeNames.size ? all.filter((c) => liveGradeNames.has(c.name)) : all;
+  const byListing = liveGradeNames.size ? all.filter((c) => liveGradeNames.has(c.name)) : all;
+  // 매물은 있는데 실거래 기록이 없는 등급도 있다. 골라 보고 빈 것으로 확인된 등급을 뺀다.
+  // ⚠️ 지금 고른 등급은 빼지 않는다 — 빼면 선택칸이 그 자리에서 사라져 화면이 튄다.
+  const pickedConditions = byListing.filter((c) => c.code === condition || !emptyGrades.has(c.code));
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">

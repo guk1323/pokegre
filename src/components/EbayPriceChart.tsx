@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { formatGradeLabel, type EbayGradeStat } from '../api/ebayPrices';
+import { useKrw } from './KrwHint';
 
 // 이베이 등급별 낙찰 평균가의 날짜별 추이를 그린다. 스니덩크 차트(PriceChart)는 엔화·
 // 스니덩크 타입에 묶여 있어서, 달러·등급 선택·날짜 기반인 이베이용은 따로 둔다.
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const SERIES = '#2a78d6';
 const VIEW_W = 280;
 const VIEW_H = 96;
@@ -15,6 +15,8 @@ function compactDate(iso: string): string {
 }
 
 export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }: { grades: EbayGradeStat[]; title?: string }) {
+  // 그래프 눈금도 원화로 적는다(화면 전체를 원화로 통일).
+  const krw = useKrw();
   // 그래프를 그리려면 점이 최소 2개는 있어야 한다. 낙찰이 뜸한 등급은 히스토리가 짧아
   // 선이 안 그려지므로, 그릴 수 있는 등급만 선택지에 올린다.
   const chartable = useMemo(() => grades.filter((g) => g.history.length >= 2), [grades]);
@@ -131,7 +133,7 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
             className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md bg-black px-2 py-1 text-[11px] font-semibold text-white"
             style={{ left: `${Math.min(Math.max((geom.coords[hover].cx / VIEW_W) * 100, 12), 88)}%` }}
           >
-            {usd.format(geom.coords[hover].price)}
+            {krw(geom.coords[hover].price, 'usd')}
             <span className="ml-1 font-normal text-neutral-400">{compactDate(geom.coords[hover].date)}</span>
           </div>
         )}
@@ -139,13 +141,13 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
 
       <div className="mt-1 flex justify-between text-[11px] text-neutral-400">
         <span>
-          최저 <span className="font-semibold text-neutral-600">{usd.format(geom.pMin)}</span>
+          최저 <span className="font-semibold text-neutral-600">{krw(geom.pMin, 'usd')}</span>
         </span>
         <span>
           {compactDate(geom.points[0].date)} ~ {compactDate(geom.points[geom.points.length - 1].date)}
         </span>
         <span>
-          최고 <span className="font-semibold text-neutral-600">{usd.format(geom.pMax)}</span>
+          최고 <span className="font-semibold text-neutral-600">{krw(geom.pMax, 'usd')}</span>
         </span>
       </div>
     </div>
