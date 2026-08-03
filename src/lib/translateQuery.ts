@@ -3,7 +3,7 @@ import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
 import setNameKoJa from '../data/setNameKoJa.json';
 import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
-import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TRAINER_NAMES } from './koreanizeTitle';
+import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TRAINER_NAMES, EXACT_TITLES } from './koreanizeTitle';
 
 interface PokemonName {
   id: number;
@@ -251,7 +251,29 @@ export function translateSearchQuery(query: string): string {
   // 스니커덩크에서 안 잡힌다("ロケット団의 ミュウツー"). 앞이 일본어(또는 N 같은
   // 알파벳)일 때만 바꾸므로, 아직 한글로 남은 이름의 "의"는 건드리지 않는다.
   result = result.replace(/([ぁ-んァ-ヶ一-鿿A-Za-z0-9])의\s*/g, '$1の');
+
+  // 마지막 그물. 여기까지 와도 한글이 남았다면 스니커덩크에서 0건이다. 그때만
+  // EXACT_TITLES(카드명 전체가 그 이름일 때 쓰는 사전)를 통짜로 되돌려 본다.
+  //
+  // 왜 여기서만 하나: 이 사전에는 "네모"·"그리"처럼 두 글자짜리 이름이 있어서, 위쪽
+  // 규칙들처럼 낱말 속까지 바꾸면 멀쩡한 검색어를 갈라 놓는다. 검색어 전체가 그
+  // 이름과 똑같을 때만 바꾸면 그럴 일이 없다.
+  // 왜 실패했을 때만 하나: 이미 되던 검색어는 손대지 않으므로 나빠질 수가 없다.
+  // 이 그물이 없어서 "체렌"·"헤비볼"·"루어볼" 같은 39종이 스니커덩크에서 0건이었다
+  // (같은 한글에 일본어가 둘 붙은 항목은 없어 어느 쪽인지 헷갈릴 일도 없다).
+  if (/[가-힣]/.test(result)) {
+    const whole = exactTitleByKo.get(trimmed);
+    if (whole) return whole;
+  }
   return result;
+}
+
+// EXACT_TITLES를 한글→일본어로 뒤집은 것. 알파벳만인 왼쪽(옛 세트의 깨진 원본을
+// 고치려고 넣은 것)은 스니커덩크에서 못 찾으므로 뺀다 — 위 reverseStructuralTerms와 같은 이유.
+const exactTitleByKo = new Map<string, string>();
+for (const [ja, ko] of EXACT_TITLES) {
+  if (!/[ぁ-んァ-ヶ一-鿿]/.test(ja)) continue;
+  if (!exactTitleByKo.has(ko)) exactTitleByKo.set(ko, ja);
 }
 
 // 같은 검색 의도라도 한글로 쳤는지 일본어로 쳤는지에 따라 문자열이 달라지면

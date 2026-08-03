@@ -784,9 +784,9 @@ export const STRUCTURAL_TERMS: [string, string][] = [
   ['サイキックメモリ', '초 메모리'], // Psychic Memory
   ['ファイトメモリ', '격투 메모리'], // Fighting Memory
   ['エレクトロメモリ', '전기 메모리'], // Electric Memory
-  ['エレメンタルバッジ', '엘리멘탈 뱃지'], // Elemental Badge
-  ['スノーリーフバッジ', '눈과 잎의 뱃지'], // Snow Leaf Badge
-  ['リボンバッジ', '리본 뱃지'], // Ribbon Badge
+  ['エレメンタルバッジ', '엘리멘탈 배지'], // Elemental Badge
+  ['スノーリーフバッジ', '눈과 잎의 배지'], // Snow Leaf Badge
+  ['リボンバッジ', '리본 배지'], // Ribbon Badge
   ['マウンテンリング', '산맥 링'], // Mountain Ring
   ['プロテクトキューブ', '프로텍트 큐브'], // Protection Cube
   ['ジャイアントボム', '대형 폭탄'], // Giant Bomb
@@ -2647,6 +2647,9 @@ export const STRUCTURAL_TERMS: [string, string][] = [
   ['プライム', '프라임'],
   ['じてんしゃ', '자전거'], // ダートじてんしゃ(더트자전거)를 덮지 않도록 여기 둔다
   ['のぞきみ', '엿보기'],
+  // 낱말로만 쓰인 バッジ가 규칙이 없어 "플라스마단바지"가 됐다(プラズマ団バッジ).
+  // 위쪽 エレメンタルバッジ·リボンバッジ 같은 통짜 이름보다 뒤라 그건 안 깨진다.
+  ['バッジ', '배지'],
 ];
 
 // ja-VS1(포켓몬 카드 ★VS)의 성도 관장 소유격 표기. 원본 DB가 영어명을 가타카나로
