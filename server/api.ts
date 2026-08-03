@@ -20,6 +20,7 @@ import {
   type PackSet,
 } from '../src/lib/packSets.ts'
 import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
+import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -4230,6 +4231,17 @@ async function savePackPriceFile() {
 //    같은 날은 같은 세트만 본다(그날 몫을 다 받으면 그 뒤 바퀴는 할 일이 없다).
 // ⚠️ 44개를 7일로 나누면 7·7·6·6·6·6·6이다. 마지막 날만 2개 같은 들쭉날쭉을 피하려고
 //    앞에서부터 하나씩 더 얹는다.
+// 시세 창고에 담을 수 있는 세트의 PPT 이름 사전 (2026-08-03 통합).
+//
+// 예전엔 시세를 두 군데서 따로 받았다 — 앨범(카드 뽑기 44세트)과 세트별 목록의 힛카드.
+// 부르는 주소도 파라미터도 똑같은데 저장하는 곳만 달라서 같은 걸 두 번 받고 있었다.
+// 이제 창고는 하나(packPriceCache)이고, 앨범도 힛카드도 여기서 읽는다
+// (topPricedCards가 창고를 먼저 보고, 없을 때만 미리 받아 둔 파일을 본다).
+//
+// ⚠️ 카드 뽑기 쪽(PPT_SET_NAMES)이 이긴다 — 그쪽은 손으로 확인한 이름이다.
+// ⚠️ 이름이 늘었다고 받는 양이 늘지는 않는다. 무엇을 받을지는 아래 warmTargets가 정한다.
+const SET_NAMES: Record<string, string> = { ...(pptSetNames as Record<string, string>), ...PPT_SET_NAMES }
+
 const WARM_CYCLE_DAYS = 7
 // 이 날짜(한국시간)까지는 순번제를 쉰다. 2026-08-03에 44개 시세를 한꺼번에 채우느라
 // 하루치를 많이 썼기 때문에, 그날은 더 받지 않고 다음 날부터 시작한다.
@@ -4238,6 +4250,9 @@ const WARM_SKIP_UNTIL_KST = '2026-08-03'
 const kstDay = (ms = Date.now()) => new Date(ms + 9 * 3600_000).toISOString().slice(0, 10)
 
 function warmTargets(): string[] {
+  // ⚠️ 여기는 일부러 좁게 잡는다(SET_NAMES 265개가 아니라 카드 뽑기 44개).
+  //    이름 사전은 265개로 넓혔지만, 넓힌 만큼 다 받으면 하루치를 훌쩍 넘긴다.
+  //    범위를 넓힐 땐 한 바퀴 일수(WARM_CYCLE_DAYS)와 세트당 비용을 같이 손봐야 한다.
   const all = Object.keys(PPT_SET_NAMES).sort() // 순서가 매일 같아야 한다
   if (!all.length) return []
   // 쉬는 날이라도 "시세가 아예 없는 세트"는 채운다 — 앨범에서 값이 통째로 비어 보이는
@@ -4337,7 +4352,7 @@ async function getSetPrices(
   apiKey: string,
   opts: { pages?: number; pauseMs?: number } = {},
 ): Promise<Record<string, number> | null> {
-  const setName = PPT_SET_NAMES[slug]
+  const setName = SET_NAMES[slug]
   if (!setName || !apiKey) return null
   const hit = packPriceCache.get(slug)
   // partial(뒤 페이지를 못 받은 것)은 신선한 걸로 치지 않는다 — 안 그러면 429 한 번에
@@ -5250,7 +5265,7 @@ function mountAuth(
             continue
           }
           // 아직 한 번도 못 받은 세트만 "준비 중"으로 알린다. 순번제가 제일 먼저 채운다.
-          if (PPT_SET_NAMES[slug]) pending.push(slug)
+          if (SET_NAMES[slug]) pending.push(slug)
         }
         let totalUsd = 0
         let priced = 0
