@@ -13,7 +13,7 @@
 import { readFileSync, readdirSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { koreanizeTitle, STRUCTURAL_TERMS, EXACT_TITLES } from '../src/lib/koreanizeTitle.ts'
+import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TITLES } from '../src/lib/koreanizeTitle.ts'
 import { kanaToHangul } from '../src/lib/kanaToHangul.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 import { translateSearchQueryToEnglish } from '../src/lib/translateQueryToEnglish.ts'
@@ -30,8 +30,12 @@ const koNames = (pokemonNames as { ko: string }[]).map((p) => p.ko)
 const koSet = new Set(koNames)
 // 이미 손으로 확인해 통짜로 등록해 둔 이름(굿즈·트레이너)은 "안 고친 것"이 아니다.
 // 빼주지 않으면 고칠수록 숫자가 안 줄어 남은 일이 얼마인지 알 수 없다.
+// ⚠️ 길이로 거르지 않는다. 예전엔 10글자까지만 '확인함'으로 쳐서, 손으로 넣은
+//    'ポケモンファンクラブ'(11글자)가 고친 뒤에도 계속 ②에 남았다.
+//    사전에 손으로 적은 낱말은 길이와 상관없이 이미 확인한 것이다.
 const reviewed = new Set([
-  ...STRUCTURAL_TERMS.filter(([ja]) => KATA_ONLY.test(ja)).map(([ja]) => ja),
+  ...STRUCTURAL_TERMS.map(([ja]) => ja),
+  ...COMPOUND_TERMS.map(([ja]) => ja),
   ...EXACT_TITLES.keys(), // 소리와 정식명이 같아 결과가 안 바뀌는 이름도 '확인함'이다
 ])
 
