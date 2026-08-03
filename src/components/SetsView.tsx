@@ -25,9 +25,37 @@ import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
 
 const PAGE = 60;
 
+// 시리즈(세트 묶음) 이름. 자동 번역에 맡기면 소리로만 옮겨지거나(ブラック＆ホワイト →
+// "블랙＆호와이토") 일본판·북미판이 서로 다르게 나와서, 화면에 뜰 이름은 여기서 못 박는다.
+//
+// 규칙 세 가지 (2026-08-03 확정):
+//  ① 일본판 앞에 붙는 "포켓몬카드게임"은 뗀다 — 어차피 전부 포켓몬 카드다.
+//  ② & 앞뒤에 공백 한 칸. 일본판의 전각 ＆도 반각 &로 맞춘다.
+//  ③ 같은 시리즈면 일본판·북미판 탭에서 글자가 똑같아야 한다.
+// ⚠️ 주소(/series/<슬러그>)와 사이트맵은 원문으로 만든다(serieSlug). 여기를 바꿔도
+//    주소는 그대로라 링크가 깨지지 않는다.
 const SERIE_LABEL: Record<string, string> = {
-  '剣と盾': '소드&실드',
+  // 일본판
   'ポケットモンスターカードゲーム': '초기 시리즈 (1996~)',
+  'ブラック＆ホワイト': '블랙 & 화이트',
+  'サン＆ムーン': '썬 & 문',
+  '剣と盾': '소드 & 실드',
+  'ポケモンカードゲーム スカーレット&バイオレット': '스칼렛 & 바이올렛',
+  'ポケモンカードゲーム MEGA': '메가 에볼루션',
+  // 북미판
+  Miscellaneous: '기타',
+  Gym: '짐',
+  Neo: '네오',
+  'E-Card': 'e카드',
+  'Trainer kits': '트레이너 키트',
+  "McDonald's Collection": '맥도날드 컬렉션',
+  'Black & White': '블랙 & 화이트',
+  'Sun & Moon': '썬 & 문',
+  'Sword & Shield': '소드 & 실드',
+  'Scarlet & Violet': '스칼렛 & 바이올렛',
+  // 포켓
+  'Pokémon TCG Pocket': '포켓몬 TCG 포켓',
+  // EX·POP·XY·VS·web·PCG·XY BREAK은 브랜드 이름이라 영문 그대로 둔다.
 };
 const koSerie = (ed: 'ja' | 'en', serie: string) => SERIE_LABEL[serie] ?? koSet(ed, serie);
 const shortDate = (d: string) => (d ? d.slice(0, 7).replace('-', '.') : '');
@@ -119,7 +147,9 @@ export function SetsView({
     setTab(hit.slug.startsWith('ja-') ? 'ja' : /pocket/i.test(hit.serie ?? '') ? 'pocket' : 'en');
     // 사이트맵에 시리즈 33개를 올려 뒀는데 여기서 안 남겨서, 검색으로 들어온 방문이
     // 통째로 안 세어졌다(세트 쪽에서 똑같은 걸 한 번 고쳤다 — 위 initialSlug 주석).
-    trackEvent('series', koSet(hit.ed, hit.serie ?? ''));
+    // 화면에 뜨는 이름 그대로 남긴다. koSet을 쓰면 통계에만 옛 이름("포켓몬카드게임 MEGA")이
+    // 남아 같은 시리즈가 두 줄로 갈린다.
+    trackEvent('series', koSerie(hit.ed, hit.serie ?? ''));
     // 탭이 바뀌고 목록이 그려진 뒤에 스크롤해야 자리를 찾는다.
     setTimeout(() => {
       document.getElementById(`serie-${initialSerie}`)?.scrollIntoView({ block: 'start' });
