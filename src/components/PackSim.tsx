@@ -963,7 +963,10 @@ export function PackSim({
                 <span className={`inline-block h-2 w-2 rounded-full ${row.dot}`} />
                 {row.label}
               </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {/* ⚠️ items-start가 없으면 한 줄의 타일이 서로 높이를 맞춘다. 고른 타일에만
+                  버튼 두 개와 안내가 붙으므로, 나머지 타일은 가격표 아래가 통째로
+                  비어 보였다(사용자 지적 2026-08-04). 각자 내용만큼만 차지하게 둔다. */}
+              <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-3">
                 {row.packs.map((s2) => {
                   const on = s2.slug === slug;
                   const img = art[s2.slug]?.boxImg || art[s2.slug]?.logo;
@@ -1025,7 +1028,18 @@ export function PackSim({
                             {/* ⚠️ 못 살 때도 무엇을 얼마에 사는지는 보여 준다. 예전엔 팩·박스
                                 버튼이 둘 다 "GP가 부족합니다"로 똑같아져서, 뭘 사는 버튼인지도
                                 얼마를 모아야 하는지도 알 수 없었다(사용자 지적 2026-08-04). */}
-                            {busy ? '구매 중…' : can ? `1팩 ${gp(s2.price)}` : `${gp(s2.price - (sim?.balance ?? 0))} 모자람`}
+                            {/* ⚠️ 한 줄로 적으면 좁은 화면에서 "1박스 48,000 GP"가 잘린다
+                                (사용자 지적 2026-08-04). 무엇을/얼마에를 줄로 나눈다. */}
+                            {busy ? (
+                              '구매 중…'
+                            ) : (
+                              <>
+                                <span className="block text-[11px] font-semibold opacity-80">1팩</span>
+                                <span className="block whitespace-nowrap">
+                                  {can ? gp(s2.price) : `${gp(s2.price - (sim?.balance ?? 0))} 모자람`}
+                                </span>
+                              </>
+                            )}
                           </button>
                           {(s2.boxPacks ?? 0) > 0 &&
                             (() => {
@@ -1041,11 +1055,16 @@ export function PackSim({
                                   disabled={busy || !canBox}
                                   className="flex-1 rounded-lg bg-black py-2.5 text-sm font-bold text-white disabled:opacity-40"
                                 >
-                                  {busy
-                                    ? '구매 중…'
-                                    : canBox
-                                      ? `1박스 ${gp(boxPrice)}`
-                                      : `${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
+                                  {busy ? (
+                                    '구매 중…'
+                                  ) : (
+                                    <>
+                                      <span className="block text-[11px] font-semibold opacity-80">1박스</span>
+                                      <span className="block whitespace-nowrap">
+                                        {canBox ? gp(boxPrice) : `${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
+                                      </span>
+                                    </>
+                                  )}
                                 </button>
                               );
                             })()}
@@ -1481,7 +1500,7 @@ export function PackSim({
                     그래서 sm: 이상에서는 늘리지 않고(auto-cols) 왼쪽에 모아 두고,
                     남는 자리에 아래 있던 등급·정렬을 끌어올려 한 줄로 만든다. */}
                 <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-                <div className="grid flex-1 grid-cols-3 gap-x-2 gap-y-4 sm:flex sm:flex-none sm:gap-x-8">
+                <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-4 sm:flex sm:flex-none sm:gap-x-8">
                   <div className="min-w-0">
                     <p className="text-xs text-neutral-400">모은 카드</p>
                     <p className="mt-0.5 whitespace-nowrap text-base font-bold tabular-nums text-black sm:text-xl">
@@ -1491,13 +1510,8 @@ export function PackSim({
                       </span>
                     </p>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-neutral-400">사용 GP</p>
-                    {/* 위 이름이 이미 "GP"라고 했으니 값에는 안 붙인다 — 세 글자가 줄바꿈을 만든다. */}
-                    <p className={`mt-0.5 whitespace-nowrap font-bold tabular-nums text-black ${fitNum(sim.spent.toLocaleString())}`}>
-                      {sim.spent.toLocaleString()}
-                    </p>
-                  </div>
+                  {/* ⚠️ "사용 GP"는 뺐다(사용자 지시 2026-08-04). 얼마를 썼는지는 앨범을
+                      보러 온 사람이 궁금한 값이 아니고, 보유 GP는 위 요약에 이미 있다. */}
                   {(() => {
                     const worth =
                       value && value.totalUsd > 0 && rates

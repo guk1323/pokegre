@@ -99,7 +99,9 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
               // 다섯 칸으로 편다. 어느 쪽이든 빈 자리가 안 생긴다.
               className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 text-left sm:p-2 transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2"
             >
-              <div className="shrink-0 sm:self-center">
+              {/* 메달은 카드 왼쪽 위 모서리에 살짝 걸치게 둔다(사용자 지시 2026-08-04 —
+                  글자 쪽으로 뺐다가 되돌렸다). 모서리라 그림을 거의 안 가린다. */}
+              <div className="relative shrink-0 sm:self-center">
                 {/* ⚠️ cardImg를 꼭 거친다. 카드 주소(TCGdex)는 확장자가 없는 베이스라
                     그대로 쓰면 그림이 안 나온다(2026-08-04에 빈칸으로 뜨는 걸 확인). */}
                 {h.img && (
@@ -110,25 +112,24 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
                     <img src={thumb(cardImg(h.img), 112)} alt="" className="h-12 w-auto rounded object-contain sm:h-24" />
                   </picture>
                 )}
+                {/* 1·2·3등은 금·은·동으로 나눈다. 숫자만으로는 눈에 안 들어온다.
+                    이모지는 안 쓴다(사이트 지침) — 배경색으로만 구분한다. */}
+                <span
+                  className={`absolute -left-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full text-[10px] font-black shadow-sm ${MEDAL[i] ?? 'bg-neutral-200 text-neutral-600'}`}
+                >
+                  {i + 1}
+                </span>
               </div>
               <div className="min-w-0 flex-1 sm:flex-none">
-                {/* ⚠️ 순위는 카드 그림에 겹쳐 붙어 있었다. 카드가 가려지고 답답했다
-                    (사용자 지적 2026-08-04). 글자 쪽 빈자리로 뺀다.
-                    1·2·3등은 금·은·동으로 구분한다 — 숫자만으로는 눈에 안 들어온다. */}
-                <p>
-                  <span
-                    className={`inline-grid h-5 w-5 place-items-center rounded-full align-middle text-[10px] font-black ${MEDAL[i] ?? 'bg-neutral-200 text-neutral-600'}`}
-                  >
-                    {i + 1}
-                  </span>
-                </p>
-                <p className="mt-1 line-clamp-1 text-sm font-bold text-neutral-900">
+                <p className="line-clamp-1 text-sm font-bold text-neutral-900">
                   {h.god ? '갓팩! ' : ''}
                   {h.name || '카드'} {tier}
                 </p>
-                <p className="line-clamp-1 text-xs text-neutral-500">
-                  {h.nick}님{pn ? ` · ${pn}` : ''}
-                </p>
+                {/* ⚠️ 세트 이름이 잘렸다(사용자 지적 2026-08-04). 큰 화면에서 한 칸이
+                    214px인데 "트와일라잇 마스커레이드"만 그 폭을 넘는다. 닉네임과 한 줄에
+                    붙이지 말고 줄을 나눠 각자 한 줄씩 쓰게 한다. */}
+                <p className="line-clamp-1 text-xs text-neutral-500">{h.nick}님</p>
+                {pn && <p className="line-clamp-1 text-[11px] text-neutral-400">{pn}</p>}
               </div>
               <p className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-neutral-900 sm:text-left">
                 {h.usd ? krw(h.usd, 'usd') : ''}
