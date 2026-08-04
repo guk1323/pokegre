@@ -515,6 +515,19 @@ function mountImageProxy(app: Mountable) {
       return
     }
 
+    // ⚠️ tcgplayer는 wsrv가 못 받는다(늘 실패한다). 그런데도 wsrv에 물어보고 실패를
+    //    기다린 뒤에 원본으로 넘기고 있어서, 넘기기만 하면 되는 일에 400ms가 걸렸다
+    //    (2026-08-05 실측: 302 응답 하나에 381~404ms). 어차피 실패할 걸 아는
+    //    주소는 묻지 말고 바로 넘긴다. 캐시에 못 담는 건 전과 같다.
+    if (/(^|\.)tcgplayer-cdn\.tcgplayer\.com$/.test(target.hostname)) {
+      res.statusCode = 302
+      res.setHeader('location', tcgSmaller(u, w))
+      // 이 판단은 주소만 보고 하는 것이라 바뀌지 않는다. 브라우저가 기억하게 둔다.
+      res.setHeader('cache-control', 'public, max-age=604800')
+      res.end()
+      return
+    }
+
     const key = `${w}|${u}`
     const serve = (hit: { body: Buffer; contentType: string }) => {
       res.statusCode = 200
