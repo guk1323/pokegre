@@ -608,20 +608,37 @@ function App() {
     setSuggestActive(-1);
 
     let cancelled = false;
-    // 이름 목록(포켓몬·팩)도 사전만큼 커서 같이 나중에 받는다. 검색창을 누르는
+    // 이름 목록(포켓몬·팩·카드명)도 사전만큼 커서 같이 나중에 받는다. 검색창을 누르는
     // 순간 미리 받아 두므로 글자를 칠 때쯤이면 이미 와 있다.
+    // 이건 우리 파일 안에서 찾는 거라 밖으로 안 나간다 — 기다림 없이 바로 보여준다.
     void import('./lib/localSuggestions').then((m) => {
       if (!cancelled) setSuggestions(m.getLocalSuggestions(trimmed));
     });
-    fetchRemoteSuggestions(trimmed).then((remote) => {
-      if (cancelled || remote.length === 0) return;
-      setSuggestions((prev) => [...new Set([...prev, ...remote])].slice(0, 10));
-    });
+
+    // ⚠️ SNKRDUNK 자동완성은 글자마다 그대로 밖으로 나가고 있었다. "리자몽 VSTAR UR"
+    //    한 번 치는 동안 10번을 부르고 그중 8번이 실제로 SNKRDUNK까지 갔다(실측
+    //    2026-08-04). 조사하던 컴퓨터가 실제로 차단당했다 — 운영 서버가 막히면
+    //    방문자 전체가 검색을 못 한다. 그래서 두 겹으로 줄인다:
+    //     ① 손이 멈춘 뒤에만 부른다(아래 기다림)
+    //     ② 목록이 닫혀 있으면 아예 안 부른다 — 보이지도 않는 걸 받을 이유가 없다
+    //    검색 본체(350·600ms)와 달리 여기는 원래 기다림이 아예 없었다.
+    if (!suggestionsOpen) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    const timer = setTimeout(() => {
+      fetchRemoteSuggestions(trimmed).then((remote) => {
+        if (cancelled || remote.length === 0) return;
+        setSuggestions((prev) => [...new Set([...prev, ...remote])].slice(0, 10));
+      });
+    }, 200);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, suggestionsOpen]);
 
   useEffect(() => {
     if (source !== 'snkrdunk') return;

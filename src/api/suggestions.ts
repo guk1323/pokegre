@@ -4,16 +4,26 @@ interface SuggestResponse {
   suggestions?: { keyword: string }[];
 }
 
-// SNKRDUNK 자동완성은 일본어 기준이라, 입력을 완전히 일본어로 번역할 수 있을 때만
-// (한글이 하나도 안 남을 때만) 호출한다. 그래야 "피카"처럼 아직 덜 친 한글로
-// 의미 없는 일본어 조각을 검색하는 걸 막을 수 있다.
+// 이 아래로 짧은 입력은 안 부른다. 한 글자로는 후보가 너무 넓어 목록이 무의미하고,
+// 글자마다 밖으로 나가면 SNKRDUNK가 IP를 막는다(아래 ⚠️ 참고).
+const MIN_LEN = 2;
+
+// SNKRDUNK 자동완성은 일본어 기준이다.
+//
+// ⚠️ 예전 조건: `translated === trimmed || 한글이 남음` → 안 부름.
+//    앞쪽 조건이 문제였다. "번역할 것이 아예 없는 입력"까지 "번역 실패"로 보고 막아서,
+//    Charizard · リザードン · sv2a · 151 같은 걸 치면 목록이 통째로 비었다.
+//    정작 SNKRDUNK는 그런 입력에 10개씩 잘 준다(2026-08-04 실측).
+//    이제는 "한글을 쳤는데 번역 뒤에도 한글이 남을 때"만 막는다 — 그게 원래 막으려던
+//    "피카"처럼 덜 친 말이다. 한글이 아예 없는 입력은 그대로 보낸다.
 export async function fetchRemoteSuggestions(query: string): Promise<string[]> {
   const trimmed = query.trim();
-  if (!trimmed) return [];
+  if (trimmed.length < MIN_LEN) return [];
 
   const dict = await loadNameDict();
   const translated = dict.translateSearchQuery(trimmed);
-  if (translated === trimmed || /[가-힣]/.test(translated)) return [];
+  // 한글이 섞인 입력만 "다 번역됐는지"를 따진다.
+  if (/[가-힣]/.test(trimmed) && /[가-힣]/.test(translated)) return [];
 
   const params = new URLSearchParams({ keyword: translated, limit: '10' });
   const res = await fetch(`/api/snkrdunk/v3/search/suggestions?${params.toString()}`);
