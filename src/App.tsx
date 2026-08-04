@@ -1008,21 +1008,25 @@ function App() {
   const homeMain = (
     <div className="space-y-8">
       <OnboardingBanner />
-      {/* 오늘의 상점을 인기 검색어보다 위에 둔다(2026-07-26 사용자 결정). 상점은 팩 사진이
-          있어 첫인상을 만들고 매일 진열이 바뀌어 다시 올 이유가 되는데, 아래에 두면 폰에서
-          제목만 걸치고 사진이 잘렸다. 인기 검색어는 아직 항목이 적고, 검색하러 온 사람은
-          맨 위 검색창을 바로 쓴다. */}
-      <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
-      {/* 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다. */}
+      {/* ⚠️ 인기 검색어를 상점 위로 올렸다(2026-08-04).
+          예전엔 상점이 위였는데(2026-07-26 결정), 그 사이 상점이 커져서 인기 검색어가
+          폰에서 y=1909 — 2.4화면 아래로 밀렸다. 시세를 보러 온 사람에게 "뭘 검색할 수
+          있는지"를 보여주는 자리라 검색창에서 멀면 뜻이 없다.
+          공지는 한 번 닫으면 다시 안 뜨므로(OnboardingBanner), 닫은 사람에겐 검색창
+          바로 밑이 인기 검색어가 된다.
+          그때 상점을 위에 둔 이유(폰에서 팩 사진이 잘린다)는 그대로 살아 있으므로,
+          상점은 인기 검색어 바로 다음에 둔다 — 뉴스보다는 위다. */}
       <PopularSearches
         items={popularSearches}
         asOf={popularAsOf}
         loading={popularLoading}
         onSelect={(term) => {
+          // 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다.
           confirmSearch(term, 'popular');
           setQuery(term);
         }}
       />
+      <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
       <PokemonNews items={news} loading={newsLoading} />
     </div>
   );

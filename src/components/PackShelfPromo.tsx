@@ -69,10 +69,10 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
   const allRecent = items.every((h) => h.recent);
 
   return (
-    <section className="mb-3">
+    <section className="mt-3">
       <div className="mb-2 flex items-baseline gap-2">
-        <p className="text-sm font-bold text-neutral-900">{allRecent ? '이번 주 TOP 5' : '최고 뽑기 TOP 5'}</p>
-        <p className="text-xs text-neutral-400">시세가 높은 순</p>
+        <p className="text-xs font-bold text-neutral-700">{allRecent ? '이번 주 TOP 5' : '최고 뽑기 TOP 5'}</p>
+        <p className="text-[11px] text-neutral-400">시세가 높은 순</p>
       </div>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-5 sm:gap-3">
         {items.map((h, i) => {
@@ -91,15 +91,17 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
               aria-label={`${h.name || '카드'} — 오늘의 상점 열기`}
               // 폰에서는 한 줄씩 눕히고(그림 왼쪽·글 오른쪽), 큰 화면에서는 세워서
               // 다섯 칸으로 편다. 어느 쪽이든 빈 자리가 안 생긴다.
-              className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-2 text-left transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2"
+              className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 text-left sm:p-2 transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2"
             >
               <div className="relative shrink-0 sm:self-center">
                 {/* ⚠️ cardImg를 꼭 거친다. 카드 주소(TCGdex)는 확장자가 없는 베이스라
                     그대로 쓰면 그림이 안 나온다(2026-08-04에 빈칸으로 뜨는 걸 확인). */}
                 {h.img && (
                   <picture>
-                    <source media="(min-width: 640px)" srcSet={thumb(cardImg(h.img), 240)} />
-                    <img src={thumb(cardImg(h.img), 112)} alt="" className="h-14 w-auto rounded object-contain sm:h-36" />
+                    {/* ⚠️ 큰 화면 그림을 144px에서 96px로 줄였다 — 진열 위에 있을 때 크기가
+                        부담스러웠다(사용자 지적 2026-08-04). 받는 크기도 같이 내린다. */}
+                    <source media="(min-width: 640px)" srcSet={thumb(cardImg(h.img), 160)} />
+                    <img src={thumb(cardImg(h.img), 112)} alt="" className="h-12 w-auto rounded object-contain sm:h-24" />
                   </picture>
                 )}
                 <span className="absolute -left-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-neutral-900 text-[10px] font-black text-white">
@@ -152,9 +154,6 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
           구매하기 →
         </button>
       </div>
-      {/* 이번 주 TOP 5. 나올 게 없으면 아무것도 안 그린다(빈 자리를 남기지 않는다). */}
-      <PullBanner onEnter={onEnter} />
-      {/* 진열은 그 아래. TOP 5가 "이런 게 나온다"를 보여주고, 이 줄이 "사는 곳"이다. */}
       <button
         type="button"
         onClick={onEnter}
@@ -192,6 +191,11 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
           })}
         </div>
       </button>
+      {/* ⚠️ TOP 5는 진열 아래에 둔다(사용자 지시 2026-08-04). 위에 뒀더니 "이런 게
+          나온다"가 "여기서 산다"보다 먼저 와서 순서가 뒤집혔고, 크기도 부담스러웠다.
+          진열을 보고 나서 "다른 사람은 뭘 뽑았나"를 보는 순서가 맞다.
+          나올 게 없으면 아무것도 안 그린다(빈 자리를 남기지 않는다). */}
+      <PullBanner onEnter={onEnter} />
     </section>
   );
 }
