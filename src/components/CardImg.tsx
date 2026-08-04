@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CARD_BACK } from '../lib/cardImg';
+import { CARD_BACK, thumb } from '../lib/cardImg';
 
 /**
  * 카드 그림. 못 불러오면 뒷면으로 바꾼다.
@@ -7,24 +7,32 @@ import { CARD_BACK } from '../lib/cardImg';
  * ⚠️ onError 안에서 img.src를 직접 바꾸면 안 된다. 리액트가 다음에 다시 그릴 때
  *    props의 src로 되돌려 놓아서, 깨진 그림이 그대로 남는다(2026-08-04에 실제로
  *    그랬다 — 코드는 들어갔는데 화면은 안 바뀌었다). 상태로 들고 있어야 한다.
+ *
+ * ⚠️ 폭은 CardTile과 같은 320을 기본으로 둔다. 여기 나오는 카드는 대부분 방금
+ *    검색 결과 타일에서 본 그 카드라, 주소가 같아야 브라우저가 받아 둔 걸 그대로
+ *    쓴다(한 장도 더 안 받는다). 폭을 줄여 아끼려 들면 오히려 같은 카드를 두 번
+ *    받게 된다. 예전엔 프록시를 아예 안 타서 카드를 누를 때마다 원본 94KB를
+ *    새로 받고 있었다(2026-08-05 확인 · 프록시로는 51KB).
  */
 export function CardImg({
   src,
   alt,
   className,
   lazy = true,
+  w = 320,
 }: {
   src: string;
   alt: string;
   className?: string;
   lazy?: boolean;
+  w?: number;
 }) {
   const [failed, setFailed] = useState(false);
   // 다른 카드로 바뀌면 다시 시도한다(앞 카드가 실패했다고 계속 뒷면일 이유가 없다).
   useEffect(() => setFailed(false), [src]);
   return (
     <img
-      src={failed ? CARD_BACK : src}
+      src={failed ? CARD_BACK : thumb(src, w) || src}
       alt={alt}
       className={className}
       loading={lazy ? 'lazy' : undefined}
