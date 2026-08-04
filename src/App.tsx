@@ -1106,7 +1106,28 @@ function App() {
           </button>
         </div>
       ) : !loading && items.length === 0 ? (
-        <p className="text-sm text-neutral-400 py-12 text-center">검색 결과가 없습니다.</p>
+        // ⚠️ 예전엔 이 한 줄이 전부라 막다른 길이었다. 이베이·TCGplayer 쪽에는 이미
+        //    안내와 버튼이 있는데 여기만 비어 있었다(2026-08-04).
+        //    이미 받아 둔 인기 검색어를 같이 두면 새로 받는 것 없이 나갈 길이 생긴다.
+        <div className="py-10">
+          <p className="text-center text-sm text-neutral-400">'{query.trim()}'의 검색 결과가 없습니다.</p>
+          <p className="mt-1 text-center text-xs text-neutral-400">
+            이름 일부만 쳐도 됩니다. 카드 이름을 모르면 위 사진 버튼을 눌러 찾을 수 있습니다.
+          </p>
+          {popularSearches.length > 0 && (
+            <div className="mx-auto mt-6 max-w-xl">
+              <PopularSearches
+                items={popularSearches}
+                asOf={popularAsOf}
+                loading={popularLoading}
+                onSelect={(term) => {
+                  confirmSearch(term, 'popular');
+                  setQuery(term);
+                }}
+              />
+            </div>
+          )}
+        </div>
       ) : (
         <>
           {boxResults.length > 0 && (
