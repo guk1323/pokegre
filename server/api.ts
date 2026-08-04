@@ -1655,6 +1655,7 @@ const ALLOWED_EVENTS = new Set([
   'ebay_korean', 'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value',
   'packsim_share', 'share',
   'search_scan', 'search_pick', 'search_popular', 'search_enter', 'search_typed',
+  'packsim_banner',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -4505,6 +4506,175 @@ function withUsd<T extends { n: string; m?: string }>(slug: string, cards: T[]):
   })
 }
 
+// ── 뽑기 명예의 전당 ──────────────────────────────────────────────────────
+// 홈에 "누가 뭘 뽑았다"를 보여주기 위한 기록. 자랑하기(본인이 눌러 커뮤니티에 올리는 것)와
+// 별개다 — 자랑글은 대부분 보상(+5,000 GP) 때문에 올리는 거라 정작 좋은 카드는 안 올라온다
+// (운영자가 실제 글을 보고 확인, 2026-08-04). 그래서 서버가 뽑을 때 알아서 남긴다.
+//
+// ⚠️ 왜 "최근"이 아니라 "역대 최고"를 같이 두나: 아직 뽑는 사람이 적다. 최근 것만 띄우면
+//    며칠씩 비어 죽은 자리가 된다. 역대 최고는 팩이 몇 장 안 열렸어도 반드시 하나는 있다.
+//    사람이 늘면 최근 것이 자연히 앞을 차지한다.
+// ⚠️ 이름(한글 카드명)은 안 담는다. 서버엔 번역기가 없고, 화면은 이미 갖고 있다.
+//    slug+번호만 주면 화면이 그때 이름을 만든다.
+const PACK_HIGHLIGHT_FILE = dataFile('pack-highlights.json')
+// 화면엔 최근 1개·역대 1개만 쓰지만, 지우고 나면 되돌릴 수 없으므로 여유를 둔다.
+const HIGHLIGHT_MAX = 100
+// "최근"으로 쳐 주는 기간.
+const HIGHLIGHT_FRESH_MS = 7 * 24 * 60 * 60 * 1000
+// 배너에 올릴 기준. 셋 중 하나면 된다.
+//   ⚠️ 시세만 보면 아직 시세를 못 받아온 세트가 통째로 빠지고, 등급만 보면 값은 비싼데
+//      등급이 낮은 카드가 빠진다. 이 교훈은 앨범 기본 담기(keepByDefault)에서 이미 겪었다.
+const HIGHLIGHT_USD = 50
+const HIGHLIGHT_RANK = 7 // SAR·SIR 이상
+
+interface PackHighlight {
+  at: number
+  /** 도배 방지(한 사람 하루 1번)에만 쓴다. 화면에는 절대 안 내보낸다. */
+  uid: string
+  nick: string
+  slug: string
+  n: string
+  r?: string
+  m?: MirrorFlag
+  img?: string
+  usd?: number
+  god?: boolean
+  /**
+   * 한글 카드 이름. 서버엔 번역기가 없어서 개봉한 사람의 화면이 뒤이어 채워 준다
+   * (POST /packsim/highlight-name). 홈은 사전을 안 받으므로 — 사전이 내려받는 양의
+   * 절반이라 첫 화면을 무겁게 한다 — 서버가 들고 있어야 한다.
+   * 안 채워져도 배너는 뜬다. 이름 없이 팩 이름과 등급만 나온다.
+   */
+  name?: string
+}
+
+let highlights: PackHighlight[] | null = null
+
+async function loadHighlights(): Promise<PackHighlight[]> {
+  if (highlights) return highlights
+  try {
+    const raw = JSON.parse(await readFile(PACK_HIGHLIGHT_FILE, 'utf-8'))
+    highlights = Array.isArray(raw) ? (raw as PackHighlight[]) : []
+  } catch {
+    highlights = []
+  }
+  return highlights
+}
+
+// 둘 중 어느 쪽이 더 "좋은" 카드인가.
+//
+// ⚠️ 시세부터 보면 안 된다. 시세를 아직 못 받은 카드는 0이라 무조건 진다 —
+//    실제로 금색 UR(제일 높은 등급)이 시세 붙은 SIR한테 지는 걸 확인했다(2026-08-04).
+//    PPT 크레딧 사정으로 시세가 비는 세트가 늘 있으므로 이건 예외가 아니라 상시다.
+// 그래서 양쪽 다 시세를 알 때만 시세로 견주고, 한쪽이라도 모르면 등급으로 견준다.
+const usdOfHi = (h: { usd?: number }) => (h.usd && h.usd > 0 ? h.usd : 0)
+const rankOfHi = (h: { r?: string }) => RARITY_RANK[h.r ?? ''] ?? 0
+function betterCard<T extends { usd?: number; r?: string }>(a: T, b: T): T {
+  const ua = usdOfHi(a)
+  const ub = usdOfHi(b)
+  if (ua > 0 && ub > 0) {
+    if (ua !== ub) return ua > ub ? a : b
+  } else {
+    const ra = rankOfHi(a)
+    const rb = rankOfHi(b)
+    if (ra !== rb) return ra > rb ? a : b
+    // 등급이 같으면 시세를 아는 쪽을 쓴다(배너에 값을 적을 수 있다).
+    if (ua !== ub) return ua > ub ? a : b
+  }
+  return a
+}
+const betterHighlight = (a: PackHighlight, b: PackHighlight) => {
+  const win = betterCard(a, b)
+  // 완전히 같으면 최근 것을 쓴다.
+  return win === a && betterCard(b, a) === b ? (a.at >= b.at ? a : b) : win
+}
+
+// 방금 연 팩(또는 박스)에서 배너에 올릴 만한 카드가 있으면 기록한다.
+// 실패해도 개봉은 정상으로 끝나야 하므로 부르는 쪽에서 await 하지 않는다.
+async function noteHighlight(
+  slug: string,
+  cards: { n: string; r?: string; m?: MirrorFlag; img?: string }[],
+  god: boolean,
+  user: { id: string; nickname?: string | null },
+): Promise<string | null> {
+  const nick = (user.nickname ?? '').trim()
+  if (!nick) return null // 이름 없이 띄울 자리가 아니다
+  const list = await loadHighlights()
+  // 한 사람이 박스를 여러 개 열면 배너를 독점한다. 하루 한 번만 남긴다.
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000
+  if (list.some((h) => h.uid === user.id && h.at > dayAgo)) return null
+
+  const priced = withUsd(slug, cards)
+  const worthy = priced.filter(
+    (c) => (c.usd ?? 0) >= HIGHLIGHT_USD || (RARITY_RANK[c.r ?? ''] ?? 0) >= HIGHLIGHT_RANK || god,
+  )
+  if (!worthy.length) return null
+  // 그 팩에서 제일 좋은 한 장만 남긴다(위 betterCard와 같은 잣대를 쓴다).
+  const best = worthy.reduce((a, b) => betterCard(a, b))
+  list.push({
+    at: Date.now(),
+    uid: user.id,
+    nick: nick.slice(0, 20),
+    slug,
+    n: best.n,
+    r: best.r,
+    ...(best.m ? { m: best.m } : {}),
+    ...(best.img ? { img: best.img } : {}),
+    ...(best.usd ? { usd: best.usd } : {}),
+    ...(god ? { god: true } : {}),
+  })
+  // 넘치면 버리되, 역대 최고와 최근 것은 남긴다.
+  if (list.length > HIGHLIGHT_MAX) {
+    const fresh = Date.now() - HIGHLIGHT_FRESH_MS
+    const ranked = [...list].sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1))
+    const keep = new Set(ranked.slice(0, 10))
+    for (const h of list) if (h.at > fresh) keep.add(h)
+    highlights = [...keep].sort((a, b) => a.at - b.at).slice(-HIGHLIGHT_MAX)
+  }
+  await mkdir(path.dirname(PACK_HIGHLIGHT_FILE), { recursive: true })
+  await writeJsonFile(PACK_HIGHLIGHT_FILE, highlights)
+  // 어느 카드가 올라갔는지 알려 주면, 화면이 그 한 장의 한글 이름만 보내 준다.
+  return best.n
+}
+
+// POST /packsim/highlight-name — 방금 배너에 오른 카드의 한글 이름을 채운다.
+// 서버엔 번역기가 없고 홈은 사전을 안 받으므로, 개봉한 사람의 화면이 대신 알려 준다.
+// ⚠️ 이름은 표기일 뿐이라 속여도 자기 기록만 이상해진다(자랑글도 같은 방식이다).
+//    그래도 자기가 방금 올린 기록에만 쓸 수 있게 막는다.
+async function fillHighlightName(userId: string, n: string, name: string): Promise<boolean> {
+  const list = await loadHighlights()
+  const mine = [...list].reverse().find((h) => h.uid === userId && h.n === n)
+  if (!mine || mine.name) return false
+  mine.name = name.replace(/\s+/g, ' ').trim().slice(0, 60)
+  if (!mine.name) return false
+  await mkdir(path.dirname(PACK_HIGHLIGHT_FILE), { recursive: true })
+  await writeJsonFile(PACK_HIGHLIGHT_FILE, list)
+  return true
+}
+
+// GET /api/local/pack-highlights — 홈 배너가 읽어 간다. 로그인 없이 볼 수 있다.
+// 최근 7일에 나온 게 있으면 그걸, 없으면 역대 최고를 준다. 회원번호(uid)는 빼고 준다.
+function mountPackHighlights(app: Mountable) {
+  app.use('/api/local/pack-highlights', async (_req, res) => {
+    const list = await loadHighlights()
+    const strip = (h: PackHighlight) => {
+      const { uid: _uid, ...rest } = h
+      void _uid
+      return rest
+    }
+    const fresh = list.filter((h) => Date.now() - h.at <= HIGHLIGHT_FRESH_MS)
+    const pickBest = (xs: PackHighlight[]) => (xs.length ? xs.reduce(betterHighlight) : null)
+    // 최근 것이 있으면 그중 제일 좋은 것, 없으면 역대 최고.
+    const best = pickBest(fresh) ?? pickBest(list)
+    sendJson(res, 200, {
+      item: best ? strip(best) : null,
+      // 화면이 "이번 주" / "역대"를 가려 쓸 수 있게 알려 준다.
+      recent: !!pickBest(fresh),
+      total: list.length,
+    })
+  })
+}
+
 let warming = false
 async function warmPackPrices(apiKey: string) {
   if (!apiKey || warming) return
@@ -5213,7 +5383,10 @@ function mountAuth(
           box: pack.boxPacks,
         }
         await persistPacksim()
+        // 홈 배너용 기록. 실패해도 개봉은 정상이라야 하므로 여기서 죽지 않게 감싼다.
+        const hiBoxN = await noteHighlight(pack.slug, flat, box.god, user).catch(() => null)
         sendJson(res, 200, {
+          ...(hiBoxN ? { highlight: hiBoxN } : {}),
           packs: box.packs.map((bp) => ({ ...bp, cards: withUsd(pack.slug, bp.cards) })),
           god: box.god,
           godCount,
@@ -5283,7 +5456,31 @@ function mountAuth(
         if (drawn.god) store.god += 1
         store.last = { slug: pack.slug, cards: drawn.cards.map(({ n, r, m }) => ({ n, r, ...(m ? { m } : {}) })), god: drawn.god }
         await persistPacksim()
-        sendJson(res, 200, { cards: withUsd(pack.slug, drawn.cards), god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited })
+        // 홈 배너용 기록. 실패해도 개봉은 정상이라야 하므로 여기서 죽지 않게 감싼다.
+        const hiN = await noteHighlight(pack.slug, drawn.cards, drawn.god, user).catch(() => null)
+        sendJson(res, 200, { cards: withUsd(pack.slug, drawn.cards), god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited, ...(hiN ? { highlight: hiN } : {}) })
+        return
+      }
+
+      // POST /packsim/highlight-name — 방금 배너에 오른 카드의 한글 이름만 채운다.
+      // 서버엔 번역기가 없고, 홈은 사전을 안 받는다(사전이 내려받는 양의 절반이라
+      // 첫 화면을 무겁게 한다 — 91KB로 줄여 둔 걸 되돌리게 된다). 그래서 사전을 이미
+      // 들고 있는 개봉 화면이 대신 알려 준다. 안 보내도 배너는 이름 없이 뜬다.
+      if (segments[0] === 'packsim' && segments[1] === 'highlight-name' && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!user) {
+          sendJson(res, 401, { error: 'login required' })
+          return
+        }
+        const b = JSON.parse((await readBody(req)) || '{}') as { n?: unknown; name?: unknown }
+        const n = String(b.n ?? '')
+        const name = typeof b.name === 'string' ? b.name : ''
+        if (!n || !name) {
+          sendJson(res, 400, { error: 'bad request' })
+          return
+        }
+        const ok = await fillHighlightName(user.id, n, name)
+        sendJson(res, 200, { ok })
         return
       }
 
@@ -5885,6 +6082,7 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountFleaMarket(app)
   mountEventStats(app)
   mountKoreanNews(app)
+  mountPackHighlights(app)
   mountExchangeRate(app)
   mountCommunity(app)
   mountEbayPrice(app, env.POKEMON_PRICE_TRACKER_API_KEY ?? '')

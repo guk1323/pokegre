@@ -38,6 +38,7 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'sets', label: '세트별 목록 조회', hint: '세트 하나를 열 때(어느 세트인지도 아래 순위에 집계)' },
   { key: 'series', label: '시리즈 목록 조회', hint: '검색으로 시리즈 주소(/series/…)에 바로 들어올 때' },
   { key: 'packsim', label: '오늘의 상점', hint: '팩·박스 구매와 개봉' },
+  { key: 'packsim_banner', label: '뽑기 결과 줄 클릭', hint: '홈의 "이런 게 나왔습니다" 줄을 눌러 상점으로 들어옴' },
   { key: 'packsim_checkin', label: '개봉 출석', hint: '출석 보상 받기' },
   { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩' },
   { key: 'packsim_value', label: '앨범 시세', hint: '앨범 탭에서 예상 가치 조회' },

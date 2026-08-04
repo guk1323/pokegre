@@ -494,13 +494,14 @@ export function PackSim({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: slug2, spend, from }),
       });
-      const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string };
+      const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string; highlight?: string };
       if (!r.ok || !d.cards) {
         setErr(openErrorText(d.error, '팩'));
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs } : s2));
       if (d.god) trackEvent('packsim_godpack', cfg.label);
+      sendHighlightName(d.highlight, d.cards, cfg.jp);
       // 등급 낮은 카드가 앞, 제일 좋은 카드가 맨 뒤로 오게 정렬해 마지막 한 장에서 터지게 한다.
       const withI: UiCard[] = d.cards.map((c, i) => ({ ...c, i }));
       const sorted = [...withI].sort((a, b) => rankOf(a.r) - rankOf(b.r));
@@ -555,12 +556,14 @@ export function PackSim({
         balance?: number;
         boxes?: Record<string, number>;
         error?: string;
+        highlight?: string;
       };
       if (!r.ok || !d.packs) {
         setErr(openErrorText(d.error, '박스'));
         return;
       }
       if (d.godCount) trackEvent('packsim_godpack', `${target.label} 박스`);
+      sendHighlightName(d.highlight, d.packs.flatMap((p) => p.cards), target.jp);
       // i는 서버가 기억하는 순서(팩 순서 그대로) — 앨범 골라 담기가 이 번호를 쓴다.
       // 팩 안에서만 등급 낮은 순으로 정렬해, 팩마다 마지막 장에서 터지게 한다.
       let k = 0;
@@ -747,6 +750,23 @@ export function PackSim({
   };
   const koName = (jp: boolean, name: string) =>
     !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
+  // 홈 배너에 오른 카드의 한글 이름을 서버에 알려 준다.
+  // 서버엔 번역기가 없고 홈은 사전을 안 받는다(사전이 내려받는 양의 절반이라 첫 화면을
+  // 무겁게 한다). 이 화면은 이미 사전을 들고 있으니 여기서 한 장만 보낸다.
+  // 배너에 오르는 건 100팩에 한 번쯤이라 부담이 없다. 실패해도 그냥 넘어간다 —
+  // 이름이 없으면 배너가 팩 이름과 등급만 보여준다.
+  const sendHighlightName = (n: string | undefined, cards: PackCard[], jp: boolean) => {
+    if (!n) return;
+    const hit = cards.find((c) => c.n === n);
+    const name = hit ? koName(jp, hit.name) : '';
+    if (!name) return;
+    void fetch('/api/local/auth/packsim/highlight-name', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ n, name }),
+    }).catch(() => undefined);
+  };
   // 개봉 직후 결과 자리로 화면을 옮긴다.
   //
   // 보관함을 스크롤해 내려가서 열면 결과는 위쪽에 생기는데 화면은 그대로라, 처음 쓰는
