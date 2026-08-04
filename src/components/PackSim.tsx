@@ -121,6 +121,10 @@ export const glowOf = (usd?: number) => {
   return 0;
 };
 const glowCls = (g: number) => (g >= 3 ? 'glow-big' : g === 2 ? 'glow-mid' : g === 1 ? 'glow-soft' : '');
+// 뒷면에 주는 힌트. "뭔가 좋은 게 있다"는 쫄리는 맛이라 일부러 남긴다 —
+// 어느 카드인지는 알려주되 뭔지는 안 알려주므로 스포일러가 아니다(사용자 확인 2026-08-04).
+// 등급이 아니라 시세로 정하는 건 앞면과 같다.
+const hintCls = (g: number) => (g >= 2 ? 'hint-strong' : g === 1 ? 'hint-soft' : '');
 
 const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
 const groupRank = (k: string) =>
@@ -204,6 +208,10 @@ export function PackSim({
   onOpenSet?: (slug: string) => void;
 }) {
   const [tab, setTab] = useState<'open' | 'stash' | 'album' | 'rates'>('open');
+  // 방금 산 것. 사자마자 "바로 열기"로 열 수 있게 기억해 둔다 — 예전엔 보관함 탭으로
+  // 옮긴 다음 "팩 개봉"을 또 눌러야 했다(사용자 지적 2026-08-04).
+  // ⚠️ 보관함 자체는 그대로 둔다. 실제로 쟁여 두고 쓰는 사람이 있다(2026-08-04 기준 2명·33팩).
+  const [justBought, setJustBought] = useState<{ slug: string; kind: 'pack' | 'box' } | null>(null);
   const [sim, setSim] = useState<SimState | null>(null);
   // 한국시간 날짜. 자정을 넘기면 바뀌고, 그때 진열을 다시 계산한다.
   const [dayKey, setDayKey] = useState(todayKst);
@@ -411,6 +419,7 @@ export function PackSim({
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
       setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 구매했습니다. ${gp(target.price)}이 차감되었습니다.`);
+      setJustBought({ slug: slug2, kind: 'pack' });
     } finally {
       setBusy(false);
     }
@@ -444,6 +453,7 @@ export function PackSim({
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
       setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1박스(${target.boxPacks}팩)를 구매했습니다. ${gp(price)}이 차감되었습니다.`);
+      setJustBought({ slug: slug2, kind: 'box' });
       trackEvent('packsim', `${target.label} 박스 구매`);
     } finally {
       setBusy(false);
@@ -893,10 +903,16 @@ export function PackSim({
                 onClick={() => {
                   setBuyMsg('');
                   setTab('stash');
+                  // 탭만 옮기고 끝내지 않는다 — 거기서 "팩 개봉"을 또 눌러야 했다.
+                  if (justBought) {
+                    const { slug: s4, kind } = justBought;
+                    setJustBought(null);
+                    void (kind === 'box' ? openBox(s4, 'stash') : open(s4, 'stash'));
+                  }
                 }}
                 className="ml-auto rounded-lg bg-white px-4 py-1.5 text-sm font-bold text-black"
               >
-                보관함에서 개봉하기 →
+                바로 열기 →
               </button>
               <button type="button" onClick={() => setBuyMsg('')} className="text-xs text-neutral-400 underline">
                 닫기
@@ -970,7 +986,14 @@ export function PackSim({
                             disabled={busy || !can}
                             className="w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
                           >
-                            {busy ? '구매 중…' : can ? `1팩 구매 · ${gp(s2.price)} 차감` : 'GP가 부족합니다'}
+                            {/* ⚠️ 못 살 때도 무엇을 얼마에 사는지는 보여 준다. 예전엔 팩·박스
+                                버튼이 둘 다 "GP가 부족합니다"로 똑같아져서, 뭘 사는 버튼인지도
+                                얼마를 모아야 하는지도 알 수 없었다(사용자 지적 2026-08-04). */}
+                            {busy
+                              ? '구매 중…'
+                              : can
+                                ? `1팩 구매 · ${gp(s2.price)} 차감`
+                                : `1팩 ${gp(s2.price)} · ${gp(s2.price - (sim?.balance ?? 0))} 모자람`}
                           </button>
                           {(s2.boxPacks ?? 0) > 0 &&
                             (() => {
@@ -990,11 +1013,11 @@ export function PackSim({
                                     ? '구매 중…'
                                     : canBox
                                       ? `1박스(${s2.boxPacks}팩) 구매 · ${gp(boxPrice)} 차감`
-                                      : 'GP가 부족합니다'}
+                                      : `1박스(${s2.boxPacks}팩) ${gp(boxPrice)} · ${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
                                 </button>
                               );
                             })()}
-                          <p className="text-[11px] text-neutral-400">구매하면 보관함에 담기고, 개봉은 보관함에서 합니다.</p>
+                          <p className="text-[11px] text-neutral-400">사면 바로 열 수 있고, 나중에 열려면 보관함에 둡니다.</p>
                         </div>
                       ) : (
                         <p className="mt-2 py-1.5">
@@ -1049,7 +1072,8 @@ export function PackSim({
               박스 개봉 결과 — {boxInfo}팩 · {pack.length}장{cfg.jp ? ' (박스 보장 봉입 적용)' : ' (북미판은 보장 없음)'}
             </p>
           )}
-          {god && !boxQueue && (
+          {/* 낱팩도 마찬가지 — 다 뒤집은 뒤에 알린다(스포일러 방지). */}
+          {god && !boxQueue && allDone && (
             <div className="mt-4 animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-3 text-center text-base font-black text-black">
               갓팩 — 전부 AR 이상입니다
             </div>
@@ -1063,11 +1087,14 @@ export function PackSim({
               <p className="text-center text-sm font-semibold text-neutral-600">
                 팩 {boxQueue.idx + 1} / {boxQueue.groups.length}
               </p>
-              {boxQueue.gods[boxQueue.idx] && (
-                <div className="mx-auto mt-2 max-w-md animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-2 text-center text-sm font-black text-black">
-                  갓팩 — 전부 AR 이상입니다
-                </div>
-              )}
+              {/* ⚠️ 갓팩 알림도 다 뒤집은 뒤에 띄운다. 미리 띄우면 뒤집기 전에
+                  "이 팩은 대박"인 걸 알아 버린다(스포일러). */}
+              {boxQueue.gods[boxQueue.idx] &&
+                boxQueue.groups[boxQueue.idx].every((c) => flippedSet.has(c.i)) && (
+                  <div className="mx-auto mt-2 max-w-md animate-pulse rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 p-2 text-center text-sm font-black text-black">
+                    갓팩 — 전부 AR 이상입니다
+                  </div>
+                )}
               <p className="mt-2 text-center text-sm font-semibold text-neutral-600">
                 카드를 눌러서 뒤집어 보세요 ({boxQueue.groups[boxQueue.idx].filter((c) => flippedSet.has(c.i)).length}/
                 {boxQueue.groups[boxQueue.idx].length})
@@ -1126,10 +1153,13 @@ export function PackSim({
                 )}
               </div>
               {(() => {
+                // ⚠️ 반드시 "뒤집은 카드"만 센다. 예전엔 지금 열고 있는 팩까지 통째로
+                //    넣어서, 아직 안 뒤집었는데 여기에 상위 카드가 미리 떴다 — 스포일러다
+                //    (사용자 지적 2026-08-04).
                 const tops = boxQueue.groups
                   .slice(0, boxQueue.idx + 1)
                   .flat()
-                  .filter((c) => rankOf(c.r) >= 5 || c.m === 'master');
+                  .filter((c) => flippedSet.has(c.i) && (rankOf(c.r) >= 5 || c.m === 'master'));
                 if (!tops.length) return null;
                 return (
                   <div className="mx-auto mt-4 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-2">
@@ -1735,7 +1765,7 @@ export function PackSim({
         .flip-next { cursor: pointer; animation: nextPulse 1.2s ease-in-out infinite; }
         .flip-inner {
           position: absolute; inset: 0; transform-style: preserve-3d;
-          transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+          transition: transform 0.34s cubic-bezier(0.2, 0.7, 0.2, 1);
         }
         .flip-inner[data-flipped="true"] { transform: rotateY(180deg); }
         .flip-face {
@@ -1759,7 +1789,7 @@ export function PackSim({
         }
         .card-picked { outline: 3px solid #059669; outline-offset: 2px; border-radius: 0.6rem; cursor: pointer; }
         /* 팩을 열면 카드가 한 장씩 깔린다 */
-        .deal { animation: dealIn 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+        .deal { animation: dealIn 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
         @keyframes dealIn {
           from { opacity: 0; transform: translateY(16px) scale(0.92); }
           to { opacity: 1; transform: none; }
@@ -1825,15 +1855,17 @@ function CardSlot({
   onPick?: () => void;
 }) {
   const meta = RARITY[card.r ?? ''] ?? RARITY.Common;
-  // 빛남은 "지금 시세"로 정한다. 뒤집기 전에는 절대 티가 나면 안 된다 —
-  // 미리 알면 뒤집는 재미가 없다.
-  const glow = flipped ? glowOf(card.usd) : 0;
+  // 빛남은 "지금 시세"로 정한다.
+  // 뒷면에도 힌트를 준다 — 어느 자리가 좋은지는 알려주되 뭔지는 안 알려주므로
+  // 뒤집는 재미가 살아 있다. 이게 원래 있던 "쫄리는 맛"이다.
+  const tier = glowOf(card.usd);
+  const glow = flipped ? tier : 0;
   const hit = glow > 0;
   return (
     <div>
       <div
-        style={{ animationDelay: `${Math.min(index, 12) * 70}ms` }}
-        className={`flip deal ${canFlip && !flipped ? 'flip-next' : ''} ${picking && picked ? 'card-picked' : ''}`}
+        style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
+        className={`flip deal ${canFlip && !flipped ? `flip-next ${hintCls(tier)}` : ''} ${picking && picked ? 'card-picked' : ''}`}
         onClick={canFlip && !flipped ? onFlip : picking ? onPick : undefined}
         role={(canFlip && !flipped) || picking ? 'button' : undefined}
         aria-label={canFlip && !flipped ? '카드 뒤집기' : picking ? '앨범에 넣기 선택' : undefined}
@@ -1845,7 +1877,10 @@ function CardSlot({
           <div className={`flip-face flip-front ${glowCls(glow)}`}>
             <div className={`h-full overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${hit ? 'card-shine' : ''}`}>
               {card.img && (
-                <img src={thumb(card.img, 240)} alt="" loading="lazy" className="h-full w-full object-contain" />
+                // ⚠️ lazy를 쓰면 안 된다. 뒤집는 순간에야 받기 시작해서 회색 칸이 잠깐 보인다
+                //    (사용자 지적 2026-08-04). 뒷면을 보는 동안 미리 받아 두면 바로 뜬다.
+                //    한 번에 5~10장뿐이라 미리 받아도 부담이 없다.
+                <img src={thumb(card.img, 240)} alt="" fetchPriority="high" className="h-full w-full object-contain" />
               )}
             </div>
           </div>
