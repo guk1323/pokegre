@@ -38,6 +38,11 @@ const CONCURRENCY = 4
 const GRID_W = 320 // 세트 안 카드 격자
 const COVER_W = 128 // 세트 상세 머리의 작은 표지
 const LIST_W = 200 // 세트 목록의 세로 타일
+const ARTIST_LIST_W = 140 // 작가 목록의 표지 (ArtistsView 455줄)
+const ARTIST_COVER_W = 200 // 작가 상세 머리의 표지 (ArtistsView 250줄)
+const ARTIST_CARD_W = 240 // 작가 상세의 카드 격자 (ArtistsView 317줄)
+const ARTIST_PAGE = 60 // 작가 상세가 처음 보여주는 장수 (ArtistsView PAGE)
+const ARTIST_TOP = 20 // 조회가 많은 작가 몇 명까지 카드를 데울지
 
 interface SetCard {
   n: string
@@ -57,6 +62,72 @@ async function main() {
     if (!u || seen.has(u)) return
     seen.add(u)
     urls.push(u)
+  }
+
+  // 작가 목록 화면의 표지 388장(140px). 세트와 똑같이 안 데워져 있어서 첫 화면
+  // 12칸에 1,310ms가 걸렸다(2026-08-05 실측). 한 장이 6KB라 통째로 데워도 2MB다.
+  // ⚠️ ArtistsView는 cardImg()를 안 쓰고 표지 주소를 그대로 넘긴다. 여기서도 그대로 둔다.
+  try {
+    const artists = JSON.parse(await readFile(path.resolve(process.cwd(), 'public/artists/index.json'), 'utf8')) as {
+      cover?: string
+    }[]
+    let n = 0
+    for (const a of artists) {
+      if (a.cover) {
+        add(thumb(a.cover, ARTIST_LIST_W))
+        n++
+      }
+    }
+    console.log(`작가 목록 표지 ${n}장`)
+
+    // 작가 한 명을 열면 카드 60장이 뜬다. 388명을 다 데우면 2.3만 장(약 280MB)이라
+    // 캐시 상한을 넘는다. 그래서 "실제로 열어 본 작가"만 데운다 — 운영 기록으로는
+    // 위 20명이 전체 조회의 대부분이다(2026-08-05: 56명 133회 중 상위 20명이 100회).
+    // ⚠️ 조회 기록의 열쇠는 영어 이름이라 slug가 아니다. 이름으로 맞춘다.
+    // 기록은 서버 파일에만 있고 공개 주소가 없다. 아래로 받아서 --stats로 넘긴다:
+    //   fly ssh console -a pokegre -C "cat /data/artist-stats.json" | tail -1 > /tmp/art.json
+    //   npx tsx scripts/warm-set-imgs.mts --stats /tmp/art.json
+    // 안 넘기면 작가 카드 격자는 건너뛴다(짐작으로 데우면 안 보는 걸 데우게 된다).
+    const statsPath = arg('--stats', '')
+    let wanted = new Set<string>()
+    if (statsPath) {
+      try {
+        const tally = JSON.parse(await readFile(statsPath, 'utf8')) as Record<string, number>
+        wanted = new Set(
+          Object.entries(tally)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, ARTIST_TOP)
+            .map(([name]) => name),
+        )
+      } catch {
+        console.log(`  (조회 기록 파일을 못 읽었습니다: ${statsPath})`)
+      }
+    }
+    let cardN = 0
+    if (wanted.size) {
+      for (const a of artists as { slug?: string; en?: string; ko?: string; cover?: string }[]) {
+        if (!a.slug || !wanted.has(a.en ?? '')) continue
+        if (a.cover) add(thumb(a.cover, ARTIST_COVER_W)) // 상세 머리의 큰 표지
+        try {
+          const f = JSON.parse(
+            await readFile(path.resolve(process.cwd(), `public/artists/${a.slug}.json`), 'utf8'),
+          ) as { cards?: { img?: string }[] }
+          for (const c of (f.cards ?? []).slice(0, ARTIST_PAGE)) {
+            if (c.img) {
+              add(thumb(c.img, ARTIST_CARD_W))
+              cardN++
+            }
+          }
+        } catch {
+          /* 파일이 없으면 그 작가는 건너뛴다 */
+        }
+      }
+      console.log(`  많이 보는 작가 ${wanted.size}명의 첫 화면 카드 ${cardN.toLocaleString()}장`)
+    } else {
+      console.log('  (--stats 를 안 줘서 작가 카드 격자는 건너뜁니다)')
+    }
+  } catch {
+    console.log('작가 목록을 못 읽어 건너뜁니다.')
   }
 
   // 세트 목록 타일이 쓰는 표지. 시세를 받아 둔 세트는 값이 제일 높은 카드를 표지로
