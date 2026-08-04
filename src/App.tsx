@@ -68,6 +68,10 @@ function isWideScreen(): boolean {
 
 type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
 type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
+// 사람이 검색어를 "확정한" 방법. 인기 검색어 집계가 타이핑 조각을 거르면서도
+// 확실한 검색은 안 놓치게 하는 데 쓴다(2026-08-04).
+//   scan=사진으로 찾기 · pick=자동완성에서 고름 · popular=인기 검색어를 누름 · enter=엔터
+type SearchVia = 'scan' | 'pick' | 'popular' | 'enter';
 
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
 // 시트로 보여준다. 폰에서 상세를 목록 맨 아래에 붙이면 눌러도 화면이 안 바뀌어
@@ -158,6 +162,17 @@ function App() {
   // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
   // 오타·타이핑 조각이 순위에 끼는 걸 막는 데 쓴다(집계 시점에 최신값을 참조).
   const searchResultRef = useRef<{ query: string; count: number; source: PriceSource }>({ query: '', count: 0, source: 'snkrdunk' });
+  // 결과가 도착할 때마다 1 올린다. 아래 인기 검색어 집계가 "시간이 얼마나 지났나" 대신
+  // "결과가 왔나"를 보고 움직이게 하는 신호다(2026-08-04). 예전에는 검색어가 바뀌고
+  // 1.5초 뒤 딱 한 번만 확인해서, 그 안에 결과가 못 오면 그 검색은 영영 안 세어졌다.
+  const [resultTick, setResultTick] = useState(0);
+  // 사람이 "이걸 찾는다"고 분명히 밝힌 검색어. 사진으로 찾기·자동완성 고르기·인기
+  // 검색어 누르기·엔터가 여기 해당한다. 이런 검색은 타이핑 조각일 리가 없으므로
+  // 기다리지 않고 결과가 오는 대로 바로 센다.
+  const confirmedSearchRef = useRef<{ query: string; via: SearchVia } | null>(null);
+  // 같은 검색어를 두 번 세지 않도록 마지막으로 집계한 검색어를 들고 있다. 결과가
+  // 여러 번 도착해도(소스를 바꾸거나 다시 시도할 때) 한 번만 센다.
+  const trackedQueryRef = useRef('');
   const [items, setItems] = useState<SnkrdunkCard[]>([]);
   const [lastPage, setLastPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -437,7 +452,11 @@ function App() {
     setScanFoundByArtist(0);
     setEdition(ed);
     setSource(target);
-    setQuery(target === 'ebay' ? ebay : snkrdunk);
+    const scanQuery = target === 'ebay' ? ebay : snkrdunk;
+    // 사진으로 찾은 건 타이핑 조각일 수가 없다. 결과가 늦게 와도 인기 검색어에 세도록
+    // 확정으로 표시한다(예전엔 1.5초를 넘기면 통째로 누락됐다 — 사용자 지적 2026-08-04).
+    confirmSearch(scanQuery, 'scan');
+    setQuery(scanQuery);
     setScannedResult(result);
     setScanReported(false);
   };
@@ -634,6 +653,7 @@ function App() {
           }
           setItems(items);
           searchResultRef.current = { query: trimmed, count: items.length, source: 'snkrdunk' };
+          setResultTick((n) => n + 1);
           setLastPage(lastPage);
           setExhausted(exhausted);
           // 이미 고른 카드가 새 결과에도 있으면 유지하고, 없으면 큰 화면에서만 첫
@@ -687,6 +707,7 @@ function App() {
           setEbayItems(cards);
           setEbayAsOf(asOf ?? null);
           searchResultRef.current = { query: trimmed, count: cards.length, source };
+          setResultTick((n) => n + 1);
           setEbayOffset(EBAY_PAGE_SIZE);
           setEbayHasMore(hasMore);
           setEbaySelectedId((prev) =>
@@ -718,18 +739,30 @@ function App() {
     return () => clearTimeout(timer);
   }, [query, source, edition]);
 
-  // 인기 검색어 집계는 검색 실행(350ms)보다 훨씬 긴 텀을 두고, 타이핑 도중의
-  // 미완성 문자열("피카츄"를 치다 멈춘 "피카" 같은)이 그대로 순위에 올라가는 걸 막는다.
+  // 인기 검색어 집계. "결과가 도착했나"를 보고 움직인다(resultTick).
+  //
+  // ⚠️ 예전에는 검색어가 바뀌고 1.5초 뒤에 딱 한 번만 확인했다. 그 안에 결과가 못 오면
+  //    그 검색은 영영 안 세어졌다 — 되돌아올 기회가 없었다(효과가 검색어 바뀔 때만 돌았다).
+  //    스니커덩크는 0.3초 안에 와서 괜찮았지만, 이베이·TCGplayer는 대기(600ms) 뒤
+  //    PPT를 부르므로 느리면 그대로 누락됐다. 사진으로 찾기가 특히 이베이로 가므로
+  //    "사진으로 찾은 카드"가 인기 검색어에 잘 안 오르던 원인이 이것이다(사용자 지적).
+  //
+  // 이제 결과가 오면 그때 판단한다. 사람이 분명히 확정한 검색(사진·자동완성·인기
+  // 검색어·엔터)은 기다리지 않고 바로 세고, 그냥 타이핑한 것만 잠깐 기다려
+  // 미완성 문자열("피카츄"를 치다 멈춘 "피카")을 거른다.
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) return;
+    const confirmed = confirmedSearchRef.current?.query === trimmed;
 
     const timer = setTimeout(() => {
       // 결과가 실제로 나온 검색어만 집계한다. 오타·존재하지 않는 카드처럼 결과가 0인
-      // 문자열이 인기 검색어를 오염시키는 걸 막는다. 검색(350·600ms)은 1500ms 전에
-      // 끝나므로 이 시점의 ref는 지금 검색어의 결과를 담고 있다.
+      // 문자열이 인기 검색어를 오염시키는 걸 막는다.
       const r = searchResultRef.current;
       if (r.query !== trimmed || r.count === 0) return;
+      // 결과는 여러 번 도착할 수 있다(소스를 바꾸거나 "다시 시도"). 한 번만 센다.
+      if (trackedQueryRef.current === trimmed) return;
+      trackedQueryRef.current = trimmed;
       void loadNameDict().then((d) => {
         // 사진으로 찾으면 검색어가 카드 번호라("M4 114/083") 그대로 순위에 올리면
         // 무슨 카드인지 알 수 없다. 그럴 땐 읽어낸 카드 이름으로 집계한다.
@@ -739,11 +772,25 @@ function App() {
       });
       // 어느 소스로 실제 검색이 이뤄졌는지만 센다(개인정보 없음).
       trackEvent(r.source === 'ebay' ? 'ebay_search' : r.source === 'tcgplayer' ? 'tcgplayer' : 'snkrdunk_search');
+      // 이 한 표가 어떻게 확정된 것인지도 같이 센다. 위 검색 횟수와 합계가 같다.
+      const via = confirmed ? confirmedSearchRef.current!.via : null;
+      trackEvent(
+        via === 'scan' ? 'search_scan'
+        : via === 'pick' ? 'search_pick'
+        : via === 'popular' ? 'search_popular'
+        : via === 'enter' ? 'search_enter'
+        : 'search_typed',
+      );
       loadPopularSearches();
-    }, 1500);
+      // 확정 신호는 한 번 쓰면 버린다. 안 버리면 그 검색어를 다시 칠 때도 "확정한 것"으로
+      // 봐서, 타이핑 도중의 같은 조각까지 바로 세어 버린다.
+      if (confirmed) confirmedSearchRef.current = null;
+    }, confirmed ? 0 : 1500);
 
     return () => clearTimeout(timer);
-  }, [query]);
+    // resultTick이 들어 있어야 "결과 도착"에 반응한다. 검색어만 보면 예전처럼
+    // 한 번 놓친 검색을 되찾을 방법이 없다.
+  }, [query, resultTick]);
 
   function loadMore() {
     setLoadingMore(true);
@@ -825,7 +872,14 @@ function App() {
     if (loggedIn) saveCollections({ favorites: [] });
   }
 
+  // 검색어를 "확정"했다고 표시한다. 결과만 나오면 기다리지 않고 인기 검색어에 센다.
+  function confirmSearch(term: string, via: SearchVia) {
+    const t = term.trim();
+    if (t) confirmedSearchRef.current = { query: t, via };
+  }
+
   function handleSelectSuggestion(term: string) {
+    confirmSearch(term, 'pick');
     setQuery(term);
     setSuggestionsOpen(false);
     setSuggestActive(-1);
@@ -942,7 +996,16 @@ function App() {
           제목만 걸치고 사진이 잘렸다. 인기 검색어는 아직 항목이 적고, 검색하러 온 사람은
           맨 위 검색창을 바로 쓴다. */}
       <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
-      <PopularSearches items={popularSearches} asOf={popularAsOf} loading={popularLoading} onSelect={setQuery} />
+      {/* 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다. */}
+      <PopularSearches
+        items={popularSearches}
+        asOf={popularAsOf}
+        loading={popularLoading}
+        onSelect={(term) => {
+          confirmSearch(term, 'popular');
+          setQuery(term);
+        }}
+      />
       <PokemonNews items={news} loading={newsLoading} />
     </div>
   );
@@ -1347,7 +1410,12 @@ function App() {
                         warmNameDict();
                       }}
                       onBlur={() => setSuggestionsOpen(false)}
-                      onSubmit={() => setSuggestionsOpen(false)}
+                      onSubmit={() => {
+                        // 엔터(폰 키보드의 "검색")도 확정이다. 예전엔 자동완성만 닫고 끝이라
+                        // 집계에 아무 영향이 없었다.
+                        confirmSearch(query, 'enter');
+                        setSuggestionsOpen(false);
+                      }}
                       onKeyNav={handleSuggestKey}
                     >
                       {suggestionsOpen && (
@@ -1434,8 +1502,16 @@ function App() {
                 </div>
 
                 {/* 발매판 선택은 eBay·TCGplayer일 때 노출한다(둘 다 PPT라 두 판 다 있다).
-                    SNKRDUNK는 일본 마켓이라 북미판 카탈로그가 사실상 없어(영문 프로모 몇
-                    종뿐) 고를 게 없다. */}
+                    ⚠️ 여기 예전에 "SNKRDUNK는 북미판이 영문 프로모 몇 종뿐"이라고 적혀
+                       있었는데 틀린 말이다(사용자 지적 2026-08-04). 실제로는 제목에
+                       【英語版】이 붙은 일반 세트 카드까지 있다
+                       (예: ピカチュウ C [TEF EN 051/162]【英語版】).
+                       다만 아무거나 다 있는 건 아니다 — 북미판 카드 18장을 스캔이 만드는
+                       검색어 꼴("세트 번호")로 두드려 보니 6장만 나왔고, 나온 것은 UR·SIR·
+                       프로모처럼 값나가는 것에 몰려 있었다(일본 수집가가 사 모으는 것들이다).
+                       그래서 발매판 토글은 아직 안 붙인다 — 고를 만큼 고르게 있지가 않다.
+                       북미판 카드를 스캔하면 이베이로 보내는 것도 같은 이유다
+                       (applyScanResult 참고). */}
                 {(source === 'ebay' || source === 'tcgplayer') && (
                   <div className="inline-flex rounded-full border border-neutral-300 p-1">
                     <button

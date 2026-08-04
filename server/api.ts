@@ -1646,10 +1646,15 @@ const SET_STATS_FILE = dataFile('set-stats.json')
 const MAX_SET_KEYS = 500
 // 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
 // sets=세트별 목록에서 세트 열람, ebay_korean=이베이 한글판 시세 조회.
+// search_* 는 "인기 검색어에 한 표가 들어갈 때 그 검색어를 어떻게 확정했나"를 센다.
+// 검색 횟수(snkrdunk_search 등)와 합계가 같아야 정상이다 — 갈라 보는 축이 다를 뿐이다.
+// 이걸 세는 이유: 지금은 그냥 타이핑하다 멈춰도(search_typed) 세는데, 그 기준(1.5초)이
+// 애매하다는 지적이 있었다. typed 비중이 낮으면 그 경로를 떼도 순위가 안 무너진다.
 const ALLOWED_EVENTS = new Set([
   'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'series',
   'ebay_korean', 'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value',
   'packsim_share', 'share',
+  'search_scan', 'search_pick', 'search_popular', 'search_enter', 'search_typed',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -1943,9 +1948,13 @@ function mountSearchTracker(app: Mountable) {
     await loadCounts()
     // 조회할 때도 오래된 날짜를 정리해 파일이 무한정 커지지 않게 한다.
     pruneOldDays()
-    // 순위는 최근 3일로 매긴다(살아있는 느낌). 그걸로 10칸이 안 차면 — 검색이 뜸해
-    // 목록이 비어 보일 때 — 더 긴 기간(30일) 인기어로 뒤를 채운다. 최근 것이 늘 위,
-    // 옛 인기어가 빈 자리를 메우는 식이라 목록이 텅 비지 않는다.
+    // 순위는 최근 24시간(POPULAR_WINDOW_HOURS)으로 매긴다 — 한 시간짜리 칸을 합치므로
+    // 한 시간마다 가장 오래된 칸이 빠지고 새 칸이 들어와 하루 종일 조금씩 흐른다.
+    // (예전엔 3일이었다. 시간 단위 칸으로 바꾸면서 24시간이 됐는데 이 주석만 옛 값으로
+    //  남아 있었다 — 2026-08-04에 코드와 맞췄다.)
+    // 그걸로 10칸이 안 차면 — 검색이 뜸해 목록이 비어 보일 때 — 더 긴 기간(30일)
+    // 인기어로 뒤를 채운다. 최근 것이 늘 위, 옛 인기어가 빈 자리를 메우는 식이라
+    // 목록이 텅 비지 않는다.
     const ranked = rankTerms(aggregateHours(POPULAR_WINDOW_HOURS))
     if (ranked.length < RANKING_SIZE) {
       const shown = new Set(ranked.map((r) => r.term))

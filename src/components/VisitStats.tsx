@@ -44,6 +44,13 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'packsim_share', label: '개봉 자랑', hint: '팩 결과를 커뮤니티에 공유' },
   { key: 'share', label: '카드 공유', hint: '카드 상세에서 공유 버튼을 누를 때' },
   { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
+  // 아래 다섯은 "인기 검색어에 한 표가 들어갈 때 그 검색어를 어떻게 확정했나"다.
+  // 위 검색 횟수(스니커덩크·이베이·TCGplayer)와 합계가 같아야 한다 — 나누는 축만 다르다.
+  { key: 'search_scan', label: '└ 사진으로 찾아서', hint: '사진으로 카드를 찾아 그 검색어가 인기 검색어에 반영됨' },
+  { key: 'search_pick', label: '└ 자동완성에서 골라서', hint: '자동완성 목록에서 고른 검색어' },
+  { key: 'search_popular', label: '└ 인기 검색어를 눌러서', hint: '인기 검색어 목록을 눌러 검색' },
+  { key: 'search_enter', label: '└ 엔터를 눌러서', hint: '엔터(폰 키보드의 "검색")로 확정' },
+  { key: 'search_typed', label: '└ 그냥 치다 멈춰서', hint: '확정 없이 1.5초 멈춰 집계된 것. 이 비중이 낮으면 그 경로를 떼도 된다' },
 ];
 
 // 조회 순위 목록(작가별·세트별 공용): 상위 5개만 보여주고 "더보기"로 5개씩 늘린다.

@@ -94,7 +94,15 @@ export type TrackedEvent =
   // 운영자 전용 화면(카드 뽑기·스캔 테스트). 운영자 사용은 서버가 집계에서 빼므로
   // 지금은 늘 0이지만, 나중에 공개로 돌리면 그때부터 바로 잡힌다.
   | 'packsim'
-  | 'scantest';
+  | 'scantest'
+  // 인기 검색어에 한 표가 들어갈 때, 그 검색어를 무엇으로 확정했는지. 앞의 넷은 사람이
+  // 분명히 "이걸 찾는다"고 밝힌 것이고, typed는 그냥 치다 멈춘 것이다(기준이 애매해
+  // 나중에 뗄지 판단하려고 따로 센다 — App.tsx의 confirmSearch 참고).
+  | 'search_scan'
+  | 'search_pick'
+  | 'search_popular'
+  | 'search_enter'
+  | 'search_typed';
 // label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
 export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;
