@@ -15,6 +15,7 @@ import {
   STREAK_BONUS,
   STREAK_DAYS,
   isLive,
+  livePacks,
   packBySlug,
   PACK_SETS,
   PPT_SET_NAMES,
@@ -381,8 +382,15 @@ const IMG_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 // 표지 366장을 원본에서 하나씩 받느라 한참 비어 보인다(실측: 데우기 전 20장 1,219ms /
 // 데운 뒤 689ms, 원본이 느린 tcgdex는 한 장에 8초까지 걸린다).
 let warmCovers: (() => Promise<void>) | null = null
+// 오늘 진열된 팩의 카드 그림 데우기. 진열이 자정에 바뀌므로 하루 한 번 다시 돈다.
+let warmPackCards: (() => Promise<void>) | null = null
 export function startCoverWarmup(): void {
   if (warmCovers) void warmCovers()
+  // 표지가 먼저 끝나도록 조금 늦춘다 — 둘이 동시에 원본을 두드리면 서로 느려진다.
+  if (warmPackCards) {
+    setTimeout(() => void warmPackCards?.(), 6 * 60 * 1000)
+    setInterval(() => void warmPackCards?.(), 24 * 60 * 60 * 1000)
+  }
 }
 
 // 받아 둔 썸네일을 디스크에도 남긴다. 메모리 캐시는 배포할 때마다 통째로 날아가는데,
@@ -621,6 +629,46 @@ function mountImageProxy(app: Mountable) {
       await new Promise((r) => setTimeout(r, 300))
     }
     console.log(`[pokegre] 세트 표지 ${done}장을 미리 받아 뒀습니다.`)
+  }
+
+  // 오늘 진열된 팩의 카드 그림을 미리 받아 둔다.
+  //
+  // 팩을 열면 뽑힌 카드가 240px로 뜬다. 안 받아 둔 상태면 10장에 1.5초가 걸렸다
+  // (2026-08-05 실측). 하필 제일 기다리기 싫은 순간이다.
+  // 진열이 매일 자정에 바뀌므로 손으로 돌리는 스크립트로는 못 따라간다 — 서버가
+  // 기동할 때와 하루 한 번 돈다. 오늘 6팩이 1,013장(약 12MB)이라 부담이 없다.
+  // ⚠️ 표지 데우기와 같은 속도로 천천히 돈다(4장씩·사이 300ms). 한꺼번에 두드리면
+  //    원본이 막고 그동안 방문자 요청이 밀린다.
+  warmPackCards = async () => {
+    const today = livePacks()
+    let done = 0
+    let already = 0
+    for (const pack of today) {
+      const cards = await readPackCards(pack).catch(() => [])
+      const urls = cards
+        .map((c) => c.img)
+        .filter((u): u is string => !!u && !u.includes('snkrdunk'))
+        .map((base) => (/\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`))
+      for (let i = 0; i < urls.length; i += 4) {
+        await Promise.all(
+          urls.slice(i, i + 4).map(async (u) => {
+            const key = `240|${u}`
+            if (cache.get(key)) {
+              already++
+              return
+            }
+            const hit = (await readDisk(key)) ?? (await fetchThumb(u, 240, IMG_SLOW_RETRY_MS).catch(() => null))
+            if (hit) {
+              cache.set(key, hit)
+              void writeDisk(key, hit.body)
+              done++
+            }
+          }),
+        )
+        await new Promise((r) => setTimeout(r, 300))
+      }
+    }
+    console.log(`[pokegre] 오늘 진열 팩 카드 ${done}장을 미리 받아 뒀습니다(이미 있던 것 ${already}장).`)
   }
 }
 
