@@ -1440,6 +1440,7 @@ function App() {
                 setSetsInitialSlug(slug);
                 navigate({ view: 'sets' });
               }}
+              onRequestLogin={() => setLoginOpen(true)}
             />
           ) : view === 'sets' ? (
             <SetsView

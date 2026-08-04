@@ -229,10 +229,13 @@ export type PickTarget = { query: string; source: 'snkrdunk' | 'ebay' | 'tcgplay
 export function PackSim({
   onPickCard,
   onOpenSet,
+  onRequestLogin,
 }: {
   onPickCard?: (target: PickTarget) => void;
   // 진열 팩의 "수록 카드 보기" → 세트 목록 화면으로 이동.
   onOpenSet?: (slug: string) => void;
+  // 로그인 안 한 사람이 출석 버튼을 눌렀을 때 로그인 창을 연다.
+  onRequestLogin?: () => void;
 }) {
   const [tab, setTab] = useState<'open' | 'stash' | 'album' | 'rates'>('open');
   // 방금 산 것. 사자마자 "바로 열기"로 열 수 있게 기억해 둔다 — 예전엔 보관함 탭으로
@@ -240,6 +243,7 @@ export function PackSim({
   // ⚠️ 보관함 자체는 그대로 둔다. 실제로 쟁여 두고 쓰는 사람이 있다(2026-08-04 기준 2명·33팩).
   const [justBought, setJustBought] = useState<{ slug: string; kind: 'pack' | 'box' } | null>(null);
   const [sim, setSim] = useState<SimState | null>(null);
+  const [guest, setGuest] = useState(false);
   // 한국시간 날짜. 자정을 넘기면 바뀌고, 그때 진열을 다시 계산한다.
   const [dayKey, setDayKey] = useState(todayKst);
   useEffect(() => {
@@ -325,7 +329,13 @@ export function PackSim({
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/local/auth/packsim', { credentials: 'include' });
-      if (!r.ok) return setErr('로그인하면 팩을 열 수 있습니다.');
+      // ⚠️ 로그인 안 한 사람과 "아직 불러오는 중"을 구분해야 한다. 둘 다 sim이 null이라
+      //    이 표시가 없으면 "오늘 출석 완료"·"1,600 GP 모자람"처럼 엉뚱한 안내가 나간다
+      //    (2026-08-04 비로그인 점검에서 확인).
+      if (!r.ok) {
+        setGuest(true);
+        return setErr('로그인하면 팩을 열 수 있습니다.');
+      }
       const d = (await r.json()) as SimState;
       setSim(d);
       if (!d.admin) setSpend(true); // 일반 이용자는 항상 GP를 쓴다
@@ -889,13 +899,19 @@ export function PackSim({
               아무 일도 안 일어나는 것처럼 보이므로, 미리 이유를 적어 준다. */}
           {(() => {
             const full = (sim?.balance ?? 0) >= MAX_BALANCE;
-            const label = !sim?.canCheckIn ? '오늘 출석 완료' : full ? `GP가 가득 찼습니다` : `출석하고 ${gp(DAILY_BUDGET)} 받기`;
+            const label = guest
+              ? '로그인하고 시작하기'
+              : !sim?.canCheckIn
+                ? '오늘 출석 완료'
+                : full
+                  ? `GP가 가득 찼습니다`
+                  : `출석하고 ${gp(DAILY_BUDGET)} 받기`;
             return (
               <div className="w-full sm:ml-auto sm:w-auto">
                 <button
                   type="button"
-                  onClick={checkIn}
-                  disabled={busy || !sim?.canCheckIn || full}
+                  onClick={guest ? onRequestLogin : checkIn}
+                  disabled={guest ? false : busy || !sim?.canCheckIn || full}
                   className="w-full rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40 sm:w-auto"
                 >
                   {label}
@@ -1036,7 +1052,7 @@ export function PackSim({
                               <>
                                 <span className="block text-[11px] font-semibold opacity-80">1팩</span>
                                 <span className="block whitespace-nowrap">
-                                  {can ? gp(s2.price) : `${gp(s2.price - (sim?.balance ?? 0))} 모자람`}
+                                  {can || guest ? gp(s2.price) : `${gp(s2.price - (sim?.balance ?? 0))} 모자람`}
                                 </span>
                               </>
                             )}
@@ -1061,7 +1077,7 @@ export function PackSim({
                                     <>
                                       <span className="block text-[11px] font-semibold opacity-80">1박스</span>
                                       <span className="block whitespace-nowrap">
-                                        {canBox ? gp(boxPrice) : `${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
+                                        {canBox || guest ? gp(boxPrice) : `${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
                                       </span>
                                     </>
                                   )}
