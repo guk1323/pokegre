@@ -29,7 +29,6 @@ import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
 import { PokemonNews } from './components/PokemonNews';
 import { PackShelfPromo } from './components/PackShelfPromo';
-import { OnboardingBanner } from './components/OnboardingBanner';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
 import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
@@ -1048,10 +1047,11 @@ function App() {
           예전엔 상점이 위였는데(2026-07-26 결정), 그 사이 상점이 커져서 인기 검색어가
           폰에서 y=1909 — 2.4화면 아래로 밀렸다. 시세를 보러 온 사람에게 "뭘 검색할 수
           있는지"를 보여주는 자리라 검색창에서 멀면 뜻이 없다.
-          공지는 한 번 닫으면 다시 안 뜨므로(OnboardingBanner), 닫은 사람에겐 검색창
-          바로 밑이 인기 검색어가 된다.
           그때 상점을 위에 둔 이유(폰에서 팩 사진이 잘린다)는 그대로 살아 있으므로,
           상점은 인기 검색어 바로 다음에 둔다 — 뉴스보다는 위다. */}
+      {/* ⚠️ 공지 배너(OnboardingBanner)를 홈에서 뺐다(2026-08-05, 운영자 지시).
+          컴포넌트 파일은 남겨 두었으니 다시 붙이려면 여기에 <OnboardingBanner />만
+          되살리면 된다. */}
       <PopularSearches
         items={popularSearches}
         asOf={popularAsOf}
@@ -1062,7 +1062,6 @@ function App() {
           setQuery(term);
         }}
       />
-      <OnboardingBanner />
       <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
       <PokemonNews items={news} loading={newsLoading} />
     </div>
