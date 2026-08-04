@@ -786,6 +786,8 @@ export function PackSim({
     setRevealed(pack.length);
   };
   const allDone = !!pack && revealed >= pack.length;
+  // 개봉이 진행 중인가(아직 다 안 뒤집음). 이때는 화면을 카드에 양보한다.
+  const revealing = (!!pack && !allDone) || !!boxQueue;
 
   // 결과 정리용 등급 묶음(좋은 등급이 위로).
   const resultGroups = (() => {
@@ -808,9 +810,15 @@ export function PackSim({
         오늘의 상점
       </h2>
 
-      {/* 현황판: 보유 GP·연속 출석·개봉한 팩을 나란히, 출석 버튼은 오른쪽.
-          좁은 화면에서는 셋을 한 줄에 두고 버튼을 아래 줄 전체 폭으로 내린다 —
-          한 줄에 다 넣으면 칸이 눌려 숫자가 겹쳐 보였다. */}
+      {/* 현황판. 개봉 중에는 한 줄로 접는다 — 안 접으면 화면 위 1/3을 먹어서 카드가
+          화면 61% 아래에서 시작했다(폰에서 카드를 보려면 스크롤해야 했다).
+          출석·연속일수는 개봉이 끝난 뒤에 봐도 된다(사용자 지적 2026-08-04). */}
+      {revealing ? (
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-neutral-200 px-4 py-2 text-sm">
+          <span className="text-neutral-400">보유 GP</span>
+          <span className="font-bold text-black">{(sim?.balance ?? 0).toLocaleString()}</span>
+        </div>
+      ) : (
       <div className="mt-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-y-3">
           <div className="grid w-full grid-cols-3 gap-2 sm:w-auto sm:max-w-md sm:flex-1">
@@ -847,7 +855,7 @@ export function PackSim({
                 </button>
                 {sim?.canCheckIn && full && (
                   <p className="mt-1 text-[11px] text-neutral-400 sm:text-right">
-                    보유 GP가 상한({gp(MAX_BALANCE)})이라 지금 받으면 사라집니다. 팩을 열어 GP를 쓰면 다시 받을 수 있습니다.
+                    GP가 상한이라 지금 받으면 사라집니다.
                   </p>
                 )}
               </div>
@@ -861,6 +869,7 @@ export function PackSim({
           </label>
         )}
       </div>
+      )}
       {checkinMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{checkinMsg}</p>}
       {err && <p className="mt-2 text-sm text-rose-500">{err}</p>}
 
@@ -1113,16 +1122,17 @@ export function PackSim({
                   />
                 ))}
               </div>
-              <div className="mt-3 text-center">
+              {/* 버튼 세 개가 세로로 쌓여 카드가 화면 아래로 밀렸다. 한 줄로 묶는다
+                  (사용자 지적 2026-08-04). "남은 팩 전부 공개"는 되돌릴 수 없으니
+                  작은 글씨로 따로 둔다 — 큰 버튼과 나란히 두면 잘못 누른다. */}
+              <div className="mt-3 flex items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => flipMany(boxQueue.groups[boxQueue.idx].map((c) => c.i))}
-                  className="rounded-full border border-neutral-300 px-4 py-1.5 text-xs font-semibold text-neutral-600"
+                  className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-600"
                 >
-                  이 팩 한번에 공개
+                  한번에 공개
                 </button>
-              </div>
-              <div className="mt-4 flex items-center justify-center gap-4">
                 <button
                   type="button"
                   onClick={() => {
@@ -1136,9 +1146,11 @@ export function PackSim({
                   className="rounded-lg bg-black px-5 py-2 text-sm font-bold text-white"
                 >
                   {boxQueue.idx >= boxQueue.groups.length - 1
-                    ? '결과 정리하기'
+                    ? '결과 정리'
                     : `다음 팩 (${boxQueue.idx + 2}/${boxQueue.groups.length})`}
                 </button>
+              </div>
+              <div className="mt-2 text-center">
                 {boxQueue.idx < boxQueue.groups.length - 1 && (
                   <button
                     type="button"
@@ -1195,28 +1207,32 @@ export function PackSim({
                   </button>
                 </div>
               )}
+              {/* 폰에서 두 버튼이 세로로 쌓여 화면을 많이 먹었다 → 나란히 둔다
+                  (사용자 지적 2026-08-04). */}
+              <div className="flex w-full gap-2 sm:ml-auto sm:w-auto">
               <button
                 type="button"
                 onClick={() => setShareOpen(true)}
                 disabled={busy || share.shared}
-                className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40 sm:ml-auto sm:w-auto"
+                className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-40 sm:flex-none"
               >
-                {share.shared ? '자랑 완료' : sim?.canShareBonus ? `커뮤니티에 자랑하기 +${gp(SHARE_BONUS)}` : '커뮤니티에 자랑하기'}
+                {share.shared ? '자랑 완료' : sim?.canShareBonus ? `자랑하기 +${gp(SHARE_BONUS)}` : '자랑하기'}
               </button>
               <button
                 type="button"
                 onClick={keepCards}
                 disabled={busy || keptDone}
-                className="w-full rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40 sm:w-auto"
+                className="flex-1 rounded-lg bg-black px-3 py-2 text-sm font-bold text-white disabled:opacity-40 sm:flex-none"
               >
                 {keptDone
                   ? keptCount
                     ? `${keptCount}장 넣었습니다`
                     : '넘겼습니다'
                   : keep.size
-                    ? `${keep.size}장 앨범에 넣기`
-                    : '넣지 않고 넘기기'}
+                    ? `${keep.size}장 담기`
+                    : '넘기기'}
               </button>
+              </div>
               {keepFullMsg && <p className="mt-2 text-xs font-semibold text-rose-600">{keepFullMsg}</p>}
             </div>
           )}
@@ -1295,9 +1311,9 @@ export function PackSim({
                 <button
                   type="button"
                   onClick={flipAll}
-                  className="rounded-full border border-neutral-300 px-4 py-1.5 text-xs font-semibold text-neutral-600"
+                  className="rounded-lg border border-neutral-300 px-5 py-2 text-sm font-semibold text-neutral-600"
                 >
-                  이 팩 한번에 공개
+                  한번에 공개
                 </button>
               </div>
             </>
