@@ -13,9 +13,29 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { assertFloor, noteLeft } from './ppt-floor.mjs'
+import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+
+// ⚠️ 주소가 있다고 그림이 있는 게 아니다. 넣기 전에 하나씩 열어 본다
+//    (pokemontcg.io는 주소만 주고 실제 파일이 없는 세트가 있었다 — 2026-08-04).
+const aliveCache = new Map<string, boolean>()
+async function imageAlive(url: string): Promise<boolean> {
+  const known = aliveCache.get(url)
+  if (known !== undefined) return known
+  let ok = false
+  try {
+    ok = (await fetch(url, { method: 'HEAD' })).ok
+  } catch {
+    ok = false
+  }
+  aliveCache.set(url, ok)
+  return ok
+}
 
 // 우리 세트 → PPT 세트 이름. PPT /sets 목록에서 확인한 정확한 이름이다(2026-08-03).
 const PAIRS: [string, string][] = [
+  // 2026-07-31 발매. 시크릿 레어 37장이 무료 소스 세 곳 모두에 아직 없다(2026-08-04).
+  ['ja-M6', 'M6: Storm Emeralda'],
   ['en-2023sv', "McDonald's Promos 2023"],
   ['en-2024sv', "McDonald's Promos 2024"],
   ['en-tk-sm-l', 'SM Trainer Kit: Lycanroc & Alolan Raichu'],
@@ -47,21 +67,45 @@ if (!key) {
   process.exit(1)
 }
 
+// 같은 카드인데 이름 표기가 달라 자동으로는 안 맞는 짝. 하나씩 뜻을 확인하고 적었다.
+// ⚠️ 여기 적는 순간 "번호가 같으면 같은 카드"로 믿는 것이므로, 반드시 뜻이 통하는지
+//    직접 보고 적을 것. 예를 들어 ja-M6 079는 우리가 ブーバーン(마그마번)인데 PPT는
+//    Magmar(마그마)라 서로 다른 포켓몬이다 — 그런 건 절대 넣지 않는다(빈칸으로 둔다).
+const NAME_PAIRS: Record<string, string> = {
+  ヒートロトムex: 'Heat Rotom ex',
+  ぼうけんのランタン: 'Adventuring Lantern', // ぼうけん=모험, ランタン=랜턴
+  とくちゅうチョッキ: 'Custom Vest', // 特注=주문제작, チョッキ=조끼
+  'MCの盛り上げ': "Emcee's Hype", // MC=사회자, 盛り上げ=분위기 띄우기
+  ギリー: 'Aarune', // 트레이너 아룬의 일본명
+  ヒガナの信頼: "Zinnia's Trust", // ヒガナ=지나(Zinnia)
+  フウとランの修行: "Tate & Liza's Training", // フウ·ラン=풍·란(Tate & Liza)
+  グロウ草エネルギー: 'Growing Grass Energy',
+  ニトロ炎エネルギー: 'Nitro Fire Energy',
+}
+
 const PAGE = 200
 let spent = 0
 let stop = ''
 // 이름 비교는 표기 차이를 지우고 한다("Mr. Mime" / "Mr Mime").
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+// 한글까지 남기는 비교용(일본판 세트에 쓴다).
+const normKo = (s: string) => s.toLowerCase().replace(/[^a-z0-9가-힣]/g, '')
+// 일본판은 우리 이름이 일본어, PPT 이름이 영어다. 둘 다 화면에 나오는 한글로 옮겨
+// 견줘야 짝이 맞는다. 그냥 글자로 비교하면 하나도 안 맞아 전부 건너뛴다.
+const sameCard = (ours: string, theirs: string) =>
+  norm(ours) === norm(theirs) ||
+  (NAME_PAIRS[ours.trim()] !== undefined && norm(NAME_PAIRS[ours.trim()]) === norm(theirs)) ||
+  normKo(koreanizeEnglishCardName(koreanizeTitle(ours))) === normKo(koreanizeEnglishCardName(theirs))
 const stripNo = (s: string) => s.replace(/\s*-\s*[\dA-Za-z]+\/[\dA-Za-z]+\s*$/, '').trim()
 
 type Row = { cardNumber?: string; name?: string; imageCdnUrl?: unknown }
 
-async function fetchPage(setName: string, offset: number): Promise<Row[] | null> {
+async function fetchPage(setName: string, offset: number, lang = 'english'): Promise<Row[] | null> {
   // 크레딧 바닥선(5,000). 예산과 별개로 여기를 넘어서는 절대 안 부른다.
   if (!assertFloor(PAGE)) return null
   spent += PAGE
   const u =
-    `https://www.pokemonpricetracker.com/api/v2/cards?language=english` +
+    `https://www.pokemonpricetracker.com/api/v2/cards?language=${lang}` +
     `&setName=${encodeURIComponent(setName)}&limit=${PAGE}&offset=${offset}`
   const r = await fetch(u, { headers: { accept: 'application/json', authorization: `Bearer ${key}` } })
   const left = noteLeft(r.headers.get('x-ratelimit-daily-remaining')) ?? NaN
@@ -123,7 +167,7 @@ for (const [slug, setName] of PAIRS) {
   const src = new Map<string, { name: string; img: string }>()
   for (let p = 0; p < 3; p++) {
     if (spent + PAGE > BUDGET) break
-    const list = await fetchPage(setName, p * PAGE)
+    const list = await fetchPage(setName, p * PAGE, slug.startsWith('ja-') ? 'japanese' : 'english')
     if (list === null) break
     for (const c of list) {
       const num = String(c.cardNumber ?? '').split('/')[0].replace(/^0+/, '') || '0'
@@ -136,12 +180,17 @@ for (const [slug, setName] of PAIRS) {
   }
 
   let filled = 0
+  let dead = 0
   const skipped: string[] = []
   for (const c of blanks) {
     const hit = src.get(String(Number(c.n)))
     if (!hit) continue
-    if (norm(c.name) !== norm(hit.name)) {
-      if (skipped.length < 3) skipped.push(`${c.n} ${c.name}≠${hit.name}`)
+    if (!sameCard(c.name, hit.name)) {
+      if (skipped.length < 40) skipped.push(`\n        ${c.n} ${c.name} ≠ ${hit.name}  (우리:${koreanizeEnglishCardName(koreanizeTitle(c.name))} / PPT:${koreanizeEnglishCardName(hit.name)})`)
+      continue
+    }
+    if (!(await imageAlive(hit.img))) {
+      dead++
       continue
     }
     c.img = hit.img
@@ -150,6 +199,7 @@ for (const [slug, setName] of PAIRS) {
   total += filled
   console.log(
     `  ${slug.padEnd(14)} PPT ${String(src.size).padStart(3)}장 · 빈칸 ${String(blanks.length).padStart(3)}장 중 ${String(filled).padStart(3)}장 채움  누적 ${spent}` +
+      (dead ? ` · 그림이 없어 건너뜀 ${dead}장` : '') +
       (skipped.length ? `\n      (이름이 달라 건너뜀: ${skipped.join(', ')})` : ''),
   )
   if (WRITE && filled) await writeFile(file, JSON.stringify(d))

@@ -303,6 +303,8 @@ export const PACK_SETS: PackSet[] = [
 // ⚠️ 전부 PPT API로 직접 확인한 문자열만 적는다(추측 금지). m1L·m1S는 소문자 m이 맞다.
 export const PPT_SET_NAMES: Record<string, string> = {
   // 일본판
+  // 2026-07-31 발매. 빠져 있어서 시세를 아예 못 받고 있었다(2026-08-04 확인).
+  'ja-M6': 'M6: Storm Emeralda',
   'ja-M5': 'M5: Abyss Eye',
   'ja-M4': 'M4: Ninja Spinner',
   'ja-M3': 'M3: Nihil Zero',
