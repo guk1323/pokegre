@@ -105,7 +105,11 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
                 // ⚠️ 서서히 바꾸지 않는다(transition 금지). 겹쳐 둔 채로 흐려지면 두 카드의
                 //    글자가 같은 자리에 겹쳐 보여 지저분하다(2026-08-04에 확인). 그림은
                 //    이미 다 받아 뒀으니 바로 바꿔도 깜빡임이 없다.
-                className={`col-start-1 row-start-1 flex items-center gap-3 ${
+                // ⚠️ 큰 화면에서 폭을 묶어 가운데로 모은다. 1,118px 띠에 이 내용을 그대로
+                //    펴면 어디에 놓든 300~400px짜리 빈칸이 생긴다(실측 2026-08-04).
+                //    내용에 맞는 폭으로 모아 두면 좌우 여백이 대칭이라 "덜 채운 것"이
+                //    아니라 "여백을 둔 것"으로 보인다.
+                className={`col-start-1 row-start-1 flex items-center gap-3 sm:mx-auto sm:w-full sm:max-w-2xl sm:gap-5 ${
                   i === shown ? '' : 'invisible'
                 }`}
               >
@@ -124,30 +128,39 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
                     />
                   </picture>
                 )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-neutral-400 sm:text-xs">
-                    {h.recent ? '이번 주에 나온 카드' : '지금까지 나온 카드'}
-                  </p>
-                  <p className="mt-0.5 line-clamp-1 text-sm font-bold text-neutral-900 sm:text-lg">
-                    {h.god ? '갓팩! ' : ''}
-                    {h.name || '카드'} {tier}
-                  </p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-neutral-500 sm:text-sm">
-                    {h.nick}님{pn ? ` · ${pn}` : ''}
-                  </p>
-                </div>
-                {/* ⚠️ 오른쪽이 통째로 비어 있었다 — 1,118px 띠에 내용이 왼쪽에만 몰려 있었다
-                    (사용자 지적 2026-08-04). 여백을 그냥 없애는 대신 시세를 넣는다.
-                    "얼마짜리가 나왔나"가 이 줄에서 제일 궁금한 것이고, 상점으로 갈 이유도 된다.
-                    시세를 아직 못 받은 카드면 아무것도 안 그린다(틀린 것보다 빈칸). */}
-                {!!h.usd && (
-                  <div className="hidden shrink-0 pl-4 text-right sm:block">
-                    <p className="text-xs text-neutral-400">시세</p>
-                    <p className="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums text-neutral-900">
-                      {krw(h.usd, 'usd')}
+                {/* 큰 화면에서는 한 덩어리를 왼쪽에 몰지 않고, 세 토막으로 나눠 줄 전체에
+                    고르게 편다(카드 이름 / 누가·어느 팩 / 시세). 폰에서는 자리가 없으니
+                    예전처럼 한 덩어리로 쌓는다. */}
+                <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-8">
+                  <div className="min-w-0 sm:flex-1">
+                    <p className="text-[11px] font-semibold text-neutral-400 sm:text-xs">
+                      {h.recent ? '이번 주에 나온 카드' : '지금까지 나온 카드'}
+                    </p>
+                    <p className="mt-0.5 line-clamp-1 text-sm font-bold text-neutral-900 sm:mt-1 sm:text-lg">
+                      {h.god ? '갓팩! ' : ''}
+                      {h.name || '카드'} {tier}
+                    </p>
+                    {/* 누가·어느 팩은 폰에서만 여기 붙는다. 큰 화면에서는 가운데 토막으로 뺀다. */}
+                    <p className="mt-0.5 line-clamp-1 text-xs text-neutral-500 sm:hidden">
+                      {h.nick}님{pn ? ` · ${pn}` : ''}
                     </p>
                   </div>
-                )}
+                  {/* 가운데 토막 — 큰 화면에서 여기가 비어 있었다(사용자 지적 2026-08-04). */}
+                  <div className="hidden min-w-0 sm:block sm:flex-1">
+                    <p className="text-xs text-neutral-400">뽑은 사람</p>
+                    <p className="mt-1 line-clamp-1 text-sm font-semibold text-neutral-700">{h.nick}님</p>
+                    {pn && <p className="line-clamp-1 text-xs text-neutral-400">{pn}</p>}
+                  </div>
+                  {/* 오른쪽 토막. "얼마짜리가 나왔나"가 이 줄에서 제일 궁금한 것이고,
+                      상점으로 갈 이유도 된다. 시세를 아직 못 받은 카드면 안 그린다
+                      (틀린 것보다 빈칸). */}
+                  <div className="hidden shrink-0 text-right sm:block">
+                    <p className="text-xs text-neutral-400">시세</p>
+                    <p className="mt-1 whitespace-nowrap text-lg font-bold tabular-nums text-neutral-900">
+                      {h.usd ? krw(h.usd, 'usd') : '—'}
+                    </p>
+                  </div>
+                </div>
               </div>
             );
           })}
