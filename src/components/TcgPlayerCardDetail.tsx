@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CardImg } from './CardImg';
 import type { EbayCard, EbayGradeStat } from '../api/ebayPrices';
 import { Price, KrwRateNote } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
@@ -45,7 +46,7 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
-        {card.imageUrl && <img src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" />}
+        {card.imageUrl && <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" lazy={false} />}
       </div>
 
       <div className="mb-1 flex items-start justify-between gap-2">

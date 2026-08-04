@@ -1,5 +1,6 @@
 import { formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
 import { Price } from './KrwHint';
+import { CardImg } from './CardImg';
 
 
 export function EbayCardTile({
@@ -36,7 +37,7 @@ export function EbayCardTile({
         {/* TCGplayer 이미지는 원본이 이미 400px로 작아서 축소(wsrv)를 거치지 않는다.
             거치면 wsrv가 tcgplayer CDN을 못 불러와 이미지가 깨진다. */}
         {card.imageUrl && (
-          <img src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" loading="lazy" />
+          <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" />
         )}
       </div>
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.name}</p>

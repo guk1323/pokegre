@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CardImg } from './CardImg';
 import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
 import { Price, KrwRateNote, useKrw } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
@@ -24,7 +25,7 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
         {card.imageUrl && (
-          <img src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" />
+          <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" lazy={false} />
         )}
       </div>
 

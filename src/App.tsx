@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { CardImg } from './components/CardImg';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
 import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
@@ -1517,7 +1518,7 @@ function App() {
             <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
               {compareCards.map((c) => (
                 <span key={c.apparelId} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-neutral-200 py-1 pl-1 pr-2">
-                  <img src={c.imageUrl} alt="" className="h-7 w-7 rounded object-contain" />
+                  <CardImg src={c.imageUrl} alt="" className="h-7 w-7 rounded object-contain" />
                   <span className="max-w-[110px] truncate text-xs text-neutral-700">{c.title}</span>
                   <button type="button" onClick={() => removeCompare(c.apparelId)} className="text-neutral-400 hover:text-black" aria-label="빼기">
                     ✕
@@ -1550,7 +1551,7 @@ function App() {
             <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
               {compareEbay.map((c) => (
                 <span key={c.tcgPlayerId} className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-neutral-200 py-1 pl-1 pr-2">
-                  {c.imageUrl && <img src={c.imageUrl} alt="" className="h-7 w-7 rounded object-contain" />}
+                  {c.imageUrl && <CardImg src={c.imageUrl} alt="" className="h-7 w-7 rounded object-contain" />}
                   <span className="max-w-[110px] truncate text-xs text-neutral-700">{c.name}</span>
                   <button type="button" onClick={() => removeCompareEbay(c.tcgPlayerId)} className="text-neutral-400 hover:text-black" aria-label="빼기">
                     ✕

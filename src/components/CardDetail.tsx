@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CardImg } from './CardImg';
 import { Price, useKrw } from './KrwHint';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
@@ -120,7 +121,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
-        <img src={card.imageUrl} alt={card.title} className="h-full w-full object-contain" />
+        <CardImg src={card.imageUrl} alt={card.title} className="h-full w-full object-contain" lazy={false} />
       </div>
 
       <div className="mb-1 flex items-start justify-between gap-2">

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { CardImg } from './CardImg';
 import { fetchConditionPrices, fetchPriceHistory, RAW_GRADE_DESCRIPTION, type ConditionGroup, type PricePoint, type SnkrdunkCard } from '../api/snkrdunk';
 import { KrwHint } from './KrwHint';
 
@@ -119,7 +120,7 @@ export function CompareView({
               {cards.map((c) => (
                 <td key={c.apparelId} className="px-2 pb-2 text-center align-top">
                   <div className="relative mx-auto h-32 w-24">
-                    <img src={c.imageUrl} alt={c.title} className="h-32 w-24 object-contain" />
+                    <CardImg src={c.imageUrl} alt={c.title} className="h-32 w-24 object-contain" />
                     <button
                       type="button"
                       onClick={() => onRemove(c.apparelId)}

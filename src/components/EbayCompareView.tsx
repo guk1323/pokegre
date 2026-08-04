@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { CardImg } from './CardImg';
 import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
 import { KrwHint } from './KrwHint';
 
@@ -69,7 +70,7 @@ export function EbayCompareView({
               {cards.map((c) => (
                 <td key={c.tcgPlayerId} className="px-2 pb-2 text-center align-top">
                   <div className="relative mx-auto h-32 w-24">
-                    {c.imageUrl && <img src={c.imageUrl} alt={c.name} className="h-32 w-24 object-contain" />}
+                    {c.imageUrl && <CardImg src={c.imageUrl} alt={c.name} className="h-32 w-24 object-contain" />}
                     <button
                       type="button"
                       onClick={() => onRemove(c.tcgPlayerId)}
