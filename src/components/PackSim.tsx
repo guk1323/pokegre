@@ -126,6 +126,13 @@ const glowCls = (g: number) => (g >= 3 ? 'glow-big' : g === 2 ? 'glow-mid' : g =
 // 등급이 아니라 시세로 정하는 건 앞면과 같다.
 const hintCls = (g: number) => (g >= 2 ? 'hint-strong' : g === 1 ? 'hint-soft' : '');
 
+// 앨범에 기본으로 담아둘 카드 · "상위 카드"에 띄울 카드의 공통 기준.
+// 시세가 나가거나(후광과 같은 기준) 등급이 높으면 해당한다. 둘 중 하나만 봐서는
+// 놓치는 게 생긴다 — 시세만 보면 아직 시세를 못 받은 세트가 통째로 비고,
+// 등급만 보면 값은 비싼데 등급이 낮은 카드가 빠진다(2026-08-04 실측 471장).
+const keepByDefault = (c: { r?: string; m?: string; usd?: number }) =>
+  glowOf(c.usd) > 0 || rankOf(c.r) >= 5 || c.m === 'master';
+
 const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
 const groupRank = (k: string) =>
   k === 'm:master' ? 8.5 : k === 'm:poke' ? 2.6 : k === 'm:rev' ? 2.5 : rankOf(k.slice(2));
@@ -348,7 +355,7 @@ export function PackSim({
         setBoxQueue(null);
         setGod(last.god);
         setOpenGroups(new Set());
-        setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5 || c.m === 'master').map((c) => c.i)));
+        setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
         setKeptDone(false);
         setKeptCount(null);
         setShare({ shared: !!last.shared, msg: '' });
@@ -418,7 +425,7 @@ export function PackSim({
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
-      setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩을 구매했습니다. ${gp(target.price)}이 차감되었습니다.`);
+      setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1팩 구매 완료`);
       setJustBought({ slug: slug2, kind: 'pack' });
     } finally {
       setBusy(false);
@@ -452,7 +459,7 @@ export function PackSim({
         return;
       }
       setSim((s2) => (s2 ? { ...s2, balance: d.balance ?? s2.balance, packs: d.packs ?? s2.packs, boxes: d.boxes ?? s2.boxes } : s2));
-      setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1박스(${target.boxPacks}팩)를 구매했습니다. ${gp(price)}이 차감되었습니다.`);
+      setBuyMsg(`${target.label.replace(/^\[.+?\]\s*/, '')} 1박스 구매 완료`);
       setJustBought({ slug: slug2, kind: 'box' });
       trackEvent('packsim', `${target.label} 박스 구매`);
     } finally {
@@ -501,7 +508,7 @@ export function PackSim({
       setBoxInfo(null);
       setBoxQueue(null);
       // 아트레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
-      setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5).map((c) => c.i)));
+      setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
       setOpenGroups(new Set());
       setKeptDone(false);
       setKeptCount(null);
@@ -567,7 +574,7 @@ export function PackSim({
       setBoxQueue({ groups, gods: d.packs.map((p) => p.god), idx: 0 });
       setBoxInfo(d.boxPacks ?? d.packs.length);
       setGod(!!d.god);
-      setKeep(new Set(sorted.filter((c) => rankOf(c.r) >= 5 || c.m === 'master').map((c) => c.i)));
+      setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
       setOpenGroups(new Set());
       setKeptDone(false);
       setKeptCount(null);
@@ -904,30 +911,6 @@ export function PackSim({
 
       {tab === 'open' && (
         <>
-          {buyMsg && (
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-900 bg-neutral-900 p-3">
-              <p className="text-sm font-bold text-white">{buyMsg}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setBuyMsg('');
-                  setTab('stash');
-                  // 탭만 옮기고 끝내지 않는다 — 거기서 "팩 개봉"을 또 눌러야 했다.
-                  if (justBought) {
-                    const { slug: s4, kind } = justBought;
-                    setJustBought(null);
-                    void (kind === 'box' ? openBox(s4, 'stash') : open(s4, 'stash'));
-                  }
-                }}
-                className="ml-auto rounded-lg bg-white px-4 py-1.5 text-sm font-bold text-black"
-              >
-                바로 열기 →
-              </button>
-              <button type="button" onClick={() => setBuyMsg('')} className="text-xs text-neutral-400 underline">
-                닫기
-              </button>
-            </div>
-          )}
 
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
@@ -984,8 +967,12 @@ export function PackSim({
                       </p>
                       {on ? (
                         <div className="mt-2 space-y-1.5">
-                          {/* 낱팩이 기본 행동이라 검정(꽉 찬) 버튼, 박스는 테두리 버튼으로 낮춘다.
-                              둘 다 검정이면 30배 비싼 박스를 실수로 누르기 쉽다(지적받음). */}
+                          {/* 팩·박스는 같은 "구매"라 같은 모양으로 나란히 둔다.
+                              ⚠️ 예전엔 팩만 검정, 박스는 테두리였다. 30배 비싼 박스를 실수로
+                                 누르지 말라는 뜻이었는데, 그러면 팩이 이미 선택된 것처럼 보였다
+                                 (사용자 지적 2026-08-04). 지금은 값을 버튼에 그대로 적어
+                                 ("1팩 1,600 GP" / "1박스 48,000 GP") 차이가 눈에 보이게 했다. */}
+                          <div className="flex gap-1.5">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -993,16 +980,12 @@ export function PackSim({
                               void buy(s2.slug);
                             }}
                             disabled={busy || !can}
-                            className="w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                            className="flex-1 rounded-lg bg-black py-2.5 text-sm font-bold text-white disabled:opacity-40"
                           >
                             {/* ⚠️ 못 살 때도 무엇을 얼마에 사는지는 보여 준다. 예전엔 팩·박스
                                 버튼이 둘 다 "GP가 부족합니다"로 똑같아져서, 뭘 사는 버튼인지도
                                 얼마를 모아야 하는지도 알 수 없었다(사용자 지적 2026-08-04). */}
-                            {busy
-                              ? '구매 중…'
-                              : can
-                                ? `1팩 구매 · ${gp(s2.price)} 차감`
-                                : `1팩 ${gp(s2.price)} · ${gp(s2.price - (sim?.balance ?? 0))} 모자람`}
+                            {busy ? '구매 중…' : can ? `1팩 ${gp(s2.price)}` : `${gp(s2.price - (sim?.balance ?? 0))} 모자람`}
                           </button>
                           {(s2.boxPacks ?? 0) > 0 &&
                             (() => {
@@ -1016,16 +999,17 @@ export function PackSim({
                                     void buyBox(s2.slug);
                                   }}
                                   disabled={busy || !canBox}
-                                  className="w-full rounded-lg border-2 border-neutral-800 bg-white py-2 text-sm font-bold text-neutral-900 hover:bg-neutral-50 disabled:opacity-40"
+                                  className="flex-1 rounded-lg bg-black py-2.5 text-sm font-bold text-white disabled:opacity-40"
                                 >
                                   {busy
                                     ? '구매 중…'
                                     : canBox
-                                      ? `1박스(${s2.boxPacks}팩) 구매 · ${gp(boxPrice)} 차감`
-                                      : `1박스(${s2.boxPacks}팩) ${gp(boxPrice)} · ${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
+                                      ? `1박스 ${gp(boxPrice)}`
+                                      : `${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
                                 </button>
                               );
                             })()}
+                          </div>
                           <p className="text-[11px] text-neutral-400">사서 바로 열거나 보관함에 둡니다.</p>
                         </div>
                       ) : (
@@ -1168,10 +1152,16 @@ export function PackSim({
                 // ⚠️ 반드시 "뒤집은 카드"만 센다. 예전엔 지금 열고 있는 팩까지 통째로
                 //    넣어서, 아직 안 뒤집었는데 여기에 상위 카드가 미리 떴다 — 스포일러다
                 //    (사용자 지적 2026-08-04).
+                // "상위 카드" 기준 = 후광과 같은 시세 기준 **또는** 높은 등급.
+                // 시세만 보면 아직 시세를 못 받은 세트가 통째로 비고, 등급만 보면
+                // 값은 비싼데 등급이 낮은 카드가 빠진다 — 실제로 시세 $1 이상 2,103장 중
+                // 471장(22%)이 등급이 낮아 빠지고 있었다(사용자 지적 2026-08-04).
                 const tops = boxQueue.groups
                   .slice(0, boxQueue.idx + 1)
                   .flat()
-                  .filter((c) => flippedSet.has(c.i) && (rankOf(c.r) >= 5 || c.m === 'master'));
+                  .filter(
+                    (c) => flippedSet.has(c.i) && (glowOf(c.usd) > 0 || rankOf(c.r) >= 5 || c.m === 'master'),
+                  );
                 if (!tops.length) return null;
                 return (
                   <div className="mx-auto mt-4 max-w-md rounded-xl border border-amber-200 bg-amber-50 p-2">
@@ -1694,6 +1684,42 @@ export function PackSim({
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* 구매 알림은 화면 아래 고정 띠로 띄운다.
+          ⚠️ 예전엔 목록 맨 위에 뗬는데, 버튼은 한참 아래에 있다. 폰에서 세 번째 세트까지
+             내려가서 사면 알림이 화면 밖이라 "산 게 맞나?" 싶었다(사용자 지적 2026-08-04).
+             아래 고정이면 어디까지 스크롤했든 보인다. */}
+      {buyMsg && (
+        <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+          <div className="mx-auto flex max-w-lg items-center gap-2 rounded-xl bg-neutral-900 p-3 shadow-lg">
+            <p className="min-w-0 flex-1 text-sm font-bold text-white">{buyMsg}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setBuyMsg('');
+                setTab('stash');
+                // 탭만 옮기고 끝내지 않는다 — 거기서 "팩 개봉"을 또 눌러야 했다.
+                if (justBought) {
+                  const { slug: s4, kind } = justBought;
+                  setJustBought(null);
+                  void (kind === 'box' ? openBox(s4, 'stash') : open(s4, 'stash'));
+                }
+              }}
+              className="shrink-0 rounded-lg bg-white px-4 py-2 text-sm font-bold text-black"
+            >
+              바로 열기
+            </button>
+            <button
+              type="button"
+              onClick={() => setBuyMsg('')}
+              aria-label="닫기"
+              className="shrink-0 px-1 text-lg leading-none text-neutral-400"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
 
