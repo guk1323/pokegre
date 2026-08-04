@@ -92,6 +92,7 @@ function toCard(raw: RawProduct): SnkrdunkCard {
 export async function searchPokemonCards(
   keyword: string,
   page = 1,
+  signal?: AbortSignal,
 ): Promise<{ items: SnkrdunkCard[]; totalHits: number }> {
   const params = new URLSearchParams({
     func: 'all',
@@ -104,7 +105,7 @@ export async function searchPokemonCards(
     page: String(page),
   });
 
-  const res = await fetch(`/api/snkrdunk/v3/search?${params.toString()}`);
+  const res = await fetch(`/api/snkrdunk/v3/search?${params.toString()}`, { signal });
   if (!res.ok) throw new Error('시세 검색에 실패했습니다.');
 
   const data: SearchResponse = await res.json();
@@ -183,8 +184,14 @@ export async function resolveStoredCards(refs: StoredCardRef[]): Promise<Snkrdun
     .filter((card): card is SnkrdunkCard => card !== null);
 }
 
-async function enrichWithCleanImages(cards: SnkrdunkCard[]): Promise<SnkrdunkCard[]> {
+async function enrichWithCleanImages(cards: SnkrdunkCard[], signal?: AbortSignal): Promise<SnkrdunkCard[]> {
   if (cards.length === 0) return [];
+  // ⚠️ 여기가 요청이 제일 많이 나가는 자리다 — 카드마다 상세를 한 번씩 부른다
+  //    (한 검색에 91번까지 나갔다, 실측 2026-08-04). 검색어가 이미 바뀌었으면
+  //    아예 시작하지 않는다. 위 목록 요청과 달리 이건 시작 전에 막아야 한다 —
+  //    fetchApparelDetail은 같은 카드를 부르는 다른 화면과 요청을 합쳐 쓰므로,
+  //    신호를 넘겨 끊으면 남의 요청까지 같이 끊긴다.
+  if (signal?.aborted) return cards;
   const details = await Promise.all(cards.map((card) => fetchApparelDetail(card.apparelId).catch(() => null)));
   const dict = await loadNameDict();
   return cards.map((card, i) => {
@@ -209,7 +216,13 @@ export async function fetchMoreUniqueCards(
   startPage: number,
   excludeIds: Set<number>,
   targetNew = 12,
-  maxPages = 15,
+  // ⚠️ 예전엔 15장이었다. 첫 검색 한 번이 목록 페이지를 15번까지 넘기고, 거기 나온
+  //    카드마다 상세를 또 받는다. 그래서 손으로 한 글자씩 치면 "리자몽 VSTAR" 한
+  //    마디에 요청이 120번 나갔다(실측 2026-08-04). 우리 서버가 한 사람당 10분에
+  //    600번으로 막고 있어서, 10분에 다섯 번만 검색하면 그 뒤로 "시세를 불러오지
+  //    못했습니다"가 떴다. 첫 검색은 3장까지만 보고 모자라면 "더보기"에서 채운다.
+  maxPages = 3,
+  signal?: AbortSignal,
 ): Promise<{ items: SnkrdunkCard[]; lastPage: number; exhausted: boolean }> {
   const collected: SnkrdunkCard[] = [];
   const seen = new Set(excludeIds);
@@ -217,7 +230,10 @@ export async function fetchMoreUniqueCards(
   let exhausted = false;
 
   for (let attempt = 0; attempt < maxPages; attempt++) {
-    const { items } = await searchPokemonCards(keyword, page);
+    // 검색어가 바뀌었으면 다음 장을 넘기지 않는다. 이게 없으면 앞 검색의 7~9페이지와
+    // 뒤 검색의 1~4페이지가 동시에 도는 일이 생긴다(실제로 기록으로 확인).
+    if (signal?.aborted) break;
+    const { items } = await searchPokemonCards(keyword, page, signal);
     if (items.length === 0) {
       exhausted = true;
       break;
@@ -232,7 +248,7 @@ export async function fetchMoreUniqueCards(
     page += 1;
   }
 
-  const enriched = await enrichWithCleanImages(collected);
+  const enriched = await enrichWithCleanImages(collected, signal);
   return { items: enriched, lastPage: page, exhausted };
 }
 

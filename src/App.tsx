@@ -73,6 +73,12 @@ type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 //   scan=사진으로 찾기 · pick=자동완성에서 고름 · popular=인기 검색어를 누름 · enter=엔터
 type SearchVia = 'scan' | 'pick' | 'popular' | 'enter';
 
+// 이 글자 수 아래로는 검색을 보내지 않고 화면도 홈 그대로 둔다.
+// 한 글자로는 어차피 쓸 만한 결과가 안 나오는데, 예전엔 "리" 한 글자에도 진짜 검색이
+// 나가고 목록 페이지를 여러 장 넘겼다. 게다가 그 순간 홈이 통째로 사라지고
+// "검색 결과가 없습니다"만 남아, 치는 도중에 화면이 한 번 무너졌다(실측 2026-08-04).
+const MIN_SEARCH_LEN = 2;
+
 // 큰 화면(lg~)에서는 상세를 오른쪽 2단으로, 좁은 화면에서는 아래에서 올라오는
 // 시트로 보여준다. 폰에서 상세를 목록 맨 아래에 붙이면 눌러도 화면이 안 바뀌어
 // 반응이 없는 것처럼 느껴진다.
@@ -650,10 +656,19 @@ function App() {
       return;
     }
 
+    // ⚠️ 한 글자로는 검색을 보내지 않는다. "리" 한 글자에도 진짜 검색이 나가고
+    //    페이지를 여러 장 넘겼다. 대신 화면은 홈 그대로 둔다(아래 isHome 참고) —
+    //    예전엔 한 글자를 치는 순간 홈이 통째로 사라지고 "검색 결과가 없습니다"만
+    //    남았다. 이 둘은 반드시 같이 가야 한다.
+    if (trimmed.length < MIN_SEARCH_LEN) return;
+
+    // ⚠️ 검색어가 바뀌면 앞서 나간 요청을 그 자리에서 끊는다. 없으면 앞 검색의
+    //    7~9페이지와 뒤 검색의 1~4페이지가 동시에 돌았다(실측 2026-08-04).
+    const ac = new AbortController();
     const timer = setTimeout(() => {
       setLoading(true);
       setError(null);
-      fetchMoreUniqueCards(trimmed, 1, new Set(), INITIAL_TARGET)
+      fetchMoreUniqueCards(trimmed, 1, new Set(), INITIAL_TARGET, undefined, ac.signal)
         .then(({ items, lastPage, exhausted }) => {
           // 스캔한 "세트+번호"가 0건이면(코드는 읽었지만 매칭 실패) 이름으로 자동 재검색.
           const fb = scanFallbackRef.current;
@@ -680,14 +695,24 @@ function App() {
             items.some((c) => c.apparelId === prev) ? prev : isWideScreen() ? (items[0]?.apparelId ?? null) : null,
           );
         })
-        .catch(() => setError('시세를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'))
-        .finally(() => setLoading(false));
-    }, 350);
+        .catch((e: unknown) => {
+          // 우리가 일부러 끊은 것은 오류가 아니다. 안내문을 띄우면 안 된다.
+          if (ac.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
+          setError('시세를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        })
+        .finally(() => {
+          if (!ac.signal.aborted) setLoading(false);
+        });
+      // 한글은 한 글자 치는 데 0.3~0.6초라 350ms면 거의 매 글자마다 걸렸다.
+    }, 600);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      ac.abort();
+    };
   }, [query, source, retryTick]);
 
-  // 이베이 쪽은 검색당 크레딧이 소모돼서 스니덩크(350ms)보다 디바운스를 여유 있게 뒀다.
+  // 이베이 쪽은 검색당 크레딧이 소모돼서(1회 36크레딧) 스니덩크보다 더 기다린다.
   useEffect(() => {
     if (source !== 'ebay' && source !== 'tcgplayer') return;
     // 한글판(이베이)은 PPT가 아니라 Browse API(KoreanEbayView가 자체 조회)라 여기선 건너뛴다.
@@ -701,6 +726,8 @@ function App() {
       setEbayError(null);
       return;
     }
+    // 스니커덩크와 같은 기준. 한 글자로는 안 부른다 — 여기는 크레딧까지 든다.
+    if (trimmed.length < MIN_SEARCH_LEN) return;
 
     const timer = setTimeout(() => {
       setEbayLoading(true);
@@ -812,7 +839,9 @@ function App() {
   function loadMore() {
     setLoadingMore(true);
     const excludeIds = new Set(items.map((c) => c.apparelId));
-    fetchMoreUniqueCards(query.trim(), lastPage + 1, excludeIds, LOAD_MORE_TARGET)
+    // "더보기"는 사람이 눌러야 돌므로 타이핑처럼 쏟아지지 않는다. 첫 검색에서 3장으로
+    // 줄인 몫을 여기서 넉넉히 훑어 채운다(예전 첫 검색과 같은 15장).
+    fetchMoreUniqueCards(query.trim(), lastPage + 1, excludeIds, LOAD_MORE_TARGET, 15)
       .then(({ items: more, lastPage: newLastPage, exhausted: newExhausted }) => {
         setItems((prev) => [...prev, ...more]);
         setLastPage(newLastPage);
@@ -997,7 +1026,9 @@ function App() {
   }, [query]);
   const showTranslationHint = source === 'snkrdunk' && translatedQuery && translatedQuery !== query.trim();
   const hasMore = !exhausted;
-  const isHome = query.trim().length === 0;
+  // 한 글자만 친 상태도 홈으로 본다. 검색을 안 보내는데 결과 화면을 띄우면
+  // "검색 결과가 없습니다"만 남아 홈이 무너진다(위 MIN_SEARCH_LEN 설명).
+  const isHome = query.trim().length < MIN_SEARCH_LEN;
 
   // 홈의 세로 간격은 여기 한 곳에서만 정한다(space-y-8 = 32px).
   //
