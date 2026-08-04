@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { livePacks } from '../lib/packSets';
 import { trackEvent } from '../api/localStats';
+import { useKrw } from './KrwHint';
 // ⚠️ cardCatalog가 아니라 cardImg에서 가져온다 — cardCatalog는 이름 사전을 통째로
 //    끌고 와서 첫 화면이 109KB 무거워진다(cardImg.ts 첫머리 설명 참고).
 import { cardImg } from '../lib/cardImg';
@@ -43,6 +44,7 @@ interface Highlight {
 }
 
 // 배너가 한 장에 머무는 시간. 읽고 그림을 볼 만큼은 되고, 지루하지 않을 만큼 짧게.
+// 좁은 화면에서만 쓴다 — 큰 화면은 여러 장을 한꺼번에 편다(아래 설명).
 const ROTATE_MS = 4500;
 
 // 홈에 띄우는 "이런 게 나왔습니다" 한 줄.
@@ -55,6 +57,8 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
   const [at, setAt] = useState(0);
   // 사람이 손으로 넘기면 자동 넘김을 멈춘다. 읽는 중에 바뀌면 성가시다.
   const [held, setHeld] = useState(false);
+  // 시세를 원화로 적는다(사이트 다른 곳과 같은 표기·같은 환율).
+  const krw = useKrw();
 
   useEffect(() => {
     void fetch('/api/local/pack-highlights')
@@ -107,25 +111,43 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
               >
                 {/* ⚠️ cardImg를 꼭 거친다. 카드 주소(TCGdex)는 확장자가 없는 베이스라
                     그대로 쓰면 그림이 안 나온다(2026-08-04에 빈칸으로 뜨는 걸 확인). */}
+                {/* ⚠️ 큰 화면에서는 카드를 키운다. 1,118px짜리 띠에 41×56px 카드가
+                    놓여 있어 너무 작고 허전했다(사용자 지적 2026-08-04).
+                    받는 크기도 같이 올려야 키웠을 때 뿌옇지 않다. */}
                 {h.img && (
-                  <img
-                    src={thumb(cardImg(h.img), 112)}
-                    alt=""
-                    className="h-14 w-auto shrink-0 rounded object-contain"
-                  />
+                  <picture className="shrink-0">
+                    <source media="(min-width: 640px)" srcSet={thumb(cardImg(h.img), 240)} />
+                    <img
+                      src={thumb(cardImg(h.img), 112)}
+                      alt=""
+                      className="h-14 w-auto rounded object-contain sm:h-24"
+                    />
+                  </picture>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-neutral-400">
+                  <p className="text-[11px] font-semibold text-neutral-400 sm:text-xs">
                     {h.recent ? '이번 주에 나온 카드' : '지금까지 나온 카드'}
                   </p>
-                  <p className="mt-0.5 line-clamp-1 text-sm font-bold text-neutral-900">
+                  <p className="mt-0.5 line-clamp-1 text-sm font-bold text-neutral-900 sm:text-lg">
                     {h.god ? '갓팩! ' : ''}
                     {h.name || '카드'} {tier}
                   </p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-neutral-500">
+                  <p className="mt-0.5 line-clamp-1 text-xs text-neutral-500 sm:text-sm">
                     {h.nick}님{pn ? ` · ${pn}` : ''}
                   </p>
                 </div>
+                {/* ⚠️ 오른쪽이 통째로 비어 있었다 — 1,118px 띠에 내용이 왼쪽에만 몰려 있었다
+                    (사용자 지적 2026-08-04). 여백을 그냥 없애는 대신 시세를 넣는다.
+                    "얼마짜리가 나왔나"가 이 줄에서 제일 궁금한 것이고, 상점으로 갈 이유도 된다.
+                    시세를 아직 못 받은 카드면 아무것도 안 그린다(틀린 것보다 빈칸). */}
+                {!!h.usd && (
+                  <div className="hidden shrink-0 pl-4 text-right sm:block">
+                    <p className="text-xs text-neutral-400">시세</p>
+                    <p className="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums text-neutral-900">
+                      {krw(h.usd, 'usd')}
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })}
