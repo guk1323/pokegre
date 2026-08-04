@@ -4659,17 +4659,23 @@ async function fillHighlightName(userId: string, n: string, name: string): Promi
   return true
 }
 
-// GET /api/local/pack-highlights — 홈 배너가 읽어 간다. 로그인 없이 볼 수 있다.
-// 최근 7일 것을 좋은 순으로 먼저 주고, 모자라면 역대 최고로 채워 최대 5개를 준다.
-// 화면은 이걸 돌아가며 보여준다. 회원번호(uid)는 빼고 준다.
+// GET /api/local/pack-highlights — 홈의 "이번 주 TOP 5"가 읽어 간다. 로그인 없이 볼 수 있다.
+// 이번 주(7일) 것을 시세 높은 순으로 먼저 주고, 5개가 안 되면 역대 기록으로 채운다.
+// ⚠️ 이번 주 것만 쓰면 자리가 비는 날이 생긴다 — 아직 뽑는 사람이 적다. 대신 각 항목에
+//    recent를 붙여, 다섯 개가 다 이번 주 것일 때만 화면이 "이번 주"라고 말하게 한다.
+// 회원번호(uid)는 빼고 준다.
 function mountPackHighlights(app: Mountable) {
   app.use('/api/local/pack-highlights', async (_req, res) => {
     const list = await loadHighlights()
     const fresh = new Set(list.filter((h) => Date.now() - h.at <= HIGHLIGHT_FRESH_MS))
     // 좋은 순 정렬. betterHighlight가 "둘 중 나은 쪽"을 주므로 그걸로 비교한다.
     const byBest = (xs: PackHighlight[]) => [...xs].sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1))
-    // 최근 것이 늘 앞. 자리가 남으면 역대 최고로 채운다(같은 것을 두 번 넣지 않는다).
+    // 어느 것을 넣을지는 이번 주 것을 먼저 본다(자리가 남으면 역대 기록으로 채운다).
     const picked = [...byBest([...fresh]), ...byBest(list.filter((h) => !fresh.has(h)))].slice(0, HIGHLIGHT_SHOW)
+    // ⚠️ 넣을 것을 다 고른 뒤에는 값순으로 다시 세운다. 안 그러면 102만원짜리 역대 기록이
+    //    25만원짜리 이번 주 카드 뒤에 붙어 "TOP 5"인데 5번이 제일 비싼 꼴이 된다
+    //    (2026-08-04에 화면에서 확인). 고르는 기준과 줄 세우는 기준은 다르다.
+    picked.sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1))
     sendJson(res, 200, {
       // uid(회원번호)는 빼고, 화면이 "이번 주"/"역대"를 가려 쓰게 recent만 붙여 준다.
       items: picked.map((h) => {
