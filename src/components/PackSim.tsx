@@ -298,7 +298,7 @@ export function PackSim({
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/local/auth/packsim', { credentials: 'include' });
-      if (!r.ok) return setErr('로그인하면 출석 보상 GP로 팩을 열 수 있습니다.');
+      if (!r.ok) return setErr('로그인하면 팩을 열 수 있습니다.');
       const d = (await r.json()) as SimState;
       setSim(d);
       if (!d.admin) setSpend(true); // 일반 이용자는 항상 GP를 쓴다
@@ -352,7 +352,7 @@ export function PackSim({
         setKeptDone(false);
         setKeptCount(null);
         setShare({ shared: !!last.shared, msg: '' });
-        setRestoredMsg('지난번에 연 결과입니다. 앨범에 넣을지 고르지 않아 그대로 두었습니다.');
+        setRestoredMsg('지난번 개봉 결과입니다.');
         setTab('stash');
       })
       .catch(() => undefined);
@@ -364,13 +364,13 @@ export function PackSim({
     code === 'not enough'
       ? 'GP가 부족합니다.'
       : code === 'login required'
-        ? '로그인이 필요합니다. 다시 로그인해 주세요.'
+        ? '다시 로그인해 주세요.'
         : code === `no ${unit === '팩' ? 'pack' : 'box'} in stash`
           ? `보관함에 ${unit}이 없습니다.`
           : code === 'unknown pack'
-            ? '오늘 진열에 없는 상품입니다. 보관함에서 열어 주세요.'
+            ? '보관함에서 열어 주세요.'
             : code === 'pack data missing'
-              ? '카드 자료를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
+              ? '카드 자료를 못 불러왔습니다.'
               : `${unit}을 열지 못했습니다.`;
 
   async function checkIn() {
@@ -467,7 +467,7 @@ export function PackSim({
   async function open(slug2: string, from?: 'stash') {
     if (!sim) return;
     if (mustDecide) {
-      setErr('먼저 이 팩의 카드를 앨범에 넣을지 정해 주세요.');
+      setErr('지난 카드를 먼저 정리해 주세요.');
       focusResult();
       return;
     }
@@ -524,7 +524,7 @@ export function PackSim({
     const target = packBySlug.get(slug2);
     if (!sim || !target?.boxPacks) return;
     if (mustDecide) {
-      setErr('먼저 이 팩의 카드를 앨범에 넣을지 정해 주세요.');
+      setErr('지난 카드를 먼저 정리해 주세요.');
       focusResult();
       return;
     }
@@ -632,10 +632,10 @@ export function PackSim({
             d.error === 'already shared'
               ? '이미 자랑한 팩입니다.'
               : d.error === 'nickname required'
-                ? '닉네임을 먼저 정해야 글을 올릴 수 있습니다. 커뮤니티에서 닉네임을 정해 주세요.'
+                ? '닉네임을 먼저 정해 주세요.'
                 : d.error === 'no pack'
                   ? '자랑할 개봉 결과가 없습니다.'
-                  : '올리지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                  : '올리지 못했습니다.',
         });
         return;
       }
@@ -1017,7 +1017,7 @@ export function PackSim({
                                 </button>
                               );
                             })()}
-                          <p className="text-[11px] text-neutral-400">사면 바로 열 수 있고, 나중에 열려면 보관함에 둡니다.</p>
+                          <p className="text-[11px] text-neutral-400">사서 바로 열거나 보관함에 둡니다.</p>
                         </div>
                       ) : (
                         <p className="mt-2 py-1.5">
@@ -1398,7 +1398,7 @@ export function PackSim({
       {tab === 'album' && (
         <div className="mt-4">
           {!sim?.album.length ? (
-            <p className="text-sm text-neutral-400">아직 모은 카드가 없습니다. 팩을 열어보세요.</p>
+            <p className="text-sm text-neutral-400">아직 모은 카드가 없습니다.</p>
           ) : (
             <>
               <div className="mb-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
@@ -1611,12 +1611,11 @@ export function PackSim({
         <div className="mt-4">
           {Object.values(sim?.packs ?? {}).reduce((a, b) => a + b, 0) + Object.values(sim?.boxes ?? {}).reduce((a, b) => a + b, 0) ===
           0 ? (
-            <p className="text-sm text-neutral-400">보관 중인 팩·박스가 없습니다. 구매 탭에서 사면 여기에 담깁니다.</p>
+            <p className="text-sm text-neutral-400">보관 중인 팩·박스가 없습니다.</p>
           ) : (
             <>
               <p className="mb-3 text-xs text-neutral-400">
-                구매한 팩·박스는 여기서 개봉합니다. 진열이 바뀐 뒤에도 열 수 있습니다. (팩 최대 {MAX_STASH}개 · 박스 최대{' '}
-                {MAX_BOX_STASH}개)
+                진열이 바뀌어도 열 수 있습니다. (팩 {MAX_STASH}개 · 박스 {MAX_BOX_STASH}개까지)
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {Object.entries(sim?.boxes ?? {}).map(([s3, cnt]) => {
@@ -1685,9 +1684,8 @@ export function PackSim({
       {tab === 'rates' && (
         <div className="mt-4 text-sm">
           <p className="text-xs text-neutral-500">
-            팩 한 개에서 그 등급이 나올 확률입니다. 확률은 팩 종류마다 다르고, 같은 종류면 세트가 달라도
-            같습니다. 제조사가 발표한 공식 확률이 아니라 커뮤니티 실측 집계에 기반한 추정치입니다. 실제 봉입률과 다를 수 있습니다.
-            일부 세트의 확률은 같은 시리즈(SV 블록 · 메가 에볼루션 블록)의 봉입률을 동일하게 적용했습니다.
+            팩 하나에서 그 등급이 나올 확률입니다. 공식 발표가 아니라 커뮤니티 실측 추정치라 실제와 다를 수
+            있습니다.
           </p>
 
           {profileGroups.map((g) => (
