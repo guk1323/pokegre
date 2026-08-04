@@ -29,6 +29,14 @@ const TIER_KO: Record<string, [string, string]> = {
   'Double rare': ['RR', 'RR'],
 };
 
+// 1·2·3등 메달 색. 숫자만으로는 눈에 안 들어온다(사용자 지적 2026-08-04).
+// 이모지는 안 쓴다(사이트 지침) — 배경색으로만 구분한다.
+const MEDAL = [
+  'bg-amber-400 text-amber-900', // 금
+  'bg-neutral-300 text-neutral-700', // 은
+  'bg-orange-300 text-orange-900', // 동
+];
+
 interface Highlight {
   at: number;
   nick: string;
@@ -65,13 +73,11 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
 
   if (!items.length) return null;
   const packName = (slug: string) => livePacks().find((p) => p.slug === slug)?.label.replace(/^\[.+?\]\s*/, '') ?? '';
-  // 다섯 개가 다 이번 주 것일 때만 "이번 주"라고 한다. 아니면 그냥 최고 기록이다.
-  const allRecent = items.every((h) => h.recent);
 
   return (
     <section className="mt-3">
       <div className="mb-2 flex items-baseline gap-2">
-        <p className="text-xs font-bold text-neutral-700">{allRecent ? '이번 주 TOP 5' : '최고 뽑기 TOP 5'}</p>
+        <p className="text-xs font-bold text-neutral-700">이번 주 TOP 5</p>
         <p className="text-[11px] text-neutral-400">시세가 높은 순</p>
       </div>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-5 sm:gap-3">
@@ -93,7 +99,7 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
               // 다섯 칸으로 편다. 어느 쪽이든 빈 자리가 안 생긴다.
               className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 text-left sm:p-2 transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2"
             >
-              <div className="relative shrink-0 sm:self-center">
+              <div className="shrink-0 sm:self-center">
                 {/* ⚠️ cardImg를 꼭 거친다. 카드 주소(TCGdex)는 확장자가 없는 베이스라
                     그대로 쓰면 그림이 안 나온다(2026-08-04에 빈칸으로 뜨는 걸 확인). */}
                 {h.img && (
@@ -104,12 +110,19 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
                     <img src={thumb(cardImg(h.img), 112)} alt="" className="h-12 w-auto rounded object-contain sm:h-24" />
                   </picture>
                 )}
-                <span className="absolute -left-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-neutral-900 text-[10px] font-black text-white">
-                  {i + 1}
-                </span>
               </div>
               <div className="min-w-0 flex-1 sm:flex-none">
-                <p className="line-clamp-1 text-sm font-bold text-neutral-900">
+                {/* ⚠️ 순위는 카드 그림에 겹쳐 붙어 있었다. 카드가 가려지고 답답했다
+                    (사용자 지적 2026-08-04). 글자 쪽 빈자리로 뺀다.
+                    1·2·3등은 금·은·동으로 구분한다 — 숫자만으로는 눈에 안 들어온다. */}
+                <p>
+                  <span
+                    className={`inline-grid h-5 w-5 place-items-center rounded-full align-middle text-[10px] font-black ${MEDAL[i] ?? 'bg-neutral-200 text-neutral-600'}`}
+                  >
+                    {i + 1}
+                  </span>
+                </p>
+                <p className="mt-1 line-clamp-1 text-sm font-bold text-neutral-900">
                   {h.god ? '갓팩! ' : ''}
                   {h.name || '카드'} {tier}
                 </p>

@@ -27,7 +27,6 @@ import {
   STREAK_BONUS,
   STREAK_DAYS,
   packBySlug,
-  PACK_SETS,
   SHARE_BONUS,
   type PackSet,
 } from '../lib/packSets';
@@ -133,7 +132,7 @@ const hintCls = (g: number) => (g >= 2 ? 'hint-strong' : g === 1 ? 'hint-soft' :
 const keepByDefault = (c: { r?: string; m?: string; usd?: number }) =>
   glowOf(c.usd) > 0 || rankOf(c.r) >= 5 || c.m === 'master';
 
-// 앨범 위 요약 숫자(모은 카드·쓴 GP·예상 가치)의 글씨 크기.
+// 앨범 위 요약 숫자(모은 카드·사용 GP·예상 가치)의 글씨 크기.
 // 폰에서 한 칸이 97px뿐이라, 긴 숫자를 한 크기로 쓰면 숫자 중간에서 잘려 두 줄이 된다.
 // 글자 수에 맞춰 줄여 어떤 값이 와도 한 줄에 들어가게 한다.
 // (넓은 화면은 칸이 넉넉하므로 sm: 이상에서는 늘 큰 글씨를 쓴다.)
@@ -1054,9 +1053,12 @@ export function PackSim({
                           <p className="text-[11px] text-neutral-400">사서 바로 열거나 보관함에 둡니다.</p>
                         </div>
                       ) : (
-                        <p className="mt-2 py-1.5">
-                          <span className="inline-block rounded-full bg-neutral-900 px-2.5 py-1 text-[11px] font-bold text-white">
-                            {gp(s2.price)}
+                        // ⚠️ 고른 팩은 큰 검정 버튼 두 개인데 나머지는 작은 알약 하나뿐이라
+                        //    무게가 너무 달랐고, 그 값이 "한 팩 값"이라는 것도 안 보였다
+                        //    (사용자 지적 2026-08-04). 고른 쪽과 같은 크기·같은 말로 맞춘다.
+                        <p className="mt-2">
+                          <span className="block w-full rounded-lg bg-neutral-100 px-3 py-2 text-center text-sm font-bold text-neutral-700">
+                            1팩 {gp(s2.price)}
                           </span>
                         </p>
                       )}
@@ -1078,11 +1080,14 @@ export function PackSim({
               </div>
             </div>
           ))}
-          <p className="mt-3 text-xs text-neutral-400">매일 자정에 진열이 바뀝니다. (전체 {PACK_SETS.length}종)</p>
-
-          <p className="mt-2 text-xs text-neutral-400">
-            비공식 팬 시뮬레이션입니다. 실제 카드나 금전적 가치와는 아무 관계가 없고, GP는 pokegre 안에서만
-            쓰이는 포인트로 현금 가치가 없습니다. 아래 확률은 제조사가 발표한 공식 확률이 아니라 커뮤니티 실측 집계에 기반한 추정치이며, 실제 봉입률과 다릅니다.
+          {/* ⚠️ 여기 설명이 너무 길었다(사용자 지적 2026-08-04). 진열 안내와 면책을
+              합쳐 다섯 줄 가까이 됐다. 진열 안내는 한 줄로 줄인다.
+              면책은 지우지 않는다 — "실제 카드가 아니고 GP는 현금 가치가 없다"는
+              말이 없으면 진짜 결제로 읽힌다(오늘 홈에도 같은 이유로 한 줄 넣었다).
+              대신 확률 관련은 확률표 탭이 따로 있으므로 여기서 뺐다. */}
+          <p className="mt-3 text-xs text-neutral-400">상품은 매일 자정에 바뀝니다.</p>
+          <p className="mt-1 text-xs text-neutral-400">
+            비공식 팬 시뮬레이션입니다. 실제 카드 거래가 아니며 GP는 현금 가치가 없습니다.
           </p>
         </>
       )}
@@ -1487,7 +1492,7 @@ export function PackSim({
                     </p>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs text-neutral-400">쓴 GP</p>
+                    <p className="text-xs text-neutral-400">사용 GP</p>
                     {/* 위 이름이 이미 "GP"라고 했으니 값에는 안 붙인다 — 세 글자가 줄바꿈을 만든다. */}
                     <p className={`mt-0.5 whitespace-nowrap font-bold tabular-nums text-black ${fitNum(sim.spent.toLocaleString())}`}>
                       {sim.spent.toLocaleString()}
@@ -1516,12 +1521,16 @@ export function PackSim({
                     접어 한 줄로 줄인다 — 폰에서는 시스템 선택창이 떠서 고르기도 더 쉽다.
                     폰에서는 아래 줄로 내려가고(선으로 나눔), 큰 화면에서는 요약 숫자
                     오른쪽 빈자리로 올라간다. */}
-                <div className="flex w-full items-center gap-2 border-t border-neutral-100 pt-3 sm:w-auto sm:border-0 sm:pt-0">
+                <div className="flex w-full flex-wrap items-center gap-2 border-t border-neutral-100 pt-3 sm:w-auto sm:flex-1 sm:justify-end sm:border-0 sm:pt-0">
+                  {/* ⚠️ 큰 화면에서는 등급을 칩으로 편다. 드롭다운 두 개만 두면 요약 숫자와
+                      사이에 380px이 비었다(실측 2026-08-04). 벌려서 채우는 게 아니라
+                      접어 뒀던 것을 다시 펴서 그 자리를 쓴다.
+                      폰에서는 칩이 여러 줄로 늘어나 예전 문제가 돌아오므로 드롭다운을 쓴다. */}
                   <select
                     value={albumFilter}
                     onChange={(e) => setAlbumFilter(e.target.value)}
                     aria-label="등급 고르기"
-                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-700"
+                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-700 sm:hidden"
                   >
                     <option value="all">전체 등급</option>
                     {[...new Set(sim.album.map((a) => a.r))]
@@ -1532,6 +1541,20 @@ export function PackSim({
                         </option>
                       ))}
                   </select>
+                  <div className="hidden items-center gap-1 sm:flex">
+                    {['all', ...[...new Set(sim.album.map((a) => a.r))].sort((a, b) => rankOf(b) - rankOf(a))].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setAlbumFilter(v)}
+                        className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${
+                          albumFilter === v ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'
+                        }`}
+                      >
+                        {v === 'all' ? '전체' : chipLabel(v)}
+                      </button>
+                    ))}
+                  </div>
                   <select
                     value={albumSort}
                     onChange={(e) => setAlbumSort(e.target.value as typeof albumSort)}
