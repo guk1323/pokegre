@@ -4627,9 +4627,9 @@ async function noteHighlight(
   const nick = (user.nickname ?? '').trim()
   if (!nick) return null // 이름 없이 띄울 자리가 아니다
   const list = await loadHighlights()
-  // 한 사람이 박스를 여러 개 열면 배너를 독점한다. 하루 한 번만 남긴다.
+  // 한 사람이 박스를 여러 개 열면 배너를 독점하니 하루 한 자리만 준다.
   const dayAgo = Date.now() - 24 * 60 * 60 * 1000
-  if (list.some((h) => h.uid === user.id && h.at > dayAgo)) return null
+  const mineToday = list.find((h) => h.uid === user.id && h.at > dayAgo) ?? null
 
   const priced = withUsd(slug, cards)
   const worthy = priced.filter(
@@ -4638,7 +4638,12 @@ async function noteHighlight(
   if (!worthy.length) return null
   // 그 팩에서 제일 좋은 한 장만 남긴다(위 betterCard와 같은 잣대를 쓴다).
   const best = worthy.reduce((a, b) => betterCard(a, b))
-  list.push({
+
+  // ⚠️ 오늘 자리가 이미 찼어도 그냥 돌아가면 안 된다. 이 목록은 "가장 시세 높은 카드를
+  //    뽑은 사람"인데, 예전엔 그날 처음 걸린 카드가 자리를 차지하고 뒤에 나온 더 비싼
+  //    카드는 통째로 버려졌다(2026-08-04 확인: $0.5짜리를 넣어 두고 60팩을 열어도
+  //    그대로였다). 자리는 하루 하나로 두되, 더 좋은 카드가 나오면 그 자리를 바꿔 준다.
+  const entry: PackHighlight = {
     at: Date.now(),
     uid: user.id,
     nick: nick.slice(0, 20),
@@ -4649,7 +4654,16 @@ async function noteHighlight(
     ...(best.img ? { img: best.img } : {}),
     ...(best.usd ? { usd: best.usd } : {}),
     ...(god ? { god: true } : {}),
-  })
+  }
+  if (mineToday) {
+    if (betterHighlight(mineToday, entry) === mineToday) return null // 오늘 것이 더 좋다
+    // 자리를 갈아끼운다. 예전 카드의 한글 이름이 새 카드에 남으면 안 되니 지운다
+    // (이름은 화면이 뒤이어 fillHighlightName으로 보내 준다).
+    Object.assign(mineToday, entry)
+    delete mineToday.name
+  } else {
+    list.push(entry)
+  }
   // 넘치면 버리되, 역대 최고와 최근 것은 남긴다.
   if (list.length > HIGHLIGHT_MAX) {
     const fresh = Date.now() - HIGHLIGHT_FRESH_MS
@@ -4670,8 +4684,13 @@ async function noteHighlight(
 //    그래도 자기가 방금 올린 기록에만 쓸 수 있게 막는다.
 async function fillHighlightName(userId: string, n: string, name: string): Promise<boolean> {
   const list = await loadHighlights()
-  const mine = [...list].reverse().find((h) => h.uid === userId && h.n === n)
-  if (!mine || mine.name) return false
+  // ⚠️ 배열 순서가 아니라 시각(at)으로 "가장 최근 것"을 찾아야 한다. 오늘 자리를 더 좋은
+  //    카드로 갈아끼우면 그 기록은 배열 뒤로 가지 않고 제자리에 남는다. 순서로 찾으면
+  //    같은 카드번호를 가진 며칠 전 기록을 짚어, 오늘 것이 이름 없이 남는다.
+  const mine = list
+    .filter((h) => h.uid === userId && h.n === n && !h.name)
+    .reduce<PackHighlight | null>((a, b) => (a && a.at > b.at ? a : b), null)
+  if (!mine) return false
   mine.name = name.replace(/\s+/g, ' ').trim().slice(0, 60)
   if (!mine.name) return false
   await mkdir(path.dirname(PACK_HIGHLIGHT_FILE), { recursive: true })
