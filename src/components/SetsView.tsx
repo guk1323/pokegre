@@ -312,7 +312,10 @@ export function SetsView({
                     <span className="text-[11px] text-neutral-400">TCGplayer 마켓가 · 미감정 기준</span>
                   )}
                 </div>
-                <div className="grid grid-cols-4 gap-x-3 gap-y-4">
+                {/* ⚠️ 폰에서 4열이라 한 칸이 68px이었다. 바로 아래 "수록 카드" 목록은
+                    3열 106px이라, 보여주려고 뽑아 올린 카드가 일반 목록보다 작았다
+                    (실측 2026-08-04). 폰에서는 3열로 맞추고, 큰 화면은 4열 그대로 둔다. */}
+                <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4">
                   {highlights.map((c) => {
                     const nm = koName(selected.ed, c.name);
                     return (

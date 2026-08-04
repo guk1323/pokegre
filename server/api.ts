@@ -455,12 +455,27 @@ function mountImageProxy(app: Mountable) {
   // 15초 안에 못 받은 것을 뒤에서 다시 받는 중인 목록(같은 걸 여러 번 받지 않게).
   const slowJobs = new Set<string>()
 
+  // ⚠️ tcgplayer-cdn은 wsrv가 막아서 축소가 안 되고 원본으로 넘어간다(아래 폴백).
+  //    그런데 그 원본 주소에 크기가 박혀 있다 — "…709264_in_800x800.jpg".
+  //    tcgplayer가 작은 판을 같은 규칙으로 내주므로, 받기 전에 주소를 바꿔 달라고 한다.
+  //      _in_800x800  147,843 bytes
+  //      _in_400x400   44,674 bytes
+  //      _in_200x200   11,877 bytes  ← 12배 가볍다 (142x200, 정상 그림)
+  //    세트 화면의 "힛카드 TOP 8"이 이걸 8장 한꺼번에 받아 1.2MB였고, 정작 폰에서는
+  //    68px 칸에 그린다(실측 2026-08-04). 표시 폭에 맞는 판을 고른다.
+  //    ⚠️ _in_115x115와 확장자 없는 주소는 403이다. 400/200만 쓴다.
+  function tcgSmaller(url: string, w: number): string {
+    if (!/tcgplayer-cdn\.tcgplayer\.com\//.test(url)) return url
+    const want = w <= 220 ? '_in_200x200' : w <= 430 ? '_in_400x400' : '_in_800x800'
+    return url.replace(/_in_\d+x\d+(?=\.\w+$)/, want)
+  }
+
   async function fetchThumb(
     url: string,
     w: number,
     timeoutMs = UPSTREAM_SLOW_MS,
   ): Promise<{ body: Buffer; contentType: string } | null> {
-    const bare = url.replace(/^https?:\/\//, '')
+    const bare = tcgSmaller(url, w).replace(/^https?:\/\//, '')
     // 스니커덩크의 배경제거 이미지는 1000x730 가로 캔버스 한가운데에 카드가 43%만
     // 차지하도록 들어 있다. 그대로 쓰면 목록에서 카드가 작게 보이고 둘레가 텅 빈다.
     // 투명한 여백을 잘라내면 카드가 틀을 꽉 채운다(320x234 → 320x449로 확인).
@@ -547,8 +562,10 @@ function mountImageProxy(app: Mountable) {
           .finally(() => slowJobs.delete(key))
       }
       // wsrv 실패: 원본으로 리다이렉트해 화면이 비지 않게 한다.
+      // ⚠️ tcgplayer는 여기로 늘 떨어진다(wsrv가 막는다). 원본 그대로 보내면 148KB짜리
+      //    800px 그림을 68px 칸에 그리게 되므로, 작은 판이 있으면 그쪽으로 보낸다.
       res.statusCode = 302
-      res.setHeader('location', u)
+      res.setHeader('location', tcgSmaller(u, w))
       res.end()
       return
     }
