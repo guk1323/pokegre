@@ -7,7 +7,7 @@ import { rankOf, type MirrorFlag, type PackCard } from '../lib/packDraw';
 
 // 화면에서 다루는 카드: 서버 응답 순서(i)를 기억한다 — 앨범 골라담기가 인덱스 기준이라
 // (미러와 일반판이 같은 번호일 수 있어 번호로는 구분이 안 된다).
-type UiCard = PackCard & { i: number };
+type UiCard = PackCard & { i: number; usd?: number };
 const M_LABEL: Record<MirrorFlag, { t: string; cls: string }> = {
   master: { t: '마스터볼 미러', cls: 'text-amber-600 font-bold' },
   poke: { t: '몬스터볼 미러', cls: 'text-neutral-500' },
@@ -104,10 +104,23 @@ const chipLabel = (r: string) => CHIP_KO[r] ?? (RARITY[r]?.ko ?? r).split(' ').p
 // 뒤집기 전 "오, 좋은 카드인가?" 하는 맛. 덮개 아래 카드가 좋은 등급이면 뒷면이
 // 은은하게 빛난다. 예전에는 등급과 상관없이 "마지막 장"이면 무조건 빛나서 신호가
 // 아니라 장식이었다 — 이제 빛나면 실제로 ACE·AR 이상이다.
-const hintOf = (r?: string) => {
-  const k = rankOf(r);
-  return k >= 7 ? 'hint-strong' : k >= 4 ? 'hint-soft' : '';
+// 값나가는 카드일수록 세게 빛낸다. 등급이 아니라 "지금 시세"로 나눈다 —
+// 등급이 높아도 값이 안 나가는 카드가 있고 그 반대도 있어서, 사람이 반가운 건 결국 값이다
+// (사용자 지시 2026-08-04).
+// 기준선은 실제 시세 분포로 정했다: 세트 대부분이 $1 미만이고(중앙값 $0.15~0.70),
+// 팩에서 가끔 나오는 상위 카드가 $10~50, 세트 최상위가 $100~600대다.
+const HIT_MID_USD = 10;
+const HIT_BIG_USD = 50;
+const HIT_MIN_USD = 1;
+/** 시세로 정한 빛남 세기. 0=안 빛남 1=은은 2=세게 3=제일 화려 */
+export const glowOf = (usd?: number) => {
+  const v = usd ?? 0;
+  if (v >= HIT_BIG_USD) return 3;
+  if (v >= HIT_MID_USD) return 2;
+  if (v >= HIT_MIN_USD) return 1;
+  return 0;
 };
+const glowCls = (g: number) => (g >= 3 ? 'glow-big' : g === 2 ? 'glow-mid' : g === 1 ? 'glow-soft' : '');
 
 const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
 const groupRank = (k: string) =>
@@ -268,12 +281,6 @@ export function PackSim({
   const [shareText, setShareText] = useState('');
   const [shareTitle, setShareTitle] = useState('');
   // 겹쳐 놓인 카드 개봉: 덮개를 위로 드래그하면 아래 카드가 슬쩍 보이다가, 충분히
-  // 밀면 넘어간다("쫄리는 맛"). phase: covered=덮개 있음, leaving=덮개 날아가는 중,
-  // shown=카드 공개(누르면 다음).
-  const [phase, setPhase] = useState<'covered' | 'leaving' | 'shown'>('covered');
-  const [dragY, setDragY] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const dragStartY = useRef(0);
   // 운영자는 점검하려고 아무 때나 열어야 해서 기본이 무제한이다. 끄면 평소처럼
   // GP가 깎이고 모자라면 못 연다(그 흐름도 확인해야 하니 스위치로 뒀다).
   const [spend, setSpend] = useState(false);
@@ -328,6 +335,7 @@ export function PackSim({
         setSlug(last.slug);
         setPack(sorted);
         setRevealed(sorted.length); // 이미 본 결과라 정리 화면으로 바로 보낸다
+        setFlippedSet(new Set(sorted.map((c) => c.i)));
         setBoxInfo(cards.length > size ? Math.round(cards.length / size) : null);
         setBoxQueue(null);
         setGod(last.god);
@@ -457,8 +465,7 @@ export function PackSim({
     setBusy(true);
     setPack(null);
     setRevealed(0);
-    setPhase('covered');
-    setDragY(0);
+    setFlippedSet(new Set());
     setGod(false);
     const target = packBySlug.get(slug2);
     setSlug(slug2);
@@ -546,6 +553,7 @@ export function PackSim({
       const sorted = groups.flat().sort((a, b) => rankOf(a.r) - rankOf(b.r));
       setPack(sorted);
       setRevealed(0);
+      setFlippedSet(new Set());
       setBoxQueue({ groups, gods: d.packs.map((p) => p.god), idx: 0 });
       setBoxInfo(d.boxPacks ?? d.packs.length);
       setGod(!!d.god);
@@ -742,10 +750,32 @@ export function PackSim({
     window.setTimeout(go, 450);
   }, []);
 
-  const revealNext = () => setRevealed((n) => (pack ? Math.min(n + 1, pack.length) : n));
+  // 어느 자리를 뒤집었는지 따로 기억한다. 예전엔 "몇 장째"(revealed)만 세서 순서대로만
+  // 뒤집을 수 있었는데, 이제 안 뒤집힌 카드는 아무거나 눌러도 된다(사용자 지시 2026-08-04).
+  // revealed는 "몇 장 뒤집었나"로 계속 쓴다(진행 표시·다 됐는지 판단).
+  const [flippedSet, setFlippedSet] = useState<Set<number>>(new Set());
+  const flipOne = (i: number) =>
+    setFlippedSet((prev) => {
+      if (prev.has(i)) return prev;
+      const next = new Set(prev);
+      next.add(i);
+      setRevealed(next.size);
+      return next;
+    });
+  /** 여러 자리를 한 번에 뒤집는다(박스의 "이 팩 한번에 공개"). */
+  const flipMany = (idxs: number[]) =>
+    setFlippedSet((prev) => {
+      const next = new Set(prev);
+      for (const i of idxs) next.add(i);
+      setRevealed(next.size);
+      return next;
+    });
+  const flipAll = () => {
+    if (!pack) return;
+    setFlippedSet(new Set(pack.map((c) => c.i)));
+    setRevealed(pack.length);
+  };
   const allDone = !!pack && revealed >= pack.length;
-  // 지금 덮개 아래에 있는 카드의 등급 힌트(뒷면을 빛나게 할지).
-  const nextHint = pack && !allDone ? hintOf(pack[revealed]?.r) : '';
 
   // 결과 정리용 등급 묶음(좋은 등급이 위로).
   const resultGroups = (() => {
@@ -1025,9 +1055,9 @@ export function PackSim({
             </div>
           )}
 
-          {/* 겹쳐 놓인 팩. 덮개를 위로 드래그하면 아래 카드가 조금씩 드러난다 —
-              색·이름을 슬쩍 보다가 충분히 밀면 덮개가 날아가고 카드가 공개된다. */}
-          {/* 박스: 한 팩씩 촤르륵 공개하고 "다음 팩"으로 넘긴다 */}
+          {/* 박스: 한 팩씩 낱팩과 똑같이 뒤집는다. 예전엔 5장이 자동으로 다 열리고
+              "다음 팩"만 눌렀는데, 그러면 같은 게임인데 팩깡과 손놀림이 달랐다
+              (사용자 지적 2026-08-04). */}
           {boxQueue && pack && (
             <div className="mt-6">
               <p className="text-center text-sm font-semibold text-neutral-600">
@@ -1038,31 +1068,39 @@ export function PackSim({
                   갓팩 — 전부 AR 이상입니다
                 </div>
               )}
-              <div key={boxQueue.idx} className="mx-auto mt-3 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
-                {boxQueue.groups[boxQueue.idx].map((c, i2) => {
-                  const meta = RARITY[c.r ?? ''] ?? RARITY.Common;
-                  const hit = rankOf(c.r) >= 5 || c.m === 'master';
-                  return (
-                    <div key={c.i} className="deal" style={{ animationDelay: `${i2 * 90}ms` }}>
-                      <div
-                        className={`overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${hit ? 'card-hit card-shine' : ''}`}
-                        style={{ aspectRatio: '5 / 7' }}
-                      >
-                        {c.img && <img src={thumb(c.img, 240)} alt="" className="h-full w-full object-contain" />}
-                      </div>
-                      <p className={`mt-0.5 truncate text-center text-[10px] font-semibold ${meta.cls.split(' ')[0]}`}>
-                        {rarityKo(c.r, cfg.jp).split(' ').pop()}
-                      </p>
-                    </div>
-                  );
-                })}
+              <p className="mt-2 text-center text-sm font-semibold text-neutral-600">
+                카드를 눌러서 뒤집어 보세요 ({boxQueue.groups[boxQueue.idx].filter((c) => flippedSet.has(c.i)).length}/
+                {boxQueue.groups[boxQueue.idx].length})
+              </p>
+              <div key={boxQueue.idx} className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
+                {boxQueue.groups[boxQueue.idx].map((c, i2) => (
+                  <CardSlot
+                    key={c.i}
+                    card={c}
+                    jp={cfg.jp}
+                    index={i2}
+                    flipped={flippedSet.has(c.i)}
+                    canFlip
+                    onFlip={() => flipOne(c.i)}
+                    name={koName(cfg.jp, c.name)}
+                  />
+                ))}
+              </div>
+              <div className="mt-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => flipMany(boxQueue.groups[boxQueue.idx].map((c) => c.i))}
+                  className="rounded-full border border-neutral-300 px-4 py-1.5 text-xs font-semibold text-neutral-600"
+                >
+                  이 팩 한번에 공개
+                </button>
               </div>
               <div className="mt-4 flex items-center justify-center gap-4">
                 <button
                   type="button"
                   onClick={() => {
                     if (boxQueue.idx >= boxQueue.groups.length - 1) {
-                      setRevealed(pack.length);
+                      flipAll();
                       setBoxQueue(null);
                     } else {
                       setBoxQueue({ ...boxQueue, idx: boxQueue.idx + 1 });
@@ -1078,7 +1116,7 @@ export function PackSim({
                   <button
                     type="button"
                     onClick={() => {
-                      setRevealed(pack.length);
+                      flipAll();
                       setBoxQueue(null);
                     }}
                     className="text-xs text-neutral-400 underline"
@@ -1107,105 +1145,10 @@ export function PackSim({
             </div>
           )}
 
-          {pack && !allDone && !boxQueue && (
-            <div className="mt-6 select-none">
-              <div className="relative mx-auto h-72 w-52 touch-none sm:h-80 sm:w-56">
-                {pack.length - revealed > 2 && (
-                  <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-xl border border-neutral-300 bg-neutral-200" />
-                )}
-                {pack.length - revealed > 1 && (
-                  <div className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-neutral-300 bg-neutral-100" />
-                )}
-
-                {/* 현재 카드(덮개 아래) */}
-                <div
-                  className={`absolute inset-0 ${phase === 'shown' ? 'cursor-pointer' : ''}`}
-                  onClick={() => {
-                    if (phase !== 'shown') return;
-                    revealNext();
-                    setPhase('covered');
-                    setDragY(0);
-                  }}
-                  role={phase === 'shown' ? 'button' : undefined}
-                  aria-label={phase === 'shown' ? '다음 카드' : undefined}
-                >
-                  <div
-                    className={`h-full overflow-hidden rounded-xl bg-neutral-100 ring-1 ${(RARITY[pack[revealed]?.r ?? ''] ?? RARITY.Common).cls} ${
-                      phase === 'shown' && rankOf(pack[revealed]?.r) >= 5 ? 'card-hit card-shine' : ''
-                    }`}
-                  >
-                    {pack[revealed]?.img && (
-                      <img src={thumb(pack[revealed].img!, 480)} alt="" draggable={false} className="h-full w-full object-contain" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 덮개: 드래그하면 위로 밀리며 아래가 드러난다 */}
-                {phase !== 'shown' && (
-                  <div
-                    onPointerDown={(e) => {
-                      if (phase !== 'covered') return;
-                      dragStartY.current = e.clientY;
-                      setDragging(true);
-                      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-                    }}
-                    onPointerMove={(e) => {
-                      if (!dragging || phase !== 'covered') return;
-                      setDragY(Math.max(0, Math.min(340, dragStartY.current - e.clientY)));
-                    }}
-                    onPointerUp={() => {
-                      if (phase !== 'covered') return;
-                      setDragging(false);
-                      // 충분히 밀었거나 살짝 탭했으면 공개, 아니면 제자리로.
-                      if (dragY > 130 || dragY < 8) {
-                        setPhase('leaving');
-                        setTimeout(() => {
-                          setPhase('shown');
-                          setDragY(0);
-                        }, 220);
-                      } else {
-                        setDragY(0);
-                      }
-                    }}
-                    className={`absolute inset-0 cursor-grab active:cursor-grabbing ${
-                      !dragging && nextHint ? `${nextHint} rounded-xl` : ''
-                    }`}
-                    style={{
-                      transform: phase === 'leaving' ? 'translateY(-460px)' : `translateY(${-dragY}px)`,
-                      opacity: phase === 'leaving' ? 0 : 1,
-                      transition: dragging ? 'none' : 'transform 0.22s ease, opacity 0.22s ease',
-                    }}
-                  >
-                    <img src="/pack-card-back.svg" alt="" draggable={false} className="h-full w-full rounded-xl object-cover shadow-md" />
-                  </div>
-                )}
-              </div>
-
-              <p className="mt-3 h-5 text-center text-sm font-semibold text-neutral-600">
-                {phase === 'shown'
-                  ? `${koName(cfg.jp, pack[revealed]?.name ?? '')} · ${rarityKo(pack[revealed]?.r, cfg.jp)} — 카드를 누르면 다음`
-                  : dragY > 40
-                    ? '조금만 더…'
-                    : `위로 밀어서 확인 (${revealed}/${pack.length})`}
-              </p>
-              <div className="mt-1 text-center">
-                <button
-                  type="button"
-                  onClick={() => setRevealed(pack.length)}
-                  className="text-xs text-neutral-400 underline"
-                >
-                  전체 한번에 공개
-                </button>
-              </div>
-              {revealed > 0 && (
-                <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-1">
-                  {pack.slice(0, revealed).map((c, i) => (
-                    <img key={i} src={thumb(c.img ?? '', 80)} alt="" className="h-14 rounded ring-1 ring-neutral-200" />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* 개봉: 카드를 전부 뒷면으로 깔아 두고 아무거나 눌러 뒤집는다.
+              예전엔 큰 카드 하나를 "위로 밀어서" 열고 다시 "눌러서 다음"으로 넘겨야 해서
+              5장에 열 번을 조작해야 했다. 게다가 박스는 5장씩 자동으로 넘어가 팩과 손놀림이
+              달랐다 — 이제 둘 다 같다(사용자 지시 2026-08-04). 그리드는 아래에 있다. */}
 
           {allDone && (
             <div className="mt-3 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -1294,23 +1237,40 @@ export function PackSim({
             </p>
           )}
 
-          {/* 아직 다 안 뒤집은 낱팩: 한 장씩 뒤집는 그대로.
+          {/* 개봉 중: 전부 뒷면으로 깔아 두고 아무거나 눌러 뒤집는다.
               실물 팩처럼 한 줄에 5장씩, 가운데 정렬(10장이면 5+5 두 줄). */}
           {pack && !boxQueue && !allDone && (
-            <div className="mx-auto mt-4 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
-              {pack.map((c, i) => (
-                <CardSlot
-                  key={i}
-                  card={c}
-                  jp={cfg.jp}
-                  index={i}
-                  flipped={i < revealed}
-                  isNext={i === revealed}
-                  onFlip={revealNext}
-                  name={koName(cfg.jp, c.name)}
-                />
-              ))}
-            </div>
+            <>
+              <p className="mt-4 text-center text-sm font-semibold text-neutral-600">
+                카드를 눌러서 뒤집어 보세요 ({revealed}/{pack.length})
+              </p>
+              <div className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
+                {pack.map((c, i) => (
+                  // ⚠️ 키는 배열 순서(i)가 아니라 카드 자리 번호(c.i)다. 팩은 등급순으로
+                  //    정렬돼 나오므로 둘이 다르고, 섞어 쓰면 엉뚱한 카드가 뒤집힌다.
+                  //    앨범 골라 담기도 같은 c.i를 쓴다.
+                  <CardSlot
+                    key={c.i}
+                    card={c}
+                    jp={cfg.jp}
+                    index={i}
+                    flipped={flippedSet.has(c.i)}
+                    canFlip
+                    onFlip={() => flipOne(c.i)}
+                    name={koName(cfg.jp, c.name)}
+                  />
+                ))}
+              </div>
+              <div className="mt-3 text-center">
+                <button
+                  type="button"
+                  onClick={flipAll}
+                  className="rounded-full border border-neutral-300 px-4 py-1.5 text-xs font-semibold text-neutral-600"
+                >
+                  이 팩 한번에 공개
+                </button>
+              </div>
+            </>
           )}
 
           {/* 결과 정리: 등급별로 묶어서 고른다. 박스(150장)도 여기서 앨범에 담고 자랑할 수 있다 */}
@@ -1376,8 +1336,8 @@ export function PackSim({
                             jp={cfg.jp}
                             index={i}
                             flipped
-                            isNext={false}
-                            onFlip={revealNext}
+                            canFlip={false}
+                            onFlip={() => undefined}
                             name={koName(cfg.jp, c.name)}
                             picking={!keptDone}
                             picked={keep.has(c.i)}
@@ -1645,10 +1605,15 @@ export function PackSim({
                       <button
                         type="button"
                         onClick={() => void openBox(s3, 'stash')}
-                        disabled={busy || mustDecide}
-                        className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                        disabled={busy}
+                        className={`mt-2 w-full rounded-lg py-2 text-sm font-bold disabled:opacity-40 ${
+                          mustDecide ? 'bg-neutral-200 text-neutral-600' : 'bg-black text-white'
+                        }`}
                       >
-                        {mustDecide ? '앨범 선택 먼저' : '박스 개봉'}
+                        {/* ⚠️ 막혔을 때도 눌리게 둔다. 못 누르게 하면 open() 안의 안내
+                            ("먼저 앨범에 넣을지 정해 주세요")가 영영 안 뜨고, 사용자는
+                            왜 막혔는지 모른 채 멈춘다(2026-08-04 실제로 겪음). */}
+                        {mustDecide ? '지난 카드 정리 먼저 →' : '박스 개봉'}
                       </button>
                     </div>
                   );
@@ -1668,10 +1633,15 @@ export function PackSim({
                       <button
                         type="button"
                         onClick={() => void open(s3, 'stash')}
-                        disabled={busy || mustDecide}
-                        className="mt-2 w-full rounded-lg bg-black py-2 text-sm font-bold text-white disabled:opacity-40"
+                        disabled={busy}
+                        className={`mt-2 w-full rounded-lg py-2 text-sm font-bold disabled:opacity-40 ${
+                          mustDecide ? 'bg-neutral-200 text-neutral-600' : 'bg-black text-white'
+                        }`}
                       >
-                        {mustDecide ? '앨범 선택 먼저' : '팩 개봉'}
+                        {/* ⚠️ 막혔을 때도 눌리게 둔다. 못 누르게 하면 open() 안의 안내
+                            ("먼저 앨범에 넣을지 정해 주세요")가 영영 안 뜨고, 사용자는
+                            왜 막혔는지 모른 채 멈춘다(2026-08-04 실제로 겪음). */}
+                        {mustDecide ? '지난 카드 정리 먼저 →' : '팩 개봉'}
                       </button>
                     </div>
                   );
@@ -1774,6 +1744,19 @@ export function PackSim({
         }
         .flip-front { transform: rotateY(180deg); }
         .card-hit { box-shadow: 0 0 14px 2px rgba(245, 158, 11, 0.65); border-radius: 0.5rem; }
+
+        /* 값나가는 카드일수록 세게 빛난다(시세 기준 — glowOf 참고).
+           ⚠️ 뒤집힌 뒤에만 붙는다. 뒷면에 붙으면 뒤집기 전에 값을 알아채 재미가 없다. */
+        .glow-soft { box-shadow: 0 0 10px 1px rgba(56, 189, 248, 0.55); border-radius: 0.5rem; }
+        .glow-mid  { box-shadow: 0 0 16px 3px rgba(168, 85, 247, 0.65); border-radius: 0.5rem; animation: glowPulse 1.8s ease-in-out infinite; }
+        .glow-big  { box-shadow: 0 0 22px 5px rgba(245, 158, 11, 0.85); border-radius: 0.5rem; animation: glowPulse 1.1s ease-in-out infinite; }
+        @keyframes glowPulse {
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.12); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .glow-mid, .glow-big { animation: none; }
+        }
         .card-picked { outline: 3px solid #059669; outline-offset: 2px; border-radius: 0.6rem; cursor: pointer; }
         /* 팩을 열면 카드가 한 장씩 깔린다 */
         .deal { animation: dealIn 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
@@ -1822,18 +1805,19 @@ function CardSlot({
   jp,
   index,
   flipped,
-  isNext,
+  canFlip,
   onFlip,
   name,
   picking,
   picked,
   onPick,
 }: {
-  card: PackCard;
+  card: PackCard & { usd?: number };
   jp: boolean;
   index: number;
   flipped: boolean;
-  isNext: boolean;
+  /** 지금 뒤집을 수 있는가. 예전엔 "다음 차례"만 됐는데, 이제 안 뒤집힌 건 아무거나 된다. */
+  canFlip: boolean;
   onFlip: () => void;
   name: string;
   picking?: boolean;
@@ -1841,21 +1825,24 @@ function CardSlot({
   onPick?: () => void;
 }) {
   const meta = RARITY[card.r ?? ''] ?? RARITY.Common;
-  const hit = flipped && rankOf(card.r) >= 5; // AR 이상이면 공개 시 반짝
+  // 빛남은 "지금 시세"로 정한다. 뒤집기 전에는 절대 티가 나면 안 된다 —
+  // 미리 알면 뒤집는 재미가 없다.
+  const glow = flipped ? glowOf(card.usd) : 0;
+  const hit = glow > 0;
   return (
     <div>
       <div
         style={{ animationDelay: `${Math.min(index, 12) * 70}ms` }}
-        className={`flip deal ${isNext ? `flip-next ${flipped ? '' : hintOf(card.r)}` : ''} ${picking && picked ? 'card-picked' : ''}`}
-        onClick={isNext ? onFlip : picking ? onPick : undefined}
-        role={isNext || picking ? 'button' : undefined}
-        aria-label={isNext ? '카드 뒤집기' : picking ? '앨범에 넣기 선택' : undefined}
+        className={`flip deal ${canFlip && !flipped ? 'flip-next' : ''} ${picking && picked ? 'card-picked' : ''}`}
+        onClick={canFlip && !flipped ? onFlip : picking ? onPick : undefined}
+        role={(canFlip && !flipped) || picking ? 'button' : undefined}
+        aria-label={canFlip && !flipped ? '카드 뒤집기' : picking ? '앨범에 넣기 선택' : undefined}
       >
         <div className="flip-inner" data-flipped={flipped}>
           <div className="flip-face flip-back">
             <img src="/pack-card-back.svg" alt="" className="h-full w-full rounded-lg object-cover" />
           </div>
-          <div className={`flip-face flip-front ${hit ? 'card-hit' : ''}`}>
+          <div className={`flip-face flip-front ${glowCls(glow)}`}>
             <div className={`h-full overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${hit ? 'card-shine' : ''}`}>
               {card.img && (
                 <img src={thumb(card.img, 240)} alt="" loading="lazy" className="h-full w-full object-contain" />

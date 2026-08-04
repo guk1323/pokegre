@@ -4480,6 +4480,22 @@ function slowTargets(): string[] {
   return rest.slice(from, from + per + (slot < extra ? 1 : 0))
 }
 
+// 뽑은 카드에 지금 시세(USD)를 붙인다. 개봉 화면이 "값나가는 카드"를 빛나게 하는 데 쓴다.
+// 앨범 가치와 같은 규칙으로 찾는다 — 번호에서 앞의 0을 떼고, 미러·마스터볼 변형은
+// 접미사(~m·~p·~r)가 붙은 값을 먼저 본다. 없으면 0(=빛나지 않음)이다.
+// ⚠️ 이미 받아 둔 값만 읽는다. 여기서 PPT를 부르지 않는다 — 개봉은 사람이 누를 때마다
+//    일어나므로, 부르기 시작하면 크레딧이 얼마나 나갈지 아무도 모른다(앨범 가치와 같은 이유).
+function withUsd<T extends { n: string; m?: string }>(slug: string, cards: T[]): (T & { usd?: number })[] {
+  const prices = packPriceCache.get(slug)?.prices
+  if (!prices) return cards
+  return cards.map((c) => {
+    const base = stripZeros(c.n)
+    const vk = c.m === 'master' ? '~m' : c.m === 'poke' ? '~p' : c.m === 'rev' ? '~r' : ''
+    const usd = (vk ? prices[base + vk] : undefined) ?? prices[base] ?? 0
+    return usd > 0 ? { ...c, usd } : c
+  })
+}
+
 let warming = false
 async function warmPackPrices(apiKey: string) {
   if (!apiKey || warming) return
@@ -5189,7 +5205,7 @@ function mountAuth(
         }
         await persistPacksim()
         sendJson(res, 200, {
-          packs: box.packs,
+          packs: box.packs.map((bp) => ({ ...bp, cards: withUsd(pack.slug, bp.cards) })),
           god: box.god,
           godCount,
           boxPacks: pack.boxPacks,
@@ -5258,7 +5274,7 @@ function mountAuth(
         if (drawn.god) store.god += 1
         store.last = { slug: pack.slug, cards: drawn.cards.map(({ n, r, m }) => ({ n, r, ...(m ? { m } : {}) })), god: drawn.god }
         await persistPacksim()
-        sendJson(res, 200, { cards: drawn.cards, god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited })
+        sendJson(res, 200, { cards: withUsd(pack.slug, drawn.cards), god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited })
         return
       }
 
