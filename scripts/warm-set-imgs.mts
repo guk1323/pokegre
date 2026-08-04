@@ -57,6 +57,7 @@ async function main() {
   }
 
   let missing = 0
+  let hitTotal = 0
   for (const s of index) {
     if (s.cover) add(thumb(cardImg(s.cover), COVER_W))
     let cards: SetCard[]
@@ -66,12 +67,32 @@ async function main() {
       missing++
       continue
     }
+    // ⚠️ 힛카드를 먼저 넣는다. 세트를 열면 화면 맨 위에 뜨는 게 이 8장인데,
+    //    값이 높은 카드라 거의 다 뒷번호다(클레이버스트는 89·96·93…).
+    //    "앞 16장"만 데웠다가 정작 제일 잘 보이는 자리가 하나도 안 데워진 걸
+    //    화면에서 확인했다(2026-08-05). 격자 앞부분보다 이쪽이 먼저다.
+    const byNum = new Map(cards.map((c) => [String(Number(c.n)), c]))
+    try {
+      const r = await fetch(`${HOST}/api/local/set-hit-cards?slug=${encodeURIComponent(s.slug)}&limit=8`)
+      const d = r.ok ? ((await r.json()) as { priced?: boolean; cards?: { n: string }[] }) : null
+      if (d?.priced) {
+        for (const h of d.cards ?? []) {
+          const c = byNum.get(String(Number(h.n)))
+          if (c && usable(c.img)) {
+            add(thumb(cardImg(c.img!), GRID_W))
+            hitTotal++
+          }
+        }
+      }
+    } catch {
+      /* 시세를 못 받은 세트는 격자만 데운다 */
+    }
     for (const c of cards.filter((c) => usable(c.img)).slice(0, PER)) {
       add(thumb(cardImg(c.img!), GRID_W))
     }
   }
-
-  console.log(`세트 ${index.length}개 · 세트당 최대 ${PER}장 → 받을 그림 ${urls.length.toLocaleString()}장`)
+  console.log(`세트 ${index.length}개 · 세트당 힛카드 8장 + 격자 앞 ${PER}장 → 받을 그림 ${urls.length.toLocaleString()}장`)
+  console.log(`  (그 중 힛카드 ${hitTotal.toLocaleString()}장 — 세트를 열면 맨 위에 뜨는 자리)`)
   if (missing) console.log(`  (세트 파일을 못 읽어 건너뛴 것 ${missing}개)`)
   if (DRY) return
 
