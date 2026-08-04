@@ -58,7 +58,11 @@ export function CardScanButton({
         onClick={() => inputRef.current?.click()}
         disabled={loading}
         title="카드 사진으로 검색 (촬영 또는 앨범)"
-        className="flex h-[46px] w-[46px] items-center justify-center rounded-xl border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
+        // ⚠️ 예전엔 글자 없는 46x46 아이콘 하나였다. 설명이 title(마우스 올림)에만
+        //    있어 폰에서는 영영 안 보였고, aria-label도 없었다. 정작 카드 이름을
+        //    모르는 사람이 이 버튼을 제일 필요로 한다(2026-08-04).
+        aria-label="카드 사진으로 검색"
+        className="flex h-[46px] items-center justify-center gap-1.5 rounded-xl border border-neutral-300 bg-white px-3 text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
       >
         {loading ? (
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-300 border-t-black" />
@@ -73,6 +77,10 @@ export function CardScanButton({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 13a3 3 0 100 6 3 3 0 000-6z" />
           </svg>
         )}
+        {/* 폰은 자리가 빠듯해 "사진" 두 글자, 큰 화면은 다 적는다. */}
+        <span className="whitespace-nowrap text-sm font-semibold">
+          사진<span className="hidden sm:inline">으로 찾기</span>
+        </span>
       </button>
       {/* capture 속성을 빼면 폰에서 "사진 찍기 / 앨범에서 선택"을 함께 고를 수 있다.
           카드가 손에 없거나 즉석에서 찍기 어려운 상황을 위해 보관함 선택도 허용한다. */}

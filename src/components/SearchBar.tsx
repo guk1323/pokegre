@@ -53,7 +53,7 @@ export function SearchBar({
           onSubmit?.();
         }}
         enterKeyHint="search"
-        placeholder="카드명 또는 팩 이름 검색"
+        placeholder="카드 이름 검색 · 시세 확인"
         className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-10 pr-10 text-sm text-black placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black"
       />
       {/* 검색어가 있을 때만 오른쪽 끝에 지우기(X). onMouseDown로 blur를 막아 눌러도

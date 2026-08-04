@@ -1038,7 +1038,12 @@ function App() {
   // 바꿔도 항상 같은 간격이 나온다. 구역 컴포넌트에는 바깥 여백을 넣지 말 것.
   const homeMain = (
     <div className="space-y-8">
-      <OnboardingBanner />
+      {/* ⚠️ 인기 검색어를 공지보다도 위로 올렸다(2026-08-04, 두 번째 조정).
+          공지가 폰에서 420px을 써서, 인기 검색어 1위 줄이 화면 끝(812px)에 19px만
+          걸쳐 잘렸다 — 통째로 보이는 순위가 한 칸도 없었다. 공지는 한 번 닫으면
+          다시 안 뜨므로 이 벽을 맞는 사람은 정확히 "처음 온 사람"이다.
+          공지를 없애거나 접지 않는다(운영자 결정) — 순서만 바꾼다. 조금만 내리면
+          그대로 나오고, 내용은 한 글자도 안 줄었다. */}
       {/* ⚠️ 인기 검색어를 상점 위로 올렸다(2026-08-04).
           예전엔 상점이 위였는데(2026-07-26 결정), 그 사이 상점이 커져서 인기 검색어가
           폰에서 y=1909 — 2.4화면 아래로 밀렸다. 시세를 보러 온 사람에게 "뭘 검색할 수
@@ -1057,6 +1062,7 @@ function App() {
           setQuery(term);
         }}
       />
+      <OnboardingBanner />
       <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
       <PokemonNews items={news} loading={newsLoading} />
     </div>
@@ -1254,7 +1260,9 @@ function App() {
                 </h1>
                 {/* 헤더는 "여기가 뭐 하는 곳"인지만 짧게 알린다. 소스(스니덩크·이베이)나
                     시세 읽는 법 같은 상세는 커뮤니티 이용안내 공지가 대신한다. */}
-                <p className="text-sm text-neutral-500 mt-1">포켓몬 카드의 모든 것</p>
+                {/* 빈 홈 글자 790자 중 "시세"가 한 번뿐이었다 — 여기가 뭘 하는 곳인지
+                    화면이 말하지 않았다(2026-08-04). 탭 제목은 이미 "포켓몬 카드 시세"다. */}
+                <p className="text-sm text-neutral-500 mt-1">일본·북미 포켓몬 카드 시세</p>
               </div>
               {/* 상단은 최상위 4개(카드 시세·더보기·커뮤니티·마이페이지)로 못박는다.
                   새 도구가 생기면 "더보기" 드롭다운으로 흡수해 상단 폭이 안 늘어나게 한다.
@@ -1522,7 +1530,11 @@ function App() {
                 )}
               </div>
 
-              <div className="mb-6 flex flex-wrap items-center gap-2">
+              {/* ⚠️ 탭에 적힌 건 외국 상호 세 개뿐이고 어디 시세인지 설명이 한 줄도
+                  없었다(마우스를 올려도 아무 말이 안 뜬다). 처음 온 사람은 무엇을 고르는
+                  것인지 알 길이 없다(2026-08-04). 아래 여백을 mb-6에서 mb-1로 줄이고
+                  그 자리에 설명 줄을 넣어, 높이는 오히려 짧아지면서 뜻이 생긴다. */}
+              <div className="mb-1 flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-full border border-neutral-300 p-1">
                   <button
                     type="button"
@@ -1598,7 +1610,37 @@ function App() {
                     )}
                   </div>
                 )}
+                {/* ⚠️ 스니커덩크에서는 발매판 줄이 통째로 안 나와서, 한국 사람이 한글
+                    카드명을 쳐도 일본 마켓 결과만 받고 "한글판 시세를 볼 수 있다"는
+                    사실 자체를 몰랐다(2026-08-04). 한글판만 여기 꺼내 둔다 —
+                    한글판은 이베이 Browse API라 크레딧이 안 든다.
+                    북미판은 앞으로 안 뺀다. 그건 PPT 검색이라 한 번 누를 때마다
+                    36크레딧이고, 호기심으로 눌러보는 것까지 전부 돈이 된다. */}
+                {source === 'snkrdunk' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchSource('ebay');
+                      setEdition('korean');
+                    }}
+                    className="rounded-full border border-neutral-300 px-3.5 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+                  >
+                    한글판 시세 보기
+                  </button>
+                )}
               </div>
+              {/* 어디 시세인지 한 줄로 밝힌다. 탭 줄의 아래 여백을 대신 줄여 높이는 안 는다.
+                  ⚠️ 한글판은 같은 이베이라도 값의 성격이 다르다 — Browse API라 "지금 올라온
+                     매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다. */}
+              <p className="mb-5 text-xs text-neutral-400">
+                {source === 'snkrdunk'
+                  ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
+                  : source === 'tcgplayer'
+                    ? 'TCGplayer — 미국 마켓가입니다.'
+                    : edition === 'korean'
+                      ? 'eBay 한글판 — 지금 올라온 매물의 호가입니다(낙찰가가 아닙니다).'
+                      : 'eBay — 등급별 낙찰가입니다.'}
+              </p>
 
               {/* 검색어가 없으면 소스와 무관하게 항상 홈(인기 검색어 + 뉴스)을 띄운다.
                   스니덩크/이베이 토글은 "검색 결과를 어느 소스에서 가져올지"만 정하는

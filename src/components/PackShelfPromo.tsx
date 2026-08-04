@@ -143,17 +143,25 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
 
   return (
     <section className="">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
         <p className="text-base font-bold text-neutral-900">오늘의 상점</p>
-        <p className="text-xs text-neutral-400">매일 자정에 진열이 바뀝니다</p>
         <button
           type="button"
           onClick={onEnter}
           className="ml-auto rounded-lg bg-black px-3 py-1.5 text-xs font-bold text-white"
         >
-          구매하기 →
+          상점 열기 →
         </button>
       </div>
+      {/* ⚠️ 홈에 나가는 글자가 "구매하기 →"와 "1,600 GP"뿐이라 진짜 팩을 파는 가게로
+          읽혔다(2026-08-04). 진열 그림은 실제 상품 사진이고 GP 숫자는 실제 정가를
+          그대로 쓴 값이다. 정작 안내문은 상점 화면 88% 지점에 있어 홈에서는 안 보인다.
+          제목 줄 안에 넣으면 줄 높이가 28→100px이 되고 버튼이 밀리므로 자기 줄로 둔다.
+          "무료·비영리" 같은 미래를 못 박는 말은 쓰지 않는다. */}
+      <p className="mb-2 text-xs text-neutral-400">
+        출석으로 받는 사이트 안 포인트(GP)로 팩을 열어 보는 기능입니다. 실제 카드 거래가 아니며 GP는 현금 가치가
+        없습니다. 진열은 매일 자정에 바뀝니다.
+      </p>
       <button
         type="button"
         onClick={onEnter}

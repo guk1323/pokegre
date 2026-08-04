@@ -35,7 +35,7 @@ function Row({ item, onSelect }: { item: PopularSearch; onSelect: (term: string)
     <button
       type="button"
       onClick={() => onSelect(item.term)}
-      className="w-full flex items-center gap-3 rounded-lg bg-neutral-50 hover:bg-neutral-100 px-4 py-3 text-left"
+      className="w-full flex items-center gap-1.5 rounded-lg bg-neutral-50 hover:bg-neutral-100 px-2 py-2.5 text-left sm:gap-3 sm:px-4 sm:py-3"
     >
       {/* 10위는 두 자리라 칸(w-4=16px)을 넘겼고, 넘친 글자를 끊는 규칙 때문에 "1 / 0"으로
           갈라져 보였다. 두 자리가 들어갈 폭을 주고 줄바꿈을 막는다. */}
@@ -78,9 +78,14 @@ export function PopularSearches({
     <div>
       <div className="flex items-baseline justify-between mb-3">
         <p className="text-base font-bold text-neutral-900">인기 검색어</p>
+        <p className="text-xs text-neutral-400">눌러 보면 바로 시세가 나옵니다</p>
         {asOf && <p className="text-xs text-neutral-400">{formatAsOf(asOf)}</p>}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {/* ⚠️ 폰에서도 두 줄(5+5)로 세운다. 한 줄로 쌓으면 10칸이 516px이라 첫 화면을
+          통째로 먹었다(실측 2026-08-04). 두 줄이면 272px이다.
+          줄 안쪽 여백을 같이 줄여야 "리자몽 VSTAR" 같은 긴 이름이 안 잘린다 —
+          여백을 그대로 두면 열 개 중 네 개가 잘렸다. */}
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
         <div className="space-y-1">
           {left.map((item) => (
             <Row key={item.term} item={item} onSelect={onSelect} />
