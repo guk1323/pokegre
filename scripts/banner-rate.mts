@@ -7,11 +7,11 @@ import { readFile } from 'node:fs/promises'
 import { drawPack, drawBox, usableCards, RARITY_RANK, type PackCard } from '../src/lib/packDraw.ts'
 import { livePacks } from '../src/lib/packSets.ts'
 
-const HIGHLIGHT_RANK = 7
+const HIGHLIGHT_RANK = 6
 const PACK_TRIALS = 4000
 const BOX_TRIALS = 300
 
-console.log(`배너 기준: SAR·SIR 이상 또는 갓팩 (팩 ${PACK_TRIALS}회 · 박스 ${BOX_TRIALS}회)\n`)
+console.log(`배너 기준: SR·UR 이상 또는 갓팩 (팩 ${PACK_TRIALS}회 · 박스 ${BOX_TRIALS}회)\n`)
 for (const p of livePacks()) {
   const raw = JSON.parse(await readFile(`public/sets/${p.slug}.json`, 'utf8')) as { cards?: PackCard[] }
   const cards = usableCards(raw.cards ?? [])

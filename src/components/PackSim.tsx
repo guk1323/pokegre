@@ -133,9 +133,30 @@ const hintCls = (g: number) => (g >= 2 ? 'hint-strong' : g === 1 ? 'hint-soft' :
 const keepByDefault = (c: { r?: string; m?: string; usd?: number }) =>
   glowOf(c.usd) > 0 || rankOf(c.r) >= 5 || c.m === 'master';
 
+// 앨범 위 요약 숫자(모은 카드·쓴 GP·예상 가치)의 글씨 크기.
+// 폰에서 한 칸이 97px뿐이라, 긴 숫자를 한 크기로 쓰면 숫자 중간에서 잘려 두 줄이 된다.
+// 글자 수에 맞춰 줄여 어떤 값이 와도 한 줄에 들어가게 한다.
+// (넓은 화면은 칸이 넉넉하므로 sm: 이상에서는 늘 큰 글씨를 쓴다.)
+const fitNum = (s: string) =>
+  s.length >= 12 ? 'text-xs sm:text-xl' : s.length >= 10 ? 'text-sm sm:text-xl' : 'text-base sm:text-xl';
+
+// 박스 개봉 한 줄 안내. 개봉 중에는 따로 띄우고, 다 뒤집은 뒤에는 결과 머리띠 안에
+// 들어간다 — 두 군데서 쓰므로 문구를 한 곳에 둔다.
+const boxLine = (packs: number, cards: number, jp: boolean) =>
+  `박스 개봉 결과 — ${packs}팩 · ${cards}장${jp ? ' (박스 보장 봉입 적용)' : ' (북미판은 보장 없음)'}`;
+
 const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
 const groupRank = (k: string) =>
   k === 'm:master' ? 8.5 : k === 'm:poke' ? 2.6 : k === 'm:rev' ? 2.5 : rankOf(k.slice(2));
+// 묶음 머리에 찍는 등급색 점. RARITY/M_LABEL의 글자색(text-...)을 배경색(bg-...)으로 바꿔 쓴다.
+const groupDot = (k: string, jp: boolean) => {
+  void jp;
+  const cls = k.startsWith('m:')
+    ? M_LABEL[k.slice(2) as MirrorFlag].cls
+    : (RARITY[k.slice(2)] ?? RARITY.Common).cls;
+  const text = cls.split(' ').find((c) => c.startsWith('text-'));
+  return text ? text.replace('text-', 'bg-') : 'bg-neutral-300';
+};
 const groupLabel = (k: string, jp: boolean) =>
   k.startsWith('m:') ? M_LABEL[k.slice(2) as MirrorFlag].t : rarityKo(k.slice(2), jp);
 
@@ -1080,9 +1101,12 @@ export function PackSim({
             </p>
           )}
 
-          {boxInfo && pack && !boxQueue && (
+          {/* ⚠️ 박스 개봉 안내를 여기 따로 두면 아래 머리띠와 정보 상자가 두 개 연달아 붙어
+              화면이 난잡해진다(사용자 지적 2026-08-04). 다 뒤집기 전까지만 여기 두고,
+              끝난 뒤에는 머리띠 안 첫 줄로 들어간다. */}
+          {boxInfo && pack && !boxQueue && !allDone && (
             <p className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm font-semibold text-neutral-700">
-              박스 개봉 결과 — {boxInfo}팩 · {pack.length}장{cfg.jp ? ' (박스 보장 봉입 적용)' : ' (북미판은 보장 없음)'}
+              {boxLine(boxInfo, pack.length, cfg.jp)}
             </p>
           )}
           {/* 낱팩도 마찬가지 — 다 뒤집은 뒤에 알린다(스포일러 방지). */}
@@ -1123,6 +1147,7 @@ export function PackSim({
                     canFlip
                     onFlip={() => flipOne(c.i)}
                     name={koName(cfg.jp, c.name)}
+                    showTier
                   />
                 ))}
               </div>
@@ -1202,11 +1227,18 @@ export function PackSim({
               5장에 열 번을 조작해야 했다. 게다가 박스는 5장씩 자동으로 넘어가 팩과 손놀림이
               달랐다 — 이제 둘 다 같다(사용자 지시 2026-08-04). 그리드는 아래에 있다. */}
 
+          {/* ⚠️ 결과 머리띠에 노란 상자를 쓰지 않는다. 이 화면엔 이미 남색·검정 버튼,
+              카드별 등급색, 값나가는 카드의 후광이 있어서 상자까지 색을 쓰면 정작
+              후광이 묻힌다(사용자 지적 2026-08-04). 위와 선으로만 나눈다. */}
           {allDone && (
-            <div className="mt-3 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:flex-wrap sm:items-center">
-              <p className="text-sm font-semibold text-neutral-700">
-                {keptDone ? '이 팩의 결과입니다' : <>앨범에 넣을 카드를 고르세요 <span className="text-neutral-500">({keep.size}장 선택됨)</span></>}
-              </p>
+            <div className="mt-3 flex flex-col gap-3 border-t border-neutral-200 pt-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="min-w-0">
+                {/* 박스 안내를 여기 넣어 정보 상자 두 개가 연달아 붙는 걸 없앤다. */}
+                {boxInfo && <p className="text-[11px] text-neutral-400">{boxLine(boxInfo, pack!.length, cfg.jp)}</p>}
+                <p className="text-sm font-semibold text-neutral-700">
+                  {keptDone ? '이 팩의 결과입니다' : <>앨범에 넣을 카드를 고르세요 <span className="text-neutral-500">({keep.size}장 선택됨)</span></>}
+                </p>
+              </div>
               {!keptDone && (
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setKeep(new Set(pack!.map((c) => c.i)))} className="text-xs text-neutral-500 underline">
@@ -1314,6 +1346,7 @@ export function PackSim({
                     canFlip
                     onFlip={() => flipOne(c.i)}
                     name={koName(cfg.jp, c.name)}
+                    showTier
                   />
                 ))}
               </div>
@@ -1341,7 +1374,12 @@ export function PackSim({
                 return (
                   <div key={k}>
                     <div className="flex flex-wrap items-center gap-2">
+                      {/* 등급색은 여기 점 하나로만 쓴다. 예전엔 카드마다 등급색 글씨가 붙어
+                          한 화면이 색으로 뒤덮였다(사용자 지적 2026-08-04). */}
                       <p className="text-sm font-bold text-neutral-800">
+                        <span
+                          className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${groupDot(k, cfg.jp)}`}
+                        />
                         {groupLabel(k, cfg.jp)} <span className="font-normal text-neutral-400">{cards.length}장</span>
                       </p>
                       {!keptDone && (
@@ -1408,11 +1446,11 @@ export function PackSim({
                           />
                         ))}
                       </div>
-                    ) : (
-                      <p className="mt-1 text-xs text-neutral-400">
-                        접어 두었습니다. 펼쳐서 한 장씩 고르거나, 위 "이 등급 전부 선택"으로 한 번에 담을 수 있습니다.
-                      </p>
-                    )}
+                    ) : null}
+                    {/* ⚠️ 접힌 묶음마다 "접어 두었습니다. 펼쳐서 한 장씩 고르거나…" 하는 긴
+                        안내문을 달아 뒀었다. 박스에서는 접히는 묶음이 4개라 같은 문장이 화면에
+                        네 번 반복돼 제일 큰 소음이었다(사용자 지적 2026-08-04).
+                        옆에 이미 [펼쳐서 한 장씩 고르기] 버튼이 있어 안내문 없이도 통한다. */}
                   </div>
                 );
               })}
@@ -1428,55 +1466,84 @@ export function PackSim({
           ) : (
             <>
               <div className="mb-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
-                <div className="grid grid-cols-3 gap-x-2 gap-y-4">
-                  <div>
+                {/* ⚠️ 폰(375px)에서 한 칸이 97px뿐인데 20px 글씨를 쓰면 "2,644,800 GP"가
+                    숫자 중간에서 잘려 두 줄이 된다("2,644,80 / 0 GP"). 예상 가치도 마찬가지다
+                    (사용자 지적 2026-08-04, 실측 값높이 56px = 두 줄).
+                    좁은 화면에서는 글씨를 줄이고, 단위는 위 이름이 이미 말하므로 값에서 뺀다.
+                    tabular-nums로 숫자 폭을 고정해 세 칸이 들쭉날쭉해 보이지 않게 한다. */}
+                {/* ⚠️ 큰 화면에서는 세 칸을 화면 폭만큼 늘리면 한 칸이 353px인데 글자는
+                    77~102px만 써서 칸의 3/4이 빈다(실측 1280px 기준, 사용자 지적 2026-08-04).
+                    그래서 sm: 이상에서는 늘리지 않고(auto-cols) 왼쪽에 모아 두고,
+                    남는 자리에 아래 있던 등급·정렬을 끌어올려 한 줄로 만든다. */}
+                <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+                <div className="grid flex-1 grid-cols-3 gap-x-2 gap-y-4 sm:flex sm:flex-none sm:gap-x-8">
+                  <div className="min-w-0">
                     <p className="text-xs text-neutral-400">모은 카드</p>
-                    <p className="mt-0.5 text-xl font-bold text-black">
+                    <p className="mt-0.5 whitespace-nowrap text-base font-bold tabular-nums text-black sm:text-xl">
                       {sim.album.length}종
-                      <span className="ml-1 text-sm font-semibold text-neutral-400">
+                      <span className="ml-1 text-xs font-semibold text-neutral-400 sm:text-sm">
                         {sim.album.reduce((a, b) => a + b.c, 0)}장
                       </span>
                     </p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-neutral-400">쓴 GP</p>
-                    <p className="mt-0.5 text-xl font-bold text-black">{gp(sim.spent)}</p>
+                    {/* 위 이름이 이미 "GP"라고 했으니 값에는 안 붙인다 — 세 글자가 줄바꿈을 만든다. */}
+                    <p className={`mt-0.5 whitespace-nowrap font-bold tabular-nums text-black ${fitNum(sim.spent.toLocaleString())}`}>
+                      {sim.spent.toLocaleString()}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-neutral-400">예상 가치</p>
-                    <p className="mt-0.5 text-xl font-bold text-black">
-                      {value && value.totalUsd > 0 && rates
+                  {(() => {
+                    const worth =
+                      value && value.totalUsd > 0 && rates
                         ? formatKrwApprox(value.totalUsd * rates.usdToKrw)
                         : value && value.totalUsd > 0
                           ? `$${value.totalUsd.toLocaleString()}`
-                          : '—'}
-                    </p>
-                  </div>
+                          : '—';
+                    return (
+                      <div className="min-w-0">
+                        <p className="text-xs text-neutral-400">예상 가치</p>
+                        <p className={`mt-0.5 whitespace-nowrap font-bold tabular-nums text-black ${fitNum(worth)}`}>
+                          {worth}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
-                <p className="mt-3 text-[11px] text-neutral-400">
-                  예상 가치는 TCGplayer 마켓가 기준 참고용 추정치입니다
-                  {value && value.totalUsd > 0 ? ` ($${value.totalUsd.toLocaleString()})` : ''}
-                  {value && value.priced < sim.album.length ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외` : ''}
-                  {rates ? ` · ${rates.date} 환율` : ''}
-                </p>
-                {!!value?.pending?.length && (
-                  <p className="mt-1 text-[11px] font-semibold text-amber-600">
-                    세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.
-                  </p>
-                )}
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
-                  {['all', ...[...new Set(sim.album.map((a) => a.r))].sort((a, b) => rankOf(b) - rankOf(a))].map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setAlbumFilter(v)}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        albumFilter === v ? 'bg-neutral-200 text-black' : 'text-neutral-500 hover:bg-neutral-100'
-                      }`}
-                    >
-                      {v === 'all' ? '전체' : chipLabel(v)}
-                    </button>
-                  ))}
+                {/* ⚠️ 등급과 정렬을 칩으로 늘어놓으면 두 줄에 누를 것이 13개가 되고
+                    조작 상자만 332px(폰 화면의 41%)를 먹었다(실측 2026-08-04).
+                    등급은 앨범이 커질수록 칩이 더 늘어난다. 둘 다 드롭다운 하나씩으로
+                    접어 한 줄로 줄인다 — 폰에서는 시스템 선택창이 떠서 고르기도 더 쉽다.
+                    폰에서는 아래 줄로 내려가고(선으로 나눔), 큰 화면에서는 요약 숫자
+                    오른쪽 빈자리로 올라간다. */}
+                <div className="flex w-full items-center gap-2 border-t border-neutral-100 pt-3 sm:w-auto sm:border-0 sm:pt-0">
+                  <select
+                    value={albumFilter}
+                    onChange={(e) => setAlbumFilter(e.target.value)}
+                    aria-label="등급 고르기"
+                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-700"
+                  >
+                    <option value="all">전체 등급</option>
+                    {[...new Set(sim.album.map((a) => a.r))]
+                      .sort((a, b) => rankOf(b) - rankOf(a))
+                      .map((v) => (
+                        <option key={v} value={v}>
+                          {chipLabel(v)}
+                        </option>
+                      ))}
+                  </select>
+                  <select
+                    value={albumSort}
+                    onChange={(e) => setAlbumSort(e.target.value as typeof albumSort)}
+                    aria-label="정렬 고르기"
+                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-700"
+                  >
+                    <option value="rarity">등급 높은순</option>
+                    <option value="rarityAsc">등급 낮은순</option>
+                    <option value="price">가격 높은순</option>
+                    <option value="priceAsc">가격 낮은순</option>
+                    <option value="recent">최근 획득순</option>
+                  </select>
                   <div className="ml-auto flex items-center gap-2">
                     {!delMode ? (
                       <button
@@ -1525,28 +1592,18 @@ export function PackSim({
                     )}
                   </div>
                 </div>
-                {/* 정렬은 등급 칩과 한 줄에 두면 칸이 모자라 밀린다. 아래 줄로 뺀다. */}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold text-neutral-400">정렬</span>
-                  {([
-                    ['rarity', '등급 높은순'],
-                    ['rarityAsc', '등급 낮은순'],
-                    ['price', '가격 높은순'],
-                    ['priceAsc', '가격 낮은순'],
-                    ['recent', '최근 획득순'],
-                  ] as const).map(([v, label]) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setAlbumSort(v)}
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        albumSort === v ? 'bg-black text-white' : 'text-neutral-500 hover:bg-neutral-100'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
                 </div>
+                <p className="mt-3 text-[11px] text-neutral-400">
+                  예상 가치는 TCGplayer 마켓가 기준 참고용 추정치입니다
+                  {value && value.totalUsd > 0 ? ` ($${value.totalUsd.toLocaleString()})` : ''}
+                  {value && value.priced < sim.album.length ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외` : ''}
+                  {rates ? ` · ${rates.date} 환율` : ''}
+                </p>
+                {!!value?.pending?.length && (
+                  <p className="mt-1 text-[11px] font-semibold text-amber-600">
+                    세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-7">
                 {[...sim.album]
@@ -1901,6 +1958,7 @@ function CardSlot({
   picking,
   picked,
   onPick,
+  showTier,
 }: {
   card: PackCard & { usd?: number };
   jp: boolean;
@@ -1913,6 +1971,12 @@ function CardSlot({
   picking?: boolean;
   picked?: boolean;
   onPick?: () => void;
+  /**
+   * 카드 밑에 등급을 적을지. 등급 묶음 안에서는 바로 위 묶음 머리가 이미 같은 말을 해서
+   * 카드마다 또 적으면 한 화면에 등급 이름이 12번 나온다(팩 10장 기준 실측).
+   * 그래서 묶음 안에서는 끈다. 개봉 중(등급이 섞여 있음)에는 켠다.
+   */
+  showTier?: boolean;
 }) {
   const meta = RARITY[card.r ?? ''] ?? RARITY.Common;
   // 빛남은 "지금 시세"로 정한다.
@@ -1935,25 +1999,33 @@ function CardSlot({
             <img src="/pack-card-back.svg" alt="" className="h-full w-full rounded-lg object-cover" />
           </div>
           <div className={`flip-face flip-front ${glowCls(glow)}`}>
-            <div className={`h-full overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${hit ? 'card-shine' : ''}`}>
+            <div className={`relative h-full overflow-hidden rounded-lg bg-neutral-100 ring-1 ${meta.cls} ${hit ? 'card-shine' : ''}`}>
               {card.img && (
                 // ⚠️ lazy를 쓰면 안 된다. 뒤집는 순간에야 받기 시작해서 회색 칸이 잠깐 보인다
                 //    (사용자 지적 2026-08-04). 뒷면을 보는 동안 미리 받아 두면 바로 뜬다.
                 //    한 번에 5~10장뿐이라 미리 받아도 부담이 없다.
                 <img src={thumb(card.img, 240)} alt="" fetchPriority="high" className="h-full w-full object-contain" />
               )}
+              {/* 담김 표시. 카드 밖에 "✓ 담음/안 담음" 글자를 두면 카드마다 한 줄씩,
+                  팩 10장이면 10줄이 늘어난다(실측 2026-08-04). 카드 안 배지로 옮겨
+                  줄을 없애고, 담긴 것만 표시한다(안 담긴 건 아무 표시도 안 하는 게 조용하다). */}
+              {picking && picked && (
+                <span className="absolute left-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-600 text-[9px] font-black leading-none text-white">
+                  ✓
+                </span>
+              )}
             </div>
           </div>
         </div>
       </div>
-      {picking && (
-        <p className={`mt-1 text-center text-[11px] font-bold ${picked ? 'text-emerald-600' : 'text-neutral-300'}`}>
-          {picked ? '✓ 담음' : '안 담음'}
-        </p>
-      )}
       <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{flipped ? name : ' '}</p>
-      <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>{flipped ? rarityKo(card.r, jp) : ' '}</p>
-      {flipped && card.m && <p className={`text-[10px] ${M_LABEL[card.m].cls}`}>{M_LABEL[card.m].t}</p>}
+      {/* ⚠️ 등급은 묶음 안에서 안 적는다(showTier=false). 바로 위 묶음 머리가 이미
+          "언커먼 4장"이라고 했는데 카드마다 또 "언커먼"을 달면 한 화면에 등급 이름이
+          12번 나온다(팩 10장 기준 실측 2026-08-04). 개봉 중에는 등급이 섞여 있어 켠다. */}
+      {showTier && (
+        <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>{flipped ? rarityKo(card.r, jp) : ' '}</p>
+      )}
+      {showTier && flipped && card.m && <p className={`text-[10px] ${M_LABEL[card.m].cls}`}>{M_LABEL[card.m].t}</p>}
     </div>
   );
 }
