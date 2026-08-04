@@ -28,6 +28,20 @@ const unescape = (s) =>
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
 const strip = (s) => unescape(s.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
+
+// 그림이 실제로 있는지 열어 본다(HEAD 한 번). 같은 주소는 두 번 묻지 않는다.
+const aliveCache = new Map()
+async function imageAlive(url) {
+  if (aliveCache.has(url)) return aliveCache.get(url)
+  let ok = false
+  try {
+    ok = (await fetch(url, { method: 'HEAD' })).ok
+  } catch {
+    ok = false
+  }
+  aliveCache.set(url, ok)
+  return ok
+}
 // 이름 비교는 표기 차이를 지우고 한다("Mr. Mime" / "Mr Mime").
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-鿿]/g, '')
 
@@ -76,6 +90,7 @@ for (const slug of slugs) {
   let filled = 0
   let replaced = 0
   const skipped = []
+  let dead = 0
   for (const c of d.cards ?? []) {
     const hit = src.get(c.n)
     if (!hit) continue
@@ -86,6 +101,13 @@ for (const slug of slugs) {
       if (skipped.length < 3) skipped.push(`${c.n} ${c.name}≠${hit.name}`)
       continue
     }
+    // ⚠️ 목록에 있다고 그림이 있는 게 아니다. limitless도 목록엔 있는데 파일이
+    //    없는 카드가 있다(ja-SM10b 043이 403이었다 — 2026-08-04). 깨진 그림은
+    //    빈칸보다 나쁘니 넣기 전에 하나씩 열어 본다.
+    if (!(await imageAlive(hit.img))) {
+      dead++
+      continue
+    }
     c.img = hit.img
     if (blank) filled++
     else replaced++
@@ -93,6 +115,7 @@ for (const slug of slugs) {
   total += filled + replaced
   console.log(
     `  ${slug.padEnd(14)} limitless ${String(src.size).padStart(3)}장 · 빈칸 채움 ${filled} · 판매자 사진 교체 ${replaced}` +
+      (dead ? ` · 그림이 없어 건너뜀 ${dead}장` : '') +
       (skipped.length ? `  (이름이 달라 건너뜀: ${skipped.join(', ')})` : ''),
   )
   if (WRITE && filled + replaced) await writeFile(file, JSON.stringify(d))
