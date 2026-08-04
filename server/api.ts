@@ -1227,7 +1227,10 @@ function mountCommunity(app: Mountable) {
               if (seen.length > MAX_VIEWERS_PER_POST) seen.splice(0, seen.length - MAX_VIEWERS_PER_POST)
             }
           } else {
-            const key = `${clientIp(req)} ${id}`
+            // ⚠️ 구분자로 NUL(\0)을 쓰면 안 된다. 딱 한 글자 때문에 grep·file이 이 파일
+            //    전체를 "글자 파일이 아니다"로 보고, 검색이 아무것도 못 찾은 채 조용히
+            //    빈 결과를 준다(2026-08-04에 실제로 여기서 헤맸다). IP에 없는 글자면 된다.
+            const key = `${clientIp(req)}|${id}`
             first = !guestViews.get(key)
             if (first) guestViews.set(key, true)
           }

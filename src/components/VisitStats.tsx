@@ -27,7 +27,10 @@ function dayKey(offset: number): string {
 // 기능 사용 표에 보여줄 항목과 순서.
 // hint는 "무슨 행동일 때 1 올라가는지". 나중에 숫자를 해석할 때 기준을 몰라
 // 다시 코드를 뒤지는 일이 없도록 화면에 같이 적어둔다.
-const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
+// group이 붙은 줄은 숫자 없는 소제목이다. 그냥 `└`만 붙이면 바로 위 줄에 딸린 것처럼
+// 보이는데, 검색 확정 경로 다섯은 위의 검색 세 줄을 통째로 쪼갠 것이라 오해를 부른다
+// (2026-08-04 통계 점검에서 확인).
+const EVENT_ROWS: { key: string; label: string; hint: string; group?: true }[] = [
   { key: 'snkrdunk_search', label: '스니커덩크 검색', hint: '검색 실행(자동완성 선택 포함)' },
   { key: 'ebay_search', label: '이베이 검색(북미/일본판)', hint: '이베이 소스로 검색 실행' },
   { key: 'ebay_korean', label: '이베이 한글판 조회', hint: '판 토글에서 한글판 조회' },
@@ -46,8 +49,12 @@ const EVENT_ROWS: { key: string; label: string; hint: string }[] = [
   { key: 'packsim_share', label: '개봉 자랑', hint: '팩 결과를 커뮤니티에 공유' },
   { key: 'share', label: '카드 공유', hint: '카드 상세에서 공유 버튼을 누를 때' },
   { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
-  // 아래 다섯은 "인기 검색어에 한 표가 들어갈 때 그 검색어를 어떻게 확정했나"다.
-  // 위 검색 횟수(스니커덩크·이베이·TCGplayer)와 합계가 같아야 한다 — 나누는 축만 다르다.
+  {
+    key: '_search_group',
+    label: '검색어를 어떻게 확정했나',
+    hint: '위 검색 세 줄(스니커덩크·이베이·TCGplayer)을 다시 나눈 것입니다. 합계가 같아야 정상입니다.',
+    group: true,
+  },
   { key: 'search_scan', label: '└ 사진으로 찾아서', hint: '사진으로 카드를 찾아 그 검색어가 인기 검색어에 반영됨' },
   { key: 'search_pick', label: '└ 자동완성에서 골라서', hint: '자동완성 목록에서 고른 검색어' },
   { key: 'search_popular', label: '└ 인기 검색어를 눌러서', hint: '인기 검색어 목록을 눌러 검색' },
@@ -188,7 +195,7 @@ export function VisitStats() {
           <div className="flex items-baseline justify-between">
             <p className="text-xs text-neutral-500">오늘 남은 시세 조회 크레딧</p>
             <p className="text-[11px] text-neutral-400">
-              {new Date(cr.resetAt).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}에 다시 참
+              {new Date(cr.resetAt).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}에 다시 찹니다
             </p>
           </div>
           <p className={`mt-1 text-2xl font-bold ${crTone}`}>
@@ -204,8 +211,8 @@ export function VisitStats() {
             </div>
           )}
           <p className="mt-2 text-xs text-neutral-500">
-            세트 시세 채우기에 오늘 {cr.fillSpent.toLocaleString()} / {cr.fillBudget.toLocaleString()} 씀 ·
-            방문자 몫 {cr.keepForVisitors.toLocaleString()}은 채우기가 안 건드림
+            세트 시세 채우기에 오늘 {cr.fillSpent.toLocaleString()} / {cr.fillBudget.toLocaleString()} 썼습니다 ·
+            방문자 몫 {cr.keepForVisitors.toLocaleString()}은 채우기가 건드리지 않습니다
           </p>
           {crLeft !== null && crLeft <= 0 && (
             <p className="mt-2 text-xs text-rose-600">
@@ -262,17 +269,26 @@ export function VisitStats() {
             </tr>
           </thead>
           <tbody>
-            {EVENT_ROWS.map((row) => (
-              <tr key={row.key} className="border-b border-neutral-50 last:border-0">
-                <td className="px-4 py-2.5">
-                  <span className="font-semibold text-neutral-700">{row.label}</span>
-                  <span className="block text-[11px] font-normal text-neutral-400">{row.hint}</span>
-                </td>
-                <td className="px-4 py-2.5 text-right font-bold text-black">{(evToday[row.key] ?? 0).toLocaleString()}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-black">{(evWeek[row.key] ?? 0).toLocaleString()}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-black">{(evTotal[row.key] ?? 0).toLocaleString()}</td>
-              </tr>
-            ))}
+            {EVENT_ROWS.map((row) =>
+              row.group ? (
+                <tr key={row.key} className="border-b border-neutral-100 bg-neutral-50">
+                  <td className="px-4 py-2" colSpan={4}>
+                    <span className="text-xs font-bold text-neutral-600">{row.label}</span>
+                    <span className="block text-[11px] font-normal text-neutral-400">{row.hint}</span>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={row.key} className="border-b border-neutral-50 last:border-0">
+                  <td className="px-4 py-2.5">
+                    <span className="font-semibold text-neutral-700">{row.label}</span>
+                    <span className="block text-[11px] font-normal text-neutral-400">{row.hint}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-bold text-black">{(evToday[row.key] ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-right font-bold text-black">{(evWeek[row.key] ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-right font-bold text-black">{(evTotal[row.key] ?? 0).toLocaleString()}</td>
+                </tr>
+              ),
+            )}
           </tbody>
         </table>
       </div>
