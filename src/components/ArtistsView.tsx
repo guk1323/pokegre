@@ -439,13 +439,17 @@ function ArtistList({
           '{query}'에 맞는 작가가 없습니다. 포켓몬 이름으로도 찾을 수 있습니다.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        // ⚠️ 폰에서 1열이라 388명이 58.9화면(47,840px)으로 늘어섰고, 한 칸 341px 중
+        //    글자가 쓰는 건 140px뿐이라 오른쪽 200px이 비었다(실측 2026-08-04).
+        //    2열로 바꾸면 줄 수가 반으로 줄고 빈칸도 없어진다. 그림은 조금 줄여
+        //    좁아진 칸에 이름이 들어갈 자리를 남긴다.
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((a) => (
             <button
               key={a.slug}
               type="button"
               onClick={() => onOpen(a)}
-              className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 text-left hover:shadow-md"
+              className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white p-2 text-left hover:shadow-md sm:gap-3 sm:p-3"
             >
               <img
                 src={a.cover ? thumb(a.cover, 140) : CARD_BACK}
@@ -457,13 +461,17 @@ function ArtistList({
                   if (a.cover && t.src !== a.cover) t.src = a.cover;
                   else if (!t.src.endsWith(CARD_BACK)) t.src = CARD_BACK;
                 }}
-                className="h-[84px] w-[60px] flex-shrink-0 rounded object-cover"
+                className="h-[64px] w-[46px] flex-shrink-0 rounded object-cover sm:h-[84px] sm:w-[60px]"
               />
               <div className="min-w-0 flex-1">
-                <p className="line-clamp-1 text-sm font-bold text-black">{a.en}</p>
-                {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-xs text-neutral-500">{a.ko}</p>}
+                <p className="line-clamp-1 text-xs font-bold text-black sm:text-sm">{a.en}</p>
+                {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-[11px] text-neutral-500 sm:text-xs">{a.ko}</p>}
+                {/* 종수는 폰에서 자기 줄로 내린다 — 옆에 두면 이름 자리를 40px 먹는다. */}
+                <p className="mt-0.5 text-[11px] font-semibold text-neutral-400 sm:hidden">
+                  {a.count.toLocaleString()}종
+                </p>
               </div>
-              <span className="flex-shrink-0 self-start rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">
+              <span className="hidden flex-shrink-0 self-start rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500 sm:inline">
                 {a.count.toLocaleString()}종
               </span>
             </button>
