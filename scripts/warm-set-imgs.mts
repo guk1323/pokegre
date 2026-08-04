@@ -32,9 +32,12 @@ const PER = Number(arg('--per', '16'))
 const DRY = process.argv.includes('--dry')
 // 원본(무료 CDN)에 무리를 주지 않도록 동시에 4개까지만.
 const CONCURRENCY = 4
-// 격자는 320px, 세트 커버는 128px로 그린다(SetsView와 같아야 한다).
-const GRID_W = 320
-const COVER_W = 128
+// ⚠️ 폭이 캐시 열쇠에 들어간다. SetsView가 그리는 폭과 하나라도 다르면 딴 칸에
+//    담겨 데운 게 헛일이 된다(2026-08-05: 목록 썸네일이 200px인데 128px로 데워
+//    목록 화면이 하나도 안 빨라져 있었다).
+const GRID_W = 320 // 세트 안 카드 격자
+const COVER_W = 128 // 세트 상세 머리의 작은 표지
+const LIST_W = 200 // 세트 목록의 세로 타일
 
 interface SetCard {
   n: string
@@ -56,9 +59,24 @@ async function main() {
     urls.push(u)
   }
 
+  // 세트 목록 타일이 쓰는 표지. 시세를 받아 둔 세트는 값이 제일 높은 카드를 표지로
+  // 쓰므로(set-covers), 그걸 먼저 물어봐야 화면과 같은 주소가 된다.
+  let covers: Record<string, string> = {}
+  try {
+    const r = await fetch(`${HOST}/api/local/set-covers`)
+    covers = r.ok ? (((await r.json()) as { covers?: Record<string, string> }).covers ?? {}) : {}
+  } catch {
+    /* 못 받으면 index.json의 표지로 간다 */
+  }
+  console.log(`세트 목록 표지: 값 기준 표지 ${Object.keys(covers).length}개 + 나머지는 기본 표지`)
+
   let missing = 0
   let hitTotal = 0
   for (const s of index) {
+    // 목록 화면(세로 타일, 200px)
+    const listPick = usable(covers[s.slug]) ? covers[s.slug] : s.cover
+    if (usable(listPick)) add(thumb(cardImg(listPick!), LIST_W))
+    // 세트 상세 머리의 작은 표지(128px)
     if (s.cover) add(thumb(cardImg(s.cover), COVER_W))
     let cards: SetCard[]
     try {
