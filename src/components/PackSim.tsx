@@ -1488,6 +1488,17 @@ export function PackSim({
           {!sim?.album.length ? (
             <p className="text-sm text-neutral-400">아직 모은 카드가 없습니다.</p>
           ) : (
+            (() => {
+              // 예상 가치 안내. 큰 화면에서는 요약 숫자와 드롭다운 사이 빈자리에,
+              // 폰에서는 아래에 둔다 — 같은 글을 두 자리에서 쓰므로 한 번만 만든다.
+              const albumNote =
+                '예상 가치는 TCGplayer 마켓가 기준 참고용 추정치입니다' +
+                (value && value.totalUsd > 0 ? ` ($${value.totalUsd.toLocaleString()})` : '') +
+                (value && value.priced < sim.album.length
+                  ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외`
+                  : '') +
+                (rates ? ` · ${rates.date} 환율` : '');
+              return (
             <>
               <div className="mb-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
                 {/* ⚠️ 폰(375px)에서 한 칸이 97px뿐인데 20px 글씨를 쓰면 "2,644,800 GP"가
@@ -1529,22 +1540,16 @@ export function PackSim({
                     );
                   })()}
                 </div>
-                {/* ⚠️ 등급과 정렬을 칩으로 늘어놓으면 두 줄에 누를 것이 13개가 되고
-                    조작 상자만 332px(폰 화면의 41%)를 먹었다(실측 2026-08-04).
-                    등급은 앨범이 커질수록 칩이 더 늘어난다. 둘 다 드롭다운 하나씩으로
-                    접어 한 줄로 줄인다 — 폰에서는 시스템 선택창이 떠서 고르기도 더 쉽다.
-                    폰에서는 아래 줄로 내려가고(선으로 나눔), 큰 화면에서는 요약 숫자
-                    오른쪽 빈자리로 올라간다. */}
+                {/* ⚠️ 등급과 정렬은 둘 다 드롭다운이다. 칩으로 늘어놓으면 누를 것이 13개가
+                    되고 조작 상자가 폰 화면의 41%를 먹는다(실측 2026-08-04).
+                    큰 화면에서만 칩으로 펴 봤다가 난잡하다고 되돌렸다(사용자 지시).
+                    남는 자리는 드롭다운 폭을 키워 쓴다 — 요소를 늘리지 않는다. */}
                 <div className="flex w-full flex-wrap items-center gap-2 border-t border-neutral-100 pt-3 sm:w-auto sm:flex-1 sm:justify-end sm:border-0 sm:pt-0">
-                  {/* ⚠️ 큰 화면에서는 등급을 칩으로 편다. 드롭다운 두 개만 두면 요약 숫자와
-                      사이에 380px이 비었다(실측 2026-08-04). 벌려서 채우는 게 아니라
-                      접어 뒀던 것을 다시 펴서 그 자리를 쓴다.
-                      폰에서는 칩이 여러 줄로 늘어나 예전 문제가 돌아오므로 드롭다운을 쓴다. */}
                   <select
                     value={albumFilter}
                     onChange={(e) => setAlbumFilter(e.target.value)}
                     aria-label="등급 고르기"
-                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-700 sm:hidden"
+                    className="flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 sm:w-44 sm:flex-none"
                   >
                     <option value="all">전체 등급</option>
                     {[...new Set(sim.album.map((a) => a.r))]
@@ -1555,25 +1560,11 @@ export function PackSim({
                         </option>
                       ))}
                   </select>
-                  <div className="hidden items-center gap-1 sm:flex">
-                    {['all', ...[...new Set(sim.album.map((a) => a.r))].sort((a, b) => rankOf(b) - rankOf(a))].map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setAlbumFilter(v)}
-                        className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${
-                          albumFilter === v ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'
-                        }`}
-                      >
-                        {v === 'all' ? '전체' : chipLabel(v)}
-                      </button>
-                    ))}
-                  </div>
                   <select
                     value={albumSort}
                     onChange={(e) => setAlbumSort(e.target.value as typeof albumSort)}
                     aria-label="정렬 고르기"
-                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-700"
+                    className="flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 sm:w-40 sm:flex-none"
                   >
                     <option value="rarity">등급 높은순</option>
                     <option value="rarityAsc">등급 낮은순</option>
@@ -1629,13 +1620,14 @@ export function PackSim({
                     )}
                   </div>
                 </div>
-                </div>
-                <p className="mt-3 text-[11px] text-neutral-400">
-                  예상 가치는 TCGplayer 마켓가 기준 참고용 추정치입니다
-                  {value && value.totalUsd > 0 ? ` ($${value.totalUsd.toLocaleString()})` : ''}
-                  {value && value.priced < sim.album.length ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외` : ''}
-                  {rates ? ` · ${rates.date} 환율` : ''}
+                {/* ⚠️ 큰 화면에서 요약 숫자와 드롭다운 사이가 427px 비었다(실측 2026-08-04).
+                    아래 있던 이 안내문을 그 자리로 올린다 — 요소를 새로 만들지 않고
+                    이미 있는 글로 채우고, 줄도 하나 준다. 폰에서는 자리가 없어 아래에 둔다. */}
+                <p className="hidden min-w-0 flex-1 px-2 text-[11px] leading-snug text-neutral-400 sm:block">
+                  {albumNote}
                 </p>
+                </div>
+                <p className="mt-3 text-[11px] text-neutral-400 sm:hidden">{albumNote}</p>
                 {!!value?.pending?.length && (
                   <p className="mt-1 text-[11px] font-semibold text-amber-600">
                     세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.
@@ -1723,6 +1715,8 @@ export function PackSim({
                   })}
               </div>
             </>
+              );
+            })()
           )}
         </div>
       )}
