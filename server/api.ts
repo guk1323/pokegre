@@ -4524,8 +4524,15 @@ const HIGHLIGHT_FRESH_MS = 7 * 24 * 60 * 60 * 1000
 // 배너에 올릴 기준. 셋 중 하나면 된다.
 //   ⚠️ 시세만 보면 아직 시세를 못 받아온 세트가 통째로 빠지고, 등급만 보면 값은 비싼데
 //      등급이 낮은 카드가 빠진다. 이 교훈은 앨범 기본 담기(keepByDefault)에서 이미 겪었다.
-const HIGHLIGHT_USD = 50
-const HIGHLIGHT_RANK = 7 // SAR·SIR 이상
+// ⚠️ 처음엔 SAR·SIR(7) 이상이었는데 너무 드물었다. 실제로 돌려 재보니 일본판은
+//    박스를 통째로 열어도 5번에 1번만 걸렸다(banner-rate.mts, 2026-08-04):
+//      일본판 105~143팩에 1번(박스 17~22%) · 북미판 53~73팩에 1번(박스 35~54%)
+//    일본판 박스 보장이 "SR 이상 1장"인데 SR이 기준 바로 아래라 보장이 헛돌았다.
+//    한 단계 낮춰(6 = SR·UR 이상) 일본판도 박스 한 번이면 대개 걸리게 했다.
+const HIGHLIGHT_USD = 30
+const HIGHLIGHT_RANK = 6 // SR·UR 이상
+// 배너가 돌아가며 보여줄 개수.
+const HIGHLIGHT_SHOW = 5
 
 interface PackHighlight {
   at: number
@@ -4653,23 +4660,23 @@ async function fillHighlightName(userId: string, n: string, name: string): Promi
 }
 
 // GET /api/local/pack-highlights — 홈 배너가 읽어 간다. 로그인 없이 볼 수 있다.
-// 최근 7일에 나온 게 있으면 그걸, 없으면 역대 최고를 준다. 회원번호(uid)는 빼고 준다.
+// 최근 7일 것을 좋은 순으로 먼저 주고, 모자라면 역대 최고로 채워 최대 5개를 준다.
+// 화면은 이걸 돌아가며 보여준다. 회원번호(uid)는 빼고 준다.
 function mountPackHighlights(app: Mountable) {
   app.use('/api/local/pack-highlights', async (_req, res) => {
     const list = await loadHighlights()
-    const strip = (h: PackHighlight) => {
-      const { uid: _uid, ...rest } = h
-      void _uid
-      return rest
-    }
-    const fresh = list.filter((h) => Date.now() - h.at <= HIGHLIGHT_FRESH_MS)
-    const pickBest = (xs: PackHighlight[]) => (xs.length ? xs.reduce(betterHighlight) : null)
-    // 최근 것이 있으면 그중 제일 좋은 것, 없으면 역대 최고.
-    const best = pickBest(fresh) ?? pickBest(list)
+    const fresh = new Set(list.filter((h) => Date.now() - h.at <= HIGHLIGHT_FRESH_MS))
+    // 좋은 순 정렬. betterHighlight가 "둘 중 나은 쪽"을 주므로 그걸로 비교한다.
+    const byBest = (xs: PackHighlight[]) => [...xs].sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1))
+    // 최근 것이 늘 앞. 자리가 남으면 역대 최고로 채운다(같은 것을 두 번 넣지 않는다).
+    const picked = [...byBest([...fresh]), ...byBest(list.filter((h) => !fresh.has(h)))].slice(0, HIGHLIGHT_SHOW)
     sendJson(res, 200, {
-      item: best ? strip(best) : null,
-      // 화면이 "이번 주" / "역대"를 가려 쓸 수 있게 알려 준다.
-      recent: !!pickBest(fresh),
+      // uid(회원번호)는 빼고, 화면이 "이번 주"/"역대"를 가려 쓰게 recent만 붙여 준다.
+      items: picked.map((h) => {
+        const { uid: _uid, ...rest } = h
+        void _uid
+        return { ...rest, recent: fresh.has(h) }
+      }),
       total: list.length,
     })
   })
