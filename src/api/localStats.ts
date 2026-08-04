@@ -104,7 +104,9 @@ export type TrackedEvent =
   | 'search_enter'
   | 'search_typed'
   // 홈의 뽑기 결과 한 줄을 눌러 상점으로 들어온 횟수. 이게 낮으면 그 줄을 뺀다.
-  | 'packsim_banner';
+  | 'packsim_banner'
+  // 작가 화면에서 포켓몬 이름으로 "이걸 그린 작가"를 찾아 결과가 나온 횟수.
+  | 'artist_by_pokemon';
 // label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
 export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;

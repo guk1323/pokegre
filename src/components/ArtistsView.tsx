@@ -46,6 +46,58 @@ function thumb(url: string, w: number): string {
   return `/api/img?u=${encodeURIComponent(url)}&w=${w}`;
 }
 
+// "이 포켓몬을 그린 작가"를 찾는다.
+//
+// public/artists/by-card.json은 { 카드이름(영어): [작가번호, …] } 꼴이다(작가번호는
+// index.json의 순서). 작가 파일 389개를 다 열지 않으려고 미리 뒤집어 둔 목록이다
+// (scripts/gen-artist-by-card.mts).
+//
+// ⚠️ 통째로 같은지 보면 안 된다. 카드 이름엔 변형이 붙는다 — "Pikachu VMAX" ·
+//    "Absol-EX" · "Aegislash V". "피카츄"를 친 사람은 그것들도 다 보고 싶어 한다.
+// ⚠️ 아포스트로피가 두 종류다. 우리 사전은 Farfetch’d(U+2019), 작가 데이터는
+//    Farfetch'd(U+0027). 안 맞추면 파오리·창파나이트가 통째로 안 나온다(실측 2026-08-04).
+const normName = (s: string) => s.toLowerCase().replace(/[‘’ʼ`´]/g, "'").trim();
+
+// 받침이 있으면 "을", 없으면 "를". "파오리을(를)"처럼 두 개를 다 적으면 읽기 나쁘다.
+// 한글이 아닌 이름(영문·숫자)은 판단할 수 없으니 "를"로 둔다.
+function objectParticle(word: string): string {
+  const last = word.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return '를';
+  return (code - 0xac00) % 28 === 0 ? '를' : '을';
+}
+
+/** by-card.json — c: 카드이름(영어) → 작가번호, k: 한글 → 영어 대조표. */
+interface ByCard {
+  c: Record<string, number[]>;
+  k: Record<string, string>;
+}
+
+function artistsWhoDrew(
+  byCard: ByCard,
+  index: ArtistIndexEntry[],
+  raw: string,
+): { label: string; artists: ArtistIndexEntry[] } | null {
+  const typed = normName(raw);
+  if (typed.length < 2) return null;
+  // ⚠️ 한글 대조표는 by-card.json이 같이 들고 온다.
+  //    koreanizeEnglishTitle의 CARD_NAME_KO_TO_EN을 쓰려다 실패했다 — 그건 "카드명"
+  //    사전이라 "피카츄 ★"는 있어도 그냥 "피카츄"가 없다(1,524개 중 0개, 2026-08-04 확인).
+  const en = normName(byCard.k[raw.trim()] || raw);
+  const hits = new Set<number>();
+  for (const [name, artists] of Object.entries(byCard.c)) {
+    const n = normName(name);
+    if (!n.includes(en) && !n.includes(typed)) continue;
+    for (const a of artists) hits.add(a);
+  }
+  if (!hits.size) return null;
+  // 화면에는 사람이 친 말을 그대로 되돌려 준다("피카츄를 그린 작가 67명입니다").
+  return {
+    label: raw.trim(),
+    artists: index.filter((_, i) => hits.has(i)),
+  };
+}
+
 // 일러스트레이터 화면 공용 검색 입력(🔍 + 지우기 X). 작가 찾기·작가 카드 안 검색 둘 다 씀.
 function SearchInput({
   value,
@@ -96,6 +148,9 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
   const [query, setQuery] = useState('');
   // 작가 한 명의 카드가 수백 장이라, 그 안에서 포켓몬명(한글·영어)으로 거르는 검색.
   const [cardQuery, setCardQuery] = useState('');
+  // "이 포켓몬을 그린 작가"를 찾는 거꾸로 된 목록. 102KB라 목록 화면에 들어올 때만 받는다
+  // (홈 첫 화면과는 무관하다). 못 받아도 작가 이름 검색은 그대로 된다.
+  const [byCard, setByCard] = useState<ByCard | null>(null);
 
   const indexRef = useRef<ArtistIndexEntry[] | null>(null);
   indexRef.current = index;
@@ -149,6 +204,15 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
       });
   };
   useEffect(loadIndex, []);
+
+  // "이 포켓몬을 그린 작가" 목록. 목록 화면에 들어올 때 한 번만 받는다.
+  // 실패해도 아무 말 안 한다 — 작가 이름 검색은 그대로 되고, 포켓몬 검색만 안 될 뿐이다.
+  useEffect(() => {
+    void fetch('/artists/by-card.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: ByCard | null) => setByCard(d && d.c ? d : null))
+      .catch(() => undefined);
+  }, []);
 
   function openArtist(a: ArtistIndexEntry) {
     trackEvent('artist', a.en);
@@ -301,7 +365,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="작가 찾기 (Arita, 아리타)"
+            placeholder="작가 이름 또는 포켓몬 (아리타, 피카츄)"
             className="w-full flex-shrink-0 sm:w-60 md:w-72"
           />
         )}
@@ -324,28 +388,56 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
       ) : index.length === 0 ? (
         <p className="py-16 text-center text-sm text-neutral-400">작가 데이터를 준비 중입니다.</p>
       ) : (
-        <ArtistList index={index} query={query} onOpen={openArtist} />
+        <ArtistList index={index} query={query} byCard={byCard} onOpen={openArtist} />
       )}
     </div>
   );
 }
 
-// 작가 목록 + 이름 검색. 영어명·한글명 아무거나 일부만 쳐도 걸러진다.
+// 작가 목록 + 검색. 작가 이름(영·한)뿐 아니라 포켓몬 이름으로도 찾는다.
+//
+// ⚠️ 작가 이름으로 먼저 찾고, 하나도 안 걸릴 때만 포켓몬으로 본다. 반대로 하면
+//    "미츠히로 아리타"를 치는 사람이 엉뚱한 카드 목록을 보게 된다.
 function ArtistList({
   index,
   query,
+  byCard,
   onOpen,
 }: {
   index: ArtistIndexEntry[];
   query: string;
+  byCard: ByCard | null;
   onOpen: (a: ArtistIndexEntry) => void;
 }) {
   const q = query.trim().toLowerCase();
-  const filtered = q ? index.filter((a) => a.en.toLowerCase().includes(q) || a.ko.toLowerCase().includes(q)) : index;
+  const byName = q ? index.filter((a) => a.en.toLowerCase().includes(q) || a.ko.toLowerCase().includes(q)) : index;
+  // 작가 이름으로 못 찾았을 때만 "이 포켓몬을 그린 사람"으로 넘어간다.
+  const pokemonHit = q && byName.length === 0 && byCard ? artistsWhoDrew(byCard, index, query) : null;
+  const filtered = pokemonHit ? pokemonHit.artists : byName;
+
+  // 포켓몬으로 찾아 결과가 나온 검색만 센다. 이 기능을 실제로 쓰는지 봐야 유지할지
+  // 판단할 수 있다. 타이핑 도중에 여러 번 세지 않도록 검색어가 바뀔 때 한 번만 센다.
+  const countedRef = useRef('');
+  useEffect(() => {
+    if (!pokemonHit || pokemonHit.artists.length === 0) return;
+    if (countedRef.current === q) return;
+    countedRef.current = q;
+    trackEvent('artist_by_pokemon');
+  }, [q, pokemonHit]);
+
   return (
     <>
+      {pokemonHit && pokemonHit.artists.length > 0 && (
+        <p className="mb-3 text-sm text-neutral-600">
+          <span className="font-bold text-black">{pokemonHit.label}</span>
+          {objectParticle(pokemonHit.label)} 그린 작가 {pokemonHit.artists.length}명입니다.
+        </p>
+      )}
       {filtered.length === 0 ? (
-        <p className="py-16 text-center text-sm text-neutral-400">'{query}'에 맞는 작가가 없습니다.</p>
+        // 작가 이름으로도, 포켓몬으로도 못 찾았을 때. 둘 다 되는 칸이므로 둘 다 알려 준다.
+        <p className="py-16 text-center text-sm text-neutral-400">
+          '{query}'에 맞는 작가가 없습니다. 포켓몬 이름으로도 찾을 수 있습니다.
+        </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((a) => (
