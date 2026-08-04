@@ -2102,6 +2102,9 @@ let pptDailyLeftDay = ''
 // PPT 유료 플랜(월 $10)의 하루치. 한국시간 오전 9시(UTC 0시)에 다시 찬다.
 const PPT_DAILY_LIMIT = 20_000
 const PPT_KEEP_FOR_VISITORS = 8000
+// 크레딧이 이 선을 지날 때 로그를 한 번 남긴다. 8,000은 뒤에서 도는 채우기가 멈추는 선,
+// 5,000은 운영자가 정한 "이 아래로는 쓰지 않는다"는 선이다.
+const PPT_ALERT_LINES = [PPT_KEEP_FOR_VISITORS, 5000, 2000] as const
 
 // ⚠️ 위 세 값은 메모리에만 있으면 배포할 때마다 지워진다. 그러면 "남은 크레딧을 아직
 //    모른다(=무한대)" 상태로 다시 시작해 방문자 몫 8,000을 지키는 검사가 통과되고,
@@ -2199,6 +2202,15 @@ function notePpt(status: number, headers: Headers) {
 function notePptInner(status: number, headers: Headers) {
   const left = Number(headers.get('x-ratelimit-daily-remaining'))
   if (Number.isFinite(left)) {
+    // ⚠️ 크레딧이 어디로 갔는지 로그에 아무것도 안 남아 있었다. 그래서 새벽에 400쯤
+    //    줄어든 걸 보고도 누가 썼는지 끝내 못 밝혔다(2026-08-05). 매번 찍으면 시끄러우니
+    //    "넘으면 안 되는 선"을 지날 때만 한 번씩 남긴다. 이게 운영자가 제일 알고 싶은 것이다.
+    const before = pptLeftNow()
+    for (const line of PPT_ALERT_LINES) {
+      if (before > line && left <= line) {
+        console.log(`[pokegre] PPT 크레딧이 ${line.toLocaleString()} 아래로 내려갔습니다: 남은 ${left.toLocaleString()}`)
+      }
+    }
     pptDailyLeft = left
     pptDailyLeftDay = utcDay()
   }
