@@ -802,7 +802,21 @@ function App() {
       // 결과가 실제로 나온 검색어만 집계한다. 오타·존재하지 않는 카드처럼 결과가 0인
       // 문자열이 인기 검색어를 오염시키는 걸 막는다.
       const r = searchResultRef.current;
-      if (r.query !== trimmed || r.count === 0) return;
+      // ⚠️ 결과가 0건이어도 이베이·TCGplayer는 이미 크레딧을 썼다(한 번에 36). 여기서
+      //    그냥 돌아가면 그 돈이 통계에 한 줄도 안 남는다. 실제로 2026-08-05 새벽에
+      //    "이베이 0번"인데 크레딧만 줄어 원인을 못 찾고 헤맸다.
+      //    인기 검색어에는 안 올리되(오타가 순위를 더럽히면 안 되니까), 어느 소스를
+      //    몇 번 불렀는지는 결과와 상관없이 센다.
+      if (r.query !== trimmed) return;
+      if (r.count === 0) {
+        if (r.source === 'ebay' || r.source === 'tcgplayer') {
+          if (trackedQueryRef.current !== trimmed) {
+            trackedQueryRef.current = trimmed;
+            trackEvent(r.source === 'ebay' ? 'ebay_search' : 'tcgplayer');
+          }
+        }
+        return;
+      }
       // 결과는 여러 번 도착할 수 있다(소스를 바꾸거나 "다시 시도"). 한 번만 센다.
       if (trackedQueryRef.current === trimmed) return;
       trackedQueryRef.current = trimmed;
