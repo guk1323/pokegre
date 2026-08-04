@@ -4289,6 +4289,17 @@ function dayDiff(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400_000)
 }
 
+// GP를 주되 상한을 넘겨 쌓지는 않는다.
+//
+// ⚠️ 그냥 `Math.min(MAX_BALANCE, 잔액 + 보상)`으로 쓰면 안 된다. 잔액이 이미 상한보다
+//    많을 때 보상을 주면 오히려 상한까지 깎여, 출석·자랑이 GP를 빼앗는 셈이 된다
+//    (2026-08-04에 잔액 355,500인 계정이 자랑하고 55,500을 잃는 걸 확인했다).
+//    지금 정상 플레이로는 상한을 못 넘지만, 상한을 낮추거나 예전 백업을 되돌리면
+//    그 순간 실제로 사라진다. 주는 함수는 절대 잔액을 줄이지 않아야 한다.
+function capAdd(balance: number, reward: number): number {
+  return Math.max(balance, Math.min(MAX_BALANCE, balance + reward))
+}
+
 // 세트 카드 목록은 정적 파일이라 한 번 읽어 캐시한다. 배포본은 dist/, 개발은 public/에 있다.
 // rarityAlias가 있으면 여기서 등급 이름을 표준으로 바꾼다 — 원본 세트 파일은 그대로 두고
 // 뽑기·앨범만 통일된 이름을 쓴다(세트 화면 표기는 원본 그대로 유지).
@@ -5313,7 +5324,7 @@ function mountAuth(
         // 잔액 상한에 걸리면 준 만큼 다 들어가지 않는다. 실제로 늘어난 만큼만 알린다
         // (안 들어온 GP를 "받았습니다"라고 하면 숫자가 안 맞아 보인다).
         const before = store.balance
-        store.balance = Math.min(MAX_BALANCE, store.balance + reward)
+        store.balance = capAdd(store.balance, reward)
         const gained = store.balance - before
         store.lastCheckIn = today
         await persistPacksim()
@@ -5564,6 +5575,20 @@ function mountAuth(
           sendJson(res, 400, { error: 'no pack' })
           return
         }
+        // 카드·등급·갓팩 여부는 서버가 기억하는 값만 쓴다(조작 불가). 한글 이름 표기만
+        // 화면이 보내준다 — 서버에 번역기를 들이는 것보다 가볍고, 이름은 표기일 뿐이라
+        // 속여도 자기 자랑글이 이상해질 뿐이다. 길이만 자르고 줄바꿈은 뗀다.
+        //
+        // ⚠️ 이 읽기·해석은 반드시 아래 shared=true보다 먼저 와야 한다. 뒤에 두면 본문이
+        //    깨져 들어왔을 때 자리는 이미 잡힌 채로 터져서, 글은 안 올라가고 자랑 기회만
+        //    사라진다(되돌리는 코드가 아직 만들어지기 전이다).
+        let body: { names?: unknown; comment?: unknown; title?: unknown }
+        try {
+          body = JSON.parse((await readBody(req)) || '{}')
+        } catch {
+          sendJson(res, 400, { error: 'bad body' })
+          return
+        }
         // 아래로는 await가 여러 번 나온다. 그 사이에 같은 요청이 또 들어오면(등록 버튼
         // 두 번 클릭) 글이 두 개 올라가고 보상도 두 번 나간다. 그래서 자리를 먼저
         // 잡아 두고, 등록에 실패하면 되돌린다.
@@ -5575,7 +5600,7 @@ function mountAuth(
         let gained = 0
         if (prevShareDay !== today) {
           const before = store.balance
-          store.balance = Math.min(MAX_BALANCE, store.balance + SHARE_BONUS)
+          store.balance = capAdd(store.balance, SHARE_BONUS)
           gained = store.balance - before
           store.lastShareDay = today
         }
@@ -5586,10 +5611,6 @@ function mountAuth(
             store.lastShareDay = prevShareDay
           }
         }
-        // 카드·등급·갓팩 여부는 서버가 기억하는 값만 쓴다(조작 불가). 한글 이름 표기만
-        // 화면이 보내준다 — 서버에 번역기를 들이는 것보다 가볍고, 이름은 표기일 뿐이라
-        // 속여도 자기 자랑글이 이상해질 뿐이다. 길이만 자르고 줄바꿈은 뗀다.
-        const body = JSON.parse((await readBody(req)) || '{}') as { names?: unknown; comment?: unknown; title?: unknown }
         const nameOf = new Map<string, string>()
         if (body.names && typeof body.names === 'object') {
           for (const [k, v] of Object.entries(body.names as Record<string, unknown>)) {
@@ -5619,6 +5640,15 @@ function mountAuth(
             return base ? { ...base, r: lc.r ?? base.r, m: lc.m } : null
           })
           .filter((c): c is NonNullable<typeof c> => !!c)
+        // ⚠️ 한 장도 못 맞추면 아래 best가 undefined가 되어 제목을 만들다 터진다. 그런데
+        //    위에서 이미 shared=true로 자리를 잡아 뒀으므로, 되돌리지 않으면 글은 안
+        //    올라가고 자랑 기회만 영영 사라진다. 카드 번호가 안 맞는 건 세트 자료가
+        //    바뀐 뒤(배포 직후) 예전에 연 팩을 자랑할 때 생긴다.
+        if (!drawn.length) {
+          rollback()
+          sendJson(res, 400, { error: 'no pack' })
+          return
+        }
         const mLabel = (m?: MirrorFlag) => (m === 'master' ? ' (마스터볼 미러)' : m === 'poke' ? ' (몬스터볼 미러)' : m === 'rev' ? ' (리버스)' : '')
         const koN = (c: { n: string; name: string; m?: MirrorFlag }) => (nameOf.get(c.n) || c.name) + mLabel(c.m)
         const best = drawn.reduce((a, b) => ((rank[b.r ?? ''] ?? 0) > (rank[a.r ?? ''] ?? 0) ? b : a), drawn[0])
