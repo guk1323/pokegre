@@ -356,6 +356,11 @@ export function MyPage({
 }) {
   return (
     <>
+      {/* ⚠️ 이 화면에만 제목이 없었다(운영자 지적 2026-08-05). 다른 화면은 다 "여기가
+          어디인지"를 먼저 알려주는데 마이페이지만 바로 "최근 본 카드"부터 시작했다.
+          로그인 뒤 이리로 튕겨 들어오면 어디인지 알 길이 없다.
+          크기는 다른 화면 제목과 같은 18px(text-lg)이다. */}
+      <h2 className="mb-4 text-lg font-bold text-black">마이페이지</h2>
       <AccountCard
         loggedIn={loggedIn}
         nickname={nickname}

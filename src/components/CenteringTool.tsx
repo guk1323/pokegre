@@ -475,7 +475,7 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
   return (
     <div>
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="text-base font-bold text-black">센터링 측정</h2>
+        <h2 className="text-lg font-bold text-black">센터링 측정</h2>
         <button
           type="button"
           onClick={() => setHowto((v) => !v)}

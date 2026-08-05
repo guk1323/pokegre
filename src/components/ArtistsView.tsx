@@ -431,6 +431,15 @@ function ArtistList({
   // 작가 이름으로 못 찾았을 때만 "이 포켓몬을 그린 사람"으로 넘어간다.
   const pokemonHit = q && byName.length === 0 && byCard ? artistsWhoDrew(byCard, index, query) : null;
   const filtered = pokemonHit ? pokemonHit.artists : byName;
+  // ⚠️ 388명을 한 번에 펴면 폰에서 22화면(17,968px)이 된다(운영자 지적 2026-08-05).
+  //    처음엔 40명만 보이고 눌러서 늘린다. 찾는 사람은 위 검색칸을 쓰고, 훑는 사람은
+  //    필요한 만큼만 늘린다. 검색 중일 때는 결과를 자르지 않는다 — 찾으려던 사람이
+  //    "없다"고 오해한다.
+  const 한번에 = 40;
+  const [보임, set보임] = useState(한번에);
+  useEffect(() => set보임(한번에), [query]);
+  const 볼목록 = query.trim() ? filtered : filtered.slice(0, 보임);
+  const 더있음 = 볼목록.length < filtered.length;
 
   // 포켓몬으로 찾아 결과가 나온 검색만 센다. 이 기능을 실제로 쓰는지 봐야 유지할지
   // 판단할 수 있다. 타이핑 도중에 여러 번 세지 않도록 검색어가 바뀔 때 한 번만 센다.
@@ -461,7 +470,7 @@ function ArtistList({
         //    2열로 바꾸면 줄 수가 반으로 줄고 빈칸도 없어진다. 그림은 조금 줄여
         //    좁아진 칸에 이름이 들어갈 자리를 남긴다.
         <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((a) => (
+          {볼목록.map((a) => (
             <button
               key={a.slug}
               type="button"
@@ -493,6 +502,17 @@ function ArtistList({
               </span>
             </button>
           ))}
+        </div>
+      )}
+      {더있음 && (
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            onClick={() => set보임((n) => n + 한번에)}
+            className="rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+          >
+            더 보기 <span className="text-neutral-400">({볼목록.length} / {filtered.length}명)</span>
+          </button>
         </div>
       )}
     </>

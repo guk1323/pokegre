@@ -479,6 +479,30 @@ export function SetsView({
     else groups.push({ serie: key, sets: [s] });
   }
 
+  // ⚠️ 세트 157개를 한 번에 펴면 폰에서 17.7화면(14,387px)이 된다(운영자 지적
+  //    2026-08-05). 시리즈 묶음 단위로 잘라 처음엔 6묶음만 보이고, 눌러서 늘린다.
+  //    ⚠️ 세트를 세지 않고 **시리즈를 센다**. 세트로 자르면 묶음 가운데가 잘려
+  //       "이 시리즈는 세트가 3개뿐인가?" 하고 오해한다.
+  //    ⚠️ 찾는 중일 때는 안 자른다 — 찾으려던 세트가 잘리면 "없다"고 오해한다.
+  //    ⚠️ 묶음 개수로 자르면 안 된다. 시리즈마다 세트 수가 3개에서 30개까지 제각각이라,
+  //       6묶음만 남겨도 14화면이었다(실측). **세트 수**로 세되 묶음은 안 쪼갠다.
+  const 세트한번에 = 30;
+  const [세트보임, set세트보임] = useState(세트한번에);
+  useEffect(() => set세트보임(세트한번에), [q, tab]);
+  const 볼묶음 = (() => {
+    if (q.trim()) return groups;
+    const out: typeof groups = [];
+    let n = 0;
+    for (const g of groups) {
+      if (out.length && n >= 세트보임) break;
+      out.push(g);
+      n += g.sets.length;
+    }
+    return out;
+  })();
+  const 남은묶음 = groups.length - 볼묶음.length;
+  const 남은세트 = groups.slice(볼묶음.length).reduce((n, g) => n + g.sets.length, 0);
+
   return (
     <div className="mx-auto max-w-6xl">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -523,7 +547,10 @@ export function SetsView({
             key={e}
             type="button"
             onClick={() => setTab(e)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${tab === e ? 'bg-black text-white' : 'text-neutral-600'}`}
+            // ⚠️ 폰에서 손가락으로 누르기엔 24px이 작았다(운영자 지적 2026-08-05).
+            //    위아래 여백을 4px → 10px로 올려 40px로 만든다 — 상단 메뉴(홈·커뮤니티)와
+            //    같은 크기다. 권장 최소가 44px이라 그 언저리다.
+            className={`rounded-full px-3.5 py-2.5 text-xs font-semibold ${tab === e ? 'bg-black text-white' : 'text-neutral-600'}`}
           >
             {label}
           </button>
@@ -562,7 +589,7 @@ export function SetsView({
           <p className="mt-1 text-xs text-neutral-400">다른 이름으로 찾아보세요.</p>
         </div>
       ) : (
-        groups.map((grp) => (
+        볼묶음.map((grp) => (
           <section key={grp.serie} id={`serie-${serieSlug(grp.serie)}`} className="mb-8 scroll-mt-24">
             {/* 시리즈 헤더 */}
             <div className="mb-3 flex items-baseline gap-2">
@@ -605,6 +632,17 @@ export function SetsView({
             </div>
           </section>
         ))
+      )}
+      {남은묶음 > 0 && (
+        <div className="mt-2 text-center">
+          <button
+            type="button"
+            onClick={() => set세트보임((n) => n + 세트한번에)}
+            className="rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+          >
+            더 보기 <span className="text-neutral-400">(세트 {남은세트}개 · 시리즈 {남은묶음}개 남음)</span>
+          </button>
+        </div>
       )}
     </div>
   );

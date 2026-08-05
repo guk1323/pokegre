@@ -89,7 +89,7 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
   return (
     <section className="mt-3">
       <div className="mb-2 flex items-baseline gap-2">
-        <p className="text-xs font-bold text-neutral-700">이번 주 TOP 5</p>
+        <p className="text-base font-bold text-neutral-900">이번 주 TOP 5</p>
         <p className="text-[11px] text-neutral-400">시세가 높은 순</p>
       </div>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-5 sm:gap-3">

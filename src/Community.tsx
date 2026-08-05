@@ -79,7 +79,7 @@ function PostList({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-bold text-black">{heading}</h2>
+        <h2 className="text-lg font-bold text-black">{heading}</h2>
         {/* 비로그인이어도 글쓰기 버튼은 보여준다 — 누르면 로그인 모달이 뜨므로,
             버튼을 숨겨서 "왜 글을 못 쓰지?" 하게 만드는 것보다 낫다. */}
         <button
