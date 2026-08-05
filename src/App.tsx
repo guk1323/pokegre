@@ -91,6 +91,10 @@ const VIEW_PATH: Partial<Record<MainView, string>> = {
 //    보다 홈으로 와도 탭에는 "커뮤니티 | pokegre"였고, 카드를 보다 검색을 지워도
 //    탭에는 그 카드 이름이 남았다. 없애려면 새로고침밖에 없었다 — 서버가 보낸
 //    제목을 앱이 한 번도 고치지 않았기 때문이다.
+// ⚠️ 주소(VIEW_PATH)와 달리 **제목은 모든 화면에 적는다**. 주소는 서버가 아는 것만
+//    적을 수 있지만, 제목은 서버와 무관하게 앱이 정하면 된다. 마이페이지·운영자
+//    화면을 빼놨더니 거기 들어가도 탭에는 직전 화면 이름이 그대로 남았다
+//    (2026-08-05 배포 전 점검에서 발견 — 고친 버그가 이 다섯 화면에만 남아 있었다).
 const HOME_TITLE = '포켓몬 카드 시세 | pokegre — 포켓몬 카드의 모든 것';
 const VIEW_TITLE: Partial<Record<MainView, string>> = {
   cards: HOME_TITLE,
@@ -99,6 +103,11 @@ const VIEW_TITLE: Partial<Record<MainView, string>> = {
   centering: '포켓몬 카드 센터링 측정 | pokegre',
   packsim: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
   community: '커뮤니티 | pokegre',
+  mypage: '마이페이지 | pokegre',
+  reports: '신고함 | pokegre',
+  stats: '방문 통계 | pokegre',
+  scantest: '스캔 테스트 | pokegre',
+  flea: '플리마켓 | pokegre',
 };
 
 // 카드 이름을 탭 제목에 쓸 만큼만 다듬는다. 서버(server/index.ts의 shareName)와 같은
