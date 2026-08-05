@@ -431,7 +431,7 @@ function PostForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <h2 className="text-base font-bold text-black mb-4">{mode === 'edit' ? '글 수정' : '글쓰기'}</h2>
+      <h2 className="mb-4 text-lg font-bold text-black">{mode === 'edit' ? '글 수정' : '글쓰기'}</h2>
       <div className="space-y-3">
         <div className="flex gap-1.5">
           {WRITABLE_CATEGORIES.map((c) => (
@@ -464,6 +464,13 @@ function PostForm({
               </span>
             </span>
           </label>
+        )}
+        {/* ⚠️ 비밀글을 다른 게시판으로 옮기면 비밀이 풀린다. 체크박스가 소리 없이 사라질
+            뿐이라, 글쓴이는 저장하고 나서야 공개된 걸 안다. 그래서 저장 전에 말해 준다. */}
+        {initialSecret && category !== 'suggestion' && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700">
+            건의가 아닌 게시판으로 옮기면 비밀글이 풀려 누구나 볼 수 있습니다.
+          </p>
         )}
         <input
           type="text"

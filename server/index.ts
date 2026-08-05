@@ -140,6 +140,16 @@ setInterval(() => void backupDataFiles(), 24 * 60 * 60 * 1000).unref()
 // 사람에게는 이 HTML이 곧 SPA를 띄우고, 클라이언트가 /c/<id>를 읽어 그 카드를 검색해 준다.
 const TEMPLATE = readFileSync(path.join(DIST, 'index.html'), 'utf-8')
 
+// 서버가 만들어 보내는 HTML은 전부 이걸 쓴다.
+//
+// ⚠️ 예전엔 10~60분(`public, max-age=600/3600`) 캐시였는데, 이러면 배포 뒤에 사고가 난다.
+//    HTML 안에는 `assets/index-<해시>.js` 주소가 박혀 있고 배포하면 그 파일이 없어진다.
+//    /set/... 같은 주소를 보고 갔던 사람이 그 시간 안에 다시 들어오면, 브라우저가 옛 HTML을
+//    캐시에서 꺼내 없어진 파일을 찾다가 흰 화면을 본다(2026-08-05 점검에서 발견).
+//    아래 express.static도 .html은 같은 이유로 no-cache다 — 서버가 만든 HTML만 빠져 있었다.
+//    no-cache는 "안 쓴다"가 아니라 "쓰기 전에 물어본다"라서, 안 바뀌었으면 304로 끝난다.
+const HTML_CACHE = 'no-cache'
+
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -299,7 +309,7 @@ app.get('/set/:slug', async (req, res) => {
   // 빼면 그 세트만 구글용 페이지가 안 나가고 홈으로 떨어진다(2026-08-01 실측).
   // /는 여전히 막으므로 다른 폴더로 새 나갈 수 없다.
   if (!/^[\w.+-]+$/.test(slug)) {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   let setName = ''
@@ -312,7 +322,7 @@ app.get('/set/:slug', async (req, res) => {
     setName = koSet(ed, d.name ?? '')
     cards = d.cards ?? []
   } catch {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   const hits = topPricedCards(slug, 8)
@@ -352,7 +362,7 @@ app.get('/set/:slug', async (req, res) => {
       : `<p>${esc(setName)} 수록 카드 ${cards.length}장.</p>`
   }<p><a href="/set/${esc(slug)}">${esc(setName)} 전체 카드 보기</a></p></div>`
   html = html.replace('<body>', `<body>${body}`)
-  res.set('Cache-Control', 'public, max-age=600').send(html)
+  res.set('Cache-Control', HTML_CACHE).send(html)
 })
 
 // ── 일러스트레이터 페이지(/artist/<슬러그>) ────────────────────────────────
@@ -362,19 +372,19 @@ app.get('/set/:slug', async (req, res) => {
 app.get('/artist/:slug', async (req, res) => {
   const slug = String(req.params.slug ?? '')
   if (!/^[\w.-]+$/.test(slug)) {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   let a: { en?: string; ko?: string; note?: string; era?: string; count?: number; cards?: { name: string; set?: string }[] }
   try {
     a = JSON.parse(await readFile(path.join(DIST, 'artists', `${slug}.json`), 'utf-8'))
   } catch {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   const name = (a.ko || a.en || '').trim()
   if (!name) {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   const shown = (a.cards ?? []).slice(0, 12).map((c) => koreanizeEnglishCardName(c.name))
@@ -396,7 +406,7 @@ app.get('/artist/:slug', async (req, res) => {
     `${a.era ? ` 활동 시기 ${esc(a.era)}.` : ''}${a.note ? ` ${esc(a.note)}.` : ''}</p>` +
     `<ul>${list}</ul></div>`
   html = html.replace('<body>', `<body>${body}`)
-  res.set('Cache-Control', 'public, max-age=3600').send(html)
+  res.set('Cache-Control', HTML_CACHE).send(html)
 })
 
 // ── 시리즈 페이지(/series/<슬러그>) ────────────────────────────────────────
@@ -407,19 +417,19 @@ app.get('/series/:slug', async (req, res) => {
   // serieSlug가 한글·가나·한자를 살려 두기 때문이다 — 영문으로 억지로 옮기면
   // 사람이 주소만 보고 무슨 시리즈인지 알 수 없다. /는 여전히 막는다.
   if (!/^[\w가-힣ぁ-んァ-ヶー・一-鿿.-]+$/.test(slug)) {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   let idx: { slug: string; name: string; ed?: 'ja' | 'en'; serie?: string; count?: number; releaseDate?: string }[]
   try {
     idx = JSON.parse(await readFile(path.join(DIST, 'sets', 'index.json'), 'utf-8'))
   } catch {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   const sets = idx.filter((s) => serieSlug(s.serie ?? '') === slug)
   if (!sets.length) {
-    res.status(404).send(TEMPLATE)
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   const serieKo = koSet(sets[0].ed ?? 'ja', sets[0].serie ?? '')
@@ -447,7 +457,7 @@ app.get('/series/:slug', async (req, res) => {
   const body = `<div id="seo-fallback"><h1>${esc(serieKo)} 세트 목록</h1>` +
     `<p>${esc(serieKo)} 시리즈는 세트 ${sets.length}개, 카드 ${cards}장입니다.</p><ul>${list}</ul></div>`
   html = html.replace('<body>', `<body>${body}`)
-  res.set('Cache-Control', 'public, max-age=3600').send(html)
+  res.set('Cache-Control', HTML_CACHE).send(html)
 })
 
 // ── 센터링 도구(/centering) ───────────────────────────────────────────────
@@ -468,7 +478,7 @@ app.get('/centering', (_req, res) => {
     'PSA·CGC 감정에서 센터링은 등급을 가르는 큰 기준이라, 보내기 전에 미리 가늠해 볼 수 있습니다.</p>' +
     '<p>사진은 브라우저 안에서만 처리하고 서버에 저장하지 않습니다.</p></div>'
   html = html.replace('<body>', `<body>${body}`)
-  res.set('Cache-Control', 'public, max-age=3600').send(html)
+  res.set('Cache-Control', HTML_CACHE).send(html)
 })
 
 // ── 카테고리 대문(/sets · /artists · /packsim · /community) ────────────────
@@ -516,7 +526,7 @@ app.get('/sets', async (_req, res) => {
       return `<h2><a href="/series/${esc(serieSlug(serie))}">${esc(이름)}</a></h2><ul>${li}</ul>`
     })
     .join('')
-  res.set('Cache-Control', 'public, max-age=3600').send(
+  res.set('Cache-Control', HTML_CACHE).send(
     seoPage({
       title: '포켓몬 카드 세트 목록 | pokegre',
       desc: `일본판·북미판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장을 한국어 이름으로 봅니다. 세트마다 값이 높은 카드도 함께 보여줍니다.`,
@@ -546,7 +556,7 @@ app.get('/artists', async (_req, res) => {
       return `<li><a href="/artist/${esc(a.slug)}">${esc(이름)}</a>${덧 ? ` ${esc(덧)}` : ''}</li>`
     })
     .join('')
-  res.set('Cache-Control', 'public, max-age=3600').send(
+  res.set('Cache-Control', HTML_CACHE).send(
     seoPage({
       title: '포켓몬 카드 일러스트레이터 | pokegre',
       desc: `일러스트레이터 ${artists.length}명이 그린 카드 ${장수.toLocaleString()}장을 작가별로 모아 봅니다.`,
@@ -570,7 +580,7 @@ app.get('/packsim', (_req, res) => {
         `<li><a href="/set/${esc(p.slug)}">${esc(p.label)}</a> ${p.price.toLocaleString()} GP</li>`,
     )
     .join('')
-  res.set('Cache-Control', 'public, max-age=600').send(
+  res.set('Cache-Control', HTML_CACHE).send(
     seoPage({
       title: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
       desc: '실제 봉입률에 맞춰 포켓몬 카드 팩을 열어 봅니다. 상품은 매일 자정에 새롭게 갱신됩니다.',
@@ -589,7 +599,7 @@ app.get('/packsim', (_req, res) => {
 //    책임질 수 없는 내용까지 색인된다(신고 처리보다 색인이 먼저 된다).
 //    게시판이 뭐가 있는지만 적는다.
 app.get('/community', (_req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600').send(
+  res.set('Cache-Control', HTML_CACHE).send(
     seoPage({
       title: '커뮤니티 | pokegre',
       desc: '포켓몬 카드 자랑·질문·거래 이야기를 나누는 곳입니다.',
@@ -628,6 +638,9 @@ app.use('/api', (_req, res) => {
 // app.get('*')가 예전처럼 동작하지 않으므로 미들웨어로 받는다.
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+  // 여기도 캐시 정책을 적어야 한다. 안 적으면 브라우저가 파일 수정시각을 보고 제멋대로
+  // 정하는데(휴리스틱), 그 사이 배포하면 없어진 번들을 찾아 흰 화면이 된다.
+  res.set('Cache-Control', HTML_CACHE)
   res.sendFile(path.join(DIST, 'index.html'))
 })
 
