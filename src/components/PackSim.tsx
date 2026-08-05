@@ -1410,6 +1410,7 @@ export function PackSim({
                   onFlip={() => undefined}
                   name={koName(cfg.jp, c.name)}
                   showTier
+                  eager={false}
                   price={c.usd && rates ? formatKrwApprox(c.usd * rates.usdToKrw) : undefined}
                   picking={!keptDone}
                   picked={keep.has(c.i)}
@@ -1936,6 +1937,7 @@ function CardSlot({
   onPick,
   showTier,
   price,
+  eager,
 }: {
   card: PackCard & { usd?: number };
   jp: boolean;
@@ -1956,6 +1958,13 @@ function CardSlot({
   showTier?: boolean;
   /** 카드 밑에 적을 값(원화). 시세를 아직 못 받은 카드는 안 준다. */
   price?: string;
+  /**
+   * 그림을 지금 당장 받을지. 개봉 중에는 true — 뒤집는 순간 바로 떠야 한다.
+   * ⚠️ 결과 정리에서는 false로 준다. 박스는 결과가 150~360장이라, 전부 지금 받으면
+   *    폰에서 화면이 한참 멈춘다(2026-08-05 점검에서 잡음 — 등급별 접기를 없애면서
+   *    예전엔 접혀 있던 커먼까지 한꺼번에 받게 됐다).
+   */
+  eager?: boolean;
 }) {
   const meta = RARITY[card.r ?? ''] ?? RARITY.Common;
   // 빛남은 "지금 시세"로 정한다.
@@ -1983,7 +1992,14 @@ function CardSlot({
                 // ⚠️ lazy를 쓰면 안 된다. 뒤집는 순간에야 받기 시작해서 회색 칸이 잠깐 보인다
                 //    (사용자 지적 2026-08-04). 뒷면을 보는 동안 미리 받아 두면 바로 뜬다.
                 //    한 번에 5~10장뿐이라 미리 받아도 부담이 없다.
-                <img src={thumb(card.img, 240)} alt="" fetchPriority="high" className="h-full w-full object-contain" />
+                <img
+                  src={thumb(card.img, 240)}
+                  alt=""
+                  {...(eager === false
+                    ? { loading: 'lazy' as const, decoding: 'async' as const }
+                    : { fetchPriority: 'high' as const })}
+                  className="h-full w-full object-contain"
+                />
               )}
               {/* 담김 표시. 카드 밖에 "✓ 담음/안 담음" 글자를 두면 카드마다 한 줄씩,
                   팩 10장이면 10줄이 늘어난다(실측 2026-08-04). 카드 안 배지로 옮겨

@@ -709,10 +709,14 @@ function App() {
     }
 
     // ⚠️ 한 글자로는 검색을 보내지 않는다. "리" 한 글자에도 진짜 검색이 나가고
-    //    페이지를 여러 장 넘겼다. 대신 화면은 홈 그대로 둔다(아래 isHome 참고) —
-    //    예전엔 한 글자를 치는 순간 홈이 통째로 사라지고 "검색 결과가 없습니다"만
-    //    남았다. 이 둘은 반드시 같이 가야 한다.
+    //    페이지를 여러 장 넘겼다. 화면은 위 tooShort가 "두 글자 이상" 안내로 받는다.
     if (trimmed.length < MIN_SEARCH_LEN) return;
+
+    // ⚠️ "검색 중"을 기다리기 **전에** 켠다. 예전엔 300ms 뒤에야 켰는데, 그 사이에는
+    //    검색 중도 아니고 결과도 없는 상태라 화면이 "검색 결과가 없습니다"(+인기 검색어)를
+    //    띄웠다 — 찾아보지도 않고 없다고 하는 말이었고, 곧 결과가 뜨면서 깜빡였다
+    //    (운영자 지적 2026-08-05).
+    setLoading(true);
 
     // ⚠️ 검색어가 바뀌면 앞서 나간 요청을 그 자리에서 끊는다. 없으면 앞 검색의
     //    7~9페이지와 뒤 검색의 1~4페이지가 동시에 돌았다(실측 2026-08-04).
@@ -780,6 +784,9 @@ function App() {
     }
     // 스니커덩크와 같은 기준. 한 글자로는 안 부른다 — 여기는 크레딧까지 든다.
     if (trimmed.length < MIN_SEARCH_LEN) return;
+
+    // 기다리는 동안에도 "검색 중"으로 둔다(스니커덩크 쪽 설명 참고).
+    setEbayLoading(true);
 
     const timer = setTimeout(() => {
       setEbayLoading(true);
@@ -1115,7 +1122,15 @@ function App() {
   const hasMore = !exhausted;
   // 한 글자만 친 상태도 홈으로 본다. 검색을 안 보내는데 결과 화면을 띄우면
   // "검색 결과가 없습니다"만 남아 홈이 무너진다(위 MIN_SEARCH_LEN 설명).
-  const isHome = query.trim().length < MIN_SEARCH_LEN;
+  // 홈은 **검색창이 비었을 때만** 보여준다.
+  // ⚠️ 예전엔 "두 글자 미만이면 홈"이었다. 그래서 검색어를 지우거나 고쳐 쓰다 한 글자가
+  //    되는 순간 홈이 통째로 튀어나왔다 사라졌다 — 인기 검색어·힛카드·상점이 한꺼번에
+  //    깜빡였다(운영자 지적 2026-08-05). 한 글자로는 여전히 검색을 보내지 않지만
+  //    (MIN_SEARCH_LEN), 화면은 검색 자리에 머문다.
+  const isHome = query.trim().length === 0;
+  // 아직 검색을 보내기엔 짧다. 결과 자리에 조용히 안내만 둔다.
+  // ⚠️ 여기서 "검색 결과가 없습니다"를 띄우면 안 된다 — 찾아보지도 않고 없다고 하는 말이다.
+  const tooShort = query.trim().length > 0 && query.trim().length < MIN_SEARCH_LEN;
 
   // 홈의 세로 간격은 여기 한 곳에서만 정한다(space-y-8 = 32px).
   //
@@ -1194,7 +1209,9 @@ function App() {
     <>
       {loading && <p className="text-sm text-neutral-500 mb-3">검색 중...</p>}
 
-      {error ? (
+      {tooShort ? (
+        <p className="py-10 text-center text-sm text-neutral-400">두 글자 이상 입력하면 찾아 드립니다.</p>
+      ) : error ? (
         <div className="py-12 text-center">
           <p className="text-sm text-rose-500">{error}</p>
           {/* 버튼이 없으면 검색어를 지웠다 다시 쳐야 한다 — 인터넷이 잠깐 끊긴 것뿐인데도. */}

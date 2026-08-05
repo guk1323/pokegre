@@ -103,9 +103,7 @@ export function NewSetHitCards({
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold text-neutral-900">
-          {이름} 힛카드
-        </h2>
+        <h2 className="text-base font-bold text-neutral-900">{이름} 힛카드 목록</h2>
         <button
           type="button"
           onClick={() => {
@@ -154,7 +152,6 @@ export function NewSetHitCards({
               )}
             </div>
             <p className="truncate text-[11px] font-semibold text-neutral-800">{c.ko || c.name}</p>
-            <p className="text-[11px] text-neutral-400">{c.n}번</p>
             <p className="text-xs font-bold text-black">
               {usdToKrw ? formatKrwApprox(c.usd * usdToKrw) : `$${Math.round(c.usd).toLocaleString()}`}
             </p>
