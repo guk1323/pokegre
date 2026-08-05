@@ -147,18 +147,6 @@ const boxLine = (packs: number, cards: number, jp: boolean) =>
 const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
 const groupRank = (k: string) =>
   k === 'm:master' ? 8.5 : k === 'm:poke' ? 2.6 : k === 'm:rev' ? 2.5 : rankOf(k.slice(2));
-// 묶음 머리에 찍는 등급색 점. RARITY/M_LABEL의 글자색(text-...)을 배경색(bg-...)으로 바꿔 쓴다.
-const groupDot = (k: string, jp: boolean) => {
-  void jp;
-  const cls = k.startsWith('m:')
-    ? M_LABEL[k.slice(2) as MirrorFlag].cls
-    : (RARITY[k.slice(2)] ?? RARITY.Common).cls;
-  const text = cls.split(' ').find((c) => c.startsWith('text-'));
-  return text ? text.replace('text-', 'bg-') : 'bg-neutral-300';
-};
-const groupLabel = (k: string, jp: boolean) =>
-  k.startsWith('m:') ? M_LABEL[k.slice(2) as MirrorFlag].t : rarityKo(k.slice(2), jp);
-
 // TCGdex는 확장자 없는 베이스 주소라 /high.webp를 붙여야 한다. limitless는 이미 .png다.
 const cardImg = (base: string) => (!base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`);
 const thumb = (url: string, w: number) => {
@@ -304,8 +292,6 @@ export function PackSim({
   // 구매 완료 알림. 구매 탭 맨 위에 눈에 띄게 띄우고 보관함으로 바로 갈 수 있게 한다
   // (작은 초록 글씨가 진열대 아래에 떠서 안 보인다는 피드백).
   const [buyMsg, setBuyMsg] = useState('');
-  // 결과 정리에서 펼쳐 둔 등급 묶음(커먼류는 기본으로 접혀 있다).
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   // 앨범에 넣기와 자랑하기는 서로 독립 — 넣었다고 자랑 기회가 사라지면 안 된다.
   const [keptDone, setKeptDone] = useState(false);
   // 실제로 앨범에 넣은 장수(0이면 "넘김"). 버튼 문구를 결과에 맞게 쓰려고 따로 둔다.
@@ -384,7 +370,6 @@ export function PackSim({
         setBoxInfo(cards.length > size ? Math.round(cards.length / size) : null);
         setBoxQueue(null);
         setGod(last.god);
-        setOpenGroups(new Set());
         setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
         setKeptDone(false);
         setKeptCount(null);
@@ -540,7 +525,6 @@ export function PackSim({
       setBoxQueue(null);
       // 아트레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
       setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
-      setOpenGroups(new Set());
       setKeptDone(false);
       setKeptCount(null);
       setRestoredMsg('');
@@ -608,7 +592,6 @@ export function PackSim({
       setBoxInfo(d.boxPacks ?? d.packs.length);
       setGod(!!d.god);
       setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
-      setOpenGroups(new Set());
       setKeptDone(false);
       setKeptCount(null);
       setRestoredMsg('');
@@ -846,19 +829,17 @@ export function PackSim({
   // 개봉이 진행 중인가(아직 다 안 뒤집음). 이때는 화면을 카드에 양보한다.
   const revealing = (!!pack && !allDone) || !!boxQueue;
 
-  // 결과 정리용 등급 묶음(좋은 등급이 위로).
-  const resultGroups = (() => {
-    if (!pack) return [] as { k: string; cards: UiCard[] }[];
-    const by = new Map<string, UiCard[]>();
-    for (const c of pack) {
-      const k = groupKeyOf(c);
-      const list = by.get(k);
-      if (list) list.push(c);
-      else by.set(k, [c]);
-    }
-    return [...by.entries()]
-      .map(([k, cards]) => ({ k, cards }))
-      .sort((a, b) => groupRank(b.k) - groupRank(a.k));
+  // 결과 정리 순서 — **값 높은 순**. 값을 모르는 카드는 등급 높은 순으로 뒤에 붙인다.
+  // ⚠️ 등급순으로 두면 값이 등급을 안 따라가는 카드가 묻힌다(같은 SAR인데 10배 차이).
+  //    보러 온 사람이 제일 먼저 알고 싶은 건 "얼마짜리가 나왔나"다.
+  const resultCards = (() => {
+    if (!pack) return [] as UiCard[];
+    return [...pack].sort((a, b) => {
+      const av = a.usd ?? 0;
+      const bv = b.usd ?? 0;
+      if (av !== bv) return bv - av;
+      return groupRank(groupKeyOf(b)) - groupRank(groupKeyOf(a));
+    });
   })();
 
   return (
@@ -1075,7 +1056,13 @@ export function PackSim({
                                     '구매 중…'
                                   ) : (
                                     <>
-                                      <span className="block text-[11px] font-semibold opacity-80">1박스</span>
+                                      {/* ⚠️ 몇 팩짜리인지 버튼에 적는다(운영자 지시 2026-08-05).
+                                          박스 값이 팩의 30~36배라, 팩 수를 모르면 왜 이만큼
+                                          비싼지 알 수 없었다. 일본판 30팩·북미판 36팩으로 서로
+                                          다르기도 하다. */}
+                                      <span className="block text-[11px] font-semibold opacity-80">
+                                        1박스 ({s2.boxPacks}팩)
+                                      </span>
                                       <span className="block whitespace-nowrap">
                                         {canBox || guest ? gp(boxPrice) : `${gp(boxPrice - (sim?.balance ?? 0))} 모자람`}
                                       </span>
@@ -1402,98 +1389,40 @@ export function PackSim({
             </>
           )}
 
-          {/* 결과 정리: 등급별로 묶어서 고른다. 박스(150장)도 여기서 앨범에 담고 자랑할 수 있다 */}
+          {/* 결과 정리 — 한 격자에 다 편다.
+              ⚠️ 예전엔 등급별로 묶고, 묶음마다 머리글·"이 등급 전부 선택"·접기 버튼을
+                 달았다. 팩 하나에 묶음이 4~5개라 카드보다 글자와 버튼이 더 많았고,
+                 운영자가 "난잡하다"고 지적했다(2026-08-05). 지금은 값 높은 순으로
+                 한 줄에 늘어놓고, 카드마다 등급·이름·값을 적는다. 고르는 것도 여기서 한다.
+              ⚠️ 정렬은 **값 높은 순**이다. 등급순으로 두면 값이 등급을 안 따라가는 카드
+                 (같은 SAR인데 10배 차이)가 아래로 묻힌다. 값을 모르는 카드는 등급순으로
+                 뒤에 붙인다. */}
           {pack && !boxQueue && allDone && (
-            <div className="mt-4 space-y-5">
-              {resultGroups.map(({ k, cards }) => {
-                const big = groupRank(k) >= 3;
-                // 커먼·언커먼·레어·리버스는 장수가 많아 기본으로 접어 둔다(박스일 때만).
-                const foldable = !big && pack.length > 20;
-                const opened = !foldable || openGroups.has(k);
-                const allPicked = cards.every((c) => keep.has(c.i));
-                return (
-                  <div key={k}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* 등급색은 여기 점 하나로만 쓴다. 예전엔 카드마다 등급색 글씨가 붙어
-                          한 화면이 색으로 뒤덮였다(사용자 지적 2026-08-04). */}
-                      <p className="text-sm font-bold text-neutral-800">
-                        <span
-                          className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${groupDot(k, cfg.jp)}`}
-                        />
-                        {groupLabel(k, cfg.jp)} <span className="font-normal text-neutral-400">{cards.length}장</span>
-                      </p>
-                      {!keptDone && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setKeep((prev) => {
-                              const next = new Set(prev);
-                              for (const c of cards) {
-                                if (allPicked) next.delete(c.i);
-                                else next.add(c.i);
-                              }
-                              return next;
-                            })
-                          }
-                          className="text-xs text-neutral-500 underline"
-                        >
-                          {allPicked ? '이 등급 전부 해제' : '이 등급 전부 선택'}
-                        </button>
-                      )}
-                      {foldable && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOpenGroups((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(k)) next.delete(k);
-                              else next.add(k);
-                              return next;
-                            })
-                          }
-                          className="ml-auto text-xs text-neutral-400 underline"
-                        >
-                          {opened ? '접기' : '펼쳐서 한 장씩 고르기'}
-                        </button>
-                      )}
-                    </div>
-                    {opened ? (
-                      <div
-                        className={`mt-2 grid ${
-                          big ? 'max-w-2xl grid-cols-5 gap-2 sm:gap-3' : 'grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-12'
-                        }`}
-                      >
-                        {cards.map((c, i) => (
-                          <CardSlot
-                            key={c.i}
-                            card={c}
-                            jp={cfg.jp}
-                            index={i}
-                            flipped
-                            canFlip={false}
-                            onFlip={() => undefined}
-                            name={koName(cfg.jp, c.name)}
-                            picking={!keptDone}
-                            picked={keep.has(c.i)}
-                            onPick={() =>
-                              setKeep((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(c.i)) next.delete(c.i);
-                                else next.add(c.i);
-                                return next;
-                              })
-                            }
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-                    {/* ⚠️ 접힌 묶음마다 "접어 두었습니다. 펼쳐서 한 장씩 고르거나…" 하는 긴
-                        안내문을 달아 뒀었다. 박스에서는 접히는 묶음이 4개라 같은 문장이 화면에
-                        네 번 반복돼 제일 큰 소음이었다(사용자 지적 2026-08-04).
-                        옆에 이미 [펼쳐서 한 장씩 고르기] 버튼이 있어 안내문 없이도 통한다. */}
-                  </div>
-                );
-              })}
+            <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+              {resultCards.map((c, i) => (
+                <CardSlot
+                  key={c.i}
+                  card={c}
+                  jp={cfg.jp}
+                  index={i}
+                  flipped
+                  canFlip={false}
+                  onFlip={() => undefined}
+                  name={koName(cfg.jp, c.name)}
+                  showTier
+                  price={c.usd && rates ? formatKrwApprox(c.usd * rates.usdToKrw) : undefined}
+                  picking={!keptDone}
+                  picked={keep.has(c.i)}
+                  onPick={() =>
+                    setKeep((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(c.i)) next.delete(c.i);
+                      else next.add(c.i);
+                      return next;
+                    })
+                  }
+                />
+              ))}
             </div>
           )}
         </>
@@ -2006,6 +1935,7 @@ function CardSlot({
   picked,
   onPick,
   showTier,
+  price,
 }: {
   card: PackCard & { usd?: number };
   jp: boolean;
@@ -2024,6 +1954,8 @@ function CardSlot({
    * 그래서 묶음 안에서는 끈다. 개봉 중(등급이 섞여 있음)에는 켠다.
    */
   showTier?: boolean;
+  /** 카드 밑에 적을 값(원화). 시세를 아직 못 받은 카드는 안 준다. */
+  price?: string;
 }) {
   const meta = RARITY[card.r ?? ''] ?? RARITY.Common;
   // 빛남은 "지금 시세"로 정한다.
@@ -2073,6 +2005,9 @@ function CardSlot({
         <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>{flipped ? rarityKo(card.r, jp) : ' '}</p>
       )}
       {showTier && flipped && card.m && <p className={`text-[10px] ${M_LABEL[card.m].cls}`}>{M_LABEL[card.m].t}</p>}
+      {/* 값은 아는 카드만 적는다. 시세를 아직 못 받은 세트도 있어서, 모르는 걸 "0원"
+          이라고 적으면 "값이 없는 카드"로 읽힌다(틀린 것보다 빈칸). */}
+      {price && flipped && <p className="text-[10px] font-bold text-neutral-800">{price}</p>}
     </div>
   );
 }
