@@ -1496,6 +1496,8 @@ function App() {
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1">
                     <SearchBar
+                      source={source}
+                      onSourceChange={switchSource}
                       value={query}
                       onChange={(v) => {
                         setQuery(v);
@@ -1578,35 +1580,10 @@ function App() {
               {/* 검색창과 같은 폭·같은 가운데 정렬로 묶는다. 따로 놀면 검색창만
                   가운데고 토글은 왼쪽에 붙어 어긋나 보인다(2026-08-05). */}
               <div className="mx-auto mb-1 flex max-w-xl flex-wrap items-center justify-center gap-2">
-                <div className="inline-flex rounded-full border border-neutral-300 p-1">
-                  <button
-                    type="button"
-                    onClick={() => switchSource('snkrdunk')}
-                    className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
-                      source === 'snkrdunk' ? 'bg-black text-white' : 'text-neutral-600'
-                    }`}
-                  >
-                    SNKRDUNK
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchSource('ebay')}
-                    className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
-                      source === 'ebay' ? 'bg-black text-white' : 'text-neutral-600'
-                    }`}
-                  >
-                    eBay
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchSource('tcgplayer')}
-                    className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
-                      source === 'tcgplayer' ? 'bg-black text-white' : 'text-neutral-600'
-                    }`}
-                  >
-                    TCGplayer
-                  </button>
-                </div>
+                {/* ⚠️ 소스(SNKRDUNK·eBay·TCGplayer) 고르는 줄을 검색창 안으로 옮겼다
+                    (2026-08-05 운영자 지시). 검색창 한 줄 + 토글 한 줄로 두 줄을
+                    쓰고 있었는데, 검색창 왼쪽에 넣으니 한 줄로 준다.
+                    실제 버튼은 SearchBar 안에 있다(source·onSourceChange). */}
 
                 {/* 발매판 선택은 eBay·TCGplayer일 때 노출한다(둘 다 PPT라 두 판 다 있다).
                     ⚠️ 여기 예전에 "SNKRDUNK는 북미판이 영문 프로모 몇 종뿐"이라고 적혀
