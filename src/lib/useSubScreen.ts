@@ -14,9 +14,26 @@ type SubMap = Record<string, unknown>;
 //
 // restore(data)는 ① 뒤로가기/앞으로가기 때 ② 처음 붙을 때(다른 화면에 갔다가 돌아온
 // 경우 복원) 불린다. data가 null이면 하위 화면을 닫으라는 뜻이다.
-export function useSubScreen<T>(key: string, restore: (data: T | null) => void) {
+// closeTo: 검색으로 상세에 바로 들어온 사람이 ←를 눌렀을 때 주소를 무엇으로 되돌릴지
+//   (예: 세트 상세 /set/ja-M6 → 목록 /sets). 안 주면 주소를 안 건드린다.
+//   ⚠️ 안 주면 상세는 닫혔는데 주소창에는 그 세트가 남아 "주소가 거짓말"이 된다.
+export function useSubScreen<T>(
+  key: string,
+  restore: (data: T | null) => void,
+  closeTo?: { path: string; title: string },
+) {
   const restoreRef = useRef(restore);
   restoreRef.current = restore;
+  const closeToRef = useRef(closeTo);
+  closeToRef.current = closeTo;
+  // 이 화면이 방문기록에 칸을 쌓은 적이 있나. back()이 history.back()을 써도 되는지
+  // 가르는 값이다.
+  //
+  // ⚠️ 검색으로 상세 주소에 바로 들어온 사람은 우리 사이트 기록이 한 칸도 없다.
+  //    그 상태에서 history.back()을 부르면 사이트 밖(검색 결과)으로 나가 버린다.
+  //    실제로 /set/ja-M6로 들어와 "← 세트 목록"을 누르면 그랬다(2026-08-05 점검에서
+  //    발견). 그럴 땐 기록을 되돌리는 대신 이 자리에서 상세만 닫는다.
+  const pushed = useRef(0);
 
   useEffect(() => {
     const read = () => {
@@ -39,8 +56,26 @@ export function useSubScreen<T>(key: string, restore: (data: T | null) => void) 
   };
 
   return {
-    push: (data: T) => write(data, 'push'),
+    push: (data: T) => {
+      pushed.current += 1;
+      write(data, 'push');
+    },
     replace: (data: T | null) => write(data, 'replace'),
-    back: () => window.history.back(),
+    back: () => {
+      if (pushed.current > 0) {
+        pushed.current -= 1;
+        window.history.back();
+        return;
+      }
+      // 쌓은 칸이 없다 = 검색·공유 링크로 상세에 바로 들어왔다. 기록을 되돌리면
+      // 사이트 밖으로 나가므로, 여기서 상세만 닫는다.
+      write(null, 'replace');
+      if (closeToRef.current) {
+        const { path, title } = closeToRef.current;
+        window.history.replaceState(window.history.state, '', path + window.location.search);
+        document.title = title;
+      }
+      restoreRef.current(null);
+    },
   };
 }

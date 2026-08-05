@@ -170,14 +170,19 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
   }
 
   // 작가 상세를 방문기록 한 칸으로: 뒤로가기 = 작가 목록으로.
-  const sub = useSubScreen<string>('artist', (slug) => {
-    if (!slug) {
-      setSelected(null);
-      return;
-    }
-    const a = indexRef.current?.find((x) => x.slug === slug);
-    if (a) showArtist(a);
-  });
+  const sub = useSubScreen<string>(
+    'artist',
+    (slug) => {
+      if (!slug) {
+        setSelected(null);
+        return;
+      }
+      const a = indexRef.current?.find((x) => x.slug === slug);
+      if (a) showArtist(a);
+    },
+    // 검색으로 /artist/<슬러그>에 바로 들어와 ←를 누르면 주소·탭 제목도 목록으로.
+    { path: '/artists', title: '포켓몬 카드 일러스트레이터 | pokegre' },
+  );
 
   const loadIndex = () => {
     setLoadFailed(false);

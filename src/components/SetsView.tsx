@@ -209,14 +209,20 @@ export function SetsView({
   }
 
   // 세트 상세를 방문기록 한 칸으로: 뒤로가기 = 세트 목록으로.
-  const sub = useSubScreen<string>('set', (slug) => {
-    if (!slug) {
-      setSelected(null);
-      return;
-    }
-    const s = indexRef.current?.find((x) => x.slug === slug);
-    if (s) showSet(s);
-  });
+  const sub = useSubScreen<string>(
+    'set',
+    (slug) => {
+      if (!slug) {
+        setSelected(null);
+        return;
+      }
+      const s = indexRef.current?.find((x) => x.slug === slug);
+      if (s) showSet(s);
+    },
+    // 검색으로 /set/<슬러그>에 바로 들어와 ←를 누르면 주소·탭 제목도 목록으로.
+    // (App.tsx의 VIEW_PATH·VIEW_TITLE과 같은 값이어야 한다.)
+    { path: '/sets', title: '포켓몬 카드 세트 목록 | pokegre' },
+  );
 
   const loadIndex = () => {
     setLoadFailed(false);
