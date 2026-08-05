@@ -144,6 +144,15 @@ const fitNum = (s: string) =>
 const boxLine = (packs: number, cards: number, jp: boolean) =>
   `박스 개봉 결과 — ${packs}팩 · ${cards}장${jp ? ' (박스 보장 봉입 적용)' : ' (북미판은 보장 없음)'}`;
 
+// 카드 몇 장을 한 줄에 놓을지. 5장·7장짜리 팩은 한 줄로, 10장짜리는 5개씩 두 줄로
+// 놓는다(운영자 지시 2026-08-05).
+// ⚠️ 폰에서는 무조건 5칸이다. 375px에 7칸을 넣으면 한 장이 50px이라 뭐가 뭔지 모른다.
+//    큰 화면에서만 장수대로 편다(아래 .pack-grid CSS).
+const packCols = (n: number) => (n <= 7 ? n : 5);
+// 칸이 몇 개든 카드 한 장의 크기가 비슷하게 보이도록 폭을 칸 수에 맞춰 준다.
+// 안 그러면 5장 팩은 큼직한데 7장 팩만 작아 보인다.
+const packWidth = (n: number) => `${packCols(n) * 168}px`;
+
 const groupKeyOf = (c: PackCard) => (c.m ? `m:${c.m}` : `r:${c.r ?? 'Common'}`);
 const groupRank = (k: string) =>
   k === 'm:master' ? 8.5 : k === 'm:poke' ? 2.6 : k === 'm:rev' ? 2.5 : rankOf(k.slice(2));
@@ -843,8 +852,13 @@ export function PackSim({
   // 결과 정리 순서 — **값 높은 순**. 값을 모르는 카드는 등급 높은 순으로 뒤에 붙인다.
   // ⚠️ 등급순으로 두면 값이 등급을 안 따라가는 카드가 묻힌다(같은 SAR인데 10배 차이).
   //    보러 온 사람이 제일 먼저 알고 싶은 건 "얼마짜리가 나왔나"다.
+  // 한 팩(장수가 적은 것)은 **깐 순서 그대로** 둔다. 값 순으로 다시 세우면 방금 뒤집으며
+  // 본 자리와 달라져서, 어느 게 뭐였는지 눈으로 못 따라간다(운영자 지적 2026-08-05).
+  // 박스는 150장이라 사정이 다르다 — 그때는 값 높은 순으로 세워야 좋은 카드가 앞에 온다.
+  const 접기기준 = 24; // 이보다 많으면 박스로 보고, 값 순 + 나머지 접기
   const resultCards = (() => {
     if (!pack) return [] as UiCard[];
+    if (pack.length <= 접기기준) return [...pack];
     return [...pack].sort((a, b) => {
       const av = a.usd ?? 0;
       const bv = b.usd ?? 0;
@@ -861,7 +875,6 @@ export function PackSim({
   // ⚠️ 접는 건 하나뿐이다. 예전엔 등급마다 접기 버튼이 있어서 같은 버튼이 화면에 네다섯
   //    번 나왔고 그게 "난잡하다"는 지적의 원인이었다. 그 실수를 되풀이하지 않는다.
   // ⚠️ 팩(5~10장)은 접지 않는다. 접을 것도 없는데 버튼만 생기면 손해다.
-  const 접기기준 = 24; // 이보다 적으면 그냥 다 편다
   const 볼만한 = resultCards.filter((c) => glowOf(c.usd) > 0);
   // 후광이 하나도 없는 박스도 있다(값이 다 낮거나 시세를 아직 못 받은 세트). 그럴 때
   // 위가 텅 비면 "고장난 화면"으로 보이므로 값 높은 순으로 8장은 채운다.
@@ -1193,7 +1206,14 @@ export function PackSim({
               {/* ⚠️ 큰 화면에서 카드가 작았다(운영자 지적 2026-08-05). 폭이 672px에 5칸이라
                   한 장이 124px이었다. 넓은 화면에서만 896px까지 벌려 170px로 키운다 —
                   폰은 그대로다(칸 수를 바꾸면 한 줄에 5장이 안 나온다). */}
-              <div key={boxQueue.idx} className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3 lg:max-w-4xl">
+              <div
+                key={boxQueue.idx}
+                className="pack-grid mx-auto mt-2 grid w-full gap-2 sm:gap-3"
+                style={{
+                  ["--cols" as string]: packCols(boxQueue.groups[boxQueue.idx].length),
+                  maxWidth: packWidth(boxQueue.groups[boxQueue.idx].length),
+                }}
+              >
                 {boxQueue.groups[boxQueue.idx].map((c, i2) => (
                   <CardSlot
                     key={c.i}
@@ -1390,7 +1410,10 @@ export function PackSim({
               <p className="mt-4 text-center text-sm font-semibold text-neutral-600">
                 카드를 눌러서 뒤집어 보세요 ({revealed}/{pack.length})
               </p>
-              <div className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3 lg:max-w-4xl">
+              <div
+                className="pack-grid mx-auto mt-2 grid w-full gap-2 sm:gap-3"
+                style={{ ["--cols" as string]: packCols(pack.length), maxWidth: packWidth(pack.length) }}
+              >
                 {pack.map((c, i) => (
                   // ⚠️ 키는 배열 순서(i)가 아니라 카드 자리 번호(c.i)다. 팩은 등급순으로
                   //    정렬돼 나오므로 둘이 다르고, 섞어 쓰면 엉뚱한 카드가 뒤집힌다.
@@ -1462,15 +1485,16 @@ export function PackSim({
                     {/* ⚠️ 팩(10장 이하)은 개봉 중 화면과 **같은 크기**로 맞춘다. 8칸 격자에
                         5장을 넣으면 방금 크게 보던 카드가 결과에서 갑자기 작아진다
                         (운영자 지적 2026-08-05). 박스는 장수가 많아 8칸 그대로 둔다. */}
-                    <div
-                      className={
-                        앞줄.length <= 10
-                          ? 'mx-auto mt-4 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3 lg:max-w-4xl'
-                          : 'mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8'
-                      }
-                    >
-                      {앞줄.map(칸)}
-                    </div>
+                    {앞줄.length <= 10 ? (
+                      <div
+                        className="pack-grid mx-auto mt-4 grid w-full gap-2 sm:gap-3"
+                        style={{ ["--cols" as string]: packCols(앞줄.length), maxWidth: packWidth(앞줄.length) }}
+                      >
+                        {앞줄.map(칸)}
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">{앞줄.map(칸)}</div>
+                    )}
                     {뒷줄.length > 0 && (
                       <div className="mt-4">
                         <button
@@ -1956,6 +1980,11 @@ export function PackSim({
         }
         @media (prefers-reduced-motion: reduce) {
           .glow-mid, .glow-big { animation: none; }
+        }
+        /* 카드 격자: 폰은 5칸 고정, 큰 화면은 장수대로(--cols). 위 packCols 설명 참고. */
+        .pack-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        @media (min-width: 640px) {
+          .pack-grid { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
         }
         .card-picked { outline: 3px solid #059669; outline-offset: 2px; border-radius: 0.6rem; cursor: pointer; }
         /* ⚠️ 값나가는 카드는 초록 테두리를 **안쪽**에 그린다. 바깥에 그리면 그 자리가
