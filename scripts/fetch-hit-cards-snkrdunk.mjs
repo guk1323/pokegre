@@ -22,7 +22,7 @@ const ROOT = process.cwd()
 const OUT = path.resolve(ROOT, 'src/data/setHitCards.json')
 const HOST = 'https://snkrdunk.com'
 // 카드 상태 코드. 스니커덩크가 쓰는 값 그대로다.
-const COND_PSA10 = 'trading_card_single_psa10' // PSA 감정 10등급
+// (참고: PSA10은 'trading_card_single_psa10'. 지금은 안 쓴다 — 위 tradedPrice 설명 참고.)
 const COND_A = 'trading_card_single_nearly_unused' // 미감정 "거의 미사용"
 const UA = { accept: 'application/json', 'user-agent': 'Mozilla/5.0 (compatible; pokegre/0.1; personal use)' }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -58,7 +58,7 @@ async function search(keyword) {
   return (d.search?.products?.length ? d.search.products : (d.search?.rankingProducts ?? [])).filter((p) => p.link)
 }
 
-// 실거래가. **가장 최근에 팔린 값**을 쓴다.
+// 실거래가. **가장 최근 3건의 중앙값**을 쓴다(아래 pickLatest 설명 참고).
 //
 // ⚠️ 처음엔 최근 5건의 중앙값으로 했는데, 값이 떨어지는 중인 신상 카드에서는 며칠 전
 //    고가가 섞여 지금보다 높게 잡힌다(스톰에메랄드 113번: 최근 1건 ￥205,000 vs
@@ -69,26 +69,18 @@ async function search(keyword) {
 //    ·C·D와 PSA·BGS 감정등급으로 갈려 거래되고, 값이 두 배까지 벌어진다. 안 가리고
 //    섞으면 B가 몇 건 끼는 것만으로 순위가 흔들린다.
 //
-//    **PSA10을 먼저 쓰고, 없으면 A로 내려간다.**
-//    미감정 싱글은 "얼마나 깨끗한가"를 파는 사람이 매기는 것이라 기준이 흐릿하다.
-//    PSA10은 감정 기관이 매긴 것이라 카드마다 잣대가 같다(운영자 판단 2026-08-05).
-//    다만 감정에는 몇 주~몇 달이 걸려 **갓 나온 세트는 PSA10 거래가 0건**이다
-//    (스톰에메랄드 힛카드 후보 6장 전부 PSA10 0건 · A는 20건씩). 그래서 없으면 A로 간다.
-//    어느 쪽을 썼는지는 grade로 돌려주고, 화면이 그대로 라벨에 적는다.
-// ⚠️ 두 등급을 다 받아 둔다. 한 장씩 "PSA10 있으면 그걸, 없으면 A"로 정하면 한 세트
-//    안에서 등급이 섞여 값을 나란히 못 놓는다(같은 카드가 2배까지 차이 난다).
-//    둘 다 들고 있다가 세트 단위로 하나를 고른다.
+// A등급(미감정 싱글)만 받는다. 예전엔 PSA10도 같이 받아 세트마다 둘 중 하나를 골랐는데,
+// 북미판을 미감정(TCGplayer 마켓가)으로 쓸 수밖에 없어 잣대를 미감정으로 통일했다
+// (2026-08-05 운영자 판단). 카드당 요청이 절반이 되어 한 세트 도는 시간도 절반이다.
 async function tradedPrice(apparelId) {
   const a = await fetch(`${HOST}/v1/apparels/${apparelId}`, { headers: UA })
   if (!a.ok) return null
   const pid = (await a.json()).productCatalogId
   if (!pid) return null
   await sleep(400)
-  const psa10 = await pickLatest(pid, COND_PSA10)
-  await sleep(400)
   const plain = await pickLatest(pid, COND_A)
-  if (!psa10 && !plain) return null
-  return { psa10, a: plain }
+  if (!plain) return null
+  return { a: plain }
 }
 
 async function pickLatest(pid, condCode) {
@@ -150,31 +142,26 @@ async function main() {
     const t = await tradedPrice(hit.id)
     await sleep(700)
     if (!t) continue
-    rows.push({ n: c.n, psa10: t.psa10, a: t.a, name: c.name, title: hit.title })
+    rows.push({ n: c.n, a: t.a, name: c.name, title: hit.title })
     if (i % 10 === 0) console.log(`  ${i}/${targets.length} 확인 중…`)
   }
 
-  // ⚠️ 등급은 세트 단위로 하나만 쓴다. 섞으면 같은 세트 안에서 어떤 카드는 감정품,
-  //    어떤 카드는 생카드 값이 되어 순위가 뜻을 잃는다(같은 카드가 2배까지 차이 난다).
+  // 값은 **A등급(미감정 싱글)**으로 통일한다.
   //
-  // ⚠️ 한 등급으로 **직접 줄 세운다.** 예전엔 A로 줄 세워 놓고 그 상위 몇 장에
-  //    PSA10이 다 있는지를 봤는데, 앞뒤가 안 맞는다(운영자 지적 2026-08-05).
-  //    두 기준은 순위 자체가 다르다 — 인페르노X에서 A로 7위인 013번이 PSA10으로는
-  //    5위다. 볼 기준으로 세우고, 그 기준에 값이 있는 카드만 담으면 된다.
+  // ⚠️ 한때 "PSA10이 8장 이상이면 PSA10"으로 했다가 되돌렸다(2026-08-05 운영자 판단).
+  //    되돌린 이유: 북미판은 스니커덩크에 거래가 아예 없어서(영어판 상품은 있는데
+  //    일본 사람이 안 산다 — 서징 스파크 5장 전부 A 0건·PSA10 0건) TCGplayer를
+  //    쓸 수밖에 없고, 그건 미감정 마켓가다. 일본판만 PSA10을 쓰면 같은 화면에서
+  //    일본판·북미판이 다른 잣대가 된다. 둘 다 미감정으로 맞추는 게 맞다.
   //
-  //    PSA10으로 화면에 보이는 8장을 채울 수 있으면 PSA10, 아니면 A로 간다.
-  //    갓 나온 세트는 감정에 몇 주~몇 달이 걸려 PSA10이 0건이라 자연히 A로 간다.
-  //
-  // ⚠️ A로도 8장을 못 채우는 세트가 있다(거래가 드문 옛 세트). 그럴 땐 **있는 만큼만**
+  // ⚠️ 8장을 못 채우는 세트가 있다(거래가 드문 옛 세트). 그럴 땐 **있는 만큼만**
   //    보여준다 — 8장은 최대치지 채워야 하는 수가 아니다(운영자 지시 2026-08-05).
   //    억지로 채우려고 거래가 몇 달 된 카드까지 끌어오면 지금 값이 아니게 된다.
-  const SHOWN = 8 // 화면(SetsView)이 보여주는 최대 장수
-  const byPsa = rows.filter((r) => r.psa10).sort((x, y) => y.psa10.jpy - x.psa10.jpy)
-  const byA = rows.filter((r) => r.a).sort((x, y) => y.a.jpy - x.a.jpy)
-  const 기준 = byPsa.length >= SHOWN ? 'psa10' : 'a'
-  const 라벨 = 기준 === 'psa10' ? 'PSA10' : 'A등급(거의 미사용)'
-  const pick = (r) => (기준 === 'psa10' ? r.psa10 : r.a)
-  const list = 기준 === 'psa10' ? byPsa : byA
+  const SHOWN = 8 // 화면(SetsView)이 보여주는 최대 장수 — 저장도 여기에 맞춘다
+  const 기준 = 'a'
+  const 라벨 = 'A등급(거의 미사용)'
+  const pick = (r) => r.a
+  const list = rows.filter((r) => r.a).sort((x, y) => y.a.jpy - x.a.jpy)
 
   console.log(`\n실거래가 있는 카드 ${list.length}장 — 값 높은 순 상위 10장:`)
   console.log(`  (값은 ${라벨} 기준 · 최근 3건 중앙값)`)
@@ -184,10 +171,10 @@ async function main() {
       `  ${String(r.n).padStart(4)}번  ￥${v.jpy.toLocaleString().padStart(9)}  ${v.at}  (거래 ${v.n}건)  ${r.title.slice(0, 38)}`,
     )
   }
-  console.log(`  → PSA10 값이 있는 카드 ${byPsa.length}장 · A 값이 있는 카드 ${byA.length}장 · 쓴 기준: ${라벨}`)
+  console.log(`  → 값이 있는 카드 ${list.length}장 · 쓴 기준: ${라벨}`)
   // ⚠️ 거래가 뜸한 카드는 "가장 최근"이 몇 달 전일 수 있다. 그런 건 지금 값이 아니니
   //    눈에 띄게 알려 준다(순위에 넣을지는 사람이 판단한다).
-  const 오래됨 = list.slice(0, 12).filter((r) => {
+  const 오래됨 = list.slice(0, SHOWN).filter((r) => {
     const at = pick(r).at
     return at && Date.now() - Date.parse(at) > 30 * 86400_000
   })
@@ -214,10 +201,10 @@ async function main() {
     src: 'snkrdunk',
     // 어느 등급 값인지. 화면이 이걸 보고 "PSA10 기준" / "A등급 기준"이라고 적는다.
     grade: 기준,
-    cards: list.slice(0, 12).map((r) => ({ n: r.n, usd: Math.round((pick(r).jpy / usdJpy) * 100) / 100 })),
+    cards: list.slice(0, SHOWN).map((r) => ({ n: r.n, usd: Math.round((pick(r).jpy / usdJpy) * 100) / 100 })),
   }
   await writeFile(OUT, JSON.stringify(file, null, 0))
-  console.log(`\n저장했습니다: ${slug} 힛카드 ${Math.min(12, list.length)}장 · ${라벨} 기준 (환율 1달러=${usdJpy}엔)`)
+  console.log(`\n저장했습니다: ${slug} 힛카드 ${Math.min(SHOWN, list.length)}장 · ${라벨} 기준 (환율 1달러=${usdJpy}엔)`)
 }
 
 main()

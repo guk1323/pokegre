@@ -61,6 +61,7 @@ interface Highlight {
 //    섞였다. 없는 걸 채워 넣느니 칸이 적은 게 낫다.
 // 뽑은 날짜. 오늘·어제는 글자로, 그 앞은 "8.3"처럼 적는다.
 // 이번 주(7일) 안의 것만 오므로 연도는 안 붙인다.
+// (날짜로 통일하는 안도 봤지만 지금 꼴로 두기로 했다 — 2026-08-05 운영자 판단.)
 function pulledOn(at: number): string {
   const d = new Date(at);
   const day = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
