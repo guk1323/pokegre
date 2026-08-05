@@ -56,7 +56,14 @@ type SimState = {
   boxes?: Record<string, number>; // 사서 아직 안 연 박스(보관함)
   // 마지막으로 연 결과. kept=false면 아직 "앨범에 넣기/넘기기"를 안 고른 것이라
   // 화면을 다시 열 때 그대로 되살린다.
-  last?: { slug: string; cards: { n: string; r?: string; m?: MirrorFlag }[]; god: boolean; shared?: boolean; kept?: boolean };
+  // 서버는 되살릴 때도 값(usd)을 실어 준다 — 여기 안 적어 두면 받고도 못 쓴다.
+  last?: {
+    slug: string;
+    cards: { n: string; r?: string; m?: MirrorFlag; usd?: number }[];
+    god: boolean;
+    shared?: boolean;
+    kept?: boolean;
+  };
 };
 
 // 등급 표기(한글·약칭)와 색.
@@ -376,6 +383,11 @@ export function PackSim({
           img: byNum.get(c.n)?.img,
           r: c.r,
           m: c.m,
+          // ⚠️ 값(usd)도 같이 옮겨야 한다. 서버는 되살릴 때도 값을 실어 보내는데
+          //    여기서 카드를 새로 만들며 빠뜨리고 있었다. 그래서 갓 깠을 때는 값이
+          //    보이다가, 새로고침하거나 다른 화면에 다녀오면 이름·등급만 남았다
+          //    (2026-08-05 배포 전 점검에서 발견).
+          usd: c.usd,
           i,
         }));
         const sorted = [...cards].sort((a, b) => rankOf(a.r) - rankOf(b.r));
