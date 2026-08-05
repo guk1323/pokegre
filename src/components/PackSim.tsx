@@ -304,6 +304,8 @@ export function PackSim({
   const [keptCount, setKeptCount] = useState<number | null>(null);
   // 앨범이 가득 차 못 넣은 장수 안내.
   const [keepFullMsg, setKeepFullMsg] = useState('');
+  // 박스 결과에서 "나머지 N장"을 펼쳤는지. 기본은 접힘.
+  const [restOpen, setRestOpen] = useState(false);
   // 지난번에 열어 두고 안 고른 결과를 되살렸을 때 띄우는 안내.
   const [restoredMsg, setRestoredMsg] = useState('');
   const [share, setShare] = useState<ShareState>({ shared: false, msg: '' });
@@ -377,7 +379,8 @@ export function PackSim({
         setBoxQueue(null);
         setGod(last.god);
         setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
-        setKeptDone(false);
+        setRestOpen(false);
+      setKeptDone(false);
         setKeptCount(null);
         setShare({ shared: !!last.shared, msg: '' });
         setRestoredMsg('지난번 개봉 결과입니다.');
@@ -531,6 +534,7 @@ export function PackSim({
       setBoxQueue(null);
       // 아트레어(AR) 이상은 기본으로 담아둔다 — 대부분 남기고 싶어 하는 등급이다.
       setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
+      setRestOpen(false);
       setKeptDone(false);
       setKeptCount(null);
       setRestoredMsg('');
@@ -598,6 +602,7 @@ export function PackSim({
       setBoxInfo(d.boxPacks ?? d.packs.length);
       setGod(!!d.god);
       setKeep(new Set(sorted.filter(keepByDefault).map((c) => c.i)));
+      setRestOpen(false);
       setKeptDone(false);
       setKeptCount(null);
       setRestoredMsg('');
@@ -847,6 +852,22 @@ export function PackSim({
       return groupRank(groupKeyOf(b)) - groupRank(groupKeyOf(a));
     });
   })();
+
+  // 박스는 150장(북미판은 360장)이라 다 펴 놓으면 세로로 7,000px이 넘는다. 그런데
+  // 실제로 볼 값어치가 있는 건 몇 장뿐이다 — 방금 연 박스는 150장 중 1만원 넘는 게
+  // 3장, 후광이 걸린 게 4장이었고 나머지 145장을 합쳐 8,700원이었다.
+  // 그래서 **값나가는 것만 펴고 나머지는 한 줄로 접는다**(운영자 지시 2026-08-05).
+  //
+  // ⚠️ 접는 건 하나뿐이다. 예전엔 등급마다 접기 버튼이 있어서 같은 버튼이 화면에 네다섯
+  //    번 나왔고 그게 "난잡하다"는 지적의 원인이었다. 그 실수를 되풀이하지 않는다.
+  // ⚠️ 팩(5~10장)은 접지 않는다. 접을 것도 없는데 버튼만 생기면 손해다.
+  const 접기기준 = 24; // 이보다 적으면 그냥 다 편다
+  const 볼만한 = resultCards.filter((c) => glowOf(c.usd) > 0);
+  // 후광이 하나도 없는 박스도 있다(값이 다 낮거나 시세를 아직 못 받은 세트). 그럴 때
+  // 위가 텅 비면 "고장난 화면"으로 보이므로 값 높은 순으로 8장은 채운다.
+  const 앞줄 = resultCards.length > 접기기준 ? (볼만한.length >= 8 ? 볼만한 : resultCards.slice(0, 8)) : resultCards;
+  const 뒷줄 = resultCards.slice(앞줄.length);
+  const 뒷줄값 = 뒷줄.reduce((n, c) => n + (c.usd ?? 0), 0);
 
   return (
     <div>
@@ -1404,33 +1425,68 @@ export function PackSim({
                  (같은 SAR인데 10배 차이)가 아래로 묻힌다. 값을 모르는 카드는 등급순으로
                  뒤에 붙인다. */}
           {pack && !boxQueue && allDone && (
-            <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
-              {resultCards.map((c, i) => (
-                <CardSlot
-                  key={c.i}
-                  card={c}
-                  jp={cfg.jp}
-                  index={i}
-                  flipped
-                  canFlip={false}
-                  onFlip={() => undefined}
-                  name={koName(cfg.jp, c.name)}
-                  showTier
-                  eager={false}
-                  price={c.usd && rates ? formatKrwApprox(c.usd * rates.usdToKrw) : undefined}
-                  picking={!keptDone}
-                  picked={keep.has(c.i)}
-                  onPick={() =>
-                    setKeep((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(c.i)) next.delete(c.i);
-                      else next.add(c.i);
-                      return next;
-                    })
-                  }
-                />
-              ))}
-            </div>
+            <>
+              {(() => {
+                const 칸 = (c: UiCard, i: number) => (
+                  <CardSlot
+                    key={c.i}
+                    card={c}
+                    jp={cfg.jp}
+                    index={i}
+                    flipped
+                    canFlip={false}
+                    onFlip={() => undefined}
+                    name={koName(cfg.jp, c.name)}
+                    showTier
+                    eager={false}
+                    price={c.usd && rates ? formatKrwApprox(c.usd * rates.usdToKrw) : undefined}
+                    picking={!keptDone}
+                    picked={keep.has(c.i)}
+                    onPick={() =>
+                      setKeep((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(c.i)) next.delete(c.i);
+                        else next.add(c.i);
+                        return next;
+                      })
+                    }
+                  />
+                );
+                return (
+                  <>
+                    <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+                      {앞줄.map(칸)}
+                    </div>
+                    {뒷줄.length > 0 && (
+                      <div className="mt-4">
+                        <button
+                          type="button"
+                          onClick={() => setRestOpen((v) => !v)}
+                          className="flex w-full items-center justify-between rounded-xl border border-neutral-200 px-3 py-2.5 text-left hover:bg-neutral-50"
+                        >
+                          <span className="text-sm font-semibold text-neutral-700">
+                            나머지 {뒷줄.length}장
+                            {뒷줄값 > 0 && rates && (
+                              <span className="ml-1.5 font-normal text-neutral-400">
+                                합계 {formatKrwApprox(뒷줄값 * rates.usdToKrw)}
+                              </span>
+                            )}
+                          </span>
+                          <span className="shrink-0 text-xs font-semibold text-neutral-500">
+                            {restOpen ? '접기' : '펼치기'}
+                          </span>
+                        </button>
+                        {restOpen && (
+                          <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+                            {뒷줄.map(칸)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </>
           )}
         </>
       )}
@@ -1888,6 +1944,11 @@ export function PackSim({
           .glow-mid, .glow-big { animation: none; }
         }
         .card-picked { outline: 3px solid #059669; outline-offset: 2px; border-radius: 0.6rem; cursor: pointer; }
+        /* ⚠️ 값나가는 카드는 초록 테두리를 **안쪽**에 그린다. 바깥에 그리면 그 자리가
+           바로 후광이 퍼지는 자리라, 제일 좋은 카드일수록 후광이 초록 선에 덮인다
+           (운영자 지적 2026-08-05 — 박스에서 좋은 카드는 기본으로 담기게 돼 있어서
+           정작 빛나야 할 카드가 전부 가려졌다). 안쪽에 그리면 둘 다 보인다. */
+        .card-picked-hit { outline: 3px solid #059669; outline-offset: -3px; border-radius: 0.6rem; cursor: pointer; }
         /* 팩을 열면 카드가 한 장씩 깔린다 */
         .deal { animation: dealIn 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
         @keyframes dealIn {
@@ -1983,7 +2044,9 @@ function CardSlot({
     <div>
       <div
         style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
-        className={`flip deal ${canFlip && !flipped ? `flip-next ${hintCls(tier)}` : ''} ${picking && picked ? 'card-picked' : ''}`}
+        className={`flip deal ${canFlip && !flipped ? `flip-next ${hintCls(tier)}` : ''} ${
+          picking && picked ? (hit ? 'card-picked-hit' : 'card-picked') : ''
+        }`}
         onClick={canFlip && !flipped ? onFlip : picking ? onPick : undefined}
         role={(canFlip && !flipped) || picking ? 'button' : undefined}
         aria-label={canFlip && !flipped ? '카드 뒤집기' : picking ? '앨범에 넣기 선택' : undefined}

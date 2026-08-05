@@ -5416,6 +5416,10 @@ function mountAuth(
         // admin: 화면이 "예산 쓰기" 스위치(무제한)를 운영자에게만 보여주기 위한 표식.
         sendJson(res, 200, {
           ...store,
+          // ⚠️ 되살린 개봉 결과에도 값을 붙인다. store.last에는 번호·등급만 적어 두므로
+          //    그대로 주면 새로고침한 순간 카드값이 통째로 사라진다(2026-08-05 점검에서
+          //    잡음 — 개봉 직후에는 값이 보이는데 새로고침하면 안 보였다).
+          last: store.last ? { ...store.last, cards: withUsd(store.last.slug, store.last.cards) } : store.last,
           today,
           canCheckIn: store.lastCheckIn !== today,
           // 오늘 첫 자랑 보상(+5,000GP)을 아직 안 받았는지 — 버튼에 "+5,000GP"를 보여줄 근거.
@@ -5757,12 +5761,18 @@ function mountAuth(
         // 순위는 뽑기 로직과 같은 표를 쓴다(따로 적어 두면 새 등급이 생길 때 빠진다 —
         // 실제로 MUR·MHR이 빠져 최고 등급으로 안 뽑히던 문제가 있었다).
         const rank = RARITY_RANK
-        const drawn = last.cards
-          .map((lc) => {
-            const base = byN.get(lc.n)
-            return base ? { ...base, r: lc.r ?? base.r, m: lc.m } : null
-          })
-          .filter((c): c is NonNullable<typeof c> => !!c)
+        // ⚠️ 값(usd)을 붙여 둔다. 자랑글에 실을 12장을 **값 높은 순**으로 고르기 위해서다
+        //    (운영자 지시 2026-08-05). 예전엔 등급 순이었는데, 개봉 화면은 값 순이라
+        //    같은 박스인데 화면의 1등과 글 제목의 카드가 서로 달랐다.
+        const drawn = withUsd(
+          pack.slug,
+          last.cards
+            .map((lc) => {
+              const base = byN.get(lc.n)
+              return base ? { ...base, r: lc.r ?? base.r, m: lc.m } : null
+            })
+            .filter((c): c is NonNullable<typeof c> => !!c),
+        )
         // ⚠️ 한 장도 못 맞추면 아래 best가 undefined가 되어 제목을 만들다 터진다. 그런데
         //    위에서 이미 shared=true로 자리를 잡아 뒀으므로, 되돌리지 않으면 글은 안
         //    올라가고 자랑 기회만 영영 사라진다. 카드 번호가 안 맞는 건 세트 자료가
@@ -5774,7 +5784,14 @@ function mountAuth(
         }
         const mLabel = (m?: MirrorFlag) => (m === 'master' ? ' (마스터볼 미러)' : m === 'poke' ? ' (몬스터볼 미러)' : m === 'rev' ? ' (리버스)' : '')
         const koN = (c: { n: string; name: string; m?: MirrorFlag }) => (nameOf.get(c.n) || c.name) + mLabel(c.m)
-        const best = drawn.reduce((a, b) => ((rank[b.r ?? ''] ?? 0) > (rank[a.r ?? ''] ?? 0) ? b : a), drawn[0])
+        // 제목에 쓸 대표 카드도 값 높은 순. 값을 모르는 세트(시세 미수신)면 등급으로 정한다.
+        const 낫다 = (a: (typeof drawn)[number], b: (typeof drawn)[number]) => {
+          const av = a.usd ?? 0
+          const bv = b.usd ?? 0
+          if (av !== bv) return av > bv
+          return (rank[a.r ?? ''] ?? 0) > (rank[b.r ?? ''] ?? 0)
+        }
+        const best = drawn.reduce((a, b) => (낫다(b, a) ? b : a), drawn[0])
         const packName = pack.label.replace(/^\[.+?\]\s*/, '')
         // 제목은 이용자가 쓴 것을 우선하고, 없으면 자동 제목.
         const userTitle = typeof body.title === 'string' ? body.title.replace(/\s+/g, ' ').trim().slice(0, 80) : ''
@@ -5801,8 +5818,10 @@ function mountAuth(
             // 박스는 140장이라 전부 실으면 글이 16KB가 되고 화면도 못 읽는다.
             // 좋은 등급부터 12장만 싣고(마지막이 최고), 총 장수는 따로 알려 준다.
             total: drawn.length,
+            // 값 낮은 순으로 세워 뒤에서 12장 = 값 높은 12장(마지막이 제일 비싼 카드).
+            // 값이 같으면 등급으로 가른다.
             cards: [...drawn]
-              .sort((a, b) => (rank[a.r ?? ''] ?? 0) - (rank[b.r ?? ''] ?? 0))
+              .sort((a, b) => (a.usd ?? 0) - (b.usd ?? 0) || (rank[a.r ?? ''] ?? 0) - (rank[b.r ?? ''] ?? 0))
               .slice(-PULL_CARD_LIMIT)
               .map((c) => ({ img: c.img ?? '', name: koN(c), r: tierKo[c.r ?? ''] ?? c.r ?? '' })),
           },
