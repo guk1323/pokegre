@@ -1492,7 +1492,7 @@ function App() {
               {/* ⚠️ 검색창을 가운데로 놓는다(2026-08-05 운영자 지시). 예전엔 max-w-xl만
                   걸어 왼쪽에 붙어 있었고, 넓은 화면에서는 오른쪽 절반이 통째로 비었다.
                   이 사이트에서 제일 많이 쓰는 것이 검색이라 눈이 가는 자리에 둔다. */}
-              <div className="mx-auto mb-4 max-w-xl">
+              <div className="mx-auto mb-4 max-w-3xl">
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1">
                     <SearchBar
@@ -1505,6 +1505,18 @@ function App() {
                         setScannedResult(null);
                         scanFallbackRef.current = null;
                         setScanFellBack(false);
+                      }}
+                      // ⚠️ 지우기(x)는 검색어만 비우는 게 아니라 **홈으로 되돌린다**
+                      //    (운영자 지시 2026-08-05). 검색어만 비우면 골라 둔 카드·사진
+                      //    검색 맥락·방문기록에 적힌 검색어가 남아, 홈으로 가려면 새로고침을
+                      //    해야 했다. goHome은 그 넷을 한 번에 되돌린다.
+                      onClear={() => {
+                        setScannedResult(null);
+                        scanFallbackRef.current = null;
+                        setScanFellBack(false);
+                        scanQueriesRef.current = null;
+                        setSuggestionsOpen(false);
+                        goHome();
                       }}
                       onFocus={() => {
                         setSuggestionsOpen(true);
@@ -1579,7 +1591,7 @@ function App() {
                   그 자리에 설명 줄을 넣어, 높이는 오히려 짧아지면서 뜻이 생긴다. */}
               {/* 검색창과 같은 폭·같은 가운데 정렬로 묶는다. 따로 놀면 검색창만
                   가운데고 토글은 왼쪽에 붙어 어긋나 보인다(2026-08-05). */}
-              <div className="mx-auto mb-1 flex max-w-xl flex-wrap items-center justify-center gap-2">
+              <div className="mx-auto mb-1 flex max-w-3xl flex-wrap items-center justify-center gap-2">
                 {/* ⚠️ 소스(SNKRDUNK·eBay·TCGplayer) 고르는 줄을 검색창 안으로 옮겼다
                     (2026-08-05 운영자 지시). 검색창 한 줄 + 토글 한 줄로 두 줄을
                     쓰고 있었는데, 검색창 왼쪽에 넣으니 한 줄로 준다.
@@ -1639,7 +1651,7 @@ function App() {
               {/* 어디 시세인지 한 줄로 밝힌다. 탭 줄의 아래 여백을 대신 줄여 높이는 안 는다.
                   ⚠️ 한글판은 같은 이베이라도 값의 성격이 다르다 — Browse API라 "지금 올라온
                      매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다. */}
-              <p className="mx-auto mb-5 max-w-xl text-center text-xs text-neutral-400">
+              <p className="mx-auto mb-5 max-w-3xl text-center text-xs text-neutral-400">
                 {source === 'snkrdunk'
                   ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
                   : source === 'tcgplayer'

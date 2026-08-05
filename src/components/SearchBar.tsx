@@ -14,6 +14,7 @@ export function SearchBar({
   onBlur,
   onSubmit,
   onKeyNav,
+  onClear,
   source,
   onSourceChange,
   children,
@@ -23,6 +24,10 @@ export function SearchBar({
   onFocus?: () => void;
   onBlur?: () => void;
   onSubmit?: () => void;
+  // 지우기(x)를 눌렀을 때. 안 주면 그냥 검색어만 비운다.
+  // ⚠️ 홈 검색창은 이걸로 홈까지 되돌린다 — 검색어만 비우면 골라 둔 카드나 사진 검색
+  //    맥락이 남아, 홈으로 가려면 새로고침을 해야 했다(운영자 지적 2026-08-05).
+  onClear?: () => void;
   // 자동완성 목록을 방향키로 오르내리게 한다. 위/아래/Escape를 위쪽에서 처리하고,
   // 처리했으면 true를 돌려준다(그때는 기본 동작인 커서 이동을 막는다).
   onKeyNav?: (key: 'ArrowDown' | 'ArrowUp' | 'Escape' | 'Enter') => boolean;
@@ -132,7 +137,7 @@ export function SearchBar({
           type="button"
           aria-label="검색어 지우기"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onChange('')}
+          onClick={() => (onClear ? onClear() : onChange(''))}
           className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
