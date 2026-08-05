@@ -98,10 +98,17 @@ async function pickLatest(pid, condCode) {
   )
   if (!t.ok) return null
   const trades = (await t.json()).trades ?? []
-  // trades는 최신순으로 온다. 맨 앞이 가장 최근에 팔린 값이다.
-  const latest = trades.find((x) => Number.isFinite(Number(x.price)) && Number(x.price) > 0)
-  if (!latest) return null
-  return { jpy: Number(latest.price), n: trades.length, at: String(latest.soldAt ?? '').slice(0, 10) }
+  // trades는 최신순으로 온다.
+  const ok = trades.filter((x) => Number.isFinite(Number(x.price)) && Number(x.price) > 0)
+  if (!ok.length) return null
+  // ⚠️ 최근 3건의 중앙값을 쓴다. 1건만 쓰면 어쩌다 튄 거래 하나가 그대로 화면에 뜬다
+  //    (M2 111번: 최근 6건이 ￥13,800·13,300·13,800·14,000·13,999인데 하나가 ￥43,000).
+  //    평균은 튄 값을 나눠 갖느라 같이 끌려간다(그 경우 43% 부풀었다). 중앙값은 줄
+  //    세워 가운데를 고르므로 끝에 튄 값이 있어도 안 움직인다.
+  //    3건인 이유: 5건은 거래가 뜸한 카드에서 몇 달 전 값까지 끌고 온다.
+  const 셋 = ok.slice(0, 3).map((x) => Number(x.price)).sort((a2, b2) => a2 - b2)
+  const jpy = 셋[Math.floor(셋.length / 2)]
+  return { jpy, n: ok.length, at: String(ok[0].soldAt ?? '').slice(0, 10) }
 }
 
 async function main() {
@@ -157,7 +164,11 @@ async function main() {
   //
   //    PSA10으로 화면에 보이는 8장을 채울 수 있으면 PSA10, 아니면 A로 간다.
   //    갓 나온 세트는 감정에 몇 주~몇 달이 걸려 PSA10이 0건이라 자연히 A로 간다.
-  const SHOWN = 8 // 화면(SetsView)이 실제로 보여주는 힛카드 장수
+  //
+  // ⚠️ A로도 8장을 못 채우는 세트가 있다(거래가 드문 옛 세트). 그럴 땐 **있는 만큼만**
+  //    보여준다 — 8장은 최대치지 채워야 하는 수가 아니다(운영자 지시 2026-08-05).
+  //    억지로 채우려고 거래가 몇 달 된 카드까지 끌어오면 지금 값이 아니게 된다.
+  const SHOWN = 8 // 화면(SetsView)이 보여주는 최대 장수
   const byPsa = rows.filter((r) => r.psa10).sort((x, y) => y.psa10.jpy - x.psa10.jpy)
   const byA = rows.filter((r) => r.a).sort((x, y) => y.a.jpy - x.a.jpy)
   const 기준 = byPsa.length >= SHOWN ? 'psa10' : 'a'
@@ -166,7 +177,7 @@ async function main() {
   const list = 기준 === 'psa10' ? byPsa : byA
 
   console.log(`\n실거래가 있는 카드 ${list.length}장 — 값 높은 순 상위 10장:`)
-  console.log(`  (값은 ${라벨} 기준 "가장 최근에 팔린 값")`)
+  console.log(`  (값은 ${라벨} 기준 · 최근 3건 중앙값)`)
   for (const r of list.slice(0, 10)) {
     const v = pick(r)
     console.log(
@@ -185,6 +196,12 @@ async function main() {
     for (const r of 오래됨) console.log(`     ${r.n}번 ${pick(r).at} ￥${pick(r).jpy.toLocaleString()}`)
   }
   if (!WRITE) { console.log('\n--write 를 붙이면 저장합니다.'); return }
+  // ⚠️ 화면(SetsView)은 3장 미만이면 힛카드를 안 쓰고 레어도 방식으로 돌아간다.
+  //    그런 세트를 저장하면 "스니커덩크 기준"이라고 적어 놓고 정작 안 쓰는 꼴이 된다.
+  if (list.length < 3) {
+    console.log(`\n값이 ${list.length}장뿐이라 저장하지 않습니다(화면이 3장부터 씁니다).`)
+    return
+  }
 
   // setHitCards.json은 usd 기준이다. 환율은 서버가 화면에서 원화로 바꿀 때 쓰는 것과
   // 같은 곳(유럽중앙은행)에서 받아 쓴다.

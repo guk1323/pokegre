@@ -1489,7 +1489,10 @@ function App() {
                   ← 앨범으로 돌아가기
                 </button>
               )}
-              <div className="mb-4 max-w-xl">
+              {/* ⚠️ 검색창을 가운데로 놓는다(2026-08-05 운영자 지시). 예전엔 max-w-xl만
+                  걸어 왼쪽에 붙어 있었고, 넓은 화면에서는 오른쪽 절반이 통째로 비었다.
+                  이 사이트에서 제일 많이 쓰는 것이 검색이라 눈이 가는 자리에 둔다. */}
+              <div className="mx-auto mb-4 max-w-xl">
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1">
                     <SearchBar
@@ -1572,7 +1575,9 @@ function App() {
                   없었다(마우스를 올려도 아무 말이 안 뜬다). 처음 온 사람은 무엇을 고르는
                   것인지 알 길이 없다(2026-08-04). 아래 여백을 mb-6에서 mb-1로 줄이고
                   그 자리에 설명 줄을 넣어, 높이는 오히려 짧아지면서 뜻이 생긴다. */}
-              <div className="mb-1 flex flex-wrap items-center gap-2">
+              {/* 검색창과 같은 폭·같은 가운데 정렬로 묶는다. 따로 놀면 검색창만
+                  가운데고 토글은 왼쪽에 붙어 어긋나 보인다(2026-08-05). */}
+              <div className="mx-auto mb-1 flex max-w-xl flex-wrap items-center justify-center gap-2">
                 <div className="inline-flex rounded-full border border-neutral-300 p-1">
                   <button
                     type="button"
@@ -1670,7 +1675,7 @@ function App() {
               {/* 어디 시세인지 한 줄로 밝힌다. 탭 줄의 아래 여백을 대신 줄여 높이는 안 는다.
                   ⚠️ 한글판은 같은 이베이라도 값의 성격이 다르다 — Browse API라 "지금 올라온
                      매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다. */}
-              <p className="mb-5 text-xs text-neutral-400">
+              <p className="mx-auto mb-5 max-w-xl text-center text-xs text-neutral-400">
                 {source === 'snkrdunk'
                   ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
                   : source === 'tcgplayer'
