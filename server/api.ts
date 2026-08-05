@@ -4739,10 +4739,6 @@ async function noteHighlight(
   const nick = (user.nickname ?? '').trim()
   if (!nick) return null // 이름 없이 띄울 자리가 아니다
   const list = await loadHighlights()
-  // 한 사람이 박스를 여러 개 열면 배너를 독점하니 하루 한 자리만 준다.
-  const dayAgo = Date.now() - 24 * 60 * 60 * 1000
-  const mineToday = list.find((h) => h.uid === user.id && h.at > dayAgo) ?? null
-
   const priced = withUsd(slug, cards)
   const worthy = priced.filter(
     (c) => (c.usd ?? 0) >= HIGHLIGHT_USD || (RARITY_RANK[c.r ?? ''] ?? 0) >= HIGHLIGHT_RANK || god,
@@ -4751,10 +4747,12 @@ async function noteHighlight(
   // 그 팩에서 제일 좋은 한 장만 남긴다(위 betterCard와 같은 잣대를 쓴다).
   const best = worthy.reduce((a, b) => betterCard(a, b))
 
-  // ⚠️ 오늘 자리가 이미 찼어도 그냥 돌아가면 안 된다. 이 목록은 "가장 시세 높은 카드를
-  //    뽑은 사람"인데, 예전엔 그날 처음 걸린 카드가 자리를 차지하고 뒤에 나온 더 비싼
-  //    카드는 통째로 버려졌다(2026-08-04 확인: $0.5짜리를 넣어 두고 60팩을 열어도
-  //    그대로였다). 자리는 하루 하나로 두되, 더 좋은 카드가 나오면 그 자리를 바꿔 준다.
+  // ⚠️ 한 사람이 여러 자리를 차지해도 된다(2026-08-05 운영자 지시).
+  //    예전엔 "하루 한 자리"로 막았는데(배너 독점 걱정), 그러면 같은 날 더 좋은 카드가
+  //    나와도 못 올라가서 자리를 갈아끼우는 코드까지 따로 있었다. 제한을 없애니
+  //    그 코드도 필요 없다 — 뽑을 때마다 그냥 쌓고, 값 높은 순으로 뽑아 보여주면 된다.
+  //    많이 여는 사람이 상위권을 채우는 건 "가장 시세 높은 카드를 뽑은 사람" 목록의
+  //    뜻에 어긋나지 않는다.
   const entry: PackHighlight = {
     at: Date.now(),
     uid: user.id,
@@ -4767,15 +4765,7 @@ async function noteHighlight(
     ...(best.usd ? { usd: best.usd } : {}),
     ...(god ? { god: true } : {}),
   }
-  if (mineToday) {
-    if (betterHighlight(mineToday, entry) === mineToday) return null // 오늘 것이 더 좋다
-    // 자리를 갈아끼운다. 예전 카드의 한글 이름이 새 카드에 남으면 안 되니 지운다
-    // (이름은 화면이 뒤이어 fillHighlightName으로 보내 준다).
-    Object.assign(mineToday, entry)
-    delete mineToday.name
-  } else {
-    list.push(entry)
-  }
+  list.push(entry)
   // 넘치면 버리되, 역대 최고와 최근 것은 남긴다.
   if (list.length > HIGHLIGHT_MAX) {
     const fresh = Date.now() - HIGHLIGHT_FRESH_MS
@@ -4818,21 +4808,18 @@ async function fillHighlightName(userId: string, n: string, name: string): Promi
 function mountPackHighlights(app: Mountable) {
   app.use('/api/local/pack-highlights', async (_req, res) => {
     const list = await loadHighlights()
-    const fresh = new Set(list.filter((h) => Date.now() - h.at <= HIGHLIGHT_FRESH_MS))
+    // ⚠️ "이번 주"에 든 것만 보여준다(2026-08-05 운영자 지시). 예전엔 자리가 남으면
+    //    지난 기록으로 채웠는데, 그러면 "이번 주 TOP 5"라면서 20일 전 기록이 섞였다.
+    //    다섯 개가 안 되면 **안 되는 대로 비운다** — 없는 걸 채워 넣지 않는다.
+    const fresh = list.filter((h) => Date.now() - h.at <= HIGHLIGHT_FRESH_MS)
     // 좋은 순 정렬. betterHighlight가 "둘 중 나은 쪽"을 주므로 그걸로 비교한다.
-    const byBest = (xs: PackHighlight[]) => [...xs].sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1))
-    // 어느 것을 넣을지는 이번 주 것을 먼저 본다(자리가 남으면 역대 기록으로 채운다).
-    const picked = [...byBest([...fresh]), ...byBest(list.filter((h) => !fresh.has(h)))].slice(0, HIGHLIGHT_SHOW)
-    // ⚠️ 넣을 것을 다 고른 뒤에는 값순으로 다시 세운다. 안 그러면 102만원짜리 역대 기록이
-    //    25만원짜리 이번 주 카드 뒤에 붙어 "TOP 5"인데 5번이 제일 비싼 꼴이 된다
-    //    (2026-08-04에 화면에서 확인). 고르는 기준과 줄 세우는 기준은 다르다.
-    picked.sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1))
+    const picked = [...fresh].sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1)).slice(0, HIGHLIGHT_SHOW)
     sendJson(res, 200, {
-      // uid(회원번호)는 빼고, 화면이 "이번 주"/"역대"를 가려 쓰게 recent만 붙여 준다.
+      // uid(회원번호)는 빼고 보낸다. at(뽑은 시각)은 화면이 날짜를 적는 데 쓴다.
       items: picked.map((h) => {
         const { uid: _uid, ...rest } = h
         void _uid
-        return { ...rest, recent: fresh.has(h) }
+        return rest
       }),
       total: list.length,
     })

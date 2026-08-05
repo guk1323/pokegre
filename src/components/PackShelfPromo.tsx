@@ -38,6 +38,7 @@ const MEDAL = [
 ];
 
 interface Highlight {
+  /** 뽑은 시각. 화면에 "오늘"·"어제"·"8.3"처럼 날짜를 적는 데 쓴다. */
   at: number;
   nick: string;
   slug: string;
@@ -47,8 +48,6 @@ interface Highlight {
   usd?: number;
   god?: boolean;
   name?: string;
-  /** 최근 7일에 나온 것인가. 아니면 역대 기록에서 끌어온 것이다. */
-  recent?: boolean;
 }
 
 // 홈에 띄우는 "이번 주 TOP 5" — 이번 주에 뽑힌 카드 중 시세가 높은 순.
@@ -57,8 +56,20 @@ interface Highlight {
 //    붙이고 세 토막으로 펴 봤지만 둘 다 실패했다 — 빈칸은 벌려서 없앨 수 없고
 //    채울 것을 넣어야 없어진다(사용자 지적 2026-08-04). 그래서 다섯 장을 한꺼번에
 //    편다. 자리가 실제 카드로 차고, "누가 뭘 뽑았나"를 한눈에 훑을 수 있다.
-// ⚠️ 이번 주 것이 5개가 안 되면 뒤를 역대 기록으로 채운다(서버가 recent로 알려 준다).
-//    아직 뽑는 사람이 적어서, 이번 주 것만 쓰면 자리가 비는 날이 생긴다.
+// ⚠️ 이번 주 것만 쓴다. 다섯 개가 안 되면 안 되는 대로 비운다(2026-08-05 운영자 지시).
+//    예전엔 자리가 남으면 지난 기록으로 채웠는데, "이번 주 TOP 5"라면서 20일 전 기록이
+//    섞였다. 없는 걸 채워 넣느니 칸이 적은 게 낫다.
+// 뽑은 날짜. 오늘·어제는 글자로, 그 앞은 "8.3"처럼 적는다.
+// 이번 주(7일) 안의 것만 오므로 연도는 안 붙인다.
+function pulledOn(at: number): string {
+  const d = new Date(at);
+  const day = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  const 지난날 = Math.round((day(new Date()) - day(d)) / 86400000);
+  if (지난날 <= 0) return '오늘';
+  if (지난날 === 1) return '어제';
+  return `${d.getMonth() + 1}.${d.getDate()}`;
+}
+
 function PullBanner({ onEnter }: { onEnter: () => void }) {
   const [items, setItems] = useState<Highlight[]>([]);
   // 시세를 원화로 적는다(사이트 다른 곳과 같은 표기·같은 환율).
@@ -128,7 +139,11 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
                 {/* ⚠️ 세트 이름이 잘렸다(사용자 지적 2026-08-04). 큰 화면에서 한 칸이
                     214px인데 "트와일라잇 마스커레이드"만 그 폭을 넘는다. 닉네임과 한 줄에
                     붙이지 말고 줄을 나눠 각자 한 줄씩 쓰게 한다. */}
-                <p className="line-clamp-1 text-xs text-neutral-500">{h.nick}님</p>
+                <p className="line-clamp-1 text-xs text-neutral-500">
+                  {h.nick}님
+                  {/* 언제 뽑은 것인지. 이번 주 안에서도 오늘 것과 엿새 전 것은 다르다. */}
+                  {h.at ? <span className="ml-1 text-neutral-400">{pulledOn(h.at)}</span> : null}
+                </p>
                 {pn && <p className="line-clamp-1 text-[11px] text-neutral-400">{pn}</p>}
               </div>
               <p className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-neutral-900 sm:text-left">
