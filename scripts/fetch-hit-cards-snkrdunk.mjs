@@ -21,6 +21,8 @@ import path from 'node:path'
 const ROOT = process.cwd()
 const OUT = path.resolve(ROOT, 'src/data/setHitCards.json')
 const HOST = 'https://snkrdunk.com'
+// 카드 상태 "A(거의 미사용)". 스니커덩크가 쓰는 코드 그대로다.
+const COND_A = 'trading_card_single_nearly_unused'
 const UA = { accept: 'application/json', 'user-agent': 'Mozilla/5.0 (compatible; pokegre/0.1; personal use)' }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -55,22 +57,36 @@ async function search(keyword) {
   return (d.search?.products?.length ? d.search.products : (d.search?.rankingProducts ?? [])).filter((p) => p.link)
 }
 
-// 실거래가. 거래 이력의 최근 5건 중앙값을 쓴다 —
-// ⚠️ 최근 1건만 쓰면 안 된다. 어쩌다 싸게 넘긴 한 건에 순위가 통째로 흔들린다.
-//    반대로 전체 평균은 발매 직후 고가에 끌려간다. 최근 몇 건의 중앙값이 가장 안정적이다.
+// 실거래가. **가장 최근에 팔린 값**을 쓴다.
+//
+// ⚠️ 처음엔 최근 5건의 중앙값으로 했는데, 값이 떨어지는 중인 신상 카드에서는 며칠 전
+//    고가가 섞여 지금보다 높게 잡힌다(스톰에메랄드 113번: 최근 1건 ￥205,000 vs
+//    5건 중앙값 ￥200,000, 5건 안에 ￥179,999까지 섞여 있었다).
+//    실측해 보니 거래가 잦은 카드는 1건과 중앙값 차이가 1~3%뿐이라, 흔들릴 걱정보다
+//    "지금 값"을 쓰는 이득이 크다(2026-08-05 운영자 판단).
+// ⚠️ 조건은 A로 못 박는다 — 아래 tradedPrice 안 주석 참고.
 async function tradedPrice(apparelId) {
   const a = await fetch(`${HOST}/v1/apparels/${apparelId}`, { headers: UA })
   if (!a.ok) return null
   const pid = (await a.json()).productCatalogId
   if (!pid) return null
   await sleep(400)
-  const t = await fetch(`${HOST}/v3/products/${pid}/trading-history?range=all`, { headers: UA })
+  // ⚠️ 조건(상태)을 반드시 A로 못 박는다. 스니커덩크는 한 카드가 A(거의 미사용)·B(약간
+  //    흠집)·C·D와 PSA 감정등급으로 갈려 거래되고, 값이 두 배까지 벌어진다(스톰에메랄드
+  //    MUR: A 15만~24만 / B 12만~15.5만). 안 가리고 섞으면 B가 몇 건 끼는 것만으로
+  //    순위가 흔들린다. 우리가 대는 기준(TCGplayer 마켓가)은 미감정 생카드라 A가 맞다.
+  const t = await fetch(
+    `${HOST}/v3/products/${pid}/trading-history?range=all&condition_code=${COND_A}`,
+    { headers: UA },
+  )
   if (!t.ok) return null
   const trades = (await t.json()).trades ?? []
-  const prices = trades.map((x) => Number(x.price)).filter((n) => Number.isFinite(n) && n > 0).slice(0, 5)
-  if (!prices.length) return null
-  prices.sort((a2, b2) => a2 - b2)
-  return { jpy: prices[Math.floor(prices.length / 2)], n: trades.length }
+  // 혹시 다른 조건이 섞여 오면 한 번 더 거른다(응답이 필터를 무시할 수도 있다).
+  const onlyA = trades.filter((x) => !x.title || x.title === 'A')
+  // trades는 최신순으로 온다. 맨 앞이 가장 최근에 팔린 값이다.
+  const latest = onlyA.find((x) => Number.isFinite(Number(x.price)) && Number(x.price) > 0)
+  if (!latest) return null
+  return { jpy: Number(latest.price), n: onlyA.length, at: String(latest.soldAt ?? '').slice(0, 10) }
 }
 
 async function main() {
@@ -112,14 +128,24 @@ async function main() {
     const t = await tradedPrice(hit.id)
     await sleep(700)
     if (!t) continue
-    rows.push({ n: c.n, jpy: t.jpy, trades: t.n, name: c.name, title: hit.title })
+    rows.push({ n: c.n, jpy: t.jpy, trades: t.n, at: t.at, name: c.name, title: hit.title })
     if (i % 10 === 0) console.log(`  ${i}/${targets.length} 확인 중…`)
   }
 
   rows.sort((a, b) => b.jpy - a.jpy)
   console.log(`\n실거래가 있는 카드 ${rows.length}장 — 값 높은 순 상위 10장:`)
+  console.log('  (값은 A등급 기준 "가장 최근에 팔린 값")')
   for (const r of rows.slice(0, 10)) {
-    console.log(`  ${String(r.n).padStart(4)}번  ￥${r.jpy.toLocaleString().padStart(9)}  (거래 ${r.trades}건)  ${r.title.slice(0, 46)}`)
+    console.log(
+      `  ${String(r.n).padStart(4)}번  ￥${r.jpy.toLocaleString().padStart(9)}  ${r.at}  (거래 ${r.trades}건)  ${r.title.slice(0, 40)}`,
+    )
+  }
+  // ⚠️ 거래가 뜸한 카드는 "가장 최근"이 몇 달 전일 수 있다. 그런 건 지금 값이 아니니
+  //    눈에 띄게 알려 준다(순위에 넣을지는 사람이 판단한다).
+  const 오래됨 = rows.slice(0, 12).filter((r) => r.at && Date.now() - Date.parse(r.at) > 30 * 86400_000)
+  if (오래됨.length) {
+    console.log(`\n  ⚠️ 마지막 거래가 30일 넘은 카드 ${오래됨.length}장 — 지금 값이 아닐 수 있습니다:`)
+    for (const r of 오래됨) console.log(`     ${r.n}번 ${r.at} ￥${r.jpy.toLocaleString()}`)
   }
   if (!WRITE) { console.log('\n--write 를 붙이면 저장합니다.'); return }
 
