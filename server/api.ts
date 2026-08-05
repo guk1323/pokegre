@@ -6176,6 +6176,19 @@ export function topPricedCards(slug: string, limit = 4): { n: string; usd: numbe
     .slice(0, limit)
 }
 
+// 위 힛카드 값이 어느 마켓·어느 상태 기준인지 한 줄로. 검색 노출 페이지(server/index.ts)가
+// 쓴다.
+// ⚠️ 값과 라벨이 따로 놀면 안 된다. 예전엔 크롤러가 읽는 글에 "TCGplayer 마켓가"라고
+//    박아 놨는데, topPricedCards는 세트에 따라 스니커덩크 값을 준다. 스톰에메랄드가
+//    스니커덩크 값 $1,302를 띄우면서 TCGplayer 기준이라고 적고 있었다(2026-08-05).
+export function topPricedBasis(slug: string): string {
+  const saved = loadHitCardFile()[slug]
+  if (saved?.src === 'snkrdunk' && saved.cards?.length) {
+    return saved.grade === 'psa10' ? 'SNKRDUNK 실거래 · PSA10' : 'SNKRDUNK 실거래 · 미감정(A등급)'
+  }
+  return 'TCGplayer 마켓가 · 미감정'
+}
+
 // 세트 파일에서 번호 → 이름·그림. 힛카드 파일에는 번호와 값만 있어서 여기서 채운다.
 const setCardCache = new Map<string, Map<string, { name: string; img: string }>>()
 function setCards(slug: string): Map<string, { name: string; img: string }> {

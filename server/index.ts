@@ -12,6 +12,7 @@ import {
   startCardNameStore,
   startCoverWarmup,
   topPricedCards,
+  topPricedBasis,
 } from './api.ts'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
@@ -314,6 +315,7 @@ app.get('/set/:slug', async (req, res) => {
     return
   }
   const hits = topPricedCards(slug, 8)
+  const basis = topPricedBasis(slug)
   const byNum = new Map(cards.map((c) => [String(Number(c.n)), c]))
   const rows = hits
     .map((h) => ({ ...h, card: byNum.get(String(Number(h.n))) }))
@@ -325,7 +327,7 @@ app.get('/set/:slug', async (req, res) => {
     ? `${setName}에서 값이 높은 카드 ${rows.length}장 — ${rows
         .slice(0, 3)
         .map((r) => r.name)
-        .join(' · ')} 등. TCGplayer 마켓가(미감정) 기준.`
+        .join(' · ')} 등. ${basis} 기준.`
     : `${setName} 수록 카드 ${cards.length}장을 한국어 이름으로 봅니다.`
   const url = `https://pokegre.com/set/${slug}`
 
@@ -345,7 +347,7 @@ app.get('/set/:slug', async (req, res) => {
     .join('')
   const body = `<div id="seo-fallback"><h1>${esc(setName)} 힛카드</h1>${
     rows.length
-      ? `<p>${esc(setName)}에서 값이 높은 카드 ${rows.length}장입니다. TCGplayer 마켓가(미감정 생카드) 기준입니다.</p><ol>${list}</ol>`
+      ? `<p>${esc(setName)}에서 값이 높은 카드 ${rows.length}장입니다. ${esc(basis)} 기준입니다.</p><ol>${list}</ol>`
       : `<p>${esc(setName)} 수록 카드 ${cards.length}장.</p>`
   }<p><a href="/set/${esc(slug)}">${esc(setName)} 전체 카드 보기</a></p></div>`
   html = html.replace('<body>', `<body>${body}`)
