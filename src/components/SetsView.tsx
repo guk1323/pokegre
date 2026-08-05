@@ -182,6 +182,17 @@ export function SetsView({
   }, []);
   const [loading, setLoading] = useState(false);
   const [shown, setShown] = useState(PAGE);
+  // 목록에서 한 번에 보여 줄 세트 수("더 보기"로 늘린다). 자세한 이유는 아래 쓰는 자리에.
+  //
+  // ⚠️ 이 두 줄은 반드시 다른 훅들과 함께 **여기**, 즉 아래 `if (selected)`(세트 상세로
+  //    빠지는 이른 return)보다 위에 있어야 한다. 아래에 두면 세트를 열 때만 훅이 두 개
+  //    모자라게 실행돼 화면이 통째로 깨진다(React #300). 실제로 그렇게 짰다가 세트를
+  //    누르면 "화면을 표시하지 못했습니다"가 떴다(2026-08-05 배포 전 점검에서 발견).
+  //    쓰는 자리 가까이 두고 싶어도 훅은 조건·return보다 먼저여야 한다.
+  const 세트한번에 = 30;
+  const [세트보임, set세트보임] = useState(세트한번에);
+  // 찾는 말이나 판(일본/북미/포켓)을 바꾸면 처음부터 다시 센다.
+  useEffect(() => set세트보임(세트한번에), [query, tab]);
 
   const indexRef = useRef<SetIndexEntry[] | null>(null);
   indexRef.current = index;
@@ -486,9 +497,6 @@ export function SetsView({
   //    ⚠️ 찾는 중일 때는 안 자른다 — 찾으려던 세트가 잘리면 "없다"고 오해한다.
   //    ⚠️ 묶음 개수로 자르면 안 된다. 시리즈마다 세트 수가 3개에서 30개까지 제각각이라,
   //       6묶음만 남겨도 14화면이었다(실측). **세트 수**로 세되 묶음은 안 쪼갠다.
-  const 세트한번에 = 30;
-  const [세트보임, set세트보임] = useState(세트한번에);
-  useEffect(() => set세트보임(세트한번에), [q, tab]);
   const 볼묶음 = (() => {
     if (q.trim()) return groups;
     const out: typeof groups = [];
