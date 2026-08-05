@@ -705,12 +705,19 @@ function App() {
     if (!trimmed) {
       setItems([]);
       setError(null);
+      setLoading(false);
       return;
     }
 
     // ⚠️ 한 글자로는 검색을 보내지 않는다. "리" 한 글자에도 진짜 검색이 나가고
     //    페이지를 여러 장 넘겼다. 화면은 위 tooShort가 "두 글자 이상" 안내로 받는다.
-    if (trimmed.length < MIN_SEARCH_LEN) return;
+    // ⚠️ 여기서 "검색 중"을 반드시 꺼야 한다. 두 글자를 쳤다가 한 글자로 지우면 앞 요청이
+    //    끊기는데(아래 ac.abort), 끊긴 요청은 finally에서 끄지 않으므로 켠 채로 남는다.
+    //    그러면 "두 글자 이상 입력하면…" 옆에 "검색 중…"이 나란히 떠 있게 된다.
+    if (trimmed.length < MIN_SEARCH_LEN) {
+      setLoading(false);
+      return;
+    }
 
     // ⚠️ "검색 중"을 기다리기 **전에** 켠다. 예전엔 300ms 뒤에야 켰는데, 그 사이에는
     //    검색 중도 아니고 결과도 없는 상태라 화면이 "검색 결과가 없습니다"(+인기 검색어)를
@@ -780,10 +787,14 @@ function App() {
     if (!trimmed) {
       setEbayItems([]);
       setEbayError(null);
+      setEbayLoading(false);
       return;
     }
     // 스니커덩크와 같은 기준. 한 글자로는 안 부른다 — 여기는 크레딧까지 든다.
-    if (trimmed.length < MIN_SEARCH_LEN) return;
+    if (trimmed.length < MIN_SEARCH_LEN) {
+      setEbayLoading(false);
+      return;
+    }
 
     // 기다리는 동안에도 "검색 중"으로 둔다(스니커덩크 쪽 설명 참고).
     setEbayLoading(true);
@@ -1101,24 +1112,10 @@ function App() {
     document.title = VIEW_TITLE[view] ?? HOME_TITLE;
   }, [selectedCard, ebaySelectedCard, view, source, restoringShare]);
 
-  // 사전이 온 뒤에 채운다. 안내문 한 줄이라 조금 늦게 떠도 티가 안 난다.
-  const [translatedQuery, setTranslatedQuery] = useState('');
-  useEffect(() => {
-    // ⚠️ 검색어가 없으면 사전을 부르지 않는다. 부르면 첫 화면에서 사전을 통째로
-    // 받아 버려 떼어 놓은 뜻이 없어진다(실제로 그랬다 — 운영 빌드에서 잡았다).
-    if (!query.trim()) {
-      setTranslatedQuery('');
-      return;
-    }
-    let alive = true;
-    void loadNameDict().then((d) => {
-      if (alive) setTranslatedQuery(d.translateSearchQuery(query));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [query]);
-  const showTranslationHint = source === 'snkrdunk' && translatedQuery && translatedQuery !== query.trim();
+  // ⚠️ "'저지맨' → 'ジャッジマン'로 검색했습니다" 안내를 뺐다(운영자 지시 2026-08-05).
+  //    무슨 말로 바꿔 찾았는지는 우리 사정이지 보러 온 사람이 알아야 할 값이 아니다.
+  //    그 자리는 "어느 마켓 값인지"가 쓴다 — 그게 실제로 값을 읽는 데 필요한 말이다.
+  //    이걸 지우면서 사전(loadNameDict)을 화면에 미리 받을 이유도 없어졌다.
   const hasMore = !exhausted;
   // 한 글자만 친 상태도 홈으로 본다. 검색을 안 보내는데 결과 화면을 띄우면
   // "검색 결과가 없습니다"만 남아 홈이 무너진다(위 MIN_SEARCH_LEN 설명).
@@ -1661,11 +1658,6 @@ function App() {
                 {scanFellBack && (
                   <p className="text-xs text-neutral-400 mt-2">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
                 )}
-                {showTranslationHint && (
-                  <p className="text-xs text-neutral-400 mt-2">
-                    '{query.trim()}' → '{translatedQuery}'로 검색했습니다.
-                  </p>
-                )}
                 {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
                 {scannedResult && (
                   <p className="text-xs text-neutral-400 mt-2">
@@ -1755,8 +1747,12 @@ function App() {
               </div>
               {/* 어디 시세인지 한 줄로 밝힌다. 탭 줄의 아래 여백을 대신 줄여 높이는 안 는다.
                   ⚠️ 한글판은 같은 이베이라도 값의 성격이 다르다 — Browse API라 "지금 올라온
-                     매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다. */}
-              <p className="mx-auto mb-5 max-w-3xl text-center text-xs text-neutral-400">
+                     매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다.
+                  ⚠️ 가운데가 아니라 **왼쪽**으로 붙인다(운영자 지시 2026-08-05). 가운데에
+                     떠 있으면 검색창 전체에 대한 말처럼 보이는데, 실제로는 왼쪽 끝 마켓 칩
+                     (SNKRDUNK·eBay·TCGplayer)에 딸린 설명이다. 칩 바로 아래에 두면 무엇에
+                     대한 말인지 눈으로 이어진다. */}
+              <p className="mx-auto mb-5 max-w-3xl pl-1.5 text-left text-xs text-neutral-400">
                 {source === 'snkrdunk'
                   ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
                   : source === 'tcgplayer'

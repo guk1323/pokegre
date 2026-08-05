@@ -58,11 +58,17 @@ export function CardTile({
         {onToggleFavorite && <FavoriteButton active={!!isFavorite} onToggle={() => onToggleFavorite(card)} />}
       </div>
       {/* 카드 이름은 "이름 [세트 번호](팩 이름)" 한 덩어리로 온다. 그대로 두 줄로 자르면
-          팩 이름이 "(하…"에서 끊겨 어느 팩인지 알 수 없었다. 이름과 팩을 나눠 놓는다. */}
-      <p className="font-semibold text-sm text-black line-clamp-2">{cardTitleMain(card.title)}</p>
-      {cardTitlePack(card.title) && (
-        <p className="mb-1 line-clamp-1 text-[11px] text-neutral-400">{cardTitlePack(card.title)}</p>
-      )}
+          팩 이름이 "(하…"에서 끊겨 어느 팩인지 알 수 없었다. 이름과 팩을 나눠 놓는다.
+          ⚠️ 이름 두 줄·팩 한 줄 자리를 **미리 잡아 둔다**(min-h). 안 그러면 이름이 짧은
+             카드는 타일이 그만큼 짧아져서, 나란히 놓인 카드들의 키가 제각각이 된다
+             (운영자 지적 2026-08-05 — "피카츄 P"는 한 줄, "토호쿠의 피카츄 P"는 두 줄).
+             팩 이름이 없는 카드도 줄은 남겨 둔다 — 있는 카드와 키를 맞추려는 것이다. */}
+      <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-snug text-black">
+        {cardTitleMain(card.title)}
+      </p>
+      <p className="mb-1 line-clamp-1 min-h-[1rem] text-[11px] text-neutral-400">
+        {cardTitlePack(card.title) || '\u00a0'}
+      </p>
       {/* 찜 수는 검색 결과에만 있다. 저장해둔 카드를 ID로 복원한 경우엔 값이 없어서
           "매물 N개"만 보여준다. */}
       <p className="mt-0.5 text-xs text-neutral-400 mb-1">
