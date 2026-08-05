@@ -263,26 +263,18 @@ export function SetsView({
           ← 세트 목록
         </button>
 
-        {/* 세트 헤더: 팩 사진(또는 로고) + 이름 + 정보 칩 */}
+        {/* 세트 헤더: 이름 + 정보 칩.
+            ⚠️ 이름 옆 그림을 뺐다(2026-08-05, 운영자 지시). 뺀 이유가 셋이다.
+            ① 원래 쓰던 selected.cover는 그 세트의 1번 카드인데, 1번은 대개 평범한
+               커먼이라 세트를 알아보는 데 도움이 안 됐다(닌자스피너에 비드루가 떴다).
+            ② 대신 쓸 만한 그림이 371개 중 227개뿐이다. 일본판 로고를 주는 limitless는
+               로고가 아니라 "M6"·"s8b" 같은 까만 세트코드 글자판을 준다.
+            ③ 팩(박스) 사진을 더 받아 채워 보려 했지만, 옛 세트는 미개봉 박스가 시장에
+               없어서 PSA 슬랩 사진·남의 책상 사진 같은 엉뚱한 것이 붙었다(79개 중
+               대부분). 되돌렸다.
+            바로 아래 힛카드에 그 세트에서 제일 비싼 카드가 크게 나오므로, 머리에
+            그림이 없어도 허전하지 않다. */}
         <div className="mb-5 flex items-center gap-4">
-          {(() => {
-            // 팩 사진 → 진짜 로고 → 아무것도 안 보이기.
-            //
-            // ⚠️ 예전엔 selected.cover(그 세트의 1번 카드)를 썼는데, 1번은 대개 평범한
-            //    커먼이라 세트를 알아보는 데 도움이 안 됐다(닌자스피너에 비드루가 떴다).
-            //    바로 아래 힛카드에 진짜 비싼 카드가 크게 나오므로 겹치기도 했다.
-            // ⚠️ 로고가 있다고 다 쓰면 안 된다. 일본판 로고를 주는 limitless는 로고가
-            //    아니라 "M6"·"s8b" 같은 까만 세트코드 글자판을 준다(2026-08-05 눈으로
-            //    확인). 그건 1번 카드보다 나쁘다 — tcgdex 로고만 쓴다.
-            const logo = selected.logo && /tcgdex/.test(selected.logo) ? selected.logo : '';
-            const src = selected.boxImg || logo;
-            if (!src) return null;
-            return (
-              <div className="grid h-[84px] w-[84px] flex-shrink-0 place-items-center overflow-hidden rounded-lg bg-neutral-50 p-1.5 ring-1 ring-neutral-200/70">
-                <img src={thumb(src, 200)} alt="" className="max-h-full max-w-full object-contain" />
-              </div>
-            );
-          })()}
           <div className="min-w-0">
             <h2 className="text-xl font-extrabold leading-tight text-black">{koSet(selected.ed, selected.name)}</h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

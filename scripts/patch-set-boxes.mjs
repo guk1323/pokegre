@@ -16,14 +16,34 @@ import path from 'node:path'
 const OUT = path.resolve(process.cwd(), 'public/sets')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-// 일본판 세트의 검색용 일본어 이름. 새 세트를 넣을 때 여기에도 한 줄 추가한다.
-const JP_NAME = {
+// 일본판 세트의 검색용 일본어 이름. index.json의 name은 한글이라 일본 사이트에
+// 그대로 넣으면 0건이다.
+//
+// ⚠️ 예전엔 여기에 손으로 적었다. 여섯 개 적어 두고 나머지 82개를 못 받고 있었다.
+//    TCGdex가 세트 코드로 일본어 이름을 그대로 준다(S8b → VMAXクライマックス).
+//    받아서 쓰고, 못 받은 것만 아래 표로 메운다.
+const JP_NAME_FALLBACK = {
   'ja-SV1S': 'スカーレットex',
   'ja-SV1V': 'バイオレットex',
   'ja-SV2D': 'クレイバースト',
   'ja-SV2P': 'スノーハザード',
   'ja-SV3a': 'レイジングサーフ',
   'ja-SV10': 'ロケット団の栄光',
+}
+const jpNameCache = new Map()
+async function jpName(slug, id) {
+  if (jpNameCache.has(slug)) return jpNameCache.get(slug)
+  let name = ''
+  try {
+    const r = await fetch(`https://api.tcgdex.net/v2/ja/sets/${id}`)
+    if (r.ok) name = (await r.json())?.name ?? ''
+  } catch {
+    /* 못 받으면 아래 표로 */
+  }
+  // ⚠️ 일본어가 아닌 이름(영어로만 온 것)은 쓰지 않는다. 일본 사이트에서 0건이 나온다.
+  if (!/[ぁ-んァ-ヶ一-龠]/.test(name)) name = JP_NAME_FALLBACK[slug] ?? ''
+  jpNameCache.set(slug, name)
+  return name
 }
 
 async function searchBox(name) {
@@ -102,7 +122,7 @@ async function main() {
   const skipped = []
   for (const entry of targets) {
     // 일본판은 일본어 이름이 있어야 찾는다(한글로는 0건). 없으면 건너뛰고 끝에 알린다.
-    const jp = JP_NAME[entry.slug]
+    const jp = entry.ed === 'ja' ? await jpName(entry.slug, entry.id) : ''
     if (entry.ed === 'ja' && !jp) {
       skipped.push(`${entry.slug} ${entry.name}`)
       continue
@@ -120,7 +140,7 @@ async function main() {
   console.log(`박스 사진 붙임: ${hit}/${done}`)
   // ⚠️ 건너뛴 것을 조용히 넘기면 "다 됐다"로 읽힌다. 반드시 목록으로 남긴다.
   if (skipped.length) {
-    console.log(`\n일본어 이름이 없어 건너뛴 세트 ${skipped.length}개 — JP_NAME에 추가해야 합니다:`)
+    console.log(`\n일본어 이름을 못 구해 건너뛴 세트 ${skipped.length}개 — JP_NAME_FALLBACK에 적어 주세요:`)
     for (const s of skipped) console.log(`  ${s}`)
   }
 }
