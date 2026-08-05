@@ -66,6 +66,34 @@ function isWideScreen(): boolean {
 }
 
 type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
+
+// 화면 → 주소. 카테고리를 누르면 주소창도 같이 바뀌게 한다(운영자 지적 2026-08-05 —
+// 카테고리를 옮겨 다녀도 주소가 pokegre.com 그대로라 링크를 복사해 줄 수가 없었다).
+//
+// ⚠️ 여기 적을 수 있는 건 **서버가 아는 주소뿐이다**(server/index.ts에 같은 이름의
+//    라우트가 있어야 한다). 없는 주소를 적으면 그 주소를 복사해 다시 들어갔을 때
+//    홈이 떠서 주소가 거짓말이 된다. 마이페이지·운영자 화면이 여기 없는 이유다.
+const VIEW_PATH: Partial<Record<MainView, string>> = {
+  cards: '/',
+  sets: '/sets',
+  artists: '/artists',
+  centering: '/centering',
+  packsim: '/packsim',
+  community: '/community',
+};
+
+// 주소 → 화면. 위 표의 반대다.
+// ⚠️ 반드시 **첫 렌더 전에** 정해야 한다. 예전엔 useEffect에서 정했는데, 그 한 박자
+//    사이에 "지금 화면(cards)에 맞는 주소"로 /를 덮어써서 /set/ja-M6로 들어온 사람의
+//    주소가 통째로 날아갔다(2026-08-05).
+function viewFromPath(p: string): MainView | null {
+  if (/^\/(artist|artists)\//.test(p) || /^\/artists\/?$/.test(p)) return 'artists';
+  if (/^\/(set|series)\//.test(p) || /^\/sets\/?$/.test(p)) return 'sets';
+  if (/^\/centering\/?$/.test(p)) return 'centering';
+  if (/^\/packsim\/?$/.test(p)) return 'packsim';
+  if (/^\/community\/?$/.test(p)) return 'community';
+  return null;
+}
 type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
 // 사람이 검색어를 "확정한" 방법. 인기 검색어 집계가 타이핑 조각을 거르면서도
 // 확실한 검색은 안 놓치게 하는 데 쓴다(2026-08-04).
@@ -140,7 +168,11 @@ function asOfLabel(iso: string): string {
 }
 
 function App() {
-  const [view, setView] = useState<MainView>(() => savedNav().view ?? 'cards');
+  // 주소가 먼저다. 검색·공유로 들어온 사람은 그 주소가 보고 싶은 화면이고,
+  // 방문기록(savedNav)은 그 사람이 전에 보던 화면이라 새로 들어온 뜻을 덮으면 안 된다.
+  const [view, setView] = useState<MainView>(
+    () => viewFromPath(window.location.pathname) ?? savedNav().view ?? 'cards',
+  );
   // 상단 드롭다운(더보기·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
   const [openMenu, setOpenMenu] = useState<'more' | 'admin' | null>(null);
   const [source, setSource] = useState<PriceSource>(() => savedNav().source ?? 'snkrdunk');
@@ -230,29 +262,13 @@ function App() {
   // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
   // 안 주므로 아무것도 못 본다.
   const [isAdmin, setIsAdmin] = useState(false);
-  // /set/<슬러그>로 들어오면 바로 세트 화면을 연다. 서버가 그 주소로 힛카드가 적힌
-  // 페이지를 미리 만들어 보내므로(검색 노출용), 사람이 눌러 들어오면 앱이 이어받는다.
+  // 검색·공유로 들어온 주소(/set/…·/artist/…·/series/…·/centering, 그리고 카테고리
+  // 대문 /sets·/artists·/packsim·/community)로 들어오면 서버가 그 화면의 내용을 글자로
+  // 미리 넣어 보낸다. 앱이 뜨면 그 조각을 걷어 낸다 — 화면은 위 useState에서 이미 그
+  // 주소에 맞춰 열렸다(viewFromPath).
+  // ⚠️ 주소는 그대로 둔다. 새로고침·공유해도 같은 자리가 열려야 한다.
   useEffect(() => {
-    if (!/^\/set\//.test(window.location.pathname)) return;
-    setView('sets');
-    // 주소는 그대로 둔다 — 새로고침·공유해도 같은 세트가 열린다.
-    document.getElementById('seo-fallback')?.remove();
-  }, []);
-  // /artist/<슬러그>·/series/<슬러그>·/centering도 같은 방식이다. 서버가 그 주소로
-  // 검색 노출용 페이지를 미리 만들어 보내므로, 사람이 눌러 들어오면 앱이 이어받는다.
-  // ⚠️ 카테고리 대문(/sets·/artists·/packsim·/community)도 여기서 받는다. 서버가
-  //    그 주소에 목록을 글자로 미리 넣어 보내는데, 앱이 안 받으면 홈이 떠서 들어온
-  //    사람이 "왜 딴 데로 갔지" 하게 된다(2026-08-05).
-  useEffect(() => {
-    const p = window.location.pathname;
-    if (/^\/artist\//.test(p)) setView('artists');
-    else if (/^\/series\//.test(p)) setView('sets');
-    else if (/^\/centering\/?$/.test(p)) setView('centering');
-    else if (/^\/sets\/?$/.test(p)) setView('sets');
-    else if (/^\/artists\/?$/.test(p)) setView('artists');
-    else if (/^\/packsim\/?$/.test(p)) setView('packsim');
-    else if (/^\/community\/?$/.test(p)) setView('community');
-    else return;
+    if (!viewFromPath(window.location.pathname)) return;
     document.getElementById('seo-fallback')?.remove();
   }, []);
   // 팩 개봉의 "수록 카드 보기" → 세트 목록에서 그 세트를 바로 연다.
@@ -1020,11 +1036,27 @@ function App() {
             : source === 'tcgplayer' && ebaySelectedCard
               ? `/t/${ebaySelectedCard.tcgPlayerId}`
               : null;
+    // ⚠️ ?notrack=1 같은 물음표 뒤는 지우지 않는다. 예전엔 주소를 바꿀 때마다 통째로
+    //    날아가서, 운영자가 확인하려고 붙인 notrack이 카테고리 한 번 누르면 풀렸다.
+    const q = window.location.search;
+    const cur = window.location.pathname;
     if (path) {
-      window.history.replaceState(window.history.state, '', path);
-    } else if (!restoringShare && /^\/[cet]\//.test(window.location.pathname)) {
-      window.history.replaceState(window.history.state, '', '/');
+      if (cur !== path) window.history.replaceState(window.history.state, '', path + q);
+      return;
     }
+    // 공유 링크로 막 들어와 카드를 되살리는 중이면 건드리지 않는다(주소가 먼저 지워진다).
+    if (restoringShare) return;
+
+    // 카드 화면이 아니면 지금 보고 있는 화면에 맞는 주소로 바꾼다.
+    // ⚠️ 여기 없는 화면(마이페이지·운영자 화면)은 '/'로 둔다. 서버가 그 주소를 모르므로,
+    //    주소만 만들어 두면 새로고침했을 때 홈이 떠서 "주소가 거짓말"이 된다.
+    // ⚠️ 깊은 링크(/set/…·/series/…·/artist/…)로 들어온 사람의 주소는 그대로 둔다.
+    //    안 그러면 검색으로 들어오자마자 주소가 목록으로 바뀌어 그 사람이 보던 자리를 잃는다.
+    const deep =
+      (view === 'sets' && /^\/(set|series)\//.test(cur)) || (view === 'artists' && /^\/artist\//.test(cur));
+    if (deep) return;
+    const want = VIEW_PATH[view] ?? '/';
+    if (cur !== want) window.history.replaceState(window.history.state, '', want + q);
   }, [selectedCard, ebaySelectedCard, view, source, restoringShare]);
 
   // 사전이 온 뒤에 채운다. 안내문 한 줄이라 조금 늦게 떠도 티가 안 난다.
