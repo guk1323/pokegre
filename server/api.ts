@@ -384,6 +384,10 @@ const IMG_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 let warmCovers: (() => Promise<void>) | null = null
 // 오늘 진열된 팩의 카드 그림 데우기. 진열이 자정에 바뀌므로 하루 한 번 다시 돈다.
 let warmPackCards: (() => Promise<void>) | null = null
+// 세트 하나의 힛카드(값 높은 8장) 그림만 데운다. 시세를 새로 받은 직후에 부른다 —
+// 그때 힛카드가 레어도 순에서 값 순으로 바뀌므로, 새로 뽑힌 여덟 장은 아무도 받아
+// 둔 적이 없다. mountImageProxy가 채워 넣는다.
+let warmHitCardImgs: ((slug: string) => Promise<void>) | null = null
 export function startCoverWarmup(): void {
   if (warmCovers) void warmCovers()
   // 표지가 먼저 끝나도록 조금 늦춘다 — 둘이 동시에 원본을 두드리면 서로 느려진다.
@@ -669,6 +673,30 @@ function mountImageProxy(app: Mountable) {
       }
     }
     console.log(`[pokegre] 오늘 진열 팩 카드 ${done}장을 미리 받아 뒀습니다(이미 있던 것 ${already}장).`)
+  }
+
+  // 세트 하나의 힛카드 그림만 데운다(세트별 목록이 그리는 320px).
+  // ⚠️ 폭은 SetsView가 힛카드를 그리는 값과 같아야 한다. 다르면 딴 칸에 담겨 헛일이다.
+  warmHitCardImgs = async (slug: string) => {
+    const top = topPricedCards(slug, 8)
+    if (!top.length) return
+    const cards = setCards(slug)
+    const urls = top
+      .map((t) => cards.get(String(Number(t.n)))?.img)
+      .filter((u): u is string => !!u && !u.includes('snkrdunk'))
+      .map((base) => (/\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`))
+    let done = 0
+    for (const u of urls) {
+      const key = `320|${u}`
+      if (cache.get(key)) continue
+      const hit = (await readDisk(key)) ?? (await fetchThumb(u, 320, IMG_SLOW_RETRY_MS).catch(() => null))
+      if (hit) {
+        cache.set(key, hit)
+        void writeDisk(key, hit.body)
+        done++
+      }
+    }
+    if (done) console.log(`[pokegre] ${slug} 힛카드 그림 ${done}장을 미리 받아 뒀습니다.`)
   }
 }
 
@@ -4834,6 +4862,11 @@ async function warmPackPrices(apiKey: string) {
       if (!packWarmDue(packPriceCache.get(slug))) continue
       await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 5_000 })
       await savePackPriceFile()
+      // 시세가 들어오면 그 세트의 힛카드가 통째로 바뀐다 — 레어도 순으로 보여주던 것이
+      // 값 순으로 바뀌므로, 화면 맨 위 여덟 장이 다른 카드가 된다. 그 그림은 아무도
+      // 받아 둔 적이 없어서 처음 여는 사람이 1.3초를 기다린다(2026-08-05 실측).
+      // 시세를 받은 김에 바로 데운다. 여덟 장뿐이라 부담이 없다.
+      await warmHitCardImgs?.(slug)
       // ⚠️ 분당 한도는 "크레딧 500"이 아니라 "요청 60번"이다(응답 헤더 x-ratelimit-
       // minute-limit로 확인). 5초씩 띄우면 분당 12번이라 넉넉히 안전하고, 22세트를
       // 채우는 데 50분이 아니라 몇 분이면 끝난다(서버가 새로 뜬 직후 시세 빈 시간 단축).
