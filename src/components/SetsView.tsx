@@ -219,9 +219,10 @@ export function SetsView({
       const s = indexRef.current?.find((x) => x.slug === slug);
       if (s) showSet(s);
     },
-    // 검색으로 /set/<슬러그>에 바로 들어와 ←를 누르면 주소·탭 제목도 목록으로.
-    // (App.tsx의 VIEW_PATH·VIEW_TITLE과 같은 값이어야 한다.)
+    // 닫으면 주소·탭 제목을 목록으로. (App.tsx의 VIEW_PATH·VIEW_TITLE과 같은 값이어야 한다.)
     { path: '/sets', title: '포켓몬 카드 세트 목록 | pokegre' },
+    // 열면 그 세트의 주소로. 서버가 이미 아는 주소라 복사해 붙여도 그대로 열린다.
+    (slug) => `/set/${slug}`,
   );
 
   const loadIndex = () => {
@@ -242,6 +243,21 @@ export function SetsView({
       });
   };
   useEffect(loadIndex, []);
+
+  // 탭 제목도 지금 보는 세트로 바꾼다.
+  // ⚠️ 서버(server/index.ts의 /set/:slug)가 붙이는 제목과 **글자까지 같아야** 한다.
+  //    다르면 같은 화면인데 새로고침 전후로 탭 이름이 바뀐다. 서버는 값이 있는 세트면
+  //    "힛카드 시세", 없으면 "카드 목록"이라고 적는다.
+  useEffect(() => {
+    if (!selected) {
+      // 상세를 닫으면 목록 제목으로 되돌린다. 안 되돌리면 주소는 /sets인데 탭에는
+      // 방금 본 세트가 남는다.
+      document.title = '포켓몬 카드 세트 목록 | pokegre';
+      return;
+    }
+    const 이름 = koSet(selected.ed, selected.name);
+    document.title = hitCards?.length ? `${이름} 힛카드 시세 | pokegre` : `${이름} 카드 목록 | pokegre`;
+  }, [selected, hitCards]);
 
   function openSet(s: SetIndexEntry) {
     // 어떤 세트를 열었는지 통계에 남긴다(운영자 방문 통계의 "세트별 조회" 랭킹). 라벨은 화면 한글명.

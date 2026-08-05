@@ -180,8 +180,9 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
       const a = indexRef.current?.find((x) => x.slug === slug);
       if (a) showArtist(a);
     },
-    // 검색으로 /artist/<슬러그>에 바로 들어와 ←를 누르면 주소·탭 제목도 목록으로.
+    // 닫으면 목록 주소로, 열면 그 작가 주소로.
     { path: '/artists', title: '포켓몬 카드 일러스트레이터 | pokegre' },
+    (slug) => `/artist/${slug}`,
   );
 
   const loadIndex = () => {
@@ -209,6 +210,17 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
       });
   };
   useEffect(loadIndex, []);
+
+  // 탭 제목도 지금 보는 작가로. ⚠️ 서버(server/index.ts의 /artist/:slug)와 같은 규칙이다
+  //    — 이름은 한글이 있으면 한글, 없으면 영문(a.ko || a.en).
+  useEffect(() => {
+    if (!selected) {
+      document.title = '포켓몬 카드 일러스트레이터 | pokegre';
+      return;
+    }
+    const 이름 = (selected.ko || selected.en || '').trim();
+    if (이름) document.title = `${이름} 일러스트 카드 | pokegre`;
+  }, [selected]);
 
   // "이 포켓몬을 그린 작가" 목록. 목록 화면에 들어올 때 한 번만 받는다.
   // 실패해도 아무 말 안 한다 — 작가 이름 검색은 그대로 되고, 포켓몬 검색만 안 될 뿐이다.
