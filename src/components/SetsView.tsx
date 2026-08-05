@@ -160,6 +160,8 @@ export function SetsView({
   // 값이 높은 순으로 고른 힛카드. 앨범 시세를 받아 둔 세트에서만 온다.
   // 없는 세트는 예전처럼 레어도로 고른다(그때는 "주요 카드"라고 부른다).
   const [hitCards, setHitCards] = useState<{ n: string; usd: number; name: string }[] | null>(null);
+  // 어느 마켓 값인지. 일본판 신상은 스니커덩크(일본 실거래)가 더 정확해서 그쪽을 쓴다.
+  const [hitSrc, setHitSrc] = useState<'snkrdunk' | 'tcgplayer'>('tcgplayer');
   // 힛카드 값을 원화로 보여주려고 환율을 한 번 받아 둔다. 못 받으면 달러로 적는다.
   const [usdToKrw, setUsdToKrw] = useState<number | null>(null);
   // 값이 제일 높은 카드를 세트 표지로 쓴다. 원본이 주는 표지는 그 세트의 1번 카드라
@@ -195,7 +197,10 @@ export function SetsView({
     // 값 기준 힛카드. 실패하거나 시세가 없는 세트면 그냥 예전 방식으로 둔다.
     fetch(`/api/local/set-hit-cards?slug=${encodeURIComponent(s.slug)}&limit=8`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setHitCards(d?.priced && d.cards?.length ? d.cards : null))
+      .then((d) => {
+        setHitCards(d?.priced && d.cards?.length ? d.cards : null);
+        setHitSrc(d?.src === 'snkrdunk' ? 'snkrdunk' : 'tcgplayer');
+      })
       .catch(() => setHitCards(null));
   }
 
@@ -316,9 +321,14 @@ export function SetsView({
                     {pricedMode ? `힛카드 TOP ${highlights.length}` : '주요 카드'}
                   </p>
                   {/* 기준을 안 밝히면 "왜 스니커덩크 값과 다르냐"는 오해가 생긴다.
-                      등급 카드가 아니라 미감정 생카드의 TCGplayer 마켓가다. */}
+                      둘 다 등급 카드가 아니라 미감정 생카드 값이다.
+                      ⚠️ 어느 마켓인지는 세트마다 다르다 — 일본판 신상은 TCGplayer(미국)에
+                         낙찰가가 아직 없어서 스니커덩크(일본 실거래)를 쓴다. 값을 바꿔
+                         보여주면서 라벨만 그대로 두면 오해가 더 커진다. */}
                   {pricedMode && (
-                    <span className="text-[11px] text-neutral-400">TCGplayer 마켓가 · 미감정 기준</span>
+                    <span className="text-[11px] text-neutral-400">
+                      {hitSrc === 'snkrdunk' ? 'SNKRDUNK 실거래 · 미감정 기준' : 'TCGplayer 마켓가 · 미감정 기준'}
+                    </span>
                   )}
                 </div>
                 {/* ⚠️ 폰에서 4열이라 한 칸이 68px이었다. 바로 아래 "수록 카드" 목록은

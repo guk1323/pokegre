@@ -6140,7 +6140,9 @@ function mountAuth(
 // 앨범 시세를 안 받는 세트용. scripts/fetch-set-hit-cards.mjs가 미리 받아 둔 값을 읽는다.
 // 앨범 시세(packPriceCache)는 매일 갱신되는 22세트뿐이라, 나머지는 이 파일이 채운다.
 // 한 번 읽고 계속 들고 있는다(배포할 때마다 새로 읽힌다).
-let hitCardFile: Record<string, { at: number; cards: { n: string; usd: number }[] }> | null = null
+// src는 어디서 받은 값인지. 'snkrdunk'면 일본 마켓 실거래가라 PPT보다 먼저 쓴다
+// (없으면 예전처럼 PPT에서 받은 것으로 본다).
+let hitCardFile: Record<string, { at: number; src?: string; cards: { n: string; usd: number }[] }> | null = null
 function loadHitCardFile() {
   if (hitCardFile) return hitCardFile
   try {
@@ -6154,9 +6156,21 @@ function loadHitCardFile() {
 
 export function topPricedCards(slug: string, limit = 4): { n: string; usd: number; name: string }[] {
   const hit = packPriceCache.get(slug)
+  const saved = loadHitCardFile()[slug]
+  // ⚠️ 스니커덩크로 받아 둔 것(src:'snkrdunk')은 PPT보다 먼저 쓴다.
+  //    PPT는 미국 마켓이라 일본판 신상은 제일 비싼 카드의 낙찰가가 없다. 실제로
+  //    스톰에메랄드의 MUR 메가레쿠쟈(113번)는 PPT에 낙찰가가 없어 힛카드에서 통째로
+  //    빠졌고, 2등 카드가 1등처럼 보였다(2026-08-05). 같은 카드가 스니커덩크에는
+  //    실거래 20건에 ￥185,000으로 쌓여 있었다 — 2등의 2.3배다.
+  //    일본판은 일본 마켓이 진짜 시세이고, 사이트의 다른 화면도 이미 그렇게 보여준다.
+  if (saved?.src === 'snkrdunk' && saved.cards?.length) {
+    const names = setCardNames(slug)
+    return saved.cards
+      .slice(0, limit)
+      .map((c) => ({ n: c.n, usd: c.usd, name: names.get(String(Number(c.n))) ?? '' }))
+  }
   if (!hit) {
     // 앨범 시세가 없으면 미리 받아 둔 파일을 본다. 이름은 세트 파일에서 번호로 찾는다.
-    const saved = loadHitCardFile()[slug]
     if (!saved?.cards?.length) return []
     const names = setCardNames(slug)
     return saved.cards
@@ -6243,7 +6257,12 @@ function mountSetHitCards(app: Mountable) {
       sendJson(res, 200, { slug, priced: false, cards: [] })
       return
     }
-    sendJson(res, 200, { slug, priced: true, at: packPriceCache.get(slug)?.at ?? 0, cards })
+    // 어디서 받은 값인지 화면에 알려 준다. 스니커덩크(일본 실거래)와 TCGplayer(미국
+    // 마켓가)는 기준이 다르므로, 라벨을 안 바꾸면 "왜 스니커덩크 값과 다르냐"는 오해가
+    // 그대로 남는다 — 오히려 스니커덩크 값을 보여주면서 TCGplayer라고 적게 된다.
+    const saved = loadHitCardFile()[slug]
+    const src = saved?.src === 'snkrdunk' && saved.cards?.length ? 'snkrdunk' : 'tcgplayer'
+    sendJson(res, 200, { slug, priced: true, src, at: packPriceCache.get(slug)?.at ?? 0, cards })
   })
 }
 
