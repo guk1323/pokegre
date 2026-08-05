@@ -5192,6 +5192,29 @@ function mountAuth(
     const redirectUri = `${origin}/api/local/auth/kakao/callback`
 
     try {
+      // ── 개발용 시험 로그인 (GET /api/local/auth/dev) ────────────────────────
+      //
+      // 카카오·네이버는 등록된 주소로만 돌려보내므로 로컬(localhost)에서는 로그인이
+      // 안 된다. 그래서 개봉·앨범처럼 로그인이 있어야 보이는 화면을 로컬에서 시험할
+      // 길이 없었다(2026-08-05).
+      //
+      // ⚠️⚠️ 이건 **인증을 건너뛰는 문**이다. 두 겹으로 잠가 둔다:
+      //    ① 환경변수 DEV_LOGIN=1 이 있어야 한다 — 프로덕션(Fly)에는 절대 넣지 말 것.
+      //    ② 그래도 요청이 localhost로 온 것이 아니면 거절한다. 환경변수를 실수로
+      //       넣더라도 바깥에서는 못 쓴다.
+      //    둘 중 하나라도 어긋나면 404처럼 조용히 막는다(있다는 사실도 안 알린다).
+      if (segments[0] === 'dev') {
+        const host = (req.headers.host ?? '').split(':')[0]
+        const 로컬 = host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
+        if (process.env.DEV_LOGIN !== '1' || !로컬) {
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
+        // 시험 계정은 하나로 고정한다. 새로 만들 때마다 앨범이 비면 시험이 안 된다.
+        await signIn(req, res, 'kakao', 'dev-test-account')
+        return
+      }
+
       // GET /me — 로그인 상태 확인
       // DELETE /me — 회원 탈퇴. 가입은 클릭 한 번인데 탈퇴만 이메일로 받으면 안 된다.
       //

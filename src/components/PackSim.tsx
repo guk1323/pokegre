@@ -287,6 +287,12 @@ export function PackSim({
   const [albumFilter, setAlbumFilter] = useState<string>('all'); // 'all' 또는 등급 키
   const [delPick, setDelPick] = useState<Set<string>>(new Set());
   const [rates, setRates] = useState<ExchangeRates | null>(null);
+  // ⚠️ 환율은 화면을 열 때 한 번 받는다. 예전엔 **앨범 탭을 눌렀을 때만** 받았는데,
+  //    개봉 결과에도 값을 원화로 적게 되면서(2026-08-05) 앨범을 한 번도 안 연 사람은
+  //    결과에 값이 통째로 안 나왔다. 하루 한 번 바뀌는 값이라 미리 받아도 부담이 없다.
+  useEffect(() => {
+    void fetchExchangeRates().then(setRates).catch(() => undefined);
+  }, []);
   // 방금 연 팩에서 앨범에 넣을 카드. 커먼까지 다 넣으면 앨범이 지저분해져서 골라 담는다.
   const [keep, setKeep] = useState<Set<number>>(new Set());
   // 구매 완료 알림. 구매 탭 맨 위에 눈에 띄게 띄우고 보관함으로 바로 갈 수 있게 한다
