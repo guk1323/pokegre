@@ -3,6 +3,11 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/p
 import { createHash, randomUUID } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
+// ⚠️ 카드 이름을 **서버에서** 한글로 바꾸려고 가져온다. 화면에서 바꾸면 이름 사전
+//    109KB를 홈에서 통째로 받아야 한다 — 홈은 제일 많이 열리는 화면이라 그 무게를
+//    지우면 안 된다(cardImg.ts 첫머리·PackShelfPromo 설명 참고). 서버에서는 공짜다.
+import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 // 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
 // 믿으면 예산을 속일 수 있어서, 서버도 같은 표로 차감하고 뽑기도 서버가 한다).
 import {
@@ -1765,6 +1770,8 @@ const ALLOWED_EVENTS = new Set([
   'packsim_share', 'share',
   'search_scan', 'search_pick', 'search_popular', 'search_enter', 'search_typed',
   'packsim_banner', 'artist_by_pokemon',
+  // 홈의 "신팩 힛카드"(2026-08-05 추가). card=카드를 눌러 시세로 감, set=전체 보기.
+  'home_hit_card', 'home_hit_set',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -6209,6 +6216,17 @@ function setCards(slug: string): Map<string, { name: string; img: string }> {
   setCardCache.set(slug, out)
   return out
 }
+// 카드 이름을 한글로. server/index.ts의 koName과 같은 규칙이다 — 한쪽만 고치면
+// 홈에 뜨는 이름과 세트 페이지에 뜨는 이름이 갈린다.
+const koCardName = (ed: 'ja' | 'en', name: string): string => {
+  if (!name) return ''
+  if (ed !== 'ja') return koreanizeEnglishCardName(name)
+  if (/[ぁ-んァ-ヶ一-龯]/.test(name)) return koreanizeEnglishCardName(koreanizeTitle(name))
+  const en = koreanizeEnglishCardName(name)
+  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return en
+  return koreanizeEnglishCardName(koreanizeTitle(name))
+}
+
 const setCardNames = (slug: string) => {
   const m = new Map<string, string>()
   for (const [n, v] of setCards(slug)) m.set(n, v.name)
@@ -6271,6 +6289,71 @@ function mountSetHitCards(app: Mountable) {
     // 어느 등급 값인지 화면이 그대로 적어야 방문자가 오해하지 않는다.
     const grade = sd ? (saved.grade === 'psa10' ? 'psa10' : 'a') : undefined
     sendJson(res, 200, { slug, priced: true, src, grade, at: packPriceCache.get(slug)?.at ?? 0, cards })
+  })
+
+  // 홈에 띄울 "신팩 힛카드". 제일 최근에 나온 세트 중 시세가 있는 것을 고른다.
+  //
+  // ⚠️ 세트를 손으로 박아 두지 않는다(운영자 판단 2026-08-05). 박아 두면 새 팩이
+  //    나올 때마다 사람이 고쳐야 하고, 안 고치면 "신팩"이라고 적힌 자리에 몇 달 된
+  //    세트가 걸린다. 발매일이 제일 최근이면서 힛카드가 있는 세트를 매번 고른다.
+  // ⚠️ 그림 주소까지 여기서 같이 준다. 홈이 세트 목록(index.json 371개·수백 KB)을
+  //    통째로 받지 않게 하려는 것이다 — 홈은 제일 많이 열리는 화면이다.
+  // ⚠️ 카드 이름은 원어 그대로 준다. 한글로 바꾸는 사전이 화면 쪽에만 있고, 세트
+  //    화면(SetsView)도 같은 방식으로 받아 화면에서 바꾼다.
+  let latestHit: { at: number; body: unknown } | null = null
+  app.use('/api/local/latest-hit-set', async (_req, res) => {
+    // 하루 한 번만 계산한다. 힛카드 파일은 배포할 때나 바뀐다.
+    if (latestHit && Date.now() - latestHit.at < 24 * 60 * 60 * 1000) {
+      sendJson(res, 200, latestHit.body)
+      return
+    }
+    let index: { slug: string; ed?: 'ja' | 'en'; name?: string; releaseDate?: string }[] = []
+    try {
+      const raw = await readFile(path.resolve(process.cwd(), 'dist/sets/index.json'), 'utf-8').catch(() =>
+        readFile(path.resolve(process.cwd(), 'public/sets/index.json'), 'utf-8'),
+      )
+      index = JSON.parse(raw)
+    } catch {
+      sendJson(res, 200, { slug: '', cards: [] })
+      return
+    }
+    const 있는것 = new Set([...packPriceCache.keys(), ...Object.keys(loadHitCardFile())])
+    const 후보 = index
+      .filter((s) => s.releaseDate && 있는것.has(s.slug))
+      .sort((a, b) => (a.releaseDate! < b.releaseDate! ? 1 : -1))
+    let 고른것: (typeof 후보)[number] | null = null
+    let cards: { n: string; usd: number; name: string }[] = []
+    for (const s of 후보) {
+      const top = topPricedCards(s.slug, 8)
+      // 3장 미만이면 줄이 휑해서 안 쓴다(세트 화면과 같은 기준).
+      if (top.length < 3) continue
+      고른것 = s
+      cards = top
+      break
+    }
+    if (!고른것) {
+      sendJson(res, 200, { slug: '', cards: [] })
+      return
+    }
+    const saved = loadHitCardFile()[고른것.slug]
+    const sd = saved?.src === 'snkrdunk' && saved.cards?.length
+    const byNum = setCards(고른것.slug)
+    const body = {
+      slug: 고른것.slug,
+      ed: 고른것.ed ?? 'ja',
+      name: 고른것.name ?? '',
+      releaseDate: 고른것.releaseDate ?? '',
+      src: sd ? 'snkrdunk' : 'tcgplayer',
+      grade: sd ? (saved.grade === 'psa10' ? 'psa10' : 'a') : undefined,
+      // ko는 화면에 그대로 적을 한글 이름이다(규칙은 server/index.ts의 koName과 같다).
+      cards: cards.map((c) => ({
+        ...c,
+        ko: koCardName(고른것.ed ?? 'ja', c.name),
+        img: byNum.get(String(Number(c.n)))?.img ?? '',
+      })),
+    }
+    latestHit = { at: Date.now(), body }
+    sendJson(res, 200, body)
   })
 }
 

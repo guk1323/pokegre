@@ -39,6 +39,8 @@ const EVENT_ROWS: { key: string; label: string; hint: string; group?: true }[] =
   { key: 'centering', label: '센터링 측정', hint: '사진으로 측정 실행' },
   { key: 'artist', label: '작가별 조회', hint: '작가 한 명을 열 때(누구인지도 아래 순위에 집계)' },
   { key: 'artist_by_pokemon', label: '└ 포켓몬으로 작가 찾기', hint: '작가 화면에서 포켓몬 이름을 쳐서 그린 작가를 찾음' },
+  { key: 'home_hit_card', label: '홈 신팩 힛카드 클릭', hint: '홈의 신팩 힛카드에서 카드를 눌러 시세로 감' },
+  { key: 'home_hit_set', label: '└ 전체 보기', hint: '그 줄의 "전체 보기"를 눌러 세트 화면으로 감' },
   { key: 'sets', label: '세트별 목록 조회', hint: '세트 하나를 열 때(어느 세트인지도 아래 순위에 집계)' },
   { key: 'series', label: '시리즈 목록 조회', hint: '검색으로 시리즈 주소(/series/…)에 바로 들어올 때' },
   { key: 'packsim', label: '오늘의 상점', hint: '팩·박스 구매와 개봉' },

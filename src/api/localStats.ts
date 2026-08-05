@@ -106,7 +106,11 @@ export type TrackedEvent =
   // 홈의 뽑기 결과 한 줄을 눌러 상점으로 들어온 횟수. 이게 낮으면 그 줄을 뺀다.
   | 'packsim_banner'
   // 작가 화면에서 포켓몬 이름으로 "이걸 그린 작가"를 찾아 결과가 나온 횟수.
-  | 'artist_by_pokemon';
+  | 'artist_by_pokemon'
+  // 홈의 "신팩 힛카드"(2026-08-05). card=카드를 눌러 시세로 감, set=전체 보기.
+  // 이게 낮으면 그 줄이 자리만 먹는 것이라 뺀다.
+  | 'home_hit_card'
+  | 'home_hit_set';
 // label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
 export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;

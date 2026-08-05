@@ -29,6 +29,7 @@ import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
 import { PokemonNews } from './components/PokemonNews';
 import { PackShelfPromo } from './components/PackShelfPromo';
+import { NewSetHitCards } from './components/NewSetHitCards';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
 import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
@@ -1113,6 +1114,20 @@ function App() {
           // 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다.
           confirmSearch(term, 'popular');
           setQuery(term);
+        }}
+      />
+      {/* ⚠️ 신팩 힛카드는 인기 검색어 바로 아래다(운영자 지시 2026-08-05). 검색을 한
+          번도 안 해도 지금 제일 비싼 카드가 얼마인지 보이게 하려는 자리다.
+          어느 세트를 띄울지는 서버가 고른다 — 발매일이 제일 최근이면서 시세가 있는
+          세트다. 여기에 세트를 박아 두면 새 팩이 나올 때마다 사람이 고쳐야 한다. */}
+      <NewSetHitCards
+        onOpenCard={(name) => {
+          confirmSearch(name, 'popular');
+          setQuery(name);
+        }}
+        onOpenSet={(slug) => {
+          setSetsInitialSlug(slug);
+          navigate({ view: 'sets' });
         }}
       />
       <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
