@@ -4,6 +4,8 @@
 //
 //   /                    홈
 //   /centering           센터링 측정 도구
+//   /sets /artists       카테고리 대문(낱개 페이지를 묶어 주는 자리)
+//   /packsim /community  카테고리 대문
 //   /series/<슬러그>     시리즈별 세트 목록
 //   /set/<슬러그>        세트별 카드 목록·힛카드
 //   /artist/<슬러그>     일러스트레이터별 카드
@@ -58,11 +60,15 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
     <priority>1.0</priority>
   </url>
 ${url('/centering', '0.7', 'monthly')}
+${url('/sets', '0.9', 'weekly')}
+${url('/artists', '0.9', 'weekly')}
+${url('/packsim', '0.7', 'daily')}
+${url('/community', '0.6', 'daily')}
 ${series.join('\n')}
 ${sets.join('\n')}
 ${artists.join('\n')}
 </urlset>
 `
 await writeFile('public/sitemap.xml', xml)
-console.log(`사이트맵 ${2 + series.length + sets.length + artists.length}개 주소`)
-console.log(`  홈 1 · 센터링 1 · 시리즈 ${series.length} · 세트 ${sets.length} · 작가 ${artists.length}`)
+console.log(`사이트맵 ${6 + series.length + sets.length + artists.length}개 주소`)
+console.log(`  홈 1 · 센터링 1 · 대문 4 · 시리즈 ${series.length} · 세트 ${sets.length} · 작가 ${artists.length}`)

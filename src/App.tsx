@@ -240,11 +240,18 @@ function App() {
   }, []);
   // /artist/<슬러그>·/series/<슬러그>·/centering도 같은 방식이다. 서버가 그 주소로
   // 검색 노출용 페이지를 미리 만들어 보내므로, 사람이 눌러 들어오면 앱이 이어받는다.
+  // ⚠️ 카테고리 대문(/sets·/artists·/packsim·/community)도 여기서 받는다. 서버가
+  //    그 주소에 목록을 글자로 미리 넣어 보내는데, 앱이 안 받으면 홈이 떠서 들어온
+  //    사람이 "왜 딴 데로 갔지" 하게 된다(2026-08-05).
   useEffect(() => {
     const p = window.location.pathname;
     if (/^\/artist\//.test(p)) setView('artists');
     else if (/^\/series\//.test(p)) setView('sets');
     else if (/^\/centering\/?$/.test(p)) setView('centering');
+    else if (/^\/sets\/?$/.test(p)) setView('sets');
+    else if (/^\/artists\/?$/.test(p)) setView('artists');
+    else if (/^\/packsim\/?$/.test(p)) setView('packsim');
+    else if (/^\/community\/?$/.test(p)) setView('community');
     else return;
     document.getElementById('seo-fallback')?.remove();
   }, []);

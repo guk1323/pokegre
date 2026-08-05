@@ -17,6 +17,7 @@ import {
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 import { koSetName, serieSlug } from '../src/lib/setNameKo.ts'
+import { livePacks } from '../src/lib/packSets.ts'
 
 // 화면(cardCatalog)과 같은 규칙으로 이름을 한글로 만든다. 그 파일은 브라우저 전용이라
 // 여기서 가져다 쓰지 않고 같은 내용만 옮겨 둔다.
@@ -468,6 +469,137 @@ app.get('/centering', (_req, res) => {
     '<p>사진은 브라우저 안에서만 처리하고 서버에 저장하지 않습니다.</p></div>'
   html = html.replace('<body>', `<body>${body}`)
   res.set('Cache-Control', 'public, max-age=3600').send(html)
+})
+
+// ── 카테고리 대문(/sets · /artists · /packsim · /community) ────────────────
+//
+// 왜 필요한가: 낱개 페이지(세트 371·작가 388)는 사이트맵에 다 들어 있는데, 그것들을
+// 묶어 주는 페이지가 없었다. 그래서 ①"포켓몬 카드 세트 목록" 같은 묶음 검색어로
+// 들어올 문이 없고 ②검색엔진이 보기에 낱개 페이지끼리 이어지는 링크가 없어 사이트
+// 안에서 안 중요한 페이지로 보인다(2026-08-05 운영자 지시로 추가).
+//
+// ⚠️ 이 네 줄은 반드시 express.static보다 **위**에 있어야 한다. dist 안에 sets·
+//    artists·packsim 폴더가 실제로 있어서, 아래에 두면 static이 먼저 잡아 폴더
+//    목록으로 301을 보낸다(실제로 /sets가 그렇게 동작하고 있었다).
+function seoPage(opts: { title: string; desc: string; url: string; body: string }): string {
+  let html = TEMPLATE
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(opts.title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(opts.title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(opts.desc))
+  html = setMeta(html, 'og:url', esc(opts.url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(opts.url)}"`)
+  return html.replace('<body>', `<body><div id="seo-fallback">${opts.body}</div>`)
+}
+
+app.get('/sets', async (_req, res) => {
+  let sets: { slug: string; ed?: 'ja' | 'en'; name: string; count?: number; serie?: string }[] = []
+  try {
+    sets = JSON.parse(await readFile(path.join(DIST, 'sets', 'index.json'), 'utf-8'))
+  } catch {
+    res.status(500).send(TEMPLATE)
+    return
+  }
+  const 장수 = sets.reduce((n, s) => n + (s.count ?? 0), 0)
+  // 시리즈로 묶어 준다. 371개를 한 줄로 늘어놓으면 사람도 크롤러도 읽기 어렵다.
+  const 묶음 = new Map<string, typeof sets>()
+  for (const s of sets) {
+    const k = s.serie ?? '기타'
+    if (!묶음.has(k)) 묶음.set(k, [])
+    묶음.get(k)!.push(s)
+  }
+  const 본문 = [...묶음.entries()]
+    .map(([serie, list]) => {
+      const 이름 = koSet('ja', serie)
+      const li = list
+        .map((s) => `<li><a href="/set/${esc(s.slug)}">${esc(koSet(s.ed ?? 'ja', s.name))}</a> ${s.count ?? 0}종</li>`)
+        .join('')
+      return `<h2><a href="/series/${esc(serieSlug(serie))}">${esc(이름)}</a></h2><ul>${li}</ul>`
+    })
+    .join('')
+  res.set('Cache-Control', 'public, max-age=3600').send(
+    seoPage({
+      title: '포켓몬 카드 세트 목록 | pokegre',
+      desc: `일본판·북미판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장을 한국어 이름으로 봅니다. 세트마다 값이 높은 카드도 함께 보여줍니다.`,
+      url: 'https://pokegre.com/sets',
+      body:
+        '<h1>포켓몬 카드 세트 목록</h1>' +
+        `<p>일본판·북미판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장입니다. ` +
+        '세트를 누르면 수록 카드를 한국어 이름으로 보고, 값이 높은 카드도 함께 볼 수 있습니다.</p>' +
+        본문,
+    }),
+  )
+})
+
+app.get('/artists', async (_req, res) => {
+  let artists: { slug: string; ko?: string; en: string; count?: number; era?: string; note?: string }[] = []
+  try {
+    artists = JSON.parse(await readFile(path.join(DIST, 'artists', 'index.json'), 'utf-8'))
+  } catch {
+    res.status(500).send(TEMPLATE)
+    return
+  }
+  const 장수 = artists.reduce((n, a) => n + (a.count ?? 0), 0)
+  const li = artists
+    .map((a) => {
+      const 이름 = a.ko || a.en
+      const 덧 = [a.era, a.count ? `${a.count.toLocaleString()}장` : ''].filter(Boolean).join(' · ')
+      return `<li><a href="/artist/${esc(a.slug)}">${esc(이름)}</a>${덧 ? ` ${esc(덧)}` : ''}</li>`
+    })
+    .join('')
+  res.set('Cache-Control', 'public, max-age=3600').send(
+    seoPage({
+      title: '포켓몬 카드 일러스트레이터 | pokegre',
+      desc: `일러스트레이터 ${artists.length}명이 그린 카드 ${장수.toLocaleString()}장을 작가별로 모아 봅니다.`,
+      url: 'https://pokegre.com/artists',
+      body:
+        '<h1>포켓몬 카드 일러스트레이터</h1>' +
+        `<p>일러스트레이터 ${artists.length}명, 카드 ${장수.toLocaleString()}장입니다. ` +
+        '이름을 누르면 그 작가가 그린 카드를 모아 봅니다.</p>' +
+        `<ul>${li}</ul>`,
+    }),
+  )
+})
+
+app.get('/packsim', (_req, res) => {
+  const today = livePacks()
+  // 팩 슬러그가 곧 세트 슬러그라 그 세트의 카드 목록으로 이어 준다. 대문의 값어치가
+  // 여기 있다 — 링크가 없으면 검색엔진이 보기엔 그냥 외딴 페이지다.
+  const li = today
+    .map(
+      (p) =>
+        `<li><a href="/set/${esc(p.slug)}">${esc(p.label)}</a> ${p.price.toLocaleString()} GP</li>`,
+    )
+    .join('')
+  res.set('Cache-Control', 'public, max-age=600').send(
+    seoPage({
+      title: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
+      desc: '실제 봉입률에 맞춰 포켓몬 카드 팩을 열어 봅니다. 상품은 매일 자정에 새롭게 갱신됩니다.',
+      url: 'https://pokegre.com/packsim',
+      body:
+        '<h1>오늘의 상점</h1>' +
+        '<p>실제 봉입률에 맞춰 포켓몬 카드 팩을 열어 보는 곳입니다. ' +
+        '상품은 매일 자정에 새롭게 갱신됩니다. 오늘은 일본판 3종·북미판 3종이 진열돼 있습니다.</p>' +
+        `<ul>${li}</ul>` +
+        '<p>비공식 팬 시뮬레이션입니다. 실제 카드 거래가 아니며 GP는 현금 가치가 없습니다.</p>',
+    }),
+  )
+})
+
+// ⚠️ 글 제목은 싣지 않는다. 사람이 쓴 글이라 검색 결과에 그대로 나가면 우리가
+//    책임질 수 없는 내용까지 색인된다(신고 처리보다 색인이 먼저 된다).
+//    게시판이 뭐가 있는지만 적는다.
+app.get('/community', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600').send(
+    seoPage({
+      title: '커뮤니티 | pokegre',
+      desc: '포켓몬 카드 자랑·질문·거래 이야기를 나누는 곳입니다.',
+      url: 'https://pokegre.com/community',
+      body:
+        '<h1>커뮤니티</h1>' +
+        '<p>포켓몬 카드 이야기를 나누는 곳입니다. 글을 쓰려면 로그인이 필요하고, 읽는 것은 누구나 됩니다.</p>' +
+        '<ul><li>자유게시판</li><li>카드 자랑</li><li>질문</li></ul>',
+    }),
+  )
 })
 
 // 정적 파일 캐시 정책. 번들(assets/*)은 파일명에 해시가 있어 1년 캐시해도 안전하지만,

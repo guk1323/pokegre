@@ -276,25 +276,25 @@ export const PACK_SETS: PackSet[] = [
   // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
   // 이름은 정식 한글명이 따로 없어(한국판은 일본판 이름 체계) 영어명 음역을 쓴다.
   NA('me01', '메가 에볼루션', NA_MEGA),
-  NA('sv10', '데스티니드 라이벌', NA_REGULAR_NO_ACE), // ACE 수록 없음(세트 데이터 확인)
+  NA('sv10', '데스틴드 라이벌즈', NA_REGULAR_NO_ACE), // ACE 수록 없음(세트 데이터 확인)
   NA('sv09', '저니 투게더', NA_REGULAR_NO_ACE),
-  NA('sv08.5', '프리즈매틱 에볼루션', NA_PRISMATIC, 6500, { godRate: 1 / 1000, boxPacks: 0, mirror: 'prismatic' }), // 특별세트(36팩 박스 없음), 갓팩 존재
-  NA('sv08', '서징 스파크'),
+  NA('sv08.5', '프리즈매틱 이볼루션즈', NA_PRISMATIC, 6500, { godRate: 1 / 1000, boxPacks: 0, mirror: 'prismatic' }), // 특별세트(36팩 박스 없음), 갓팩 존재
+  NA('sv08', '서징 스파크스'),
   NA('sv07', '스텔라 크라운'),
   NA('sv06', '트와일라잇 마스커레이드'),
   NA('sv03.5', '151', NA_151, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트, 갓팩 존재
-  NA('sv03', '옵시디언 플레임', NA_REGULAR_NO_ACE), // ACE 부활 이전 세트
+  NA('sv03', '옵시디언 플레임즈', NA_REGULAR_NO_ACE), // ACE 부활 이전 세트
   // 북미판 메가 시리즈 — me01과 등급 구성이 같아 같은 표(사용자 확인, 2026-08-02).
   // 최상위가 원본에 'Secret Rare'로 적혀 있어 me01의 MHR 자리로 바꿔 준다(세트당 1장).
-  NA('me05', '피치블랙', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
+  NA('me05', '피치 블랙', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
   NA('me04', '카오스 라이징', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
   NA('me03', '퍼펙트 오더', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
-  NA('me02', '팬타즈멀 플레임즈', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
+  NA('me02', '팬타스말 플레임즈', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
   // 북미판 블랙볼트·화이트플레어 — 일본판(SV11B·SV11W)의 북미 발매판. ACE 수록 없음.
   // 최상위(일본판 금색 UR 자리)가 세트당 2장이고, 원본이 자매편끼리도 이름을 다르게
   // 적어 뒀다. 확률은 그대로 두고 풀에 2장이 있으니 둘이 그 확률을 나눠 갖는다.
-  NA('sv10.5b', '블랙볼트', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Black White Rare': 'Hyper rare' } }),
-  NA('sv10.5w', '화이트플레어', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Secret Rare': 'Hyper rare' } }),
+  NA('sv10.5b', '블랙 볼트', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Black White Rare': 'Hyper rare' } }),
+  NA('sv10.5w', '화이트 플레어', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Secret Rare': 'Hyper rare' } }),
   // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
 ];
