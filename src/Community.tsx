@@ -112,6 +112,21 @@ function PostList({
                     ) : (
                       <span className="mr-1 text-xs font-semibold text-neutral-500">[{CATEGORY_LABEL[post.category]}]</span>
                     )}
+                    {/* 비밀글 표시. 이모지는 안 쓴다(사이트 지침) — 작은 자물쇠 그림으로 둔다. */}
+                    {post.secret && (
+                      <svg
+                        aria-label="비밀글"
+                        role="img"
+                        viewBox="0 0 24 24"
+                        className="mr-1 inline-block h-3.5 w-3.5 align-[-2px] text-neutral-500"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.4"
+                      >
+                        <rect x="4" y="10" width="16" height="10" rx="2.5" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                      </svg>
+                    )}
                     {post.title}
                     {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
                   </p>
@@ -181,6 +196,11 @@ function PostDetail({
         <h2 className="text-lg font-bold text-black">
           {post.isPinned && (
             <span className="mr-1.5 align-middle rounded bg-[#2a78d6] px-1.5 py-0.5 text-xs font-bold text-white">공지</span>
+          )}
+          {post.secret && (
+            <span className="mr-1.5 align-middle rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-bold text-neutral-600">
+              비밀글
+            </span>
           )}
           {post.title}
         </h2>
@@ -346,6 +366,7 @@ function PostForm({
   initialTitle = '',
   initialContent = '',
   initialImages = [],
+  initialSecret = false,
   onCancel,
   onSubmit,
 }: {
@@ -355,13 +376,22 @@ function PostForm({
   initialTitle?: string;
   initialContent?: string;
   initialImages?: string[];
+  initialSecret?: boolean;
   onCancel: () => void;
-  onSubmit: (input: { title: string; content: string; category: PostCategory; images: string[] }) => Promise<void>;
+  onSubmit: (input: {
+    title: string;
+    content: string;
+    category: PostCategory;
+    images: string[];
+    secret: boolean;
+  }) => Promise<void>;
 }) {
   const [category, setCategory] = useState<PostCategory>(initialCategory);
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
   const [images, setImages] = useState<string[]>(initialImages);
+  // 비밀글. 건의 게시판에서만 쓴다(서버도 같은 조건으로 막는다).
+  const [secret, setSecret] = useState(initialSecret);
   const [uploading, setUploading] = useState(false);
   const [imgErr, setImgErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -393,7 +423,7 @@ function PostForm({
     if (!title.trim() || !content.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({ title: title.trim(), content: content.trim(), category, images });
+      await onSubmit({ title: title.trim(), content: content.trim(), category, images, secret: secret && category === 'suggestion' });
     } finally {
       setSubmitting(false);
     }
@@ -417,6 +447,24 @@ function PostForm({
             </button>
           ))}
         </div>
+        {/* ⚠️ 비밀글은 건의에서만 켠다. 자유·질문까지 열어 주면 아무도 못 읽는 글이
+            목록을 채워 게시판이 죽는다. 건의는 원래 운영자에게 하는 말이라 맞다. */}
+        {category === 'suggestion' && (
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={secret}
+              onChange={(e) => setSecret(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-black"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-neutral-800">비밀글로 올리기</span>
+              <span className="block text-xs text-neutral-500">
+                나와 운영자만 볼 수 있습니다. 목록에는 자물쇠로 표시됩니다.
+              </span>
+            </span>
+          </label>
+        )}
         <input
           type="text"
           value={title}
@@ -555,7 +603,7 @@ export function Community({
     sub.push({ v: 'detail', id });
   }
 
-  async function handleCreatePost(input: { title: string; content: string; category: PostCategory }) {
+  async function handleCreatePost(input: { title: string; content: string; category: PostCategory; secret?: boolean }) {
     const post = await createPost(input);
     // 방금 쓴 글의 게시판으로 옮겨가 바로 보이게 한다. 글쓰기 칸을 글보기로 바꿔치기해서
     // (replace) 뒤로가기가 빈 글쓰기 화면이 아니라 목록으로 가게 한다.
@@ -564,7 +612,7 @@ export function Community({
     sub.replace({ v: 'detail', id: post.id });
   }
 
-  async function handleUpdatePost(input: { title: string; content: string; category: PostCategory }) {
+  async function handleUpdatePost(input: { title: string; content: string; category: PostCategory; secret?: boolean }) {
     if (!selectedPost) return;
     const updated = await updatePost(selectedPost.id, input);
     setSelectedPost(updated);
@@ -644,6 +692,7 @@ export function Community({
         initialCategory={selectedPost.category}
         initialTitle={selectedPost.title}
         initialContent={selectedPost.content}
+        initialSecret={selectedPost.secret === true}
         onCancel={() => sub.back()}
         onSubmit={handleUpdatePost}
       />

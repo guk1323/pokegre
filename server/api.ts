@@ -935,6 +935,10 @@ interface CommunityPost {
   // 운영자가 공지로 고정한 시각. 고정한 글은 게시판과 무관하게 모든 목록 맨 위에
   // "공지"로 뜬다. 안 고정했으면 없다.
   pinnedAt?: number
+  // 비밀글. 건의 게시판에서만 쓴다 — 쓴 사람과 운영자만 내용을 본다.
+  // ⚠️ 목록에서 감추지 않는다. 감추면 "내 글이 사라졌다"고 오해하고, 운영자가 답을
+  //    달아도 글쓴이가 못 찾는다. 자리는 남기고 제목·내용만 가린다.
+  secret?: boolean
   // 좋아요를 누른 회원번호 목록. 한 사람이 한 번만 누르게 하려면 누가 눌렀는지를
   // 알아야 한다. authorId와 마찬가지로 회원번호라 화면에는 개수만 내보내고 목록은
   // 절대 내보내지 않는다.
@@ -973,6 +977,8 @@ function authorName(authorId: string, all: User[]): string {
 }
 
 const HIDDEN_NOTICE = '신고로 가려진 글입니다.'
+// 비밀글을 남이 볼 때 대신 보여줄 글. 글쓴이와 운영자에게는 원래 내용이 간다.
+const SECRET_NOTICE = '비밀글입니다.'
 
 // authorId(카카오 회원번호)는 내부 식별용이라 응답에서 제거하고, 대신 "내 글인가"만
 // 알려준다. 회원번호가 클라이언트로 새면 사용자 추적에 쓰일 수 있다.
@@ -984,12 +990,16 @@ function toPublicPost(post: CommunityPost, viewer: User | null, all: User[]) {
   // 눌렀는지"만 내보낸다.
   const { authorId, hiddenAt, likedBy, pinnedAt, viewedBy: _viewedBy, ...rest } = post
   const hidden = hiddenAt != null && !isAdmin(viewer)
+  // ⚠️ 비밀글은 **서버에서** 내용을 지워서 내보낸다. 화면에서만 가리면 개발자 도구로
+  //    응답을 열어 그대로 읽을 수 있어 비밀이 아니다.
+  const 비밀 = rest.secret === true && !isAdmin(viewer) && !(viewer != null && authorId === viewer.id)
+  const 가림 = hidden || 비밀
   return {
     ...rest,
-    title: hidden ? HIDDEN_NOTICE : rest.title,
-    content: hidden ? HIDDEN_NOTICE : rest.content,
-    pull: hidden ? undefined : rest.pull,
-    images: hidden ? undefined : rest.images,
+    title: hidden ? HIDDEN_NOTICE : 비밀 ? SECRET_NOTICE : rest.title,
+    content: hidden ? HIDDEN_NOTICE : 비밀 ? SECRET_NOTICE : rest.content,
+    pull: 가림 ? undefined : rest.pull,
+    images: 가림 ? undefined : rest.images,
     author: authorName(authorId, all),
     authorIsAdmin: adminIds.has(authorId),
     isMine: viewer != null && authorId === viewer.id,
@@ -1253,6 +1263,7 @@ function mountCommunity(app: Mountable) {
           content?: string
           category?: string
           images?: unknown
+          secret?: unknown
         }
         const title = body.title?.trim()
         const content = body.content?.trim()
@@ -1265,6 +1276,9 @@ function mountCommunity(app: Mountable) {
         const category: PostCategory = POST_CATEGORIES.includes(body.category as PostCategory)
           ? (body.category as PostCategory)
           : 'free'
+        // ⚠️ 비밀글은 **건의 게시판에서만** 받는다. 자유·질문까지 열어 주면 아무도 못 읽는
+        //    글이 목록을 채워 게시판이 죽는다. 건의는 원래 운영자에게 하는 말이라 맞다.
+        const secret = body.secret === true && category === 'suggestion'
         if (!title || !content) {
           sendJson(res, 400, { error: 'title and content are required' })
           return
@@ -1287,6 +1301,7 @@ function mountCommunity(app: Mountable) {
           authorId: user.id,
           content,
           ...(images.length ? { images } : {}),
+          ...(secret ? { secret: true } : {}),
           createdAt: Date.now(),
           likedBy: [],
           commentCount: 0,
@@ -1380,6 +1395,7 @@ function mountCommunity(app: Mountable) {
           content?: string
           category?: string
           images?: unknown
+          secret?: unknown
         }
         const title = body.title?.trim()
         const content = body.content?.trim()
@@ -1409,6 +1425,10 @@ function mountCommunity(app: Mountable) {
         if (POST_CATEGORIES.includes(body.category as PostCategory)) {
           post.category = body.category as PostCategory
         }
+        // 비밀글 여부도 고칠 수 있다. 건의가 아니면 무조건 푼다 — 다른 게시판으로 옮기면서
+        // 비밀글로 남으면 아무도 못 읽는 글이 그 게시판에 생긴다.
+        if (body.secret === true && post.category === 'suggestion') post.secret = true
+        else delete post.secret
         post.editedAt = Date.now()
         await persistPosts()
         sendJson(res, 200, toPublicPost(post, user, await loadUsers()))
@@ -1551,6 +1571,13 @@ function mountCommunity(app: Mountable) {
 
         if (req.method === 'GET') {
           const viewer = await currentUser(req)
+          // ⚠️ 비밀글의 댓글도 같이 가린다. 글만 가리고 댓글을 열어 두면 운영자 답변이
+          //    그대로 보여서 무슨 건의였는지 짐작할 수 있다 — 가린 뜻이 없어진다.
+          const 글 = (await loadPosts()).find((p2) => p2.id === postId)
+          if (글?.secret && !isAdmin(viewer) && !(viewer != null && 글.authorId === viewer.id)) {
+            sendJson(res, 200, [])
+            return
+          }
           const all = await loadComments()
           const everyone = await loadUsers()
           sendJson(

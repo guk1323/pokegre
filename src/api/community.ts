@@ -36,6 +36,9 @@ export interface CommunityPost {
   // 운영자가 가린 글. 운영자가 아닌 사람에게는 title·content가 이미 서버에서
   // 안내 문구로 바뀌어 오므로, 이 값은 표시를 다르게 할 때만 쓴다.
   isHidden: boolean;
+  // 비밀글(건의 게시판 전용). 글쓴이와 운영자만 내용을 본다 — 남에게는 서버가 이미
+  // 제목·내용을 "비밀글입니다."로 바꿔 보낸다. 이 값은 자물쇠 표시에만 쓴다.
+  secret?: boolean;
 }
 
 export interface CommunityComment {
@@ -138,7 +141,7 @@ export async function uploadPostImage(file: File): Promise<string> {
   return j.url;
 }
 
-export async function createPost(input: { title: string; content: string; category: PostCategory; images?: string[] }): Promise<CommunityPost> {
+export async function createPost(input: { title: string; content: string; category: PostCategory; images?: string[]; secret?: boolean }): Promise<CommunityPost> {
   const res = await fetch('/api/local/community/posts', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -151,7 +154,7 @@ export async function createPost(input: { title: string; content: string; catego
 
 export async function updatePost(
   id: number,
-  input: { title: string; content: string; category: PostCategory; images?: string[] },
+  input: { title: string; content: string; category: PostCategory; images?: string[]; secret?: boolean },
 ): Promise<CommunityPost> {
   const res = await fetch(`/api/local/community/posts/${id}`, {
     method: 'PUT',
