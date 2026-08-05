@@ -1120,7 +1120,7 @@ export function PackSim({
               면책은 지우지 않는다 — "실제 카드가 아니고 GP는 현금 가치가 없다"는
               말이 없으면 진짜 결제로 읽힌다(오늘 홈에도 같은 이유로 한 줄 넣었다).
               대신 확률 관련은 확률표 탭이 따로 있으므로 여기서 뺐다. */}
-          <p className="mt-3 text-xs text-neutral-400">상품은 매일 자정에 바뀝니다.</p>
+          <p className="mt-3 text-xs text-neutral-400">상품은 매일 자정에 새롭게 갱신됩니다.</p>
           <p className="mt-1 text-xs text-neutral-400">
             비공식 팬 시뮬레이션입니다. 실제 카드 거래가 아니며 GP는 현금 가치가 없습니다.
           </p>

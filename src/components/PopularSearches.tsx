@@ -78,7 +78,6 @@ export function PopularSearches({
     <div>
       <div className="flex items-baseline justify-between mb-3">
         <p className="text-base font-bold text-neutral-900">인기 검색어</p>
-        <p className="text-xs text-neutral-400">눌러 보면 바로 시세가 나옵니다</p>
         {asOf && <p className="text-xs text-neutral-400">{formatAsOf(asOf)}</p>}
       </div>
       {/* ⚠️ 폰에서도 두 줄(5+5)로 세운다. 한 줄로 쌓으면 10칸이 516px이라 첫 화면을
