@@ -24,7 +24,13 @@ export const SET_KO: Record<string, string> = {
   'Promos-A': '프로모 카드 A',
 
   // ── 물리 북미판(EN) ──
-  // 일본판 1개와 1:1 대응하는 세트는 정식 한글명, 합본·북미전용은 음역(사용자 선택 A).
+  // ⚠️ 북미판은 **북미판 이름을 소리 나는 대로** 적는다(운영자 지시 2026-08-05).
+  //    예전엔 "일본판과 1:1 대응하면 정식 한글명"이었는데, 1:1이라는 판단이 틀렸다.
+  //    Surging Sparks는 북미판 252장, 초전브레이커는 일본판 138장이고 같은 번호에
+  //    다른 카드가 들어 있다(3번: 일본판 아이언트 ex / 북미판 나시). 북미판은 일본판
+  //    두세 개를 합쳐 내기 때문이다. 다른 상품에 같은 이름을 붙이면, 목록을 연 사람이
+  //    카드가 다른 걸 보고 우리가 틀렸다고 생각한다.
+  //    포켓몬 이름이 들어간 것만 정식 한글명을 쓴다(Deoxys→테오키스).
   // Mega Evolution (EN 메가 시리즈)
   'Mega Evolution': '메가 에볼루션',
   'Phantasmal Flames': '팬타스말 플레임즈',
@@ -35,20 +41,20 @@ export const SET_KO: Record<string, string> = {
   // Scarlet & Violet
   'Scarlet & Violet': '스칼렛 & 바이올렛',
   'Paldea Evolved': '팔데아 이볼브드',
-  'Obsidian Flames': '흑염의 지배자',
-  '151': '포켓몬 카드 151',
+  'Obsidian Flames': '옵시디언 플레임즈',
+  '151': '151',
   'Paradox Rift': '패러독스 리프트',
-  'Paldean Fates': '샤이니트레저 ex',
+  'Paldean Fates': '팔데안 페이츠',
   'Temporal Forces': '템포럴 포스',
-  'Twilight Masquerade': '변환의 가면',
-  'Shrouded Fable': '나이트원더러',
-  'Stellar Crown': '스텔라미라클',
-  'Surging Sparks': '초전브레이커',
-  'Prismatic Evolutions': '테라스탈 페스타 ex',
-  'Journey Together': '배틀파트너즈',
+  'Twilight Masquerade': '트와일라잇 마스커레이드',
+  'Shrouded Fable': '슈라우디드 페이블',
+  'Stellar Crown': '스텔라 크라운',
+  'Surging Sparks': '서징 스파크스',
+  'Prismatic Evolutions': '프리즈매틱 이볼루션즈',
+  'Journey Together': '저니 투게더',
   'Destined Rivals': '데스틴드 라이벌즈',
-  'Black Bolt': '블랙볼트',
-  'White Flare': '화이트플레어',
+  'Black Bolt': '블랙 볼트',
+  'White Flare': '화이트 플레어',
   'SVP Black Star Promos': 'SVP 블랙스타 프로모',
   // Sword & Shield
   'Sword & Shield': '소드 & 실드',
@@ -90,9 +96,9 @@ export const SET_KO: Record<string, string> = {
   'Dragon Majesty': '드래곤 마제스티',
   'Lost Thunder': '로스트 썬더',
   'Team Up': '팀 업',
-  'Detective Pikachu': '명탐정 피카츄',
+  'Detective Pikachu': '디텍티브 피카츄',
   'Unbroken Bonds': '언브로큰 본즈',
-  'Unified Minds': '유나이티드 마인드',
+  'Unified Minds': '유니파이드 마인즈',
   'Hidden Fates': '히든 페이츠',
   'Hidden Fates Shiny Vault': '히든 페이츠 샤이니 볼트',
   'Cosmic Eclipse': '코스믹 이클립스',
@@ -167,16 +173,16 @@ export const SET_KO: Record<string, string> = {
   'Dragon': '드래곤',
   'Team Magma vs Team Aqua': '마그마단 VS 아쿠아단',
   'Hidden Legends': '히든 레전드',
-  'FireRed & LeafGreen': '전설의 비상',
-  'Team Rocket Returns': '로켓단의 역습',
-  'Deoxys': '창공의 격돌',
+  'FireRed & LeafGreen': '파이어레드 & 리프그린',
+  'Team Rocket Returns': '팀 로켓 리턴즈',
+  'Deoxys': '테오키스',
   'Emerald': '에메랄드',
-  'Unseen Forces': '금의 하늘, 은의 바다',
-  'Delta Species': '호론의 연구탑',
-  'Legend Maker': '환상의 숲',
-  'Holon Phantoms': '호론의 환영',
-  'Crystal Guardians': '기적의 결정',
-  'Dragon Frontiers': '최후의 공방',
+  'Unseen Forces': '언신 포시즈',
+  'Delta Species': '델타 스피시즈',
+  'Legend Maker': '레전드 메이커',
+  'Holon Phantoms': '홀론 팬텀즈',
+  'Crystal Guardians': '크리스탈 가디언즈',
+  'Dragon Frontiers': '드래곤 프론티어즈',
   'Power Keepers': '파워 키퍼',
   // Trainer kits
   'EX trainer Kit (Latios)': 'EX 트레이너 키트 (라티오스)',
@@ -184,25 +190,25 @@ export const SET_KO: Record<string, string> = {
   'EX trainer Kit 2 (Plusle)': 'EX 트레이너 키트 2 (플러시)',
   'EX trainer Kit 2 (Minun)': 'EX 트레이너 키트 2 (마이농)',
   // e-Card (일본판 e블록 대응)
-  'Expedition Base Set': '기본확장팩',
+  'Expedition Base Set': '엑스페디션 베이스 세트',
   'Best of game': '베스트 오브 게임',
   'Aquapolis': '아쿠아폴리스',
   'Skyridge': '스카이릿지',
   // 초기 시리즈
   'Legendary Collection': '레전더리 컬렉션',
-  'Neo Genesis': '금, 은, 신세계로...',
-  'Neo Discovery': '유적을 넘어서...',
-  'Southern Islands': '남쪽 섬',
-  'Neo Revelation': '각성하는 전설',
-  'Neo Destiny': '어둠, 그리고 빛으로...',
-  'Gym Heroes': '리더스 스타디움',
-  'Gym Challenge': '어둠에서의 도전',
+  'Neo Genesis': '네오 제네시스',
+  'Neo Discovery': '네오 디스커버리',
+  'Southern Islands': '서던 아일랜즈',
+  'Neo Revelation': '네오 레벌레이션',
+  'Neo Destiny': '네오 데스티니',
+  'Gym Heroes': '짐 히어로즈',
+  'Gym Challenge': '짐 챌린지',
   'Base Set': '베이스 세트',
-  'Jungle': '포켓몬 정글',
+  'Jungle': '정글',
   'Wizards Black Star Promos': '위저드 블랙스타 프로모',
-  'Fossil': '화석의 비밀',
+  'Fossil': '파슬',
   'Base Set 2': '베이스 세트 2',
-  'Team Rocket': '로켓단',
+  'Team Rocket': '팀 로켓',
 
   // 작가별 목록의 세트명은 다른 소스(scrydex)라 표기가 조금 다르다. 같은 세트가 화면마다
   // 다른 이름으로 보이지 않게 별칭을 함께 둔다(한글명은 위 정식 항목과 동일하게 맞춤).
@@ -220,7 +226,7 @@ export const SET_KO: Record<string, string> = {
   //    같은 시리즈로 안 보인다('Celebrations' = 셀레브레이션즈,
   //    'Unseen Forces' = 금의 하늘, 은의 바다).
   'Celebrations Classic Collection': '셀레브레이션즈 클래식 컬렉션',
-  'Unseen Forces Unown Collection': '금의 하늘, 은의 바다 안농 컬렉션',
+  'Unseen Forces Unown Collection': '언신 포시즈 안농 컬렉션',
   'Poké Card Creator Pack': '포케 카드 크리에이터 팩',
   'Yellow A Alternate': '옐로 A 알터네이트',
   // 부모 세트('Mega Evolution' = 메가 에볼루션)와 앞부분을 맞춘다.
