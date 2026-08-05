@@ -144,7 +144,11 @@ export function PriceChart({
       {loading ? (
         <p className="text-xs text-neutral-400 py-8 text-center">불러오는 중...</p>
       ) : !geom ? (
-        <p className="text-xs text-neutral-400 py-8 text-center">이 등급의 실거래 기록이 없습니다.</p>
+        // 고를 등급이 없으면 "이 등급의"가 말이 안 된다(어느 등급에도 기록이 없거나
+        // 박스라 등급이 없는 경우다).
+        <p className="text-xs text-neutral-400 py-8 text-center">
+          {conditions.length > 0 ? '이 등급의 실거래 기록이 없습니다.' : '실거래 기록이 없습니다.'}
+        </p>
       ) : (
         <>
           <div

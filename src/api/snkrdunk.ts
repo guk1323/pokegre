@@ -375,13 +375,23 @@ export async function fetchPriceHistory(
 //
 // ⚠️ range는 항상 'all'로 본다. 기간을 좁히면 "그 기간에만" 거래가 없는 등급까지
 //    빠지는데, 그건 목록에서 지울 일이 아니라 그래프가 비어 있다고 말할 일이다.
+// ⚠️ 수량(variantId)은 **그래프와 똑같이** 붙여야 한다. 안 붙이면 "2장 묶음으로
+//    팔린 것"까지 세어 '기록 있음'으로 판정하는데, 정작 그래프는 1장짜리만 받아
+//    비어 나온다(망나뇽 R [SM11 068/094]의 B등급이 그랬다 — 전체 1건, 1장 0건).
+//    두 쪽이 다른 걸 보면 "기록 있다고 해놓고 빈 그래프"가 된다(2026-08-05).
 // ⚠️ 스니커덩크는 무료지만 한 번에 열여섯 번을 몰아 보내지는 않는다. 넷씩 끊어 보낸다.
 // 카드마다 한 번만 훑는다. 같은 카드를 다시 열면 그때 알아낸 것을 그대로 쓴다
 // (안 그러면 카드를 열 때마다 열여섯 번씩 다시 물어본다).
-const tradedGradeCache = new Map<number, Set<string>>();
+// 수량마다 답이 다르므로 열쇠에 수량도 넣는다.
+const tradedGradeCache = new Map<string, Set<string>>();
 
-export async function fetchTradedGrades(apparelId: number, codes: string[]): Promise<Set<string>> {
-  const cached = tradedGradeCache.get(apparelId);
+export async function fetchTradedGrades(
+  apparelId: number,
+  codes: string[],
+  variantId?: number,
+): Promise<Set<string>> {
+  const cacheKey = `${apparelId}|${variantId ?? ''}`;
+  const cached = tradedGradeCache.get(cacheKey);
   if (cached) return cached;
   const out = new Set<string>();
   if (!codes.length) return out;
@@ -395,8 +405,10 @@ export async function fetchTradedGrades(apparelId: number, codes: string[]): Pro
   const worker = async () => {
     for (let code = queue.shift(); code; code = queue.shift()) {
       try {
+        const q = new URLSearchParams({ range: 'all', condition_code: code });
+        if (variantId) q.set('variant_id', String(variantId));
         const res = await fetch(
-          `/api/snkrdunk/v3/products/${productCatalogId}/trading-history?range=all&condition_code=${encodeURIComponent(code)}`,
+          `/api/snkrdunk/v3/products/${productCatalogId}/trading-history?${q.toString()}`,
         );
         if (!res.ok) continue;
         const data: TradingHistoryResponse = await res.json();
@@ -408,7 +420,7 @@ export async function fetchTradedGrades(apparelId: number, codes: string[]): Pro
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
-  tradedGradeCache.set(apparelId, out);
+  tradedGradeCache.set(cacheKey, out);
   return out;
 }
 

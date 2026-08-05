@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CardImg } from './CardImg';
 import { Price, useKrw } from './KrwHint';
 import { reportCardTitleMiss } from '../api/localStats';
@@ -92,31 +92,60 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
 
   // 등급 목록을 받으면, 어느 등급에 실거래 기록이 있는지 한 번 훑어 둔다.
   // 카드마다 한 번만 한다(등급이나 기간을 바꿔도 다시 하지 않는다).
+  // ⚠️ 수량(variantId)은 넘겨야 한다. 그래프는 1장짜리 거래만 받는데 훑기가 묶음까지
+  //    세면 "기록 있다"고 해놓고 빈 그래프를 띄운다(2026-08-05).
+  // ⚠️ "이미 훑었나"를 tradedGrades로 판단하면 안 된다. 수량이 뒤늦게 정해지면
+  //    (첫 조회 응답에서 온다) 다시 훑어야 하는데, 그때 tradedGrades에는 수량 없이
+  //    훑은 옛 답이 들어 있어 그대로 건너뛴다. 무엇으로 훑었는지를 따로 적어 둔다.
   const gradeCodes = (history?.conditions ?? []).map((c) => c.code).join(',');
+  const 훑은조건 = useRef('');
   useEffect(() => {
-    if (!gradeCodes || tradedGrades) return;
+    if (!gradeCodes) return;
+    const 조건 = `${card.apparelId}|${variantId ?? ''}|${gradeCodes}`;
+    if (훑은조건.current === 조건) return;
+    훑은조건.current = 조건;
     let cancelled = false;
-    fetchTradedGrades(card.apparelId, gradeCodes.split(','))
+    setTradedGrades(null); // 새로 훑는 동안은 거르지 않는다(옛 답으로 거르면 틀린다)
+    fetchTradedGrades(card.apparelId, gradeCodes.split(','), variantId ?? undefined)
       .then((set) => {
         if (!cancelled) setTradedGrades(set);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
+      // ⚠️ 적어 둔 것도 지운다. 안 지우면 훑기가 영영 안 끝난다:
+      //    그래프를 다시 받을 때 history를 잠깐 null로 비우는데(윗 useEffect), 그러면
+      //    gradeCodes가 ''가 되어 이 훑기가 취소된다. 곧바로 목록이 돌아와도 "이미
+      //    훑었다"고 적혀 있어 그냥 넘어가 버린다 — 결국 아무것도 못 거른다(2026-08-05).
+      if (훑은조건.current === 조건) 훑은조건.current = '';
     };
-    // tradedGrades는 "한 번만"을 지키는 조건이라 의존성에 넣으면 매번 다시 돈다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card.apparelId, gradeCodes]);
+  }, [card.apparelId, gradeCodes, variantId]);
 
   // 그래프에 띄울 등급 목록 — 실거래 기록이 있는 등급만.
   //
   // ⚠️ "매물이 있는 등급"으로 거르면 안 된다. 그래프는 실거래 기록이고 아래 등급별
   //    최저가는 지금 올라온 매물이라 서로 다른 자료다(그렇게 만들었다가 되돌렸다).
-  // ⚠️ 아직 다 훑기 전(null)에는 거르지 않는다. 지금 고른 등급도 항상 남긴다 —
-  //    빼면 선택칸이 그 자리에서 사라져 화면이 튄다.
+  // ⚠️ 아직 다 훑기 전(null)에는 거르지 않는다 — 그때는 어느 등급에 기록이 있는지
+  //    모르므로 함부로 빼면 있는 등급까지 사라진다.
+  //
+  // ⚠️ 예전엔 "지금 고른 등급"도 무조건 남겼다(`c.code === condition`). 선택칸이 제
+  //    값을 잃고 튀는 걸 막으려던 것인데, 그게 두 가지 버그를 만들었다(2026-08-05):
+  //    ① 기록 없는 A로 시작했다가 B를 고르면 A가 목록에서 사라진다. 되돌아갈 수 없다.
+  //    ② A를 고른 채로는 그래프가 "실거래 기록이 없습니다"만 띄운다.
+  //    고른 등급을 붙잡아 두는 대신, 기록 없는 등급을 고르고 있으면 있는 쪽으로
+  //    옮긴다(아래 useEffect). 그러면 목록에서 뺄 등급을 고르고 있을 일이 없다.
   const pickedConditions = (history?.conditions ?? []).filter(
-    (c) => !tradedGrades || c.code === condition || tradedGrades.has(c.code),
+    (c) => !tradedGrades || tradedGrades.has(c.code),
   );
+
+  // 실거래가 없는 등급을 고르고 있으면 있는 등급으로 옮긴다.
+  // 스니커덩크가 주는 첫 등급(대개 A)에 기록이 없는 카드가 흔하다 — 망나뇽 R
+  // [SM11 068/094]는 A 0건, B 1건, C 2건이다.
+  useEffect(() => {
+    if (!tradedGrades || !condition || tradedGrades.has(condition)) return;
+    const 있는것 = (history?.conditions ?? []).find((c) => tradedGrades.has(c.code));
+    if (있는것) setCondition(있는것.code);
+  }, [tradedGrades, condition, history]);
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
