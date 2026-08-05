@@ -83,6 +83,35 @@ const VIEW_PATH: Partial<Record<MainView, string>> = {
   community: '/community',
 };
 
+// 화면 → 브라우저 탭 제목.
+//
+// ⚠️ **서버(server/index.ts)가 그 주소에 붙이는 제목과 글자까지 같아야 한다.** 다르면
+//    같은 화면인데 새로고침 전후로 탭 이름이 바뀐다.
+// ⚠️ 이게 없어서 탭 제목이 통째로 남아 있었다(운영자 지적 2026-08-05). 커뮤니티를
+//    보다 홈으로 와도 탭에는 "커뮤니티 | pokegre"였고, 카드를 보다 검색을 지워도
+//    탭에는 그 카드 이름이 남았다. 없애려면 새로고침밖에 없었다 — 서버가 보낸
+//    제목을 앱이 한 번도 고치지 않았기 때문이다.
+const HOME_TITLE = '포켓몬 카드 시세 | pokegre — 포켓몬 카드의 모든 것';
+const VIEW_TITLE: Partial<Record<MainView, string>> = {
+  cards: HOME_TITLE,
+  sets: '포켓몬 카드 세트 목록 | pokegre',
+  artists: '포켓몬 카드 일러스트레이터 | pokegre',
+  centering: '포켓몬 카드 센터링 측정 | pokegre',
+  packsim: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
+  community: '커뮤니티 | pokegre',
+};
+
+// 카드 이름을 탭 제목에 쓸 만큼만 다듬는다. 서버(server/index.ts의 shareName)와 같은
+// 규칙이어야 새로고침 전후로 탭 이름이 안 바뀐다 — 뒤의 (팩 이름)과 [세트 번호]를 떼고
+// 40자에서 자른다.
+function shareTitle(title: string): string {
+  return title
+    .replace(/\s*\([^()]*\)\s*$/, '')
+    .replace(/\s*\[[^\]]*\]\s*$/, '')
+    .trim()
+    .slice(0, 40);
+}
+
 // 주소 → 화면. 위 표의 반대다.
 // ⚠️ 반드시 **첫 렌더 전에** 정해야 한다. 예전엔 useEffect에서 정했는데, 그 한 박자
 //    사이에 "지금 화면(cards)에 맞는 주소"로 /를 덮어써서 /set/ja-M6로 들어온 사람의
@@ -1043,6 +1072,9 @@ function App() {
     const cur = window.location.pathname;
     if (path) {
       if (cur !== path) window.history.replaceState(window.history.state, '', path + q);
+      // 탭 제목도 그 카드로. 서버가 /c/<번호>에 붙이는 것과 같은 모양이다.
+      const nm = selectedCard?.title ?? ebaySelectedCard?.name ?? '';
+      document.title = nm ? `${shareTitle(nm)} 시세 | pokegre` : HOME_TITLE;
       return;
     }
     // 공유 링크로 막 들어와 카드를 되살리는 중이면 건드리지 않는다(주소가 먼저 지워진다).
@@ -1055,9 +1087,11 @@ function App() {
     //    안 그러면 검색으로 들어오자마자 주소가 목록으로 바뀌어 그 사람이 보던 자리를 잃는다.
     const deep =
       (view === 'sets' && /^\/(set|series)\//.test(cur)) || (view === 'artists' && /^\/artist\//.test(cur));
+    // 깊은 링크는 주소도 제목도 서버가 붙여 준 것을 그대로 둔다.
     if (deep) return;
     const want = VIEW_PATH[view] ?? '/';
     if (cur !== want) window.history.replaceState(window.history.state, '', want + q);
+    document.title = VIEW_TITLE[view] ?? HOME_TITLE;
   }, [selectedCard, ebaySelectedCard, view, source, restoringShare]);
 
   // 사전이 온 뒤에 채운다. 안내문 한 줄이라 조금 늦게 떠도 티가 안 난다.
