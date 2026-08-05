@@ -274,7 +274,7 @@ app.get(['/e/:id', '/t/:id'], (req, res) => {
     return
   }
   res.set('content-type', 'text/html; charset=utf-8')
-  res.send(buildCardHtml(req.path, name, null))
+  res.set('Cache-Control', HTML_CACHE).send(buildCardHtml(req.path, name, null))
 })
 
 app.get('/c/:id', async (req, res) => {
@@ -289,7 +289,7 @@ app.get('/c/:id', async (req, res) => {
     // 이름은 서버가 스스로 알아낸다. ?n=은 옛 링크를 위해 남겨 두고 예비로만 쓴다.
     const name = card?.name || (typeof req.query.n === 'string' ? req.query.n.slice(0, 120) : null)
     res.set('content-type', 'text/html; charset=utf-8')
-    res.send(buildCardHtml(`/c/${id}`, name, card))
+    res.set('Cache-Control', HTML_CACHE).send(buildCardHtml(`/c/${id}`, name, card))
   } catch {
     res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(path.join(DIST, 'index.html'))
@@ -506,7 +506,7 @@ app.get('/sets', async (_req, res) => {
   try {
     sets = JSON.parse(await readFile(path.join(DIST, 'sets', 'index.json'), 'utf-8'))
   } catch {
-    res.status(500).send(TEMPLATE)
+    res.status(500).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   const 장수 = sets.reduce((n, s) => n + (s.count ?? 0), 0)
@@ -545,7 +545,7 @@ app.get('/artists', async (_req, res) => {
   try {
     artists = JSON.parse(await readFile(path.join(DIST, 'artists', 'index.json'), 'utf-8'))
   } catch {
-    res.status(500).send(TEMPLATE)
+    res.status(500).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
   const 장수 = artists.reduce((n, a) => n + (a.count ?? 0), 0)
