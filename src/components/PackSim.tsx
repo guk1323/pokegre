@@ -1190,7 +1190,10 @@ export function PackSim({
                 카드를 눌러서 뒤집어 보세요 ({boxQueue.groups[boxQueue.idx].filter((c) => flippedSet.has(c.i)).length}/
                 {boxQueue.groups[boxQueue.idx].length})
               </p>
-              <div key={boxQueue.idx} className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
+              {/* ⚠️ 큰 화면에서 카드가 작았다(운영자 지적 2026-08-05). 폭이 672px에 5칸이라
+                  한 장이 124px이었다. 넓은 화면에서만 896px까지 벌려 170px로 키운다 —
+                  폰은 그대로다(칸 수를 바꾸면 한 줄에 5장이 안 나온다). */}
+              <div key={boxQueue.idx} className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3 lg:max-w-4xl">
                 {boxQueue.groups[boxQueue.idx].map((c, i2) => (
                   <CardSlot
                     key={c.i}
@@ -1202,6 +1205,7 @@ export function PackSim({
                     onFlip={() => flipOne(c.i)}
                     name={koName(cfg.jp, c.name)}
                     showTier
+                    price={c.usd && rates ? formatKrwApprox(c.usd * rates.usdToKrw) : undefined}
                   />
                 ))}
               </div>
@@ -1386,7 +1390,7 @@ export function PackSim({
               <p className="mt-4 text-center text-sm font-semibold text-neutral-600">
                 카드를 눌러서 뒤집어 보세요 ({revealed}/{pack.length})
               </p>
-              <div className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3">
+              <div className="mx-auto mt-2 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3 lg:max-w-4xl">
                 {pack.map((c, i) => (
                   // ⚠️ 키는 배열 순서(i)가 아니라 카드 자리 번호(c.i)다. 팩은 등급순으로
                   //    정렬돼 나오므로 둘이 다르고, 섞어 쓰면 엉뚱한 카드가 뒤집힌다.
@@ -1401,6 +1405,7 @@ export function PackSim({
                     onFlip={() => flipOne(c.i)}
                     name={koName(cfg.jp, c.name)}
                     showTier
+                    price={c.usd && rates ? formatKrwApprox(c.usd * rates.usdToKrw) : undefined}
                   />
                 ))}
               </div>
@@ -1454,7 +1459,16 @@ export function PackSim({
                 );
                 return (
                   <>
-                    <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+                    {/* ⚠️ 팩(10장 이하)은 개봉 중 화면과 **같은 크기**로 맞춘다. 8칸 격자에
+                        5장을 넣으면 방금 크게 보던 카드가 결과에서 갑자기 작아진다
+                        (운영자 지적 2026-08-05). 박스는 장수가 많아 8칸 그대로 둔다. */}
+                    <div
+                      className={
+                        앞줄.length <= 10
+                          ? 'mx-auto mt-4 grid max-w-2xl grid-cols-5 gap-2 sm:gap-3 lg:max-w-4xl'
+                          : 'mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8'
+                      }
+                    >
                       {앞줄.map(칸)}
                     </div>
                     {뒷줄.length > 0 && (
