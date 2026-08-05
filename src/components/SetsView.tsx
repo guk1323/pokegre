@@ -162,6 +162,9 @@ export function SetsView({
   const [hitCards, setHitCards] = useState<{ n: string; usd: number; name: string }[] | null>(null);
   // 어느 마켓 값인지. 일본판 신상은 스니커덩크(일본 실거래)가 더 정확해서 그쪽을 쓴다.
   const [hitSrc, setHitSrc] = useState<'snkrdunk' | 'tcgplayer'>('tcgplayer');
+  // 스니커덩크는 같은 카드가 상태별로 갈려 거래되고 값이 두 배까지 벌어진다.
+  // 어느 등급 값인지 밝히지 않으면 "내 카드도 이 값"이라고 오해한다.
+  const [hitGrade, setHitGrade] = useState<'psa10' | 'a'>('a');
   // 힛카드 값을 원화로 보여주려고 환율을 한 번 받아 둔다. 못 받으면 달러로 적는다.
   const [usdToKrw, setUsdToKrw] = useState<number | null>(null);
   // 값이 제일 높은 카드를 세트 표지로 쓴다. 원본이 주는 표지는 그 세트의 1번 카드라
@@ -200,6 +203,7 @@ export function SetsView({
       .then((d) => {
         setHitCards(d?.priced && d.cards?.length ? d.cards : null);
         setHitSrc(d?.src === 'snkrdunk' ? 'snkrdunk' : 'tcgplayer');
+        setHitGrade(d?.grade === 'psa10' ? 'psa10' : 'a');
       })
       .catch(() => setHitCards(null));
   }
@@ -332,7 +336,11 @@ export function SetsView({
                          보여주면서 라벨만 그대로 두면 오해가 더 커진다. */}
                   {pricedMode && (
                     <span className="text-[11px] text-neutral-400">
-                      {hitSrc === 'snkrdunk' ? 'SNKRDUNK 실거래 · 미감정 기준' : 'TCGplayer 마켓가 · 미감정 기준'}
+                      {hitSrc !== 'snkrdunk'
+                        ? 'TCGplayer 마켓가 · 미감정 기준'
+                        : hitGrade === 'psa10'
+                          ? 'SNKRDUNK 실거래 · PSA10 기준'
+                          : 'SNKRDUNK 실거래 · 미감정(A등급) 기준'}
                     </span>
                   )}
                 </div>

@@ -6142,7 +6142,11 @@ function mountAuth(
 // 한 번 읽고 계속 들고 있는다(배포할 때마다 새로 읽힌다).
 // src는 어디서 받은 값인지. 'snkrdunk'면 일본 마켓 실거래가라 PPT보다 먼저 쓴다
 // (없으면 예전처럼 PPT에서 받은 것으로 본다).
-let hitCardFile: Record<string, { at: number; src?: string; cards: { n: string; usd: number }[] }> | null = null
+let hitCardFile: Record<
+  string,
+  // grade는 스니커덩크에서 받은 것만 있다. 'psa10'(감정 10등급) 또는 'a'(미감정 거의 미사용).
+  { at: number; src?: string; grade?: string; cards: { n: string; usd: number }[] }
+> | null = null
 function loadHitCardFile() {
   if (hitCardFile) return hitCardFile
   try {
@@ -6261,8 +6265,12 @@ function mountSetHitCards(app: Mountable) {
     // 마켓가)는 기준이 다르므로, 라벨을 안 바꾸면 "왜 스니커덩크 값과 다르냐"는 오해가
     // 그대로 남는다 — 오히려 스니커덩크 값을 보여주면서 TCGplayer라고 적게 된다.
     const saved = loadHitCardFile()[slug]
-    const src = saved?.src === 'snkrdunk' && saved.cards?.length ? 'snkrdunk' : 'tcgplayer'
-    sendJson(res, 200, { slug, priced: true, src, at: packPriceCache.get(slug)?.at ?? 0, cards })
+    const sd = saved?.src === 'snkrdunk' && saved.cards?.length
+    const src = sd ? 'snkrdunk' : 'tcgplayer'
+    // 스니커덩크는 같은 카드가 상태별로 갈려 거래되고 값이 두 배까지 벌어진다.
+    // 어느 등급 값인지 화면이 그대로 적어야 방문자가 오해하지 않는다.
+    const grade = sd ? (saved.grade === 'psa10' ? 'psa10' : 'a') : undefined
+    sendJson(res, 200, { slug, priced: true, src, grade, at: packPriceCache.get(slug)?.at ?? 0, cards })
   })
 }
 
