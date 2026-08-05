@@ -18,7 +18,13 @@ export interface CommunityPost {
   authorIsAdmin: boolean;
   content: string;
   // 팩 개봉 자랑글에만 붙는 카드 목록(서버가 검증한 결과). 이미지 그리드로 그린다.
-  pull?: { pack: string; god: boolean; total?: number; cards: { img: string; name: string; r: string }[] };
+  // q는 같은 카드가 몇 장 나왔는지. 1장이면 서버가 안 붙인다.
+  pull?: {
+    pack: string;
+    god: boolean;
+    total?: number;
+    cards: { img: string; name: string; r: string; q?: number }[];
+  };
   // 작성자가 올린 사진 주소(/uploads/…).
   images?: string[];
   createdAt: number;

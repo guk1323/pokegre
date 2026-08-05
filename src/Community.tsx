@@ -247,20 +247,31 @@ function PostDetail({
           )}
           <p className="mb-2 text-xs text-neutral-400">
             {post.pull.pack}
+            {/* 같은 카드를 묶은 뒤라 세는 단위가 "장"이 아니라 "종"이다.
+                12종이 실제로는 20장일 수 있다(카드마다 ×3처럼 적힌다). */}
             {post.pull.total && post.pull.total > post.pull.cards.length
-              ? ` · 총 ${post.pull.total}장 중 좋은 카드 ${post.pull.cards.length}장`
+              ? ` · 총 ${post.pull.total}장 중 좋은 카드 ${post.pull.cards.length}종`
               : ''}
           </p>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             {post.pull.cards.map((c, i) => (
               <div key={i}>
-                {c.img && (
-                  <img
-                    src={`/api/img?u=${encodeURIComponent(/\.(png|jpe?g|webp)(\?|$)/i.test(c.img) ? c.img : `${c.img}/high.webp`)}&w=240`}
-                    alt=""
-                    className="aspect-[5/7] w-full rounded-lg bg-neutral-50 object-contain ring-1 ring-neutral-200"
-                  />
-                )}
+                {/* 같은 카드가 여러 장 나오면 한 장만 그리고 장수를 겹쳐 적는다.
+                    카드 위에 얹어야 어느 카드가 여러 장인지 바로 붙어 보인다. */}
+                <div className="relative">
+                  {c.img && (
+                    <img
+                      src={`/api/img?u=${encodeURIComponent(/\.(png|jpe?g|webp)(\?|$)/i.test(c.img) ? c.img : `${c.img}/high.webp`)}&w=240`}
+                      alt=""
+                      className="aspect-[5/7] w-full rounded-lg bg-neutral-50 object-contain ring-1 ring-neutral-200"
+                    />
+                  )}
+                  {c.q && c.q > 1 ? (
+                    <span className="absolute right-1 top-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                      ×{c.q}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{c.name}</p>
                 <p className="text-[10px] text-neutral-400">{c.r}</p>
               </div>

@@ -953,7 +953,8 @@ interface CommunityPost {
   viewedBy?: string[]
   // 팩 개봉 자랑글에만 붙는 카드 목록. 커뮤니티 화면이 이걸로 실제 카드 이미지를
   // 그려 준다(스크린샷 업로드 없이도 "그 뽑은 화면"이 그대로 보인다).
-  pull?: { pack: string; god: boolean; total?: number; cards: { img: string; name: string; r: string }[] }
+  // q는 같은 카드가 몇 장 나왔는지. 1장이면 안 붙인다(화면도 1이면 안 적는다).
+  pull?: { pack: string; god: boolean; total?: number; cards: { img: string; name: string; r: string; q?: number }[] }
   // 운영자가 가린 시각. 지우지 않고 가리는 이유는 두 가지다. 신고가 장난일 수 있어
   // 되돌릴 수 있어야 하고, "왜 내 글 지웠냐"는 항의에 보여줄 원문이 남아야 한다.
   // (정보통신망법이 요구하는 것도 삭제가 아니라 임시조치다.)
@@ -5847,10 +5848,34 @@ function mountAuth(
             total: drawn.length,
             // 값 낮은 순으로 세워 뒤에서 12장 = 값 높은 12장(마지막이 제일 비싼 카드).
             // 값이 같으면 등급으로 가른다.
-            cards: [...drawn]
-              .sort((a, b) => (a.usd ?? 0) - (b.usd ?? 0) || (rank[a.r ?? ''] ?? 0) - (rank[b.r ?? ''] ?? 0))
-              .slice(-PULL_CARD_LIMIT)
-              .map((c) => ({ img: c.img ?? '', name: koN(c), r: tierKo[c.r ?? ''] ?? c.r ?? '' })),
+            //
+            // ⚠️ 그 전에 **같은 카드는 한 장으로 묶는다**(운영자 지시 2026-08-05).
+            //    박스는 30팩이라 같은 레어가 서너 장씩 나온다. 안 묶으면 12칸 가운데
+            //    7칸이 세 종류로 채워져 "좋은 카드 12장"이 같은 그림만 늘어놓는 꼴이
+            //    된다(실제로 그랬다). 대신 몇 장 나왔는지를 q로 실어 화면이 ×3으로
+            //    적는다 — 여러 장 나온 것도 자랑거리라 숨기지는 않는다.
+            //    묶는 기준은 카드 번호 + 미러 종류다. 미러는 다른 카드로 친다.
+            cards: (() => {
+              const 묶음 = new Map<string, { c: (typeof drawn)[number]; q: number }>()
+              for (const c of drawn) {
+                const key = `${c.n}|${c.m ?? ''}`
+                const hit = 묶음.get(key)
+                if (hit) hit.q += 1
+                else 묶음.set(key, { c, q: 1 })
+              }
+              return [...묶음.values()]
+                .sort(
+                  (a, b) =>
+                    (a.c.usd ?? 0) - (b.c.usd ?? 0) || (rank[a.c.r ?? ''] ?? 0) - (rank[b.c.r ?? ''] ?? 0),
+                )
+                .slice(-PULL_CARD_LIMIT)
+                .map(({ c, q }) => ({
+                  img: c.img ?? '',
+                  name: koN(c),
+                  r: tierKo[c.r ?? ''] ?? c.r ?? '',
+                  ...(q > 1 ? { q } : {}),
+                }))
+            })(),
           },
         }
         try {
