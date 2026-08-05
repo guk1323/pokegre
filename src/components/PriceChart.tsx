@@ -62,7 +62,12 @@ export function PriceChart({
   const [hover, setHover] = useState<number | null>(null);
 
   const geom = useMemo(() => {
-    if (points.length === 0) return null;
+    // ⚠️ 점이 하나뿐이면 그래프를 그리지 않는다. 선(`M140,48`)은 잇는 곳이 없어 아무것도
+    //    안 보이고, 밑칠만 화면 끝까지 삼각형으로 깔려 없는 흐름을 있는 것처럼 보인다.
+    //    결과는 96px짜리 빈 칸이다 — "그래프 데이터 없는 건 없애 달라"던 그 화면이다
+    //    (운영자 지적, 2026-08-05 배포 전 점검에서 다시 확인. 망나뇽 R [SM11 068/094]).
+    //    한 건은 추이가 아니라 사실 한 줄이므로 아래에서 글로 적는다.
+    if (points.length < 2) return null;
     const { x, y, pMin, pMax } = buildScales(points);
     const coords = points.map((p) => ({ cx: x(p.timestamp), cy: y(p.price), ...p }));
     const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`).join(' ');
@@ -143,6 +148,14 @@ export function PriceChart({
 
       {loading ? (
         <p className="text-xs text-neutral-400 py-8 text-center">불러오는 중...</p>
+      ) : points.length === 1 ? (
+        // 한 건뿐이면 추이가 아니라 사실 한 줄이다. 언제 얼마에 팔렸는지만 적는다.
+        <p className="py-8 text-center text-xs text-neutral-400">
+          실거래가 {compactDate(points[0].timestamp)}에 있던{' '}
+          <span className="font-semibold text-neutral-600">{krw(points[0].price, 'jpy')}</span> 한 건뿐이라
+          <br />
+          추이를 그릴 수 없습니다.
+        </p>
       ) : !geom ? (
         // 고를 등급이 없으면 "이 등급의"가 말이 안 된다(어느 등급에도 기록이 없거나
         // 박스라 등급이 없는 경우다).
