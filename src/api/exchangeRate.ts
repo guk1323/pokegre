@@ -28,6 +28,11 @@ export function formatKrwApprox(krw: number): string {
     const rounded = man >= 100 ? Math.round(man) : Math.round(man * 10) / 10;
     return `약 ${rounded.toLocaleString('ko-KR')}만원`;
   }
+  // ⚠️ 100원 단위로 반올림하면 50원 미만이 전부 "약 0원"이 된다. $0.01짜리 흔한
+  //    카드가 그렇게 떠서 공짜처럼 보였다(점검 중 발견 2026-08-06). 값이 있는데
+  //    0원이라고 하면 안 된다 — 100원 밑은 10원 단위로, 그것도 안 되면 "100원 미만".
+  if (krw < 10) return '100원 미만';
+  if (krw < 100) return `약 ${Math.round(krw / 10) * 10}원`;
   return `약 ${(Math.round(krw / 100) * 100).toLocaleString('ko-KR')}원`;
 }
 
