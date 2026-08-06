@@ -1799,7 +1799,7 @@ const ALLOWED_EVENTS = new Set([
   'search_scan', 'search_pick', 'search_popular', 'search_enter', 'search_typed',
   'packsim_banner', 'artist_by_pokemon',
   // 홈의 "신팩 힛카드"(2026-08-05 추가). card=카드를 눌러 시세로 감, set=전체 보기.
-  'home_hit_card', 'home_hit_set',
+  'home_hit_card', 'home_hit_set', 'pokedex',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60

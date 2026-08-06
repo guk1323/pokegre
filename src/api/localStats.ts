@@ -110,7 +110,9 @@ export type TrackedEvent =
   // 홈의 "신팩 힛카드"(2026-08-05). card=카드를 눌러 시세로 감, set=전체 보기.
   // 이게 낮으면 그 줄이 자리만 먹는 것이라 뺀다.
   | 'home_hit_card'
-  | 'home_hit_set';
+  | 'home_hit_set'
+  // 포켓몬별 카드(2026-08-06). 어느 포켓몬을 열었는지도 라벨로 센다.
+  | 'pokedex';
 // label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
 export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;

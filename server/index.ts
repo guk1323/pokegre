@@ -570,6 +570,40 @@ app.get('/artists', async (_req, res) => {
   )
 })
 
+// 포켓몬별 카드 대문(2026-08-06 운영자 지시로 추가).
+// ⚠️ 이 줄도 express.static보다 **위**에 있어야 한다 — dist 안에 pokedex 폴더가 있어서,
+//    아래에 두면 정적 폴더가 먼저 잡아 301로 튕긴다(sets·artists와 같은 함정).
+app.get('/pokedex', async (_req, res) => {
+  let list: { id: number; ko: string; en: string; c: number }[] = []
+  try {
+    list = JSON.parse(await readFile(path.join(DIST, 'pokedex', 'index.json'), 'utf-8'))
+  } catch {
+    res.status(500).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
+    return
+  }
+  const 장수 = list.reduce((n, p) => n + p.c, 0)
+  // 크롤러가 읽을 이름 목록. 1,025종을 다 적으면 글이 너무 길어져 카드가 많은 순으로
+  // 200종만 적는다 — 사람이 찾을 만한 포켓몬은 대개 이 안에 있다.
+  const li = [...list]
+    .sort((a, b) => b.c - a.c)
+    .slice(0, 200)
+    .map((p) => `<li>${esc(p.ko)} (${esc(p.en)}) ${p.c}장</li>`)
+    .join('')
+  res.set('Cache-Control', HTML_CACHE).send(
+    seoPage({
+      title: '포켓몬별 카드 목록 | pokegre',
+      desc: `포켓몬 ${list.length}종의 카드 ${장수.toLocaleString()}장을 발매 순으로 모아 봅니다. 어느 세트 것인지도 함께 봅니다.`,
+      url: 'https://pokegre.com/pokedex',
+      body:
+        '<h1>포켓몬별 카드</h1>' +
+        `<p>포켓몬 ${list.length}종, 카드 ${장수.toLocaleString()}장입니다. ` +
+        '포켓몬을 고르면 그 포켓몬 카드가 일본판·북미판을 통틀어 발매 순으로 나오고, ' +
+        '어느 세트에서 나온 카드인지도 함께 적습니다.</p>' +
+        `<ul>${li}</ul>`,
+    }),
+  )
+})
+
 app.get('/packsim', (_req, res) => {
   const today = livePacks()
   // 팩 슬러그가 곧 세트 슬러그라 그 세트의 카드 목록으로 이어 준다. 대문의 값어치가

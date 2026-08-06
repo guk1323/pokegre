@@ -62,6 +62,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 ${url('/centering', '0.7', 'monthly')}
 ${url('/sets', '0.9', 'weekly')}
 ${url('/artists', '0.9', 'weekly')}
+${url('/pokedex', '0.9', 'weekly')}
 ${url('/packsim', '0.7', 'daily')}
 ${url('/community', '0.6', 'daily')}
 ${series.join('\n')}

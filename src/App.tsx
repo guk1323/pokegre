@@ -53,6 +53,7 @@ const SetsView = lazy(() => import('./components/SetsView').then((m) => ({ defau
 const TitleFeedbackList = lazy(() => import('./components/TitleFeedbackList').then((m) => ({ default: m.TitleFeedbackList })));
 const CenteringTool = lazy(() => import('./components/CenteringTool').then((m) => ({ default: m.CenteringTool })));
 const ArtistsView = lazy(() => import('./components/ArtistsView').then((m) => ({ default: m.ArtistsView })));
+const PokedexView = lazy(() => import('./components/PokedexView').then((m) => ({ default: m.PokedexView })));
 import { DetailSheet } from './components/DetailSheet';
 import { fetchMe, logout, mergeCollections, saveCollections, type LoginProvider } from './api/auth';
 
@@ -67,7 +68,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'pokedex' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
 
 // 화면 → 주소. 카테고리를 누르면 주소창도 같이 바뀌게 한다(운영자 지적 2026-08-05 —
 // 카테고리를 옮겨 다녀도 주소가 pokegre.com 그대로라 링크를 복사해 줄 수가 없었다).
@@ -79,6 +80,7 @@ const VIEW_PATH: Partial<Record<MainView, string>> = {
   cards: '/',
   sets: '/sets',
   artists: '/artists',
+  pokedex: '/pokedex',
   centering: '/centering',
   packsim: '/packsim',
   community: '/community',
@@ -101,6 +103,7 @@ const VIEW_TITLE: Partial<Record<MainView, string>> = {
   cards: HOME_TITLE,
   sets: '포켓몬 카드 세트 목록 | pokegre',
   artists: '포켓몬 카드 일러스트레이터 | pokegre',
+  pokedex: '포켓몬별 카드 목록 | pokegre',
   centering: '포켓몬 카드 센터링 측정 | pokegre',
   packsim: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
   community: '커뮤니티 | pokegre',
@@ -129,6 +132,7 @@ function shareTitle(title: string): string {
 function viewFromPath(p: string): MainView | null {
   if (/^\/(artist|artists)\//.test(p) || /^\/artists\/?$/.test(p)) return 'artists';
   if (/^\/(set|series)\//.test(p) || /^\/sets\/?$/.test(p)) return 'sets';
+  if (/^\/pokedex\/?$/.test(p)) return 'pokedex';
   if (/^\/centering\/?$/.test(p)) return 'centering';
   if (/^\/packsim\/?$/.test(p)) return 'packsim';
   if (/^\/community\/?$/.test(p)) return 'community';
@@ -1462,6 +1466,7 @@ function App() {
                   {openMenu === 'more' && (
                     <div className="absolute right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
                       {([
+                        { v: 'pokedex', label: '포켓몬별 카드', beta: true },
                         { v: 'artists', label: '작가별 목록' },
                         { v: 'sets', label: '세트별 목록', beta: true },
                         { v: 'centering', label: '센터링 측정', beta: true },
@@ -1594,6 +1599,10 @@ function App() {
             <CenteringTool onSearchByPhoto={searchByPhoto} />
           ) : view === 'artists' ? (
             <ArtistsView
+              onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
+            />
+          ) : view === 'pokedex' ? (
+            <PokedexView
               onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
             />
           ) : view === 'mypage' ? (
