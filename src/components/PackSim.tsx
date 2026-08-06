@@ -911,22 +911,59 @@ export function PackSim({
       ) : (
       <div className="mt-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-y-3">
+          {/* ⚠️ 앨범 탭에서는 보여줄 숫자를 바꾼다(운영자 지시 2026-08-06).
+              예전엔 이 현황판 아래에 앨범 전용 상자가 하나 더 쌓여, 같은 생김새의
+              네모가 둘 겹치고 "보유 GP"가 두 번 나왔다. 앨범을 보는 사람에게
+              연속 출석·개봉한 팩은 지금 궁금한 값이 아니므로, 그 두 칸을 모은 카드·
+              예상 가치로 바꿔 끼운다. 상자 하나가 통째로 없어진다. */}
           <div className="grid w-full grid-cols-3 gap-2 sm:w-auto sm:max-w-md sm:flex-1">
             <div className="min-w-0">
               <p className="text-xs text-neutral-400">보유 GP</p>
               <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">{(sim?.balance ?? 0).toLocaleString()}</p>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs text-neutral-400">연속 출석</p>
-              <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">{sim?.streak ?? 0}일</p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-neutral-400">개봉한 팩</p>
-              <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">
-                {sim?.opened ?? 0}팩
-                {sim?.god ? <span className="ml-1 align-middle text-xs font-semibold text-amber-600">갓팩 {sim.god}</span> : null}
-              </p>
-            </div>
+            {tab === 'album' ? (
+              <>
+                <div className="min-w-0">
+                  <p className="text-xs text-neutral-400">모은 카드</p>
+                  <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">
+                    {sim?.album.length ?? 0}종
+                    <span className="ml-1 align-middle text-xs font-semibold text-neutral-400">
+                      {(sim?.album ?? []).reduce((a, b) => a + b.c, 0)}장
+                    </span>
+                  </p>
+                </div>
+                {(() => {
+                  const worth =
+                    value && value.totalUsd > 0 && rates
+                      ? formatKrwApprox(value.totalUsd * rates.usdToKrw)
+                      : value && value.totalUsd > 0
+                        ? `$${value.totalUsd.toLocaleString()}`
+                        : '—';
+                  return (
+                    <div className="min-w-0">
+                      <p className="text-xs text-neutral-400">예상 가치</p>
+                      {/* ⚠️ truncate로 자르면 "약 1,234만…"처럼 값이 잘려 나간다. 값은
+                          자르지 말고 글자를 줄여 한 줄에 넣는다(fitNum). */}
+                      <p className={`mt-0.5 whitespace-nowrap font-bold text-black ${fitNum(worth)}`}>{worth}</p>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <p className="text-xs text-neutral-400">연속 출석</p>
+                  <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">{sim?.streak ?? 0}일</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-neutral-400">개봉한 팩</p>
+                  <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">
+                    {sim?.opened ?? 0}팩
+                    {sim?.god ? <span className="ml-1 align-middle text-xs font-semibold text-amber-600">갓팩 {sim.god}</span> : null}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
           {/* 잔액이 상한이면 눌러도 한 푼도 안 들어온다. 버튼을 그대로 열어 두면 눌러 보고
               아무 일도 안 일어나는 것처럼 보이므로, 미리 이유를 적어 준다. */}
@@ -1562,61 +1599,15 @@ export function PackSim({
                 (rates ? ` · ${rates.date} 환율` : '');
               return (
             <>
-              <div className="mb-4 rounded-2xl border border-neutral-200 p-4 sm:p-5">
-                {/* ⚠️ 폰(375px)에서 한 칸이 97px뿐인데 20px 글씨를 쓰면 "2,644,800 GP"가
-                    숫자 중간에서 잘려 두 줄이 된다("2,644,80 / 0 GP"). 예상 가치도 마찬가지다
-                    (사용자 지적 2026-08-04, 실측 값높이 56px = 두 줄).
-                    좁은 화면에서는 글씨를 줄이고, 단위는 위 이름이 이미 말하므로 값에서 뺀다.
-                    tabular-nums로 숫자 폭을 고정해 세 칸이 들쭉날쭉해 보이지 않게 한다. */}
-                {/* ⚠️ 큰 화면에서는 세 칸을 화면 폭만큼 늘리면 한 칸이 353px인데 글자는
-                    77~102px만 써서 칸의 3/4이 빈다(실측 1280px 기준, 사용자 지적 2026-08-04).
-                    그래서 sm: 이상에서는 늘리지 않고(auto-cols) 왼쪽에 모아 두고,
-                    남는 자리에 아래 있던 등급·정렬을 끌어올려 한 줄로 만든다. */}
-                {/* ⚠️ 세 가지(숫자·조작·각주)를 한 줄에 욱여넣고 있었다. 서로 성격이
-                    달라 눈이 어디를 봐야 할지 모르겠고, 긴 각주가 두 줄로 접혀 아래가
-                    들쭉날쭉했다(운영자 지적 2026-08-06). 위는 숫자, 아래는 조작으로
-                    나누고 그 사이에 옅은 줄을 넣는다. 각주는 설명하는 값 바로 밑으로. */}
-                <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-                  {/* 폰에서도 두 숫자는 나란히 둔다 — 세로로 쌓으면 카드가 그만큼 밀린다.
-                      각주가 붙는 예상 가치 쪽에 남는 폭을 준다. */}
-                  <div className="flex w-full gap-x-6 sm:w-auto">
-                  <div className="min-w-0 shrink-0">
-                    <p className="text-xs text-neutral-400">모은 카드</p>
-                    <p className="mt-0.5 whitespace-nowrap text-base font-bold tabular-nums text-black sm:text-xl">
-                      {sim.album.length}종
-                      <span className="ml-1 text-xs font-semibold text-neutral-400 sm:text-sm">
-                        {sim.album.reduce((a, b) => a + b.c, 0)}장
-                      </span>
-                    </p>
-                  </div>
-                  {/* ⚠️ "사용 GP"는 뺐다(사용자 지시 2026-08-04). 얼마를 썼는지는 앨범을
-                      보러 온 사람이 궁금한 값이 아니고, 보유 GP는 위 요약에 이미 있다. */}
-                  {(() => {
-                    const worth =
-                      value && value.totalUsd > 0 && rates
-                        ? formatKrwApprox(value.totalUsd * rates.usdToKrw)
-                        : value && value.totalUsd > 0
-                          ? `$${value.totalUsd.toLocaleString()}`
-                          : '—';
-                    return (
-                      <div className="min-w-0">
-                        <p className="text-xs text-neutral-400">예상 가치</p>
-                        <p className={`mt-0.5 whitespace-nowrap font-bold tabular-nums text-black ${fitNum(worth)}`}>
-                          {worth}
-                        </p>
-                        {/* 이 값이 어디서 온 값인지 바로 밑에 적는다. */}
-                        <p className="mt-1 text-[11px] leading-snug text-neutral-400">{albumNote}</p>
-                      </div>
-                    );
-                  })()}
-                  </div>
-                {/* ⚠️ 등급과 정렬은 둘 다 드롭다운이다. 칩으로 늘어놓으면 누를 것이 13개가
-                    되고 조작 상자가 폰 화면의 41%를 먹는다(실측 2026-08-04).
-                    큰 화면에서만 칩으로 펴 봤다가 난잡하다고 되돌렸다(사용자 지시).
-                    남는 자리는 드롭다운 폭을 키워 쓴다 — 요소를 늘리지 않는다. */}
-                {/* 조작(등급·정렬·삭제)은 숫자와 성격이 달라 아래 줄로 내리고 옅은 줄로
-                    나눈다. 큰 화면에서도 같은 자리라 눈이 찾는 곳이 늘 같다. */}
-                <div className="mt-4 flex w-full flex-wrap items-center gap-2 border-t border-neutral-100 pt-4">
+              {/* ⚠️ 앨범 전용 상자를 없앴다(운영자 지시 2026-08-06 — "진짜 별로야").
+                  위 현황판과 똑같이 생긴 네모가 하나 더 쌓여 "보유 GP"가 두 번 나오고,
+                  숫자·조작·각주가 한 상자에 뒤엉켜 있었다. 모은 카드·예상 가치는 위
+                  현황판의 연속 출석·개봉한 팩 자리로 옮겼고, 여기는 조작 줄만 남긴다.
+                  테두리 없는 맨 줄이라 상자 하나만큼 화면이 짧아진다.
+                  ⚠️ 등급·정렬은 둘 다 드롭다운으로 둔다. 칩으로 펴면 누를 것이 13개가 되고
+                     조작이 폰 화면의 41%를 먹는다(실측 2026-08-04, 한 번 해보고 되돌림). */}
+              <div className="mb-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <select
                     value={albumFilter}
                     onChange={(e) => setAlbumFilter(e.target.value)}
@@ -1692,7 +1683,9 @@ export function PackSim({
                     )}
                   </div>
                 </div>
-                </div>
+                {/* 위 현황판의 "예상 가치"가 어디서 온 값인지 밝힌다. 조작 줄 아래에
+                    옅게 두어, 눈이 카드로 가는 길을 막지 않게 한다. */}
+                <p className="mt-2 text-[11px] leading-snug text-neutral-400">{albumNote}</p>
                 {!!value?.pending?.length && (
                   <p className="mt-1 text-[11px] font-semibold text-amber-600">
                     세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.
