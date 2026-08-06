@@ -34,6 +34,9 @@ const 짝 = new Map<string, string[]>()
 const 이름열쇠 = (name: string) =>
   name
     .toLowerCase()
+    // ⚠️ 성별 기호 앞 공백이 데이터마다 갈린다 — "Nidoran ♂"와 "Nidoran♂".
+    //    이것 하나로 초판 니드런이 세트에 못 붙었다(2026-08-06).
+    .replace(/\s*([♂♀])/g, '$1')
     .replace(/[-–—'’.]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()

@@ -98,11 +98,15 @@ async function fetchJson(url, tries = 8) {
   return null
 }
 
-// 한 작가의 카드(최대 500장). 최신 발매 순으로 받는다.
+// 한 작가의 카드를 **끝까지** 받는다. 최신 발매 순.
+// ⚠️ 예전엔 2페이지(=500장)에서 잘랐다. 그런데 목록에는 실제 총량("카드 1,109종")을
+//    적으므로, 그 작가를 열면 500장만 나오고 609장은 어디에도 없었다 — 찾는 사람은
+//    없는 카드라고 여긴다(2026-08-06 점검 중 발견, 5명 3,275장이 그렇게 빠져 있었다).
+//    페이지 상한은 안전장치일 뿐, 정상 종료는 아래 `< 250` 에서 난다.
 async function fetchArtistCards(en) {
   const q = encodeURIComponent(`artist:"${en}"`)
   const cards = []
-  for (let page = 1; page <= 2; page++) {
+  for (let page = 1; page <= 12; page++) {
     const j = await fetchJson(
       `https://api.pokemontcg.io/v2/cards?pageSize=250&page=${page}&orderBy=-set.releaseDate&q=${q}&select=name,number,images,set,artist`,
     )

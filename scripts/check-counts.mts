@@ -77,10 +77,13 @@ const 줄 = (제목: string, 어긋남: string[], 전체: number) => {
     const d = JSON.parse(readFileSync(f, 'utf-8')) as { cards?: unknown[]; count?: number }
     const 실제 = d.cards?.length ?? 0
     // 목록에 적힌 수는 "전체 카드 수"이고 파일에는 그림이 있는 것만 담길 수 있다.
-    // 파일 안에 적힌 count와 목록이 다르면 그게 진짜 어긋난 것이다.
-    const 적힌 = a.count ?? a.c
-    if (적힌 !== undefined && d.count !== undefined && 적힌 !== d.count)
-      어긋남.push(`${a.slug.padEnd(24)} 목록 ${적힌} · 파일 ${d.count} (담긴 카드 ${실제})`)
+    // ⚠️ 목록의 count와 파일의 count는 **같은 값을 복사한 것**이라 늘 일치한다.
+    //    그것만 견주면 "1,109종"이라 적어 놓고 500장만 담긴 것을 못 잡는다
+    //    (실제로 5명 3,275장이 이렇게 새고 있었다 — 2026-08-06).
+    //    화면이 보여줄 수 있는 건 **담긴 카드**뿐이니, 적힌 수와 담긴 수를 견준다.
+    const 적힌 = a.count ?? a.c ?? d.count
+    if (적힌 !== undefined && 적힌 !== 실제)
+      어긋남.push(`${a.slug.padEnd(24)} 적힌 ${적힌} · 담긴 ${실제}`)
   }
   console.log(`\n[작가별 목록] 작가 ${index.length}명`)
   줄('목록과 파일의 수가 다름', 어긋남, index.length)
