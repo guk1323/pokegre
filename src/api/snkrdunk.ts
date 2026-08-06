@@ -97,7 +97,11 @@ export async function searchPokemonCards(
   const params = new URLSearchParams({
     func: 'all',
     refId: 'search',
-    keyword: (await loadNameDict()).translateSearchQuery(keyword),
+    // ⚠️ 한글을 일본어로 바꿔 보내되, **한글이 없는 검색어는 손대지 않는다.**
+    //    "PCG9 052"처럼 세트 코드로 찾을 때 번역기가 "PC"를 "パソコン"으로 바꿔
+    //    "パソコンG9 052"를 보내고 있었다 — PCG 세트 9개(722장)가 통째로 0건이었다
+    //    (2026-08-07 점검 중 발견). 영문·숫자뿐인 검색어는 이미 그 마켓이 쓰는 말이다.
+    keyword: /[가-힣]/.test(keyword) ? (await loadNameDict()).translateSearchQuery(keyword) : keyword,
     sortKey: 'default',
     cardVersion: '2',
     brandIds: 'pokemon',
