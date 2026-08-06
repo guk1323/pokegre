@@ -311,7 +311,11 @@ function App() {
     const m = String(title).match(/^(.*?)\s*\[([A-Za-z0-9+-]+)[\s-]+([^/\]]+?)\s*(?:\/[^\]]*)?\]/);
     if (!m) return;
     const [, 이름, 코드, 번호] = m;
-    const 세트 = 세트목록ref.current?.find((s) => s.id === 코드 && s.ed === 'ja');
+    // ⚠️ 대소문자를 맞춰 견준다. 스니커덩크 제목은 "[e2 004/092]"처럼 소문자로 적는데
+    //    우리 세트코드는 "E2"라 못 찾았다(점검 중 발견 2026-08-06).
+    const 세트 = 세트목록ref.current?.find(
+      (s) => s.id.toLowerCase() === 코드.toLowerCase() && s.ed === 'ja',
+    );
     if (!세트) return;
     pokedexPickRef.current = {
       ko: 이름.trim(),
@@ -1814,9 +1818,13 @@ function App() {
               {/* 좁은 화면에서 메뉴 글자가 단어 중간에 꺾이지 않게, 버튼 단위로만 줄바꿈한다.
                   relative z-50 으로 버튼이 백드롭 위에 오게 해 클릭이 통한다. */}
               <nav className="relative z-50 flex flex-wrap items-center gap-2">
+                {/* ⚠️ navigate만 부르면 **이미 시세 화면일 때 아무 일도 안 한다**. 공유
+                    링크로 들어와 카드를 보다가 "홈"을 눌러도 그 카드에 갇혔다(점검 중
+                    발견 2026-08-06). 검색 중에 눌러도 마찬가지였다. 로고(pokegre)와
+                    같은 goHome을 써서 검색어·고른 카드까지 비운다. */}
                 <button
                   type="button"
-                  onClick={() => navigate({ view: 'cards' })}
+                  onClick={goHome}
                   className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
                     view === 'cards' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
