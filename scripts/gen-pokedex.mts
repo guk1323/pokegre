@@ -18,6 +18,9 @@ import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 import { koName } from '../src/lib/cardCatalog.ts'
 import { isPocketSet } from '../src/lib/pocketSets.ts'
+import cardCategories from '../src/data/cardCategories.json' with { type: 'json' }
+import cardFacts from '../src/data/cardFacts.json' with { type: 'json' }
+import oldJpDex from '../src/data/oldJpDex.json' with { type: 'json' }
 
 type Pokemon = { id: number; ko: string; ja: string; en: string }
 type SetMeta = { slug: string; ed: 'ja' | 'en'; name: string; releaseDate?: string; serie?: string }
@@ -47,6 +50,29 @@ const byEn = [...list].sort((a, b) => b.en.length - a.en.length)
 
 const idx = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf-8')) as SetMeta[]
 const meta = new Map(idx.map((s) => [s.slug, s]))
+
+// 카드가 포켓몬인지 트레이너·에너지인지 **원본에 물어 둔 것**. 이름으로 짐작하면
+// "빛나는 리자몽"·"피카츄 ex"가 트레이너로 가고, 반대로 포켓몬 이름이 든 트레이너
+// ("마그마단의 슈퍼볼")가 포켓몬으로 갈 수 있다(2026-08-07 점검 중 발견).
+// 세 갈래로 받아 뒀다 — 세트 단위 REST(cardCategories) · 북미판 GraphQL(cardFacts) ·
+// 옛 일본판 카드 상세(oldJpDex). 아는 카드는 38,009장 중 29,155장(77%)이다.
+const 종류표 = cardCategories as Record<string, Record<string, string>>
+const 북미표 = cardFacts as Record<string, { c?: string }>
+const 옛표 = oldJpDex as Record<string, { c?: string }>
+const 카드종류 = (slug: string, setId: string, n: string): 'p' | 't' | 'e' | '' => {
+  const 번호들 = [String(n), String(n).replace(/^0+/, ''), String(n).padStart(3, '0')]
+  for (const k of 번호들) {
+    const a = 종류표[slug]?.[k]
+    if (a) return a as 'p' | 't' | 'e'
+  }
+  const b = 옛표[`${setId}-${n}`]?.c
+  if (b) return b as 'p' | 't' | 'e'
+  for (const k of 번호들) {
+    const f = 북미표[`${setId}-${k}`]?.c
+    if (f) return f as 'p' | 't' | 'e'
+  }
+  return ''
+}
 
 /** 포켓몬 id → 그 포켓몬 카드들 */
 const buckets = new Map<number, (Entry & { date: string })[]>()
@@ -79,7 +105,22 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
     const nm = c.name ?? ''
     if (!nm) continue
     const 한장 = { name: nm, s: slug, n: c.n, img: c.img || undefined, r: c.r || undefined, date: m.releaseDate ?? '' }
-    const hit = pool.find((p) => nm.includes(d.ed === 'ja' ? p.ja : p.en))
+    // ⚠️ **이름으로 포켓몬을 찾았으면 그것을 믿는다.** 원본 종류표로 먼저 걸렀더니
+    //    "자시안 V"·"히스이 가디"·"팔데아 켄타로스" 같은 멀쩡한 포켓몬 카드 150종이
+    //    트레이너로 새어 나갔다(2026-08-07 회귀 검사에서 발견). 종류표는 세트·번호를
+    //    맞춰 온 것이라 번호 표기가 어긋나면 남의 카드 종류를 가져온다.
+    //    종류표는 **이름으로 못 찾았을 때만** 쓴다 — 반대 판 사전까지 뒤져 볼지 정하는 데.
+    let hit = pool.find((p) => nm.includes(d.ed === 'ja' ? p.ja : p.en))
+    if (!hit) {
+      const 종류 = 카드종류(slug, m.id, String(c.n))
+      // ⚠️ 일본판 세트인데 원문이 영문인 카드가 526장 있다(원본 오염). 제 판 사전으로만
+      //    찾으면 "Pikachu ex"가 트레이너로 샌다 — 원본이 포켓몬이라고 하면 반대 판
+      //    사전도 본다. 트레이너·에너지라고 하면 뒤지지 않는다(엉뚱한 매칭을 막는다).
+      if (종류 === 'p') {
+        const 반대 = d.ed === 'ja' ? byEn : byJa
+        hit = 반대.find((p) => nm.includes(d.ed === 'ja' ? p.en : p.ja))
+      }
+    }
     if (hit) {
       const arr = buckets.get(hit.id) ?? []
       arr.push(한장)
