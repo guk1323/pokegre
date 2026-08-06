@@ -25,7 +25,14 @@ const 고칠것: Record<string, string> = {
   //   XYP 001 ピカチュウ → [XY-P 001] · 219 アグノム       → [XY-P 219]
   'ja-SP': 'S-P',
   'ja-XYP': 'XY-P',
+  //   SMP 001 カビゴンGX → [SM-P 001] · 294 ミミッキュ → [SM-P 294]
+  //   BWP 001 ヤナップ   → [BW-P 001] · 172 ランプラー → [BW-P 172]
+  'ja-SMP': 'SM-P',
+  'ja-BWP': 'BW-P',
 }
+// ⚠️ 하이픈이 늘 답은 아니다. SV2P·S10P·SMP2·CP1~6은 하이픈 없이 잘 걸리고,
+//    ja-SVP는 SVP·SV-P 둘 다 0건이라 코드가 또 다르거나 스니커덩크에 없다.
+//    P가 붙었다고 일괄로 바꾸지 말고 세트마다 카드 이름을 견줘 확인할 것.
 
 const p = path.join(ROOT, 'public/sets/index.json')
 const idx = JSON.parse(readFileSync(p, 'utf-8')) as any[]
