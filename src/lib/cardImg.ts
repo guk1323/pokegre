@@ -32,6 +32,14 @@ export const thumb = (url: string, w: number) => (url ? `/api/img?u=${encodeURIC
 // "뒷면(이미지 준비 중)"을 보여줘 일관성을 지킨다.
 export const CARD_BACK = '/card-back.svg';
 
-// 스니덩크는 "마켓 거래 사진"(슬랩·손·책상 위 등)이라 공식 카드 렌더가 아니다.
-// 경로 불문 "이미지 없음"으로 취급해 뒷면으로 대체한다.
-export const usable = (url?: string) => !!url && !url.includes('snkrdunk');
+// 스니덩크 사진은 경로로 갈린다(2026-08-07 눈으로 확인).
+//  · /apparel_used_listings/ — **중고 매물 사진**이다. 담요 위에 비스듬히 놓고 찍은 것이라
+//    공식 카드 그림이 아니다. 뒷면("이미지 준비 중")으로 대체한다.
+//  · /upload_bg_removed/ — 배경을 지운 **정면 스캔**이다. 공식 렌더와 다를 바 없다.
+//    옛 세트(e카드·PCG)에는 이것밖에 없는 카드가 66장 있는데, 통째로 막고 있어서
+//    귀한 카드(리자몽☆·갸라도스☆)가 뒷면으로 나왔다.
+// ⚠️ 아는 경로만 받아들인다. 새 경로가 생기면 어떤 사진인지 눈으로 보고 넣을 것 —
+//    틀린 그림을 보여 주느니 빈칸이 낫다.
+const 스니덩크쓸만함 = /cdn\.snkrdunk\.com\/upload_bg_removed\//i;
+export const usable = (url?: string) =>
+  !!url && (!url.includes('snkrdunk') || 스니덩크쓸만함.test(url));
