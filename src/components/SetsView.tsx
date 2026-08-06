@@ -156,10 +156,28 @@ export function SetsView({
     // 화면에 뜨는 이름 그대로 남긴다. koSet을 쓰면 통계에만 옛 이름("포켓몬카드게임 MEGA")이
     // 남아 같은 시리즈가 두 줄로 갈린다.
     trackEvent('series', koSerie(hit.ed, hit.serie ?? ''));
-    // 탭이 바뀌고 목록이 그려진 뒤에 스크롤해야 자리를 찾는다.
-    setTimeout(() => {
-      document.getElementById(`serie-${initialSerie}`)?.scrollIntoView({ block: 'start' });
-    }, 300);
+    // ⚠️ 그 시리즈가 "더 보기" 밖이면 화면에 아예 없어서 스크롤할 자리도 없다.
+    //    소드&실드는 북미판 목록 아래쪽이라, 검색으로 들어와도 맨 위(2026년 신상)만
+    //    보였다(2026-08-07 점검 중 발견).
+    //
+    // ⚠️ 몇 개나 펼쳐야 하는지 **미리 셀 수 없다.** 목록은 발매일 순이라 시리즈가
+    //    이어 붙어 있지 않다 — 북미판에서 스칼렛&바이올렛(8번째부터) 사이에 맥도날드
+    //    컬렉션(13번째부터)이 끼어든다. 그래서 자리를 세는 대신 **찾을 때까지 펼친다.**
+    //
+    // ⚠️ 펼치기는 탭이 바뀐 뒤에 해야 한다. 탭이 바뀌면 목록 개수를 처음으로 되돌리는
+    //    effect가 있어서, 그 전에 늘려 봐야 곧바로 덮인다.
+    let 시도 = 0;
+    const 찾아가기 = () => {
+      const 자리 = document.getElementById(`serie-${initialSerie}`);
+      if (자리) {
+        자리.scrollIntoView({ block: 'start' });
+        return;
+      }
+      if (시도++ >= 12) return; // 못 찾으면 조용히 그만둔다 — 목록은 그대로 보인다
+      set세트보임((n) => n + 30);
+      setTimeout(찾아가기, 160);
+    };
+    setTimeout(찾아가기, 300);
   }, [initialSerie, index]);
 
   const [cards, setCards] = useState<SetCard[] | null>(null);

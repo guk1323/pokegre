@@ -2014,7 +2014,18 @@ function App() {
           ) : view === 'sets' ? (
             <SetsView
               initialSlug={setsInitialSlug}
-              initialSerie={window.location.pathname.match(/^\/series\/([^/?#]+)/)?.[1] ?? null}
+              /* ⚠️ 주소는 인코딩된 채로 온다(%E5%89%A3%E3%81%A8%E7%9B%BE). 시리즈 슬러그는
+                  일본어라 그대로 견주면 일본판 13개가 통째로 안 걸린다 — 탭만 바뀌고
+                  그 시리즈로 내려가지 않았다(2026-08-07 점검 중 발견). 풀어서 넘긴다. */
+              initialSerie={(() => {
+                const raw = window.location.pathname.match(/^\/series\/([^/?#]+)/)?.[1];
+                if (!raw) return null;
+                try {
+                  return decodeURIComponent(raw);
+                } catch {
+                  return raw;
+                }
+              })()}
               onInitialSlugDone={() => setSetsInitialSlug(null)}
               onPickCard={카드로가기}
             />
