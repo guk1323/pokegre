@@ -87,15 +87,33 @@ const hasJapanese = (s: string) => /[ぁ-んァ-ヶ一-龯]/.test(s);
 // 2026-08-06 — 같은 규칙을 쓰는 두 곳이 어긋난 경우다).
 const 번호꼬리떼기 = (s: string) => s.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim();
 
+// 한글 이름에 남는 **전각 문장부호**를 보통 부호로 바꾼다. 일본어 원문의 부호가 그대로
+// 따라와 "포로！핸드 익스텐션", "초련＆담죽"처럼 나온다 — 한글 사이에 끼면 어색하고,
+// 마켓에 보낼 때도 번역기가 못 읽어 검색을 방해한다(2026-08-07 점검 중 발견, 5장).
+// ⚠️ 한글이 하나도 없는 이름(번역이 안 된 일본어 원문)은 그대로 둔다 — 그쪽은 원문
+//    표기가 맞다.
+const 부호다듬기 = (s: string) => {
+  if (!/[가-힣]/.test(s)) return s;
+  return s
+    .replace(/！/g, '!')
+    .replace(/？/g, '?')
+    .replace(/＆/g, '&')
+    .replace(/：/g, ':')
+    .replace(/（/g, '(')
+    .replace(/）/g, ')')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 export const koName = (ed: 'ja' | 'en', name: string) => {
-  if (ed !== 'ja') return 번호꼬리떼기(koreanizeEnglishCardName(name));
-  if (hasJapanese(name)) return 번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name)));
+  if (ed !== 'ja') return 부호다듬기(번호꼬리떼기(koreanizeEnglishCardName(name)));
+  if (hasJapanese(name)) return 부호다듬기(번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name))));
   // 영어 이름이다. 영어 사전이 통째로 아는 이름이면 그대로 쓴다.
   const en = 번호꼬리떼기(koreanizeEnglishCardName(name));
-  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return en;
+  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return 부호다듬기(en);
   // 영어 사전이 못 잡은 것만 일본어 사전에 맡긴다. 옛 세트에는 원본이 깨져 영어로 들어온
   // 이름이 있는데("Bugsy's Pinsir", "Mime Ex"), 그건 일본어 쪽에 고치는 규칙을 넣어 뒀다.
-  return 번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name)));
+  return 부호다듬기(번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name))));
 };
 
 // 일본판 세트인데 이름이 영어로 붙은 것들이 있다(「Pokémon GO」, 「25th Anniversary」).
