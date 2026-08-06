@@ -134,9 +134,24 @@ export async function 같은카드인가(우리한글: string, 마켓한글: str
       return null;
     }
   }
-  const 찾기 = (s: string) => 포켓몬한글목록!.find((n) => s.includes(n));
-  const 우리 = 찾기(우리한글);
-  const 저쪽 = 찾기(마켓한글);
-  if (!우리 || !저쪽) return null;
-  return 우리 === 저쪽;
+  // ⚠️ **첫 포켓몬 하나만** 보면 태그팀 카드를 잘못 버린다. SM12a 184는 우리 이름이
+  //    "루카리오&멜메탈 GX"인데(원본 데이터가 오염됐다 — 사진도 실제 카드도 멜메탈GX
+  //    한 장이다), 마켓은 "멜메탈GX"라 첫 포켓몬끼리는 어긋난다. 양쪽에서 포켓몬을
+  //    모두 찾아 **하나라도 겹치면** 같은 카드로 본다(2026-08-07).
+  const 모두찾기 = (s: string) => {
+    const 찾음: string[] = [];
+    let 남은 = s;
+    for (const n of 포켓몬한글목록!) {
+      if (남은.includes(n)) {
+        찾음.push(n);
+        // 찾은 자리는 지운다 — "리자몽"을 세고 나서 "리자드"를 또 세면 안 된다.
+        남은 = 남은.split(n).join(' ');
+      }
+    }
+    return 찾음;
+  };
+  const 우리 = 모두찾기(우리한글);
+  const 저쪽 = 모두찾기(마켓한글);
+  if (!우리.length || !저쪽.length) return null;
+  return 우리.some((n) => 저쪽.includes(n));
 }
