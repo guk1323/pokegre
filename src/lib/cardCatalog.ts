@@ -81,15 +81,21 @@ export { cardImg, thumb, CARD_BACK, usable } from './cardImg';
 // 이름이 "Team 로켓단의 Wobbuffet"처럼 반쪽이 된다. 영어면 영어 변환기만 태운다.
 const hasJapanese = (s: string) => /[ぁ-んァ-ヶ一-龯]/.test(s);
 
+// 옛 세트 원본에는 이름 뒤에 번호가 붙어 오는 것이 있다("MUK -004/092"). 그대로 두면
+// 화면에 "질뻐기 -004/092"로 뜬다 — 번호는 옆 칸에 따로 적히므로 이름에 있을 이유가
+// 없다. 도감을 만드는 쪽은 이미 떼고 있었는데 화면만 남아 있었다(점검 중 발견
+// 2026-08-06 — 같은 규칙을 쓰는 두 곳이 어긋난 경우다).
+const 번호꼬리떼기 = (s: string) => s.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim();
+
 export const koName = (ed: 'ja' | 'en', name: string) => {
-  if (ed !== 'ja') return koreanizeEnglishCardName(name);
-  if (hasJapanese(name)) return koreanizeEnglishCardName(koreanizeTitle(name));
+  if (ed !== 'ja') return 번호꼬리떼기(koreanizeEnglishCardName(name));
+  if (hasJapanese(name)) return 번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name)));
   // 영어 이름이다. 영어 사전이 통째로 아는 이름이면 그대로 쓴다.
-  const en = koreanizeEnglishCardName(name);
+  const en = 번호꼬리떼기(koreanizeEnglishCardName(name));
   if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return en;
   // 영어 사전이 못 잡은 것만 일본어 사전에 맡긴다. 옛 세트에는 원본이 깨져 영어로 들어온
   // 이름이 있는데("Bugsy's Pinsir", "Mime Ex"), 그건 일본어 쪽에 고치는 규칙을 넣어 뒀다.
-  return koreanizeEnglishCardName(koreanizeTitle(name));
+  return 번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name)));
 };
 
 // 일본판 세트인데 이름이 영어로 붙은 것들이 있다(「Pokémon GO」, 「25th Anniversary」).

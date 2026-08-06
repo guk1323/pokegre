@@ -8,8 +8,7 @@
 // 쓰는 법: npx tsx scripts/check-bucket-labels.mts
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koName } from '../src/lib/cardCatalog.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const sets = new Map(
@@ -23,8 +22,8 @@ const 도감 = JSON.parse(readFileSync(path.join(ROOT, 'public/pokedex/index.jso
   ko: string
   t: 'p' | 't'
 }[]
-const ko = (ed: 'ja' | 'en', n: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
+// ⚠️ 화면과 같은 함수로 센다(2026-08-06).
+const ko = koName
 
 const 띄어쓰기수 = (s: string) => (s.match(/[\s·]/g) ?? []).length
 const 대문자수 = (s: string) => (s.match(/[A-Z]/g) ?? []).length

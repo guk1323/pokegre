@@ -10,8 +10,7 @@
 // 쓰는 법: npx tsx scripts/check-remaining-japanese.mts
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koName } from '../src/lib/cardCatalog.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const index = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf-8')) as {
@@ -22,8 +21,8 @@ const index = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'),
   releaseDate?: string
 }[]
 const meta = new Map(index.map((s) => [s.slug, s]))
-const ko = (ed: 'ja' | 'en', n: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
+// ⚠️ 화면과 같은 함수로 센다(2026-08-06).
+const ko = koName
 
 // 히라가나·가타카나·한자. 한자는 카드 이름에 드물게 정상으로 쓰이기도 해서 따로 센다.
 const 가나 = /[ぁ-んァ-ヶ]/

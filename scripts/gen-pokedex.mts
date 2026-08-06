@@ -16,6 +16,7 @@ import path from 'node:path'
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koName } from '../src/lib/cardCatalog.ts'
 import { isPocketSet } from '../src/lib/pocketSets.ts'
 
 type Pokemon = { id: number; ko: string; ja: string; en: string }
@@ -59,8 +60,11 @@ const buckets = new Map<number, (Entry & { date: string })[]>()
 const trainers = new Map<string, (Entry & { date: string; ko: string })[]>()
 // 한글 포켓몬 이름 → 도감번호. 위 대조에서 빠진 카드를 이름으로 건져 올릴 때 쓴다.
 const koPokemon = new Map(list.map((p) => [p.ko.replace(/[\s·]/g, ''), p.id]))
-const koCardName = (ed: 'ja' | 'en', n: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
+// ⚠️ 화면이 쓰는 것과 **같은 함수**를 쓴다. 예전에는 여기서 따로 만들었는데, 화면은
+//    옛 세트의 깨진 원본을 더 손보고 있어서 결과가 갈렸다 — 같은 카드가 세트 화면에서는
+//    "로켓단의 레트라", 도감에서는 "Team 로켓단의 레트라"로 보였다(점검 중 발견
+//    2026-08-06). 규칙이 둘이면 언젠가 반드시 어긋난다.
+const koCardName = koName
 
 for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
   if (!f.endsWith('.json') || f === 'index.json') continue

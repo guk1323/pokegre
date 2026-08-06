@@ -13,8 +13,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { 도감검색어, 마켓순서, pptSetName, type 도감카드정보 } from '../src/lib/pokedexRoute.ts'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koName } from '../src/lib/cardCatalog.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const index = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf-8')) as {
@@ -25,8 +24,8 @@ const index = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'),
   serie?: string
 }[]
 const meta = new Map(index.map((s) => [s.slug, s]))
-const ko = (ed: 'ja' | 'en', n: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
+// ⚠️ 화면과 같은 함수로 센다(2026-08-06).
+const ko = koName
 
 let 총 = 0
 const 스니커덩크이름만: string[] = []

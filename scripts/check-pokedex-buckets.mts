@@ -11,8 +11,7 @@
 // 쓰는 법: npx tsx scripts/check-pokedex-buckets.mts
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koName } from '../src/lib/cardCatalog.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const index = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf-8')) as {
@@ -27,8 +26,9 @@ const 도감 = JSON.parse(readFileSync(path.join(ROOT, 'public/pokedex/index.jso
   c: number
   t: 'p' | 't'
 }[]
-const ko = (ed: 'ja' | 'en', n: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
+// ⚠️ 화면·gen-pokedex와 **같은 함수**를 써야 한다. 따로 만들면 의도한 결과를
+//    "어긋났다"고 잘못 세게 된다(2026-08-06).
+const ko = koName
 
 // 띄어쓰기·가운뎃점·대소문자만 다른 것은 같은 이름으로 본다.
 // ⚠️ gen-pokedex가 묶는 기준과 **똑같아야** 한다. 한쪽만 고치면 의도해서 합친 것을
