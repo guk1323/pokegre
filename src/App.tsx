@@ -2063,7 +2063,11 @@ function App() {
               {/* 스캔 안내. "이 결과가 왜 이렇게 나왔는지"를 말하는 글이라 결과 바로
                   위에 둔다. 검색창과 판 토글 사이에 있으면 뜰 때마다 그 둘을 갈라놓는다
                   (운영자 지적 2026-08-06). 뜰 때만 자리를 차지하므로 평소엔 영향이 없다. */}
-              {(scanFoundByArtist > 0 || scanFellBack || 도감안내 || scannedResult) && (
+              {(scanFoundByArtist > 0 ||
+                scanFellBack ||
+                도감안내 ||
+                (edition === 'korean' && 도감카드(query)) ||
+                scannedResult) && (
                 <div className="mx-auto mb-4 max-w-3xl pl-1.5">
                   {scanFoundByArtist > 0 && (
                     <p className="text-xs text-neutral-400">
@@ -2075,6 +2079,17 @@ function App() {
                     <p className="mt-1 text-xs text-neutral-400">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
                   )}
                   {도감안내 && <p className="mt-1 text-xs text-neutral-400">{도감안내}</p>}
+                  {/* ⚠️ 한글판은 이베이 **매물 제목**으로 찾는다. 세트 이름이나 번호로
+                      좁힐 방법이 없어서, 도감에서 그 한 장을 눌러 와도 같은 이름의 다른
+                      세트 매물이 섞여 나온다(밴디트 링 022 샤미드를 눌렀는데 이브이
+                      히어로즈 074 매물이 떴다 — 점검 중 발견 2026-08-06).
+                      말없이 두면 그 카드의 값으로 오해한다. */}
+                  {edition === 'korean' && 도감카드(query) && (
+                    <p className="mt-1 text-xs text-neutral-400">
+                      한글판은 매물 제목으로 찾아 세트·번호까지 좁히지 못합니다. 같은 이름의 다른 세트 매물이 섞일 수
+                      있습니다.
+                    </p>
+                  )}
                   {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
                   {scannedResult && (
                     <p className="mt-1 text-xs text-neutral-400">
