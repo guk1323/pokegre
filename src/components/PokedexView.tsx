@@ -71,6 +71,8 @@ export function PokedexView({
     setNameKo: string
     num: string
     jp: boolean
+    /** 누른 카드의 그림. 마켓에 값이 없을 때 무엇을 찾고 있는지 보여주는 데 쓴다. */
+    img?: string
   }) => void;
 }) {
   const [index, setIndex] = useState<PokeIndex[] | null>(null);
@@ -233,6 +235,8 @@ export function PokedexView({
                       setNameKo: 세트,
                       num: c.n,
                       jp: meta?.ed !== 'en',
+                      // 마켓에 값이 없을 때 "무엇을 찾고 있는지" 보여줄 그림.
+                      img: cat && cat.usable(c.img) ? c.img : '',
                     })
                   }
                   className="text-left"

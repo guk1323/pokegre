@@ -327,6 +327,8 @@ export function SetsView({
       setNameKo: koSet(selected.ed, selected.name),
       num: c.n,
       jp: selected.ed !== 'en',
+      // 마켓에 값이 없을 때 "무엇을 찾고 있는지" 보여줄 그림.
+      img: usable(c.img) ? c.img : '',
     });
     const visible = (cards ?? []).slice(0, shown);
     // 값으로 고른 카드가 있으면 그것을 쓴다. 세트 파일에서 같은 번호를 찾아 그림·이름을

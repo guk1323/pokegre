@@ -17,6 +17,8 @@ import {
   type 도감카드정보,
 } from './lib/pokedexRoute';
 import { 시트가스스로닫힘 } from './lib/sheetHistory';
+// 사전을 하나도 안 가져오는 파일이라 첫 화면 무게가 늘지 않는다(lib/cardImg.ts 머리말).
+import { cardImg, thumb, usable } from './lib/cardImg';
 import { loadNameDict, warmNameDict } from './lib/nameDict';
 
 import {
@@ -2237,6 +2239,10 @@ function App() {
               {(scanFoundByArtist > 0 ||
                 scanFellBack ||
                 도감안내 ||
+                // 시세를 못 받았을 때도 "무엇을 찾고 있는지" 그림을 보여준다.
+                // ⚠️ 오류 상태가 마켓마다 따로다. 스니커덩크만 보면 이베이·TCGplayer로
+                //    넘어간 카드에는 그림이 안 붙는다(2026-08-07 점검 중 발견).
+                ((error || ebayError) && 도감카드(query)) ||
                 (edition === 'korean' && 도감카드(query)) ||
                 scannedResult) && (
                 <div className="mx-auto mb-4 max-w-3xl pl-1.5">
@@ -2249,7 +2255,29 @@ function App() {
                   {scanFellBack && (
                     <p className="mt-1 text-xs text-neutral-400">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
                   )}
-                  {도감안내 && <p className="mt-1 text-xs text-neutral-400">{도감안내}</p>}
+                  {/* ⚠️ 마켓에 값이 없으면 화면에 그림이 하나도 안 남아, 목록에서 누른
+                      카드가 맞는지 확인할 방법이 없었다(2026-08-07 점검 중 발견).
+                      누른 그 카드 그림을 안내 옆에 붙여 무엇을 찾고 있는지 보이게 한다.
+                      ⚠️ 안내 문구가 없을 때도 보여야 한다. 시세 조회가 통째로 실패하면
+                         (PPT가 쉬는 중 등) 안내는 안 뜨는데 그때가 제일 필요하다. */}
+                  {(() => {
+                    const 누른것 = 도감카드(query);
+                    const 그림 = 누른것?.img;
+                    if (!도감안내 && !((error || ebayError) && 누른것)) return null;
+                    return (
+                      <div className="mt-1 flex items-start gap-2">
+                        {usable(그림) && (
+                          <img
+                            src={thumb(cardImg(그림!), 120)}
+                            alt=""
+                            // 안내 바로 옆 작은 그림 한 장이라 미루지 않고 바로 받는다.
+                            className="h-16 w-auto shrink-0 rounded-sm"
+                          />
+                        )}
+                        {도감안내 && <p className="text-xs text-neutral-400">{도감안내}</p>}
+                      </div>
+                    );
+                  })()}
                   {/* ⚠️ 한글판은 이베이 **매물 제목**으로 찾는다. 세트 이름이나 번호로
                       좁힐 방법이 없어서, 도감에서 그 한 장을 눌러 와도 같은 이름의 다른
                       세트 매물이 섞여 나온다(밴디트 링 022 샤미드를 눌렀는데 이브이

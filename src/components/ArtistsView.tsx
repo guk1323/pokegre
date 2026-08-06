@@ -354,6 +354,8 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
                   setNameKo: koSetName(meta?.name ?? c.set),
                   num: meta ? c.number : '',
                   jp: false,
+                  // 마켓에 값이 없을 때 "무엇을 찾고 있는지" 보여줄 그림.
+                  img: c.img ?? '',
                 };
                 return (
                   <button
