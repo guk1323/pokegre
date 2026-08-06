@@ -377,6 +377,10 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
                     </div>
                     <p className="mt-1.5 line-clamp-1 text-xs font-semibold text-black">{koName}</p>
                     <p className="line-clamp-1 text-[11px] text-neutral-400">{koSetName(c.set)}</p>
+                    {/* ⚠️ 번호가 없으면 같은 이름 카드가 여럿일 때 어느 것인지 알 수 없다.
+                        도감·세트 목록은 보여 주는데 작가 목록만 빠져 있었다(점검 중 발견
+                        2026-08-06). 세트 이름과 한 줄에 두면 잘리므로 아래에 따로 적는다. */}
+                    {c.number && <p className="text-[10px] text-neutral-300">{c.number}</p>}
                   </button>
                 );
               })}
