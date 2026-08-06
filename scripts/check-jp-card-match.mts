@@ -9,6 +9,10 @@
 // 어떻게: 세트마다 몇 장을 뽑아 "세트코드 번호"로 스니커덩크를 부르고, 돌아온 제목에
 // 우리 카드 이름이 들어 있는지 본다. 이름이 다르면 그 세트는 번호가 어긋난 것이다.
 //
+// ⚠️ 판정은 **앱이 쓰는 바로 그 함수**(같은카드인가)로 한다. 검사 도구가 제 나름의
+//    규칙을 두면, 도구는 통과하는데 화면에서는 막히는(또는 그 반대) 일이 생긴다.
+//    화면이 무엇을 버리고 무엇을 받는지를 그대로 재는 것이 이 검사의 목적이다.
+//
 // ⚠️ 스니커덩크는 무료다 — PPT 크레딧을 쓰지 않는다.
 // ⚠️ 0건은 "어긋남"이 아니다. 스니커덩크에 그 카드가 없을 뿐이다. 따로 센다.
 // ⚠️ **원문끼리 비교하면 안 된다.** 옛 세트는 원본 데이터의 일본어 칸이 오염돼 있어
@@ -22,6 +26,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { koName } from '../src/lib/cardCatalog.ts'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { 같은카드인가 } from '../src/lib/pokedexRoute.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const 인자 = process.argv.slice(2)
@@ -115,17 +120,17 @@ for (const s of 대상) {
       영문이라못봄++
       continue
     }
-    // 화면에 뜨는 한글끼리 견준다(원문은 오염돼 있어 믿을 수 없다).
-    const 우리 = 이름열쇠(koName(s.ed, c.name))
-    const 저쪽들 = 번호맞는것.map((p) => 이름열쇠(koreanizeTitle(제목이름(p.title))))
-    if (저쪽들.some((저쪽) => 저쪽 && (저쪽.includes(우리) || 우리.includes(저쪽))))
-      맞음++
+    // 앱과 똑같이 판정한다. null(판정 못 함)은 앱이 그대로 받아들이므로 "받음"으로 센다.
+    const 우리한글 = koName(s.ed, c.name)
+    const 판정 = await Promise.all(
+      번호맞는것.map((p) => 같은카드인가(우리한글, koreanizeTitle(제목이름(p.title)))),
+    )
+    if (판정.some((r) => r !== false)) 맞음++
     else {
       세트어긋++
       if (어긋남.length < 20)
         어긋남.push(
-          `${s.id} ${c.n}  우리 "${koName(s.ed, c.name)}"  ↔  스니커덩크 "${koreanizeTitle(제목이름(번호맞는것[0].title))}"` +
-            `   (원문: "${c.name}" ↔ "${제목이름(번호맞는것[0].title)}")`,
+          `${s.id} ${c.n}  우리 "${우리한글}"  ↔  스니커덩크 "${koreanizeTitle(제목이름(번호맞는것[0].title))}"`,
         )
     }
   }
@@ -135,7 +140,7 @@ for (const s of 대상) {
 
 console.log(`\n\n  대조한 카드 ${검사}장 (스니커덩크에 없어 못 본 것 ${없음}장 · 우리 이름이 영문이라 못 본 것 ${영문이라못봄}장)`)
 console.log(`  ✓ 같은 카드      ${맞음}장`)
-console.log(`  ${검사 - 맞음 ? '✗' : '✓'} 다른 카드가 나옴 ${검사 - 맞음}장\n`)
+console.log(`  ${검사 - 맞음 ? '✗' : '✓'} 화면이 값을 버림   ${검사 - 맞음}장  ← 다른 카드로 판정한 것\n`)
 for (const e of 어긋남) console.log(`      ${e}`)
 if (세트별어긋남.size) {
   console.log(`\n  어긋난 세트 ${세트별어긋남.size}개:`)
