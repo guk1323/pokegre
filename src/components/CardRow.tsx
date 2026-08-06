@@ -10,6 +10,7 @@ export function CardRow({
   isFavorite,
   onToggleFavorite,
   onClear,
+  missing = 0,
 }: {
   title: string;
   items: SnkrdunkCard[];
@@ -21,6 +22,9 @@ export function CardRow({
   // 전달하면 제목 옆에 전체 삭제 버튼이 붙는다. 검색 결과처럼 지울 게 없는
   // 목록에서는 생략한다.
   onClear?: () => void;
+  // 지금 못 받은 장수. 통신이 잠깐 끊겨도 목록이 줄어드는데, 아무 말이 없으면
+  // 이용자는 찜이 날아간 줄 안다(운영자 지적 2026-08-06). 저장된 목록은 그대로다.
+  missing?: number;
 }) {
   return (
     <div className="mb-6">
@@ -32,9 +36,14 @@ export function CardRow({
           </button>
         )}
       </div>
+      {missing > 0 && (
+        <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+          {missing}장은 지금 불러오지 못했습니다. 지워진 것이 아니니 잠시 뒤 다시 열어 보세요.
+        </p>
+      )}
       {items.length === 0 ? (
         <p className="text-sm text-neutral-400 py-6 text-center rounded-xl border border-dashed border-neutral-200">
-          {emptyText}
+          {missing > 0 ? '지금은 불러올 수 없습니다.' : emptyText}
         </p>
       ) : (
         // snap-x/snap-start: 옆으로 밀면 카드 경계에 딱 멈춘다. 안 그러면 줄 끝에

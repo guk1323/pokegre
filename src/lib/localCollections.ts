@@ -56,6 +56,19 @@ export function writeRecentRefs(refs: StoredCardRef[]) {
   writeRefs(RECENT_KEY, refs);
 }
 
+// 스니커덩크에서 정말 없어진(404·410) 상품을 저장 목록에서 뺀다.
+// ⚠️ "지금 못 받은" 것에는 쓰지 말 것 — 통신이 잠깐 끊긴 카드까지 지워 버린다.
+//    무엇이 없어진 것인지는 resolveStoredCards가 gone으로 알려 준다.
+export function removeStoredRefs(which: 'favorites' | 'recent', ids: number[]) {
+  if (!ids.length) return;
+  const key = which === 'favorites' ? FAVORITES_KEY : RECENT_KEY;
+  const drop = new Set(ids);
+  writeRefs(
+    key,
+    readRefs(key).filter((r) => !drop.has(r.apparelId)),
+  );
+}
+
 export function isFavorite(apparelId: number, favorites: { apparelId: number }[]): boolean {
   return favorites.some((c) => c.apparelId === apparelId);
 }

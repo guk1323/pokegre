@@ -1547,13 +1547,17 @@ export function PackSim({
             <p className="text-sm text-neutral-400">아직 모은 카드가 없습니다.</p>
           ) : (
             (() => {
-              // 예상 가치 안내. 큰 화면에서는 요약 숫자와 드롭다운 사이 빈자리에,
-              // 폰에서는 아래에 둔다 — 같은 글을 두 자리에서 쓰므로 한 번만 만든다.
+              // 예상 가치 밑에 붙는 각주.
+              // ⚠️ 예전엔 "예상 가치는 … 참고용 추정치입니다"로 길게 적고, 큰 화면에서는
+              //    요약 숫자와 드롭다운 사이 빈자리에 끼워 넣었다. 그 자리에서는 무엇에
+              //    대한 말인지 알 수 없고 두 줄로 접혀 상자가 어수선했다(운영자 지적
+              //    2026-08-06). 이제 값 바로 밑에 붙이므로 "예상 가치는"을 뺀다 —
+              //    무엇에 대한 말인지는 자리가 말해 준다.
               const albumNote =
-                '예상 가치는 TCGplayer 마켓가 기준 참고용 추정치입니다' +
-                (value && value.totalUsd > 0 ? ` ($${value.totalUsd.toLocaleString()})` : '') +
+                'TCGplayer 마켓가 기준 추정' +
+                (value && value.totalUsd > 0 ? ` · $${value.totalUsd.toLocaleString()}` : '') +
                 (value && value.priced < sim.album.length
-                  ? ` · 시세 없는 ${sim.album.length - value.priced}종은 합계에서 제외`
+                  ? ` · 시세 없는 ${sim.album.length - value.priced}종 제외`
                   : '') +
                 (rates ? ` · ${rates.date} 환율` : '');
               return (
@@ -1568,9 +1572,15 @@ export function PackSim({
                     77~102px만 써서 칸의 3/4이 빈다(실측 1280px 기준, 사용자 지적 2026-08-04).
                     그래서 sm: 이상에서는 늘리지 않고(auto-cols) 왼쪽에 모아 두고,
                     남는 자리에 아래 있던 등급·정렬을 끌어올려 한 줄로 만든다. */}
-                <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-                <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-4 sm:flex sm:flex-none sm:gap-x-8">
-                  <div className="min-w-0">
+                {/* ⚠️ 세 가지(숫자·조작·각주)를 한 줄에 욱여넣고 있었다. 서로 성격이
+                    달라 눈이 어디를 봐야 할지 모르겠고, 긴 각주가 두 줄로 접혀 아래가
+                    들쭉날쭉했다(운영자 지적 2026-08-06). 위는 숫자, 아래는 조작으로
+                    나누고 그 사이에 옅은 줄을 넣는다. 각주는 설명하는 값 바로 밑으로. */}
+                <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+                  {/* 폰에서도 두 숫자는 나란히 둔다 — 세로로 쌓으면 카드가 그만큼 밀린다.
+                      각주가 붙는 예상 가치 쪽에 남는 폭을 준다. */}
+                  <div className="flex w-full gap-x-6 sm:w-auto">
+                  <div className="min-w-0 shrink-0">
                     <p className="text-xs text-neutral-400">모은 카드</p>
                     <p className="mt-0.5 whitespace-nowrap text-base font-bold tabular-nums text-black sm:text-xl">
                       {sim.album.length}종
@@ -1594,15 +1604,19 @@ export function PackSim({
                         <p className={`mt-0.5 whitespace-nowrap font-bold tabular-nums text-black ${fitNum(worth)}`}>
                           {worth}
                         </p>
+                        {/* 이 값이 어디서 온 값인지 바로 밑에 적는다. */}
+                        <p className="mt-1 text-[11px] leading-snug text-neutral-400">{albumNote}</p>
                       </div>
                     );
                   })()}
-                </div>
+                  </div>
                 {/* ⚠️ 등급과 정렬은 둘 다 드롭다운이다. 칩으로 늘어놓으면 누를 것이 13개가
                     되고 조작 상자가 폰 화면의 41%를 먹는다(실측 2026-08-04).
                     큰 화면에서만 칩으로 펴 봤다가 난잡하다고 되돌렸다(사용자 지시).
                     남는 자리는 드롭다운 폭을 키워 쓴다 — 요소를 늘리지 않는다. */}
-                <div className="flex w-full flex-wrap items-center gap-2 border-t border-neutral-100 pt-3 sm:w-auto sm:flex-1 sm:justify-end sm:border-0 sm:pt-0">
+                {/* 조작(등급·정렬·삭제)은 숫자와 성격이 달라 아래 줄로 내리고 옅은 줄로
+                    나눈다. 큰 화면에서도 같은 자리라 눈이 찾는 곳이 늘 같다. */}
+                <div className="mt-4 flex w-full flex-wrap items-center gap-2 border-t border-neutral-100 pt-4">
                   <select
                     value={albumFilter}
                     onChange={(e) => setAlbumFilter(e.target.value)}
@@ -1678,14 +1692,7 @@ export function PackSim({
                     )}
                   </div>
                 </div>
-                {/* ⚠️ 큰 화면에서 요약 숫자와 드롭다운 사이가 427px 비었다(실측 2026-08-04).
-                    아래 있던 이 안내문을 그 자리로 올린다 — 요소를 새로 만들지 않고
-                    이미 있는 글로 채우고, 줄도 하나 준다. 폰에서는 자리가 없어 아래에 둔다. */}
-                <p className="hidden min-w-0 flex-1 px-2 text-[11px] leading-snug text-neutral-400 sm:block">
-                  {albumNote}
-                </p>
                 </div>
-                <p className="mt-3 text-[11px] text-neutral-400 sm:hidden">{albumNote}</p>
                 {!!value?.pending?.length && (
                   <p className="mt-1 text-[11px] font-semibold text-amber-600">
                     세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.

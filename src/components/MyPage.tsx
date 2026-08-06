@@ -330,6 +330,8 @@ export function MyPage({
   onProvidersChange,
   recentlyViewed,
   favorites,
+  recentMissing,
+  favoritesMissing,
   selectedId,
   onSelect,
   isFavorite,
@@ -347,6 +349,9 @@ export function MyPage({
   onProvidersChange: (next: LoginProvider[]) => void;
   recentlyViewed: SnkrdunkCard[];
   favorites: SnkrdunkCard[];
+  /** 지금 못 받은 장수(없어진 것 말고). 0보다 크면 안내를 띄운다. */
+  recentMissing: number;
+  favoritesMissing: number;
   selectedId: number | null;
   onSelect: (id: number) => void;
   isFavorite: (apparelId: number) => boolean;
@@ -381,6 +386,7 @@ export function MyPage({
         isFavorite={isFavorite}
         onToggleFavorite={onToggleFavorite}
         onClear={onClearRecent}
+        missing={recentMissing}
       />
       <CardRow
         title="즐겨찾기 카드"
@@ -391,6 +397,7 @@ export function MyPage({
         isFavorite={isFavorite}
         onToggleFavorite={onToggleFavorite}
         onClear={onClearFavorites}
+        missing={favoritesMissing}
       />
       <DeleteAccount loggedIn={nickname !== null || providers.length > 0} onDone={() => window.location.replace('/')} />
     </>

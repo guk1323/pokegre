@@ -141,8 +141,15 @@ export function fetchApparelDetail(apparelId: number) {
   return job;
 }
 
+// ⚠️ "없어진 상품"과 "지금 못 받았다"를 구분해야 한다. 둘 다 null로 뭉뚱그리면
+//    즐겨찾기가 통신이 잠깐 끊긴 것만으로 사라진다(운영자 지적 2026-08-06).
+//    404·410만 정말 없어진 것으로 보고, 나머지(끊김·시간초과·5xx)는 throw해서
+//    부르는 쪽이 "지금 못 받았다"로 다룰 수 있게 한다.
+export class ApparelGoneError extends Error {}
+
 async function fetchApparelDetailOnce(apparelId: number): Promise<{ title: string; imageUrl: string; price: number; stock: number } | null> {
   const res = await fetch(`/api/snkrdunk/v1/apparels/${apparelId}`);
+  if (res.status === 404 || res.status === 410) throw new ApparelGoneError(String(apparelId));
   if (!res.ok) return null;
   const data: ApparelDetailResponse = await res.json();
   if (!data.primaryMedia?.imageUrl) return null;
@@ -157,31 +164,62 @@ async function fetchApparelDetailOnce(apparelId: number): Promise<{ title: strin
   };
 }
 
-// 저장해둔 참조(ID + 카테고리)를 현재 시세로 채워서 되살린다. 실패한 카드는 조용히
-// 빼는데, 판매 종료 등으로 사라진 상품을 목록에서 계속 붙들고 있을 이유가 없다.
-export async function resolveStoredCards(refs: StoredCardRef[]): Promise<SnkrdunkCard[]> {
+// 저장해둔 참조(ID + 카테고리)를 현재 시세로 채워서 되살린다.
+//
+// ⚠️ 예전엔 실패한 카드를 전부 조용히 뺐다. "판매 종료된 상품을 붙들고 있을 이유가
+//    없다"는 뜻이었는데, 통신이 잠깐 끊긴 것까지 같이 빠졌다. 지하철에서 마이페이지를
+//    열면 즐겨찾기가 줄어 보이고, 이용자는 "내 찜이 날아갔다"고 생각한다
+//    (운영자 지적 2026-08-06). 이제 둘을 갈라서 다룬다:
+//    · 404·410(정말 없어진 상품) → 뺀다. 되살릴 방법이 없다.
+//    · 그 밖의 실패(끊김·시간초과·5xx) → 몇 장을 못 받았는지 알려 준다. 저장된 목록은
+//      그대로라 다시 열면 살아난다.
+export async function resolveStoredCards(refs: StoredCardRef[]): Promise<{
+  cards: SnkrdunkCard[];
+  /** 지금 못 받은 장수(없어진 것 말고). 0보다 크면 화면이 안내를 띄운다. */
+  unavailable: number;
+  /** 정말 없어져서 뺀 카드 번호. 화면이 저장 목록에서 지우는 데 쓴다. */
+  gone: number[];
+}> {
   // 비어 있으면 여기서 끝낸다. 아래에서 이름 사전을 받는데, 즐겨찾기가 하나도 없는
   // 사람까지 첫 화면에서 사전을 통째로 받게 된다(운영 빌드에서 실제로 그랬다).
-  if (refs.length === 0) return [];
-  const details = await Promise.all(refs.map((ref) => fetchApparelDetail(ref.apparelId).catch(() => null)));
+  if (refs.length === 0) return { cards: [], unavailable: 0, gone: [] };
+  const results = await Promise.all(
+    refs.map((ref) =>
+      fetchApparelDetail(ref.apparelId).then(
+        (d) => ({ ok: true as const, d }),
+        (e: unknown) => ({ ok: false as const, gone: e instanceof ApparelGoneError }),
+      ),
+    ),
+  );
   const dict = await loadNameDict();
 
-  return refs
-    .map((ref, i): SnkrdunkCard | null => {
-      const detail = details[i];
-      if (!detail) return null;
-      return {
-        apparelId: ref.apparelId,
-        title: dict.koreanizeTitle(detail.title),
-        rawTitle: detail.title,
-        imageUrl: detail.imageUrl,
-        price: detail.price,
-        stock: detail.stock,
-        link: `https://snkrdunk.com/apparels/${ref.apparelId}`,
-        category: ref.category,
-      };
-    })
-    .filter((card): card is SnkrdunkCard => card !== null);
+  const cards: SnkrdunkCard[] = [];
+  const gone: number[] = [];
+  let unavailable = 0;
+  refs.forEach((ref, i) => {
+    const r = results[i];
+    if (!r.ok) {
+      if (r.gone) gone.push(ref.apparelId);
+      else unavailable += 1;
+      return;
+    }
+    // 응답은 왔는데 쓸 내용이 없는 경우(그림 없음 등)도 "지금 못 받음"으로 둔다.
+    if (!r.d) {
+      unavailable += 1;
+      return;
+    }
+    cards.push({
+      apparelId: ref.apparelId,
+      title: dict.koreanizeTitle(r.d.title),
+      rawTitle: r.d.title,
+      imageUrl: r.d.imageUrl,
+      price: r.d.price,
+      stock: r.d.stock,
+      link: `https://snkrdunk.com/apparels/${ref.apparelId}`,
+      category: ref.category,
+    });
+  });
+  return { cards, unavailable, gone };
 }
 
 async function enrichWithCleanImages(cards: SnkrdunkCard[], signal?: AbortSignal): Promise<SnkrdunkCard[]> {

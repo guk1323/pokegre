@@ -16,6 +16,7 @@ import {
   toggleFavorite,
   writeFavoriteRefs,
   writeRecentRefs,
+  removeStoredRefs,
 } from './lib/localCollections';
 import { resolveStoredCards, type StoredCardRef } from './api/snkrdunk';
 import { SearchBar } from './components/SearchBar';
@@ -383,11 +384,20 @@ function App() {
     if (view === 'mypage') setInterestNeeded(true);
   }, [view]);
 
+  // 지금 못 받은 장수. 0보다 크면 마이페이지가 "사라진 게 아니라 못 받은 것"이라고
+  // 알려 준다(안 알리면 이용자는 찜이 날아간 줄 안다 — 운영자 지적 2026-08-06).
+  const [favoritesMissing, setFavoritesMissing] = useState(0);
+  const [recentMissing, setRecentMissing] = useState(0);
+
   useEffect(() => {
     if (!interestNeeded) return;
     let cancelled = false;
-    resolveStoredCards(favoriteRefs).then((cards) => {
-      if (!cancelled) setFavorites(cards);
+    resolveStoredCards(favoriteRefs).then(({ cards, unavailable, gone }) => {
+      if (cancelled) return;
+      setFavorites(cards);
+      setFavoritesMissing(unavailable);
+      // 정말 없어진 상품은 저장 목록에서도 지운다 — 안 지우면 열 때마다 다시 훑는다.
+      if (gone.length) removeStoredRefs('favorites', gone);
     });
     return () => {
       cancelled = true;
@@ -397,8 +407,11 @@ function App() {
   useEffect(() => {
     if (!interestNeeded) return;
     let cancelled = false;
-    resolveStoredCards(recentRefs).then((cards) => {
-      if (!cancelled) setRecentlyViewed(cards);
+    resolveStoredCards(recentRefs).then(({ cards, unavailable, gone }) => {
+      if (cancelled) return;
+      setRecentlyViewed(cards);
+      setRecentMissing(unavailable);
+      if (gone.length) removeStoredRefs('recent', gone);
     });
     return () => {
       cancelled = true;
@@ -637,7 +650,7 @@ function App() {
         return;
       }
       resolveStoredCards([{ apparelId: Number(id), category: 'card' }])
-        .then((cards) => {
+        .then(({ cards }) => {
           if (!cards[0]) {
             setRestoringShare(false);
             return;
@@ -1202,6 +1215,8 @@ function App() {
       onProvidersChange={setProviders}
       recentlyViewed={recentlyViewed}
       favorites={favorites}
+      recentMissing={recentMissing}
+      favoritesMissing={favoritesMissing}
       selectedId={interestSelectedId}
       onSelect={handleSelectInterestCard}
       isFavorite={(id) => checkIsFavorite(id, favoriteRefs)}
@@ -1697,7 +1712,11 @@ function App() {
                   그 자리에 설명 줄을 넣어, 높이는 오히려 짧아지면서 뜻이 생긴다. */}
               {/* 검색창과 같은 폭·같은 가운데 정렬로 묶는다. 따로 놀면 검색창만
                   가운데고 토글은 왼쪽에 붙어 어긋나 보인다(2026-08-05). */}
-              <div className="mx-auto mb-1 flex max-w-3xl flex-wrap items-center justify-center gap-2">
+              {/* ⚠️ 판 토글과 그 아래 설명 줄을 **한 줄로 합쳤다**(운영자 지시 2026-08-06 —
+                  "토글 위치가 자리를 너무 많이 차지한다"). 예전엔 검색창 아래로 토글 한 줄 +
+                  설명 한 줄이 따로 쌓여 결과가 그만큼 밀려 내려갔다. 왼쪽 정렬로 붙이면
+                  설명이 어느 토글에 대한 말인지도 눈으로 이어진다. */}
+              <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1.5 pl-1.5">
                 {/* ⚠️ 소스(SNKRDUNK·eBay·TCGplayer) 고르는 줄을 검색창 안으로 옮겼다
                     (2026-08-05 운영자 지시). 검색창 한 줄 + 토글 한 줄로 두 줄을
                     쓰고 있었는데, 검색창 왼쪽에 넣으니 한 줄로 준다.
@@ -1753,23 +1772,21 @@ function App() {
                     모른다"였는데(2026-08-04), 탭 줄에 버튼이 하나 더 붙어 어수선했다.
                     한글판은 eBay 탭 → 판 선택에서 그대로 고를 수 있다.
                     다시 넣고 싶으면 여기에 되살리면 된다. */}
+                {/* 어디 시세인지 한 줄로 밝힌다.
+                    ⚠️ 한글판은 같은 이베이라도 값의 성격이 다르다 — Browse API라 "지금 올라온
+                       매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다.
+                    ⚠️ 왼쪽 마켓 칩(SNKRDUNK·eBay·TCGplayer)에 딸린 설명이라 왼쪽에 붙인다
+                       (운영자 지시 2026-08-05). 이제는 판 토글과 같은 줄에 나란히 선다. */}
+                <p className="text-xs text-neutral-400">
+                  {source === 'snkrdunk'
+                    ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
+                    : source === 'tcgplayer'
+                      ? 'TCGplayer — 미국 마켓가입니다.'
+                      : edition === 'korean'
+                        ? 'eBay 한글판 — 지금 올라온 매물의 호가입니다(낙찰가가 아닙니다).'
+                        : 'eBay — 등급별 낙찰가입니다.'}
+                </p>
               </div>
-              {/* 어디 시세인지 한 줄로 밝힌다. 탭 줄의 아래 여백을 대신 줄여 높이는 안 는다.
-                  ⚠️ 한글판은 같은 이베이라도 값의 성격이 다르다 — Browse API라 "지금 올라온
-                     매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다.
-                  ⚠️ 가운데가 아니라 **왼쪽**으로 붙인다(운영자 지시 2026-08-05). 가운데에
-                     떠 있으면 검색창 전체에 대한 말처럼 보이는데, 실제로는 왼쪽 끝 마켓 칩
-                     (SNKRDUNK·eBay·TCGplayer)에 딸린 설명이다. 칩 바로 아래에 두면 무엇에
-                     대한 말인지 눈으로 이어진다. */}
-              <p className="mx-auto mb-5 max-w-3xl pl-1.5 text-left text-xs text-neutral-400">
-                {source === 'snkrdunk'
-                  ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
-                  : source === 'tcgplayer'
-                    ? 'TCGplayer — 미국 마켓가입니다.'
-                    : edition === 'korean'
-                      ? 'eBay 한글판 — 지금 올라온 매물의 호가입니다(낙찰가가 아닙니다).'
-                      : 'eBay — 등급별 낙찰가입니다.'}
-              </p>
 
               {/* 검색어가 없으면 소스와 무관하게 항상 홈(인기 검색어 + 뉴스)을 띄운다.
                   스니덩크/이베이 토글은 "검색 결과를 어느 소스에서 가져올지"만 정하는
