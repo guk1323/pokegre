@@ -61,9 +61,16 @@ export function KoreanEbayView({ query }: { query: string }) {
     return (
       <div className="py-16 text-center">
         <p className="text-sm font-semibold text-neutral-500">'{query}' 한글판 매물을 찾지 못했습니다.</p>
-        <p className="mt-1 text-xs text-neutral-400">
-          영어 카드명으로 검색하면 더 잘 나옵니다 (예: Charizard, Pikachu ex).
-        </p>
+        {/* ⚠️ 이미 영문으로 찾고 있으면 "영어로 검색하라"는 권유가 말이 안 된다.
+            도감·세트·작가에서 눌러 오면 영문 이름으로 오기 때문에 실제로 그런 화면이
+            나왔다(점검 중 발견 2026-08-06). 한글이 섞였을 때만 권한다. */}
+        {/[가-힣]/.test(query) ? (
+          <p className="mt-1 text-xs text-neutral-400">
+            영어 카드명으로 검색하면 더 잘 나옵니다 (예: Charizard, Pikachu ex).
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-neutral-400">한글판으로 나온 적이 없거나, 지금 올라온 매물이 없습니다.</p>
+        )}
       </div>
     );
   }
