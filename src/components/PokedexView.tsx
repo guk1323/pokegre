@@ -250,11 +250,15 @@ export function PokedexView({
                     </div>
                   )}
                   <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-800">{이름}</p>
-                  <p className="line-clamp-1 text-[10px] text-neutral-400">
-                    {세트} {c.n}
-                  </p>
+                  {/* ⚠️ 세트 이름과 번호를 한 줄에 두면, 이름이 긴 세트에서 **번호가
+                      잘려 안 보인다**("SWSH 블랙스타 프로모…" — 점검 중 발견
+                      2026-08-06). 번호는 그 한 장을 가리키는 값이라 늘 보여야 한다.
+                      세트 이름만 줄이고, 번호는 아래 발매 연월 줄에 붙인다. */}
+                  <p className="line-clamp-1 text-[10px] text-neutral-400">{세트}</p>
                   {/* 발매 연월. "출시순"이 눈에 보이게 한다. */}
-                  <p className="text-[10px] text-neutral-300">{(meta?.releaseDate ?? '').slice(0, 7)}</p>
+                  <p className="text-[10px] text-neutral-300">
+                    {[(meta?.releaseDate ?? '').slice(0, 7), c.n].filter(Boolean).join(' · ')}
+                  </p>
                 </button>
               );
             })}
