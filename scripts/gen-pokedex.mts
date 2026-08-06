@@ -16,6 +16,7 @@ import path from 'node:path'
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { isPocketSet } from '../src/lib/pocketSets.ts'
 
 type Pokemon = { id: number; ko: string; ja: string; en: string }
 type SetMeta = { slug: string; ed: 'ja' | 'en'; name: string; releaseDate?: string; serie?: string }
@@ -64,6 +65,8 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
   const slug = f.replace('.json', '')
   const m = meta.get(slug)
   if (!m) continue
+  // 휴대폰 게임 전용 카드는 시세가 있을 수 없어 도감에서 뺀다(pocketSets.ts 참고).
+  if (isPocketSet(m.serie)) continue
   const d = JSON.parse(readFileSync(path.join(ROOT, 'public/sets', f), 'utf-8')) as { ed: 'ja' | 'en'; cards?: Card[] }
   const pool = d.ed === 'ja' ? byJa : byEn
   for (const c of d.cards ?? []) {

@@ -14,6 +14,7 @@ import {
 } from '../lib/cardCatalog';
 import pokemonNames from '../data/pokemonNames.json';
 import { serieSlug } from '../lib/setNameKo';
+import { isPocketSet } from '../lib/pocketSets';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
@@ -279,6 +280,9 @@ export function SetsView({
 
   // ── 세트 한 개의 카드 그리드 ──────────────────────────────────────────────
   if (selected) {
+    // 휴대폰 게임(Pokémon TCG Pocket) 세트. 목록은 그대로 보여 주되 카드를 눌러도
+    // 시세로 보내지 않는다 — 실물이 없어 볼 값이 없다(운영자 결정 2026-08-06).
+    const 포켓세트 = isPocketSet(selected.serie);
     const visible = (cards ?? []).slice(0, shown);
     // 값으로 고른 카드가 있으면 그것을 쓴다. 세트 파일에서 같은 번호를 찾아 그림·이름을
     // 가져온다(값만 있고 그림이 없으면 화면에 못 올린다).
@@ -326,12 +330,16 @@ export function SetsView({
                 <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{koSerie(selected.ed, selected.serie)}</span>
               )}
             </div>
-            <p className="mt-1.5 text-xs text-neutral-400">카드를 누르면 그 카드 시세를 검색합니다.</p>
+            <p className="mt-1.5 text-xs text-neutral-400">
+              {isPocketSet(selected.serie)
+                ? '휴대폰 게임 전용 카드입니다. 실물이 없어 시세는 없고, 그림과 이름만 보실 수 있습니다.'
+                : '카드를 누르면 그 카드 시세를 검색합니다.'}
+            </p>
             {/* ⚠️ 그림이 통째로 없는 세트가 18개 있다(트레이너 킷·맥도날드 프로모 등 270장,
                 실측 2026-08-04). 열면 카드 뒷면만 죽 늘어서는데 왜인지 아무 말이 없어
                 "고장인가" 싶게 된다. 이름과 번호는 맞으므로 카드를 눌러 시세는 볼 수 있다 —
                 그걸 알려 준다. 그림은 어느 소스에도 없어서 채울 방법이 지금은 없다. */}
-            {cards && cards.length > 0 && cards.every((c) => !usable(c.img)) && (
+            {cards && cards.length > 0 && !isPocketSet(selected.serie) && cards.every((c) => !usable(c.img)) && (
               <p className="mt-1.5 text-xs text-neutral-500">
                 이 세트는 카드 그림을 구하지 못했습니다. 이름과 번호는 맞으니 눌러서 시세는 보실 수 있습니다.
               </p>
@@ -384,7 +392,13 @@ export function SetsView({
                   {highlights.map((c) => {
                     const nm = koName(selected.ed, c.name);
                     return (
-                      <button key={`top-${c.n}`} type="button" onClick={() => onPickCard(nm)} className="group text-left">
+                      <button
+                        key={`top-${c.n}`}
+                        type="button"
+                        onClick={포켓세트 ? undefined : () => onPickCard(nm)}
+                        aria-disabled={포켓세트 || undefined}
+                        className={`text-left ${포켓세트 ? 'cursor-default' : 'group'}`}
+                      >
                         <div className="aspect-[5/7] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200/70 transition group-hover:shadow-lg">
                           <img
                             src={usable(c.img) ? thumb(cardImg(c.img), 320) : CARD_BACK}
@@ -427,11 +441,14 @@ export function SetsView({
               {visible.map((c, i) => {
                 const nm = koName(selected.ed, c.name);
                 return (
+                  // 휴대폰 게임 카드는 눌러도 볼 시세가 없다. 누르는 것처럼 보이지
+                  // 않게 하고(확대 효과·손가락 커서 제거) 실제로도 아무 데도 안 보낸다.
                   <button
                     key={`${c.n}-${i}`}
                     type="button"
-                    onClick={() => onPickCard(nm)}
-                    className="group text-left"
+                    onClick={포켓세트 ? undefined : () => onPickCard(nm)}
+                    aria-disabled={포켓세트 || undefined}
+                    className={`text-left ${포켓세트 ? 'cursor-default' : 'group'}`}
                   >
                     <div className="aspect-[5/7] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200/70 transition group-hover:shadow-lg group-hover:ring-neutral-300">
                       <img

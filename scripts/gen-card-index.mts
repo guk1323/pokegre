@@ -16,6 +16,7 @@ import path from 'node:path'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle'
 import { koSetName } from '../src/lib/setNameKo'
+import { isPocketSet } from '../src/lib/pocketSets'
 
 const SETS_DIR = path.resolve('public/sets')
 // public/ 에 두면 정적 파일로 공개돼 누구나 3MB를 내려받을 수 있다.
@@ -27,6 +28,7 @@ interface SetIndexEntry {
   ed: 'ja' | 'en'
   name: string
   releaseDate: string
+  serie?: string
 }
 
 // 한 줄이 카드 한 장. 자리를 아끼려고 객체가 아니라 배열로 둔다(3MB → 서버만 읽는다).
@@ -57,6 +59,8 @@ async function main() {
       continue
     }
     const meta = setOf.get(slug)
+    // 휴대폰 게임 전용 카드는 실물 거래가 없어 색인에서 뺀다(pocketSets.ts 참고).
+    if (isPocketSet(meta?.serie)) continue
     const ed = file.ed ?? meta?.ed ?? (slug.startsWith('en-') ? 'en' : 'ja')
     // 모바일 포켓은 실물이 없어 플리마켓에서 팔 수 없다 — 색인에서 뺀다.
     if (slug.includes('pocket')) continue
