@@ -71,5 +71,9 @@ ${artists.join('\n')}
 </urlset>
 `
 await writeFile('public/sitemap.xml', xml)
-console.log(`사이트맵 ${6 + series.length + sets.length + artists.length}개 주소`)
-console.log(`  홈 1 · 센터링 1 · 대문 4 · 시리즈 ${series.length} · 세트 ${sets.length} · 작가 ${artists.length}`)
+// ⚠️ 고정 주소 수를 손으로 적어 두면 주소를 하나 더할 때마다 어긋난다. 실제로
+//    /pokedex를 넣은 뒤 로그가 798이라고 했는데 파일에는 799개가 있었다
+//    (점검 중 발견 2026-08-06). 만들어진 글자에서 직접 센다.
+const 고정 = (xml.match(/<loc>/g) ?? []).length - series.length - sets.length - artists.length
+console.log(`사이트맵 ${(xml.match(/<loc>/g) ?? []).length}개 주소`)
+console.log(`  홈·도구·대문 ${고정} · 시리즈 ${series.length} · 세트 ${sets.length} · 작가 ${artists.length}`)
