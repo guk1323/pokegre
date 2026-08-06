@@ -2138,9 +2138,18 @@ function App() {
                        (applyScanResult 참고). */}
                 {(source === 'ebay' || source === 'tcgplayer') && (
                   <div className="inline-flex rounded-full border border-neutral-300 p-1">
+                    {/* ⚠️ 판을 **사용자가 직접** 고르면, 자동으로 옮기며 남긴 안내는 지운다.
+                        안 지우면 한글판을 보고 있는데 "이베이 낙찰(일본판)에서 찾고 있습니다"가
+                        그대로 떠 있어 사실과 어긋난다(2026-08-07 점검 중 발견).
+                        마켓을 바꿀 때(switchSource)와 같은 처리다 — 자동 이동도 함께 멈춘다.
+                        사람이 고른 자리에서 값이 없다고 저절로 딴 데로 옮기면 안 된다. */}
                     <button
                       type="button"
-                      onClick={() => setEdition('japanese')}
+                      onClick={() => {
+                        set도감안내(null);
+                        자동이동ref.current = false;
+                        setEdition('japanese');
+                      }}
                       className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                         edition === 'japanese' ? 'bg-black text-white' : 'text-neutral-600'
                       }`}
@@ -2149,7 +2158,11 @@ function App() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setEdition('english')}
+                      onClick={() => {
+                        set도감안내(null);
+                        자동이동ref.current = false;
+                        setEdition('english');
+                      }}
                       className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                         edition === 'english' ? 'bg-black text-white' : 'text-neutral-600'
                       }`}
@@ -2160,7 +2173,11 @@ function App() {
                     {source === 'ebay' && (
                       <button
                         type="button"
-                        onClick={() => setEdition('korean')}
+                        onClick={() => {
+                          set도감안내(null);
+                          자동이동ref.current = false;
+                          setEdition('korean');
+                        }}
                         className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
                           edition === 'korean' ? 'bg-black text-white' : 'text-neutral-600'
                         }`}
