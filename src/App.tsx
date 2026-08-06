@@ -1542,10 +1542,23 @@ function App() {
           어느 세트를 띄울지는 서버가 고른다 — 발매일이 제일 최근이면서 시세가 있는
           세트다. 여기에 세트를 박아 두면 새 팩이 나올 때마다 사람이 고쳐야 한다. */}
       <NewSetHitCards
-        onOpenCard={(name) => {
-          confirmSearch(name, 'popular');
-          setQuery(name);
-        }}
+        // ⚠️ 예전엔 이름만 넘겨서 검색창에 "라이코 ex"만 떴다. 도감·세트·작가는
+        //    "라이코 ex · 스톰에메랄드 · 108번"으로 그 한 장을 찾는데 홈만 달랐다
+        //    (점검 중 발견 2026-08-06). 같은 길(카드로가기)을 타게 한다.
+        onOpenCard={(c) =>
+          카드로가기({
+            ko: c.ko,
+            en: c.set.ed === 'en' ? c.name : '',
+            raw: c.name,
+            speciesEn: '',
+            slug: c.set.slug,
+            setCode: 세트목록ref.current?.find((s) => s.slug === c.set.slug)?.id ?? '',
+            setName: c.set.name,
+            setNameKo: c.set.name,
+            num: c.n,
+            jp: c.set.ed !== 'en',
+          })
+        }
         onOpenSet={(slug) => {
           setSetsInitialSlug(slug);
           navigate({ view: 'sets' });

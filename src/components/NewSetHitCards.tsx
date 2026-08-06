@@ -53,7 +53,11 @@ export function NewSetHitCards({
   onOpenCard,
   onOpenSet,
 }: {
-  onOpenCard: (name: string) => void;
+  /**
+   * 카드 한 장을 눌렀을 때. 이름만 넘기면 같은 이름 카드가 다 나온다 — 세트·번호까지
+   * 넘겨 그 한 장으로 좁힌다(도감·세트·작가와 같은 규칙, lib/pokedexRoute.ts).
+   */
+  onOpenCard: (card: { ko: string; name: string; n: string; set: Latest }) => void;
   onOpenSet: (slug: string) => void;
 }) {
   const [usdToKrw, setUsdToKrw] = useState<number | null>(null);
@@ -129,7 +133,7 @@ export function NewSetHitCards({
             type="button"
             onClick={() => {
               trackEvent('home_hit_card', `${data.slug} ${c.n}`);
-              onOpenCard(c.ko || c.name);
+              onOpenCard({ ko: c.ko || c.name, name: c.name, n: c.n, set: data });
             }}
             className={`text-left ${i >= 4 ? 'hidden sm:block' : ''}`}
           >
