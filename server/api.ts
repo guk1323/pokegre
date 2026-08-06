@@ -1800,6 +1800,9 @@ const ALLOWED_EVENTS = new Set([
   'packsim_banner', 'artist_by_pokemon',
   // 홈의 "신팩 힛카드"(2026-08-05 추가). card=카드를 눌러 시세로 감, set=전체 보기.
   'home_hit_card', 'home_hit_set', 'pokedex',
+  // 도감·세트·작가에서 카드를 눌렀을 때(2026-08-06). card_found=값을 찾은 마켓,
+  // card_miss=어느 마켓에도 값이 없던 카드. 어떤 카드가 계속 빈손인지 보려는 것.
+  'card_found', 'card_miss',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60

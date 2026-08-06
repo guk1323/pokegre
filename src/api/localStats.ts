@@ -75,6 +75,10 @@ export function trackVisit(): void {
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
 export type TrackedEvent =
+  // 도감·세트별 목록·작가별 목록에서 카드 한 장을 눌렀을 때(2026-08-06).
+  // card_found의 라벨은 값을 찾은 마켓, card_miss의 라벨은 그 카드(세트+번호)다.
+  | 'card_found'
+  | 'card_miss'
   | 'share'
   | 'snkrdunk_search'
   | 'ebay_search'

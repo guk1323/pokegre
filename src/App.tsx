@@ -259,6 +259,8 @@ function App() {
     const 순서 = 마켓순서(c.jp);
     const 다음 = 마켓칸ref.current + 1;
     if (다음 >= 순서.length) {
+      // 어느 마켓에도 없던 카드를 남겨 둔다. 자주 오르는 카드는 손볼 곳이 있다는 뜻이다.
+      trackEvent('card_miss', `${c.setNameKo} ${c.num}`);
       set도감안내(
         `${c.ko} · ${짧은세트(c.setNameKo)} ${c.num}번은 지금 어느 마켓에도 값이 없습니다. ` +
           `검색어는 그대로 두었으니 위 탭을 눌러 직접 확인해 보실 수 있습니다.`,
@@ -912,6 +914,7 @@ function App() {
             // 첫 마켓에서 바로 찾았거나 사람이 직접 고른 마켓이면 굳이 설명하지 않는다.
             const 칸 = 마켓칸ref.current;
             const 순서 = 마켓순서(도감.jp);
+            trackEvent('card_found', 순서[칸].label);
             set도감안내(
               자동이동ref.current && 칸 > 0
                 ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
@@ -1051,6 +1054,7 @@ function App() {
             // 빈칸보다는 사실이 낫다.
             const 칸 = 마켓칸ref.current;
             const 순서 = 마켓순서(도감.jp);
+            if (고를것) trackEvent('card_found', 순서[칸].label);
             set도감안내(
               !고를것
                 ? `${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
