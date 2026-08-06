@@ -16,6 +16,8 @@ interface PokeIndex {
   en: string;
   /** 카드 장수 */
   c: number;
+  /** 'p' = 포켓몬 · 't' = 트레이너·에너지 */
+  t: 'p' | 't';
 }
 
 interface PokeCard {
@@ -85,7 +87,7 @@ export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void
       const p = index?.find((x) => x.id === id);
       if (p) void open(p, false);
     },
-    { path: '/pokedex', title: '포켓몬별 카드 목록 | pokegre' },
+    { path: '/pokedex', title: '포켓몬·트레이너별 카드 목록 | pokegre' },
   );
 
   const 열린것 = useRef(0);
@@ -110,12 +112,18 @@ export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void
     if (!index) return [];
     const s = q.trim().toLowerCase();
     if (!s) return index;
-    return index.filter((p) => p.ko.includes(s) || p.en.toLowerCase().includes(s));
+    const hit = index.filter((p) => p.ko.toLowerCase().includes(s) || p.en.toLowerCase().includes(s));
+    // ⚠️ 이름이 정확히 맞는 것을 맨 위로. "피카츄"를 치면 "피카츄"가 "캡틴피카츄"보다
+    //    먼저 나와야 한다. 그다음은 이름이 그 말로 시작하는 것, 그다음 장수 많은 순.
+    return hit.sort((a, b) => {
+      const 점수 = (p: PokeIndex) => (p.ko.toLowerCase() === s ? 0 : p.ko.toLowerCase().startsWith(s) ? 1 : 2);
+      return 점수(a) - 점수(b) || b.c - a.c;
+    });
   }, [index, q]);
 
   // 탭 제목도 지금 보는 포켓몬으로.
   useEffect(() => {
-    document.title = picked ? `${picked.ko} 카드 목록 | pokegre` : '포켓몬별 카드 목록 | pokegre';
+    document.title = picked ? `${picked.ko} 카드 목록 | pokegre` : '포켓몬·트레이너별 카드 목록 | pokegre';
   }, [picked]);
 
   if (loadFailed) {
@@ -135,11 +143,13 @@ export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void
           onClick={() => sub.back()}
           className="mb-3 rounded-lg border border-neutral-200 px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
         >
-          ← 포켓몬 목록
+          ← 목록으로
         </button>
         <h2 className="text-lg font-bold text-black">{picked.ko}</h2>
         <p className="mt-1 text-xs text-neutral-400">
-          {picked.en} · 카드 {picked.c}장 · 발매 순
+          {[picked.t === 't' ? '트레이너·에너지' : picked.en, `카드 ${picked.c}장`, '발매 순']
+            .filter(Boolean)
+            .join(' · ')}
         </p>
 
         {cards === null ? (
@@ -191,21 +201,22 @@ export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void
   const 볼것 = q.trim() ? 찾은것 : 찾은것.slice(0, 보임);
   return (
     <div className="mx-auto max-w-4xl">
-      <h2 className="text-lg font-bold text-black">포켓몬별 카드</h2>
+      <h2 className="text-lg font-bold text-black">포켓몬·트레이너별 카드</h2>
       <p className="mt-1 text-xs text-neutral-400">
-        포켓몬을 고르면 그 포켓몬 카드가 발매 순으로 나옵니다. 어느 세트 것인지도 함께 적습니다.
+        이름을 고르면 그 카드가 발매 순으로 나옵니다. 어느 세트 것인지도 함께 적습니다.
+        포켓몬뿐 아니라 트레이너·에너지 카드도 찾을 수 있습니다.
       </p>
       <input
         type="text"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="포켓몬 이름 찾기 (예: 개굴닌자)"
+        placeholder="이름 찾기 (예: 개굴닌자, 박사의 연구)"
         className="mt-3 w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm focus:border-black focus:outline-none"
       />
       {index === null ? (
         <p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>
       ) : 찾은것.length === 0 ? (
-        <p className="py-16 text-center text-sm text-neutral-400">그런 이름의 포켓몬을 찾지 못했습니다.</p>
+        <p className="py-16 text-center text-sm text-neutral-400">그런 이름을 찾지 못했습니다.</p>
       ) : (
         <>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -218,7 +229,9 @@ export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-bold text-black">{p.ko}</span>
-                  <span className="block truncate text-[11px] text-neutral-400">{p.en}</span>
+                  <span className="block truncate text-[11px] text-neutral-400">
+                    {p.t === 't' ? (p.en ? `트레이너·에너지 · ${p.en}` : '트레이너·에너지') : p.en}
+                  </span>
                 </span>
                 <span className="ml-2 shrink-0 text-xs font-semibold text-neutral-400">{p.c}장</span>
               </button>

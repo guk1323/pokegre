@@ -103,7 +103,7 @@ const VIEW_TITLE: Partial<Record<MainView, string>> = {
   cards: HOME_TITLE,
   sets: '포켓몬 카드 세트 목록 | pokegre',
   artists: '포켓몬 카드 일러스트레이터 | pokegre',
-  pokedex: '포켓몬별 카드 목록 | pokegre',
+  pokedex: '포켓몬·트레이너별 카드 목록 | pokegre',
   centering: '포켓몬 카드 센터링 측정 | pokegre',
   packsim: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
   community: '커뮤니티 | pokegre',
@@ -1466,7 +1466,7 @@ function App() {
                   {openMenu === 'more' && (
                     <div className="absolute right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
                       {([
-                        { v: 'pokedex', label: '포켓몬별 카드', beta: true },
+                        { v: 'pokedex', label: '포켓몬·트레이너', beta: true },
                         { v: 'artists', label: '작가별 목록' },
                         { v: 'sets', label: '세트별 목록', beta: true },
                         { v: 'centering', label: '센터링 측정', beta: true },

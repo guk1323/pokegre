@@ -14,6 +14,8 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
+import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 
 type Pokemon = { id: number; ko: string; ja: string; en: string }
 type SetMeta = { slug: string; ed: 'ja' | 'en'; name: string; releaseDate?: string; serie?: string }
@@ -47,6 +49,16 @@ const meta = new Map(idx.map((s) => [s.slug, s]))
 /** 포켓몬 id → 그 포켓몬 카드들 */
 const buckets = new Map<number, (Entry & { date: string })[]>()
 
+// 트레이너·에너지 카드. 포켓몬처럼 이름표(ja/en/ko 대조표)가 없으므로 **한글 카드
+// 이름**으로 묶는다 — 일본판 「博士の研究」와 북미판 「Professor's Research」가 둘 다
+// "박사의 연구"가 되어 한 무더기가 된다(운영자 지시 2026-08-06).
+// ⚠️ 그래서 여기만은 번역을 거친다. 포켓몬 쪽은 원문으로 맞추는 것과 반대인데,
+//    이유가 다르다 — 포켓몬은 대조표가 있어 원문이 더 정확하고, 트레이너는 판을
+//    묶어 줄 열쇠가 한글 이름밖에 없다.
+const trainers = new Map<string, (Entry & { date: string })[]>()
+const koCardName = (ed: 'ja' | 'en', n: string) =>
+  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
+
 for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
   if (!f.endsWith('.json') || f === 'index.json') continue
   const slug = f.replace('.json', '')
@@ -57,34 +69,64 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
   for (const c of d.cards ?? []) {
     const nm = c.name ?? ''
     if (!nm) continue
+    const 한장 = { name: nm, s: slug, n: c.n, img: c.img || undefined, r: c.r || undefined, date: m.releaseDate ?? '' }
     const hit = pool.find((p) => nm.includes(d.ed === 'ja' ? p.ja : p.en))
-    if (!hit) continue // 에너지·트레이너 카드. 포켓몬이 아니라 정상이다.
-    const arr = buckets.get(hit.id) ?? []
-    arr.push({ name: nm, s: slug, n: c.n, img: c.img || undefined, r: c.r || undefined, date: m.releaseDate ?? '' })
-    buckets.set(hit.id, arr)
+    if (hit) {
+      const arr = buckets.get(hit.id) ?? []
+      arr.push(한장)
+      buckets.set(hit.id, arr)
+    } else {
+      // 포켓몬이 아니면 트레이너·에너지다. 한글 이름으로 묶는다.
+      const ko = koCardName(d.ed, nm)
+      if (!ko) continue
+      const arr = trainers.get(ko) ?? []
+      arr.push(한장)
+      trainers.set(ko, arr)
+    }
   }
 }
 
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 
+// 발매일이 빈 세트는 맨 뒤로(9로 시작하는 문자열은 어떤 날짜보다 크다).
+const 발매순 = (a: { date: string; s: string; n: string }, b: { date: string; s: string; n: string }) =>
+  (a.date || '9').localeCompare(b.date || '9') || a.s.localeCompare(b.s) || a.n.localeCompare(b.n)
+
 // 목록 파일. 검색창이 이것만 받아 이름을 찾는다.
-const index = list
+// t: 'p'=포켓몬 · 't'=트레이너·에너지. 화면이 어느 쪽인지 표시하는 데 쓴다.
+type Row = { id: number; ko: string; en: string; c: number; t: 'p' | 't' }
+const index: Row[] = list
   .filter((p) => (buckets.get(p.id)?.length ?? 0) > 0)
-  .map((p) => ({ id: p.id, ko: p.ko, en: p.en, c: buckets.get(p.id)!.length }))
+  .map((p) => ({ id: p.id, ko: p.ko, en: p.en, c: buckets.get(p.id)!.length, t: 'p' }))
+
+// ⚠️ 트레이너 번호는 10000부터 준다. 포켓몬 도감번호(1~1025)와 겹치면 파일이 덮인다.
+//    포켓몬이 늘어도(새 세대) 10000까지는 한참 남는다.
+const TRAINER_ID_BASE = 10000
+const 트레이너목록 = [...trainers.entries()].sort((a, b) => b[1].length - a[1].length)
+트레이너목록.forEach(([ko, arr], i) => {
+  const id = TRAINER_ID_BASE + i
+  // 영어 이름은 북미판 카드가 있으면 그 원문을 쓴다(검색을 영어로도 되게).
+  const en = arr.find((c) => !c.s.startsWith('ja-'))?.name ?? ''
+  index.push({ id, ko, en, c: arr.length, t: 't' })
+})
 writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index))
 
-// 포켓몬 하나씩. 발매 순으로 세워 둔다 — 화면에서 다시 세울 필요가 없다.
+// 하나씩. 발매 순으로 세워 둔다 — 화면에서 다시 세울 필요가 없다.
 let 총장수 = 0
 for (const [id, arr] of buckets) {
-  // 발매일이 빈 세트는 맨 뒤로(9로 시작하는 문자열은 어떤 날짜보다 크다).
-  arr.sort((a, b) => (a.date || '9').localeCompare(b.date || '9') || a.s.localeCompare(b.s) || a.n.localeCompare(b.n))
+  arr.sort(발매순)
   총장수 += arr.length
   writeFileSync(path.join(OUT, `${id}.json`), JSON.stringify(arr))
 }
+트레이너목록.forEach(([, arr], i) => {
+  arr.sort(발매순)
+  총장수 += arr.length
+  writeFileSync(path.join(OUT, `${TRAINER_ID_BASE + i}.json`), JSON.stringify(arr))
+})
 
 const size = readdirSync(OUT).reduce((n, f) => n + readFileSync(path.join(OUT, f)).length, 0)
 console.log(
-  `포켓몬 도감 ${index.length}종 · 카드 ${총장수.toLocaleString()}장 · 파일 ${readdirSync(OUT).length}개 · ` +
+  `도감 ${index.length}종(포켓몬 ${index.filter((r) => r.t === 'p').length} · 트레이너 ${index.filter((r) => r.t === 't').length}) · 카드 ${총장수.toLocaleString()}장 · 파일 ${readdirSync(OUT).length}개 · ` +
     `${(size / 1024 / 1024).toFixed(1)}MB (목록 ${(readFileSync(path.join(OUT, 'index.json')).length / 1024).toFixed(0)}KB)`,
 )
