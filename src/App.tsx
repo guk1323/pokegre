@@ -1058,7 +1058,19 @@ function App() {
       // 도감에서 온 카드면 그 세트로 좁힌다. PPT 세트 이름은 우리 것과 달라서
       // 대응표(pptSetNames)를 쓴다 — ja-PMCG1 → "Expansion Pack".
       const 도감 = 도감카드(trimmed);
-      searchEbayCards(trimmed, edition, 0, market, 도감 ? pptSetName(도감) : undefined)
+      // ⚠️ 검색어에 **번호를 붙이면 그 한 장으로 좁혀진다**. 처음엔 "번호를 붙이면
+      //    0건"이라고 결론 냈는데 틀렸다 — 원본은 오는데 낙찰 필터에 걸린 것을 0건으로
+      //    본 것이었다(rawCount를 안 봤다, 2026-08-06 정정). 실제로 "Charizard ex 125"는
+      //    setName과 함께 쓰면 딱 1건, 세트 조건 없이도 4건까지 줄어든다.
+      //    세트 대응표가 틀리거나 없어도 번호가 지켜 준다.
+      //    다만 번호 표기가 안 맞는 카드도 있으므로, 0건이면 이름만으로 한 번 더 찾는다.
+      const 번호붙임 = 도감?.num ? `${trimmed} ${도감.num.replace(/^0+/, '') || 도감.num}` : trimmed;
+      searchEbayCards(번호붙임, edition, 0, market, 도감 ? pptSetName(도감) : undefined)
+        .then(async (r) =>
+          도감 && r.cards.length === 0 && 번호붙임 !== trimmed
+            ? await searchEbayCards(trimmed, edition, 0, market, pptSetName(도감))
+            : r,
+        )
         .then(({ cards, hasMore, translated, asOf }) => {
           setEbayQueryEn(translated ?? '');
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
