@@ -51,7 +51,7 @@ export function PokedexView({
    * 세트코드·번호·판을 같이 넘겨 그 한 장으로 좁힌다 — 사진 스캔이 쓰는 규칙과 같다
    * (운영자 지시 2026-08-06).
    */
-  onPickCard: (card: { ko: string; en: string; setCode: string; num: string; jp: boolean }) => void;
+  onPickCard: (card: { ko: string; en: string; setCode: string; setName: string; num: string; jp: boolean }) => void;
 }) {
   const [index, setIndex] = useState<PokeIndex[] | null>(null);
   const [sets, setSets] = useState<Map<string, SetMeta> | null>(null);
@@ -189,6 +189,9 @@ export function PokedexView({
                       // 없으니 빈 값 — 부르는 쪽이 이름 대신 세트코드로 찾는다.
                       en: meta?.ed === 'en' ? c.name : '',
                       setCode: meta?.id ?? '',
+                      // 이베이는 결과에 세트 이름이 붙어 오므로, 그걸로 그 한 장을 골라낸다.
+                      // 원문 세트 이름을 넘긴다 — 이베이 쪽도 영문이라 그대로 맞는다.
+                      setName: meta?.name ?? '',
                       num: c.n,
                       jp: meta?.ed !== 'en',
                     })

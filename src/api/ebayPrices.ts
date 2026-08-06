@@ -114,6 +114,9 @@ export async function searchEbayCards(
   edition: CardEdition = 'japanese',
   offset = 0,
   market: PriceMarket = 'ebay',
+  // 세트 이름으로 한 세트만 보고 싶을 때(도감에서 카드를 눌러 온 경우).
+  // ⚠️ 검색어에 세트 이름을 **붙이면 0건**이다(실측). 별도 파라미터라야 걸러진다.
+  setName?: string,
 ): Promise<EbaySearchResult> {
   const trimmed = query.trim();
   if (!trimmed) return { cards: [], hasMore: false };
@@ -137,6 +140,7 @@ export async function searchEbayCards(
     sortOrder: 'desc',
   });
   if (market === 'tcgplayer') params.set('have', 'tcgplayer');
+  if (setName) params.set('setName', setName);
 
   const res = await fetch(`/api/local/card-prices?${params.toString()}`);
   // 429는 호출부가 "일시적 오류"와 구분해 안내하도록 별도 에러로 던진다. 하루치를 다 쓴

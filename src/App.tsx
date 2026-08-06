@@ -227,6 +227,18 @@ function App() {
   // 스캔이 "세트+번호"로 검색했는데 0건이면 카드 이름으로 자동 재검색하기 위한 백업 이름.
   // 번호를 써서 검색한 경우에만 채운다(번호를 못 읽었으면 이미 이름으로 검색 중).
   const scanFallbackRef = useRef<string | null>(null);
+  // 도감(포켓몬·트레이너별 카드)에서 눌러 온 카드.
+  //
+  // ⚠️ 검색어에 세트 이름을 붙이면 **0건**이다(PPT의 search는 이름과 세트를 함께
+  //    묶어 찾지 않는다 — 실측 2026-08-06). 대신 setName 파라미터를 따로 보내면
+  //    그 세트만 정확히 걸러진다("Charizard"만 → 10건 전부 다른 세트 / setName을
+  //    같이 보내면 → 옵시디언 플레임즈 4장). 그래서 이 길로 좁힌다.
+  //
+  // q를 같이 들고 있는 이유: 사람이 검색어를 손으로 바꾸면 이 세트 조건이 저절로
+  // 풀려야 한다. 한 번 쓰고 지워 버리면 "더 보기"가 조건 없이 이어받아 엉뚱한
+  // 세트가 뒤에 붙는다.
+  const pokedexPickRef = useRef<{ q: string; setName: string; num: string } | null>(null);
+  const 도감세트 = (q: string) => (pokedexPickRef.current?.q === q ? pokedexPickRef.current : null);
   // 사진으로 찾은 카드는 소스마다 검색어가 다르다. 스니커덩크는 일본판 카탈로그라
   // "세트코드 번호"(M4 086/083)로 찾는 게 정확하고, 이베이·TCGplayer는 영문 이름이
   // 있어야 걸린다(Charizard ex 086/083). 탭만 바꿨을 때 갈아 끼우려고 둘 다 들고 있는다.
@@ -238,6 +250,10 @@ function App() {
   const scanQueriesRef = useRef<{ snkrdunk: string; ebay: string } | null>(savedNav().scanQueries ?? null);
   // 백업(이름) 재검색이 실제로 일어났음을 알리는 안내.
   const [scanFellBack, setScanFellBack] = useState(false);
+  // 도감에서 온 카드의 세트에 낙찰 기록이 아예 없어, 세트 조건을 풀고 이름으로 다시
+  // 찾은 경우. 안 알려 주면 "옵시디언 플레임즈 이브이"를 눌렀는데 엉뚱한 세트 카드가
+  // 나온 것처럼 보인다.
+  const [세트낙찰없음, set세트낙찰없음] = useState(false);
   // 번호 대신 일러스트레이터로 찾아낸 경우 그 사실을 알려 준다(후보가 여럿이면 몇 개인지).
   const [scanFoundByArtist, setScanFoundByArtist] = useState(0);
   // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
@@ -828,7 +844,19 @@ function App() {
     const timer = setTimeout(() => {
       setEbayLoading(true);
       setEbayError(null);
-      searchEbayCards(trimmed, edition, 0, market)
+      set세트낙찰없음(false);
+      const 세트 = 도감세트(trimmed);
+      searchEbayCards(trimmed, edition, 0, market, 세트?.setName)
+        .then(async (r) => {
+          // 그 세트에 낙찰 기록이 아예 없을 수 있다(예: 옵시디언 플레임즈 이브이).
+          // 그럴 땐 조건을 풀고 이름만으로 다시 찾는다 — 빈 화면보다 낫다.
+          if (세트 && r.cards.length === 0) {
+            pokedexPickRef.current = null;
+            set세트낙찰없음(true);
+            return searchEbayCards(trimmed, edition, 0, market);
+          }
+          return r;
+        })
         .then(({ cards, hasMore, translated, asOf }) => {
           setEbayQueryEn(translated ?? '');
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
@@ -844,18 +872,35 @@ function App() {
             setQuery(fb);
             return;
           }
-          setEbayItems(cards);
+          // 세트로 좁혀도 그 세트에 같은 이름이 여러 장 있다(리자몽 ex가 4장). 번호로
+          // 그 한 장을 맨 앞에 세우고 골라 둔다. 나머지는 지우지 않는다 — 번호 표기가
+          // 어긋나면(228/197처럼 빗금이 붙는다) 아무것도 안 남을 수 있다.
+          const pick = 도감세트(trimmed);
+          let 정렬됨 = cards;
+          let 고를것: string | null = null;
+          if (pick) {
+            const 앞번호 = (s: string) => Number(String(s).split('/')[0]);
+            const hit = cards.find((c) => c.cardNumber && 앞번호(c.cardNumber) === 앞번호(pick.num));
+            if (hit) {
+              정렬됨 = [hit, ...cards.filter((c) => c !== hit)];
+              고를것 = hit.tcgPlayerId;
+            }
+          }
+          setEbayItems(정렬됨);
           setEbayAsOf(asOf ?? null);
-          searchResultRef.current = { query: trimmed, count: cards.length, source };
+          searchResultRef.current = { query: trimmed, count: 정렬됨.length, source };
           setResultTick((n) => n + 1);
           setEbayOffset(EBAY_PAGE_SIZE);
           setEbayHasMore(hasMore);
           setEbaySelectedId((prev) =>
-            cards.some((c) => c.tcgPlayerId === prev)
+            // 도감에서 눌러 온 그 카드가 있으면 폰에서도 바로 연다 — 그 한 장을 보러
+            // 온 것이므로, 목록만 띄우고 다시 누르게 하는 건 한 번 더 시키는 셈이다.
+            고를것 ??
+            (정렬됨.some((c) => c.tcgPlayerId === prev)
               ? prev
               : isWideScreen()
-                ? (cards[0]?.tcgPlayerId ?? null)
-                : null,
+                ? (정렬됨[0]?.tcgPlayerId ?? null)
+                : null),
           );
         })
         .catch((err: Error) => {
@@ -963,7 +1008,13 @@ function App() {
 
   function loadMoreEbay() {
     setEbayLoadingMore(true);
-    searchEbayCards(query.trim(), edition, ebayOffset, source === 'tcgplayer' ? 'tcgplayer' : 'ebay')
+    searchEbayCards(
+      query.trim(),
+      edition,
+      ebayOffset,
+      source === 'tcgplayer' ? 'tcgplayer' : 'ebay',
+      도감세트(query.trim())?.setName,
+    )
       .then(({ cards, hasMore }) => {
         // offset 페이지가 겹쳐 같은 카드가 들어오는 일을 막는다.
         setEbayItems((prev) => {
@@ -1622,6 +1673,7 @@ function App() {
                   scanFallbackRef.current = q !== c.ko ? c.ko : null;
                   scanQueriesRef.current = null;
                   setScanFellBack(false);
+                  pokedexPickRef.current = 이베이 && c.setName ? { q, setName: c.setName, num: c.num } : null;
                   navigate({
                     view: 'cards',
                     source: 이베이 ? 'ebay' : 'snkrdunk',
@@ -1799,7 +1851,7 @@ function App() {
               {/* 스캔 안내. "이 결과가 왜 이렇게 나왔는지"를 말하는 글이라 결과 바로
                   위에 둔다. 검색창과 판 토글 사이에 있으면 뜰 때마다 그 둘을 갈라놓는다
                   (운영자 지적 2026-08-06). 뜰 때만 자리를 차지하므로 평소엔 영향이 없다. */}
-              {(scanFoundByArtist > 0 || scanFellBack || scannedResult) && (
+              {(scanFoundByArtist > 0 || scanFellBack || 세트낙찰없음 || scannedResult) && (
                 <div className="mx-auto mb-4 max-w-3xl pl-1.5">
                   {scanFoundByArtist > 0 && (
                     <p className="text-xs text-neutral-400">
@@ -1809,6 +1861,11 @@ function App() {
                   )}
                   {scanFellBack && (
                     <p className="mt-1 text-xs text-neutral-400">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
+                  )}
+                  {세트낙찰없음 && (
+                    <p className="mt-1 text-xs text-neutral-400">
+                      그 세트의 카드는 낙찰 기록이 없어, 같은 이름의 다른 세트 카드를 보여 드립니다.
+                    </p>
                   )}
                   {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
                   {scannedResult && (
