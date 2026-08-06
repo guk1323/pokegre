@@ -1,4 +1,27 @@
 import { loadNameDict } from '../lib/nameDict';
+import pptSetNames from '../data/pptSetNames.json';
+
+// PPT가 쓰는 세트 이름 → 우리 한글 세트 이름.
+//
+// 왜: 영문 세트명 사전이 못 잡는 이름이 있다. 일본판 세트를 PPT는 "Start Deck 100
+// Battle Collection"이라 부르는데, 그 사전은 북미판 이름만 알아서 영문이 그대로
+// 화면에 나갔다 — 목록에서는 "스타트 덱 100 배틀컬렉션"으로 보다가 상세에서
+// 영문을 보게 된다(점검 중 발견 2026-08-06).
+// 우리는 이미 slug↔PPT 이름 대응표를 갖고 있으니 거꾸로 찾으면 된다.
+let pptSetKoMap: Map<string, string> | null = null;
+async function pptSetKo(name: string): Promise<string> {
+  if (!pptSetKoMap) {
+    const { loadSetIndex, koSet } = await import('../lib/cardCatalog');
+    const idx = await loadSetIndex().catch(() => []);
+    const bySlug = new Map(idx.map((s) => [s.slug, s]));
+    pptSetKoMap = new Map();
+    for (const [slug, ppt] of Object.entries(pptSetNames as Record<string, string>)) {
+      const s = bySlug.get(slug);
+      if (s) pptSetKoMap.set(ppt.toLowerCase(), koSet(s.ed, s.name));
+    }
+  }
+  return pptSetKoMap.get(String(name).toLowerCase()) ?? '';
+}
 
 export interface EbayGradePoint {
   date: string;
@@ -154,13 +177,16 @@ export async function searchEbayCards(
   // 서버가 내려주는 이름은 TCGPlayer 영문 표기라, SNKRDUNK 결과(koreanizeTitle)와
   // 나란히 놓았을 때 이질적이다. 화면에 뿌리기 전에 한글 표기로 맞춰준다.
   const json = (await res.json()) as { cards?: EbayCard[]; rawCount?: number; asOf?: string };
-  const cards = (json.cards ?? []).map((card) => ({
-    ...card,
-    // 원본 영문 이름은 이베이 검색 링크용으로 남겨두고, 표시용 이름만 한글로 바꾼다.
-    nameEn: card.name,
-    name: dict.koreanizeEnglishCardName(card.name),
-    setName: dict.koreanizeEnglishSetName(card.setName),
-  }));
+  const cards = await Promise.all(
+    (json.cards ?? []).map(async (card) => ({
+      ...card,
+      // 원본 영문 이름은 이베이 검색 링크용으로 남겨두고, 표시용 이름만 한글로 바꾼다.
+      nameEn: card.name,
+      name: dict.koreanizeEnglishCardName(card.name),
+      // 대응표로 먼저 찾고, 없으면 예전처럼 영문 세트명 사전에 맡긴다.
+      setName: (await pptSetKo(card.setName)) || dict.koreanizeEnglishSetName(card.setName),
+    })),
+  );
   // 정렬만으로는 다 안 밀린다. 이름이 실제로 맞는 카드를 앞으로 올린다(빼지는 않는다 —
   // 세트 이름으로 찾는 사람도 있고, 우리가 못 알아본 표기일 수도 있다).
   const ranked = rankByNameMatch(cards, translated);
