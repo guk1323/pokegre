@@ -51,7 +51,25 @@ export function PokedexView({
    * 세트코드·번호·판을 같이 넘겨 그 한 장으로 좁힌다 — 사진 스캔이 쓰는 규칙과 같다
    * (운영자 지시 2026-08-06).
    */
-  onPickCard: (card: { ko: string; en: string; setCode: string; setName: string; num: string; jp: boolean }) => void;
+  onPickCard: (card: {
+    /** 화면에 보이는 한글 카드 이름 */
+    ko: string
+    /** 영문 카드 이름(북미판 카드일 때만). PPT 검색에 쓴다. */
+    en: string
+    /** 번역 전 원문 이름. 스니커덩크 2차 검색("이름 번호")에 쓴다. */
+    raw: string
+    /** 이 포켓몬·트레이너의 영문 이름. 일본판 카드를 PPT에서 찾을 때 쓴다
+     *  — PPT는 일본판 DB도 영문 이름으로 색인돼 있다. */
+    speciesEn: string
+    /** 세트 슬러그(ja-SV6 등). PPT 세트 이름 대응표를 찾는 열쇠. */
+    slug: string
+    /** 세트코드(SV6 등). 스니커덩크는 "코드 번호"로 찾는 게 가장 정확하다. */
+    setCode: string
+    /** 우리 세트 이름 */
+    setName: string
+    num: string
+    jp: boolean
+  }) => void;
 }) {
   const [index, setIndex] = useState<PokeIndex[] | null>(null);
   const [sets, setSets] = useState<Map<string, SetMeta> | null>(null);
@@ -186,11 +204,12 @@ export function PokedexView({
                     onPickCard({
                       ko: 이름,
                       // 북미판 카드는 원문이 곧 영어 이름이다. 일본판이면 영어 이름이
-                      // 없으니 빈 값 — 부르는 쪽이 이름 대신 세트코드로 찾는다.
+                      // 없으니 빈 값 — 부르는 쪽이 종 영문 이름(speciesEn)으로 찾는다.
                       en: meta?.ed === 'en' ? c.name : '',
+                      raw: c.name,
+                      speciesEn: picked?.en ?? '',
+                      slug: c.s,
                       setCode: meta?.id ?? '',
-                      // 이베이는 결과에 세트 이름이 붙어 오므로, 그걸로 그 한 장을 골라낸다.
-                      // 원문 세트 이름을 넘긴다 — 이베이 쪽도 영문이라 그대로 맞는다.
                       setName: meta?.name ?? '',
                       num: c.n,
                       jp: meta?.ed !== 'en',

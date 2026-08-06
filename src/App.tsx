@@ -6,6 +6,7 @@ import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type Popular
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_DAILY_LIMIT, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
+import { 도감검색어, 도감검색어들, 마켓순서, pptSetName, type 도감카드정보 } from './lib/pokedexRoute';
 import { loadNameDict, warmNameDict } from './lib/nameDict';
 
 import {
@@ -234,23 +235,43 @@ function App() {
   //    그 세트만 정확히 걸러진다("Charizard"만 → 10건 전부 다른 세트 / setName을
   //    같이 보내면 → 옵시디언 플레임즈 4장). 그래서 이 길로 좁힌다.
   //
-  // q를 같이 들고 있는 이유: 사람이 검색어를 손으로 바꾸면 이 세트 조건이 저절로
-  // 풀려야 한다. 한 번 쓰고 지워 버리면 "더 보기"가 조건 없이 이어받아 엉뚱한
-  // 세트가 뒤에 붙는다.
-  const pokedexPickRef = useRef<{
-    q: string
-    /** 세트코드(M6·SV6 등). 스니커덩크 제목의 [코드 번호/…]와 맞춘다. */
-    setCode: string
-    /** 세트 이름(영문). 이베이는 이걸 setName 파라미터로 보낸다. */
-    setName: string
-    num: string
-    jp: boolean
-  } | null>(null);
-  const 도감카드 = (q: string) => (pokedexPickRef.current?.q === q ? pokedexPickRef.current : null);
-  const 도감세트 = (q: string) => {
-    const p = 도감카드(q);
-    return p && !p.jp ? p : null;
+  // 마켓을 옮겨도 이 정보를 들고 다닌다. 검색어를 이름으로 바꿔치기하면 카드가 누구인지
+  // 잊어버려서, 다음 마켓에서 "확장팩 제1탄 001"이 아니라 그냥 "이상해씨"를 찾게 된다
+  // (운영자 지적 2026-08-06). 어느 마켓에서 값을 찾을지는 lib/pokedexRoute.ts 참고.
+  const pokedexPickRef = useRef<도감카드정보 | null>(null);
+  // 지금 몇 번째 마켓까지 두드려 봤나. 값이 없으면 다음 마켓으로 넘어간다.
+  const 마켓칸ref = useRef(0);
+  // 자동으로 마켓을 옮겨도 되는 때인지. 도감에서 막 눌러 왔을 때만 켠다 — 사람이
+  // 직접 탭을 눌렀는데 또 저절로 옮겨가면 어디를 보고 있는지 알 수 없게 된다.
+  const 자동이동ref = useRef(false);
+  // 지금 검색어가 그 카드를 가리키고 있나. 마켓마다 검색어 꼴이 달라서(스니커덩크는
+  // "SV6 050", PPT는 "Chien-Pao ex") 어느 꼴이든 맞으면 유효로 본다. 사람이 검색어를
+  // 손으로 바꾸면 저절로 풀린다.
+  const 도감카드 = (q: string) => {
+    const p = pokedexPickRef.current;
+    return p && 도감검색어들(p).includes(q.trim()) ? p : null;
   };
+  // 지금 마켓에서 못 찾았을 때 다음 마켓으로 넘긴다. 더 갈 곳이 없으면 안내만 띄우고
+  // 검색어는 그대로 둔다 — 사람이 직접 다른 탭을 눌러 볼 수 있어야 한다.
+  const 다음마켓으로 = (c: 도감카드정보) => {
+    if (!자동이동ref.current) return false;
+    const 순서 = 마켓순서(c.jp);
+    const 다음 = 마켓칸ref.current + 1;
+    if (다음 >= 순서.length) {
+      set도감안내(
+        `${c.ko} ${c.setName} ${c.num}번은 지금 어느 마켓에도 값이 없습니다. ` +
+          `검색어는 그대로 두었으니 위 탭을 눌러 직접 확인해 보실 수 있습니다.`,
+      );
+      return false;
+    }
+    마켓칸ref.current = 다음;
+    const m = 순서[다음];
+    setSource(m.source);
+    setEdition(m.edition);
+    setQuery(도감검색어(c, m));
+    return true;
+  };
+
   // 스니커덩크 제목에서 그 한 장을 찾는 무늬. [SV6 050 /101] · [PMCG2 No.036] 둘 다 받는다.
   const 제목무늬 = (setCode: string, num: string) =>
     new RegExp(`\\[${setCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[- ](?:No\\.)?0*${num.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[/\\]]|\\s)`, 'i');
@@ -265,12 +286,9 @@ function App() {
   const scanQueriesRef = useRef<{ snkrdunk: string; ebay: string } | null>(savedNav().scanQueries ?? null);
   // 백업(이름) 재검색이 실제로 일어났음을 알리는 안내.
   const [scanFellBack, setScanFellBack] = useState(false);
-  // 도감에서 온 카드를 그 세트에서 못 찾아(낙찰 기록이 없거나 PPT가 그 세트 이름을
-  // 모르거나) 조건을 풀고 이름으로 다시 찾은 경우. 안 알려 주면 "옵시디언 플레임즈
-  // 이브이"를 눌렀는데 엉뚱한 세트 카드가 나온 것처럼 보인다.
-  // ⚠️ 북미판은 이게 드문 일이 아니다 — 이베이 등급 낙찰이 있는 카드만 시세가 잡혀서,
-  //    흔한 카드·최신 세트는 대부분 여기로 온다(실측 14장 중 11장, 2026-08-06).
-  const [세트낙찰없음, set세트낙찰없음] = useState(false);
+  // 도감에서 온 카드를 마켓을 옮겨 가며 찾은 결과를 알리는 한 줄. 검색어는 건드리지
+  // 않고 이 문구만 바꾼다 — 검색어를 바꾸면 다른 탭에서 그 카드를 못 찾는다.
+  const [도감안내, set도감안내] = useState<string | null>(null);
   // 번호 대신 일러스트레이터로 찾아낸 경우 그 사실을 알려 준다(후보가 여럿이면 몇 개인지).
   const [scanFoundByArtist, setScanFoundByArtist] = useState(0);
   // 마지막으로 "결과가 실제로 나온" 검색어와 개수. 인기 검색어 집계 때, 결과가 0인
@@ -583,6 +601,24 @@ function App() {
   // 그 세트코드를 그대로 들고 가서 0건이 된다(사용자 제보).
   // 검색어를 손으로 고친 뒤라면 그대로 둔다(둘 중 어느 것과도 같지 않으면 손댄 것이다).
   const switchSource = (next: PriceSource) => {
+    // 도감에서 온 카드를 보고 있으면, 옮겨 간 마켓에 맞는 검색어로 갈아 준다.
+    // 이게 없으면 스니커덩크용 "SV6 050"을 이베이에 그대로 넣어 0건이 된다
+    // (운영자 지적 2026-08-06).
+    const c = 도감카드(query);
+    if (c) {
+      const 순서 = 마켓순서(c.jp);
+      const i = 순서.findIndex((m) => m.source === next);
+      if (i >= 0) {
+        // 사람이 고른 마켓이므로 여기서 값이 없어도 저절로 옮기지 않는다.
+        자동이동ref.current = false;
+        마켓칸ref.current = i;
+        set도감안내(null);
+        setEdition(순서[i].edition);
+        setQuery(도감검색어(c, 순서[i]));
+        setSource(next);
+        return;
+      }
+    }
     const qs = scanQueriesRef.current;
     if (qs && (query === qs.snkrdunk || query === qs.ebay)) {
       const want = next === 'snkrdunk' ? qs.snkrdunk : qs.ebay;
@@ -791,21 +827,41 @@ function App() {
       setLoading(true);
       setError(null);
       fetchMoreUniqueCards(trimmed, 1, new Set(), INITIAL_TARGET, undefined, ac.signal)
-        .then(({ items, lastPage, exhausted }) => {
+        .then(async ({ items: 받은것, lastPage, exhausted }) => {
+          let items = 받은것;
           // 도감에서 눌러 온 일본판 카드는 "세트코드 번호"로 찾았지만, 스니커덩크 검색은
           // 코드를 부분일치로 본다 — "SV6 050"에 SV6a 050이, "SV8 068"에 SV8a 068이
           // 딸려 와 엉뚱한 카드가 맨 앞에 선다(실측 2026-08-06, 40장 중 5장).
           // 그래서 결과 제목의 [코드 번호/…]로 그 한 장을 직접 골라낸다.
           const 도감 = 도감카드(trimmed);
-          const 무늬 = 도감?.jp && 도감.setCode ? 제목무늬(도감.setCode, 도감.num) : null;
-          const 그카드 = 무늬 ? items.find((c) => 무늬.test(c.rawTitle ?? c.title)) : undefined;
-          // 결과는 왔는데 그 카드가 없으면(스니커덩크에 없거나 표기가 다른 세트) 남의
-          // 카드를 보여 주느니 이름으로 되돌린다 — 적어도 찾던 포켓몬은 나온다.
-          const 못찾음 = Boolean(무늬) && !그카드;
+          const 무늬 = 도감?.setCode ? 제목무늬(도감.setCode, 도감.num) : null;
+          let 그카드 = 무늬 ? items.find((c) => 무늬.test(c.rawTitle ?? c.title)) : undefined;
+          if (도감 && !그카드) {
+            // ⚠️ 꼴을 하나만 쓰면 놓친다. "SV10 073"은 0건인데 "フォレトス 073"으로는
+            //    1번째로 나온다(실측 2026-08-06). 코드로 못 찾으면 이름꼴로 한 번 더.
+            const 이름꼴 = `${도감.raw} ${도감.num}`.trim();
+            if (도감.raw && 이름꼴 !== trimmed) {
+              const 두번째 = await fetchMoreUniqueCards(이름꼴, 1, new Set(), INITIAL_TARGET, undefined, ac.signal)
+                .then((r) => r.items)
+                .catch(() => []);
+              그카드 = 무늬 ? 두번째.find((c) => 무늬.test(c.rawTitle ?? c.title)) : undefined;
+              if (그카드) items = 두번째;
+            }
+          }
+          // 도감에서 온 카드인데 이 마켓엔 없다 → 다음 마켓으로 넘긴다. 검색어를
+          // 이름으로 바꿔치기하지 않는다(그러면 다음 마켓에서 그 카드를 못 찾는다).
+          //
+          // ⚠️ 카드를 찾았어도 **값이 없으면** 마찬가지로 넘긴다. 스니커덩크는 매물이
+          //    있어야 값이 생겨서, 옛 카드는 "매물 0개 · 시세 없음"으로 나온다. 그걸
+          //    붙들고 있느니 값이 있는 마켓을 보여 주는 게 낫다(쏘콘 SV10 073이 여기서
+          //    막혀 있었고, TCGplayer에는 $0.12가 있었다).
+          if (도감 && (!그카드 || !그카드.price)) {
+            if (다음마켓으로(도감)) return;
+          }
 
           // 스캔한 "세트+번호"가 0건이면(코드는 읽었지만 매칭 실패) 이름으로 자동 재검색.
           const fb = scanFallbackRef.current;
-          if ((items.length === 0 || 못찾음) && fb && fb.trim() && fb.trim() !== trimmed) {
+          if (items.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
             scanFallbackRef.current = null;
             setScanFellBack(true);
             // ⚠️ 대체한 검색어를 그 소스 자리에 다시 적어 둔다. 안 그러면 아래
@@ -815,6 +871,12 @@ function App() {
             if (scanQueriesRef.current) scanQueriesRef.current = { ...scanQueriesRef.current, snkrdunk: fb };
             setQuery(fb);
             return;
+          }
+          if (도감 && 그카드) {
+            // 첫 마켓에서 바로 찾았으면 굳이 설명하지 않는다.
+            const 칸 = 마켓칸ref.current;
+            const 순서 = 마켓순서(도감.jp);
+            set도감안내(칸 > 0 ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.` : null);
           }
           const 정렬됨 = 그카드 ? [그카드, ...items.filter((c) => c !== 그카드)] : items;
           setItems(정렬됨);
@@ -879,19 +941,10 @@ function App() {
     const timer = setTimeout(() => {
       setEbayLoading(true);
       setEbayError(null);
-      set세트낙찰없음(false);
-      const 세트 = 도감세트(trimmed);
-      searchEbayCards(trimmed, edition, 0, market, 세트?.setName)
-        .then(async (r) => {
-          // 그 세트에 낙찰 기록이 아예 없을 수 있다(예: 옵시디언 플레임즈 이브이).
-          // 그럴 땐 조건을 풀고 이름만으로 다시 찾는다 — 빈 화면보다 낫다.
-          if (세트 && r.cards.length === 0) {
-            pokedexPickRef.current = null;
-            set세트낙찰없음(true);
-            return searchEbayCards(trimmed, edition, 0, market);
-          }
-          return r;
-        })
+      // 도감에서 온 카드면 그 세트로 좁힌다. PPT 세트 이름은 우리 것과 달라서
+      // 대응표(pptSetNames)를 쓴다 — ja-PMCG1 → "Expansion Pack".
+      const 도감 = 도감카드(trimmed);
+      searchEbayCards(trimmed, edition, 0, market, 도감 ? pptSetName(도감) : undefined)
         .then(({ cards, hasMore, translated, asOf }) => {
           setEbayQueryEn(translated ?? '');
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
@@ -907,19 +960,35 @@ function App() {
             setQuery(fb);
             return;
           }
+          // 이 마켓에 그 카드가 없으면 다음 마켓으로 넘긴다. 검색어는 안 바꾼다.
+          if (도감 && cards.length === 0) {
+            if (다음마켓으로(도감)) return;
+          }
           // 세트로 좁혀도 그 세트에 같은 이름이 여러 장 있다(리자몽 ex가 4장). 번호로
           // 그 한 장을 맨 앞에 세우고 골라 둔다. 나머지는 지우지 않는다 — 번호 표기가
-          // 어긋나면(228/197처럼 빗금이 붙는다) 아무것도 안 남을 수 있다.
-          const pick = 도감세트(trimmed);
+          // 어긋나면(228/197처럼 빗금이 붙거나 일본판은 아예 비어 있다) 아무것도 안
+          // 남을 수 있다.
           let 정렬됨 = cards;
           let 고를것: string | null = null;
-          if (pick) {
+          if (도감) {
             const 앞번호 = (s: string) => Number(String(s).split('/')[0]);
-            const hit = cards.find((c) => c.cardNumber && 앞번호(c.cardNumber) === 앞번호(pick.num));
+            const hit = cards.find((c) => c.cardNumber && 앞번호(c.cardNumber) === 앞번호(도감.num));
             if (hit) {
               정렬됨 = [hit, ...cards.filter((c) => c !== hit)];
               고를것 = hit.tcgPlayerId;
+            } else if (cards.length === 1) {
+              // ⚠️ PPT 일본판은 카드번호 칸이 비어 있어 번호로 못 맞춘다(실측). 세트로
+              //    좁혀 한 장만 남았으면 그게 그 카드다 — 그냥 연다.
+              고를것 = cards[0].tcgPlayerId;
             }
+            // 첫 마켓이 아니었다면 왜 여기로 왔는지 알려 준다.
+            const 칸 = 마켓칸ref.current;
+            const 순서 = 마켓순서(도감.jp);
+            set도감안내(
+              칸 > 0
+                ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
+                : null,
+            );
           }
           setEbayItems(정렬됨);
           setEbayAsOf(asOf ?? null);
@@ -1048,7 +1117,10 @@ function App() {
       edition,
       ebayOffset,
       source === 'tcgplayer' ? 'tcgplayer' : 'ebay',
-      도감세트(query.trim())?.setName,
+      (() => {
+        const c = 도감카드(query.trim());
+        return c ? pptSetName(c) : undefined;
+      })(),
     )
       .then(({ cards, hasMore }) => {
         // offset 페이지가 겹쳐 같은 카드가 들어오는 일을 막는다.
@@ -1694,27 +1766,19 @@ function App() {
                 //    좁혀진다), 이베이는 영어 색인이라 "영어 이름 번호"가 필요하다.
                 //    북미판 카드는 스니커덩크에 거의 없으므로 이베이로 보낸다.
                 onPickCard={(c) => {
-                  const 이베이 = !c.jp;
-                  // ⚠️ 스니커덩크는 "세트코드 번호"가 그 한 장으로 정확히 좁혀진다
-                  //    (M6 113 → 메가레쿠쟈 ex MUR 한 건). 반면 **이베이는 번호를 붙이면
-                  //    오히려 0건**이다 — 파는 사람이 제목에 번호를 안 적는 경우가 많다
-                  //    (실측 2026-08-06: "Eevee 166" 0건, "Eevee" 11건).
-                  //    그래서 북미판은 영어 이름만 넘긴다.
-                  const q = 이베이 ? c.en || c.ko : [c.setCode, c.num].filter(Boolean).join(' ') || c.ko;
-                  // ⚠️ 옛 일본판 세트 25개는 스니커덩크가 세트코드를 다르게 적는다
-                  //    (우리 XYP ↔ 저쪽 XY-P 등). 코드를 하나하나 맞추려 들면 끝이 없고
-                  //    틀리면 0건이 된다. 대신 사진 스캔이 쓰는 장치를 그대로 쓴다 —
-                  //    "번호로 0건이면 이름으로 다시 찾는다"(scanFallbackRef).
-                  scanFallbackRef.current = q !== c.ko ? c.ko : null;
+                  // 마켓을 옮겨 다닐 수 있게 카드 정보를 통째로 들고 간다. 첫 마켓에서
+                  // 못 찾으면 다음 마켓으로 넘어간다(lib/pokedexRoute.ts).
+                  pokedexPickRef.current = c;
+                  마켓칸ref.current = 0;
+                  자동이동ref.current = true;
+                  // 검색어를 이름으로 바꿔치기하던 장치는 끈다. 그러면 카드가 누구인지
+                  // 잊어버려 다음 마켓을 그 카드로 못 찾는다(운영자 지적 2026-08-06).
+                  scanFallbackRef.current = null;
                   scanQueriesRef.current = null;
                   setScanFellBack(false);
-                  pokedexPickRef.current = { q, setCode: c.setCode, setName: c.setName, num: c.num, jp: !이베이 };
-                  navigate({
-                    view: 'cards',
-                    source: 이베이 ? 'ebay' : 'snkrdunk',
-                    edition: 이베이 ? 'english' : 'japanese',
-                    query: q,
-                  });
+                  set도감안내(null);
+                  const m = 마켓순서(c.jp)[0];
+                  navigate({ view: 'cards', source: m.source, edition: m.edition, query: 도감검색어(c, m) });
                 }}
               />
           ) : view === 'mypage' ? (
@@ -1886,7 +1950,7 @@ function App() {
               {/* 스캔 안내. "이 결과가 왜 이렇게 나왔는지"를 말하는 글이라 결과 바로
                   위에 둔다. 검색창과 판 토글 사이에 있으면 뜰 때마다 그 둘을 갈라놓는다
                   (운영자 지적 2026-08-06). 뜰 때만 자리를 차지하므로 평소엔 영향이 없다. */}
-              {(scanFoundByArtist > 0 || scanFellBack || 세트낙찰없음 || scannedResult) && (
+              {(scanFoundByArtist > 0 || scanFellBack || 도감안내 || scannedResult) && (
                 <div className="mx-auto mb-4 max-w-3xl pl-1.5">
                   {scanFoundByArtist > 0 && (
                     <p className="text-xs text-neutral-400">
@@ -1897,11 +1961,7 @@ function App() {
                   {scanFellBack && (
                     <p className="mt-1 text-xs text-neutral-400">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
                   )}
-                  {세트낙찰없음 && (
-                    <p className="mt-1 text-xs text-neutral-400">
-                      그 카드는 이베이 낙찰 기록이 없어, 같은 이름의 다른 카드를 보여 드립니다.
-                    </p>
-                  )}
+                  {도감안내 && <p className="mt-1 text-xs text-neutral-400">{도감안내}</p>}
                   {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
                   {scannedResult && (
                     <p className="mt-1 text-xs text-neutral-400">
