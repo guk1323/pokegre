@@ -7,6 +7,7 @@
 // 쓰는 법: npx tsx scripts/check-pokedex-order.mts
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
+import { 번호순 } from './gen-pokedex.mts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const index = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf-8')) as {
@@ -41,7 +42,11 @@ for (const f of readdirSync(path.join(ROOT, 'public/pokedex'))) {
   const 앞뒤 = (a: { s: string; n: string }, b: { s: string; n: string }) =>
     (meta.get(a.s)?.releaseDate || '9').localeCompare(meta.get(b.s)?.releaseDate || '9') ||
     a.s.localeCompare(b.s) ||
-    a.n.localeCompare(b.n)
+    // ⚠️ 번호는 **숫자로** 견준다. 글자로 견주면 "9" 다음 "10"이 깨진 것처럼 보인다.
+    //    만드는 쪽(gen-pokedex)에서 쓰는 바로 그 함수를 가져와 쓴다 — 규칙을 여기
+    //    또 베끼면 언젠가 어긋나고, 실제로 한 번 어긋나 멀쩡한 무더기 6개를 잘못
+    //    잡았다(2026-08-07).
+    번호순(a.n, b.n)
   for (let i = 1; i < arr.length; i++) {
     if (앞뒤(arr[i - 1], arr[i]) > 0) {
       if (순서깨짐.length < 6)

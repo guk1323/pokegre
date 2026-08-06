@@ -177,9 +177,24 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
 
+// 카드 번호를 **숫자로** 견준다. 글자로 견주면 "100"이 "11"보다 앞에 서서
+// 리자몽/en-xy2가 100, 107, 108, 11, 12, 13 순이 된다(2026-08-07 발견, 250개 묶음).
+// 접두사가 붙은 번호("SM158"·"XY121")도 접두사가 같으면 숫자로 견준다.
+export const 번호쪼개기 = (n: string) => {
+  const m = String(n).match(/^([A-Za-z-]*)0*(\d+)([a-z]?)$/i)
+  return m ? { 앞: m[1].toUpperCase(), 숫자: Number(m[2]), 뒤: m[3] } : null
+}
+export const 번호순 = (a: string, b: string) => {
+  const A = 번호쪼개기(a)
+  const B = 번호쪼개기(b)
+  // 번호 꼴이 아니거나 접두사가 다르면 글자로 견준다 — 우리가 정할 일이 아니다.
+  if (!A || !B || A.앞 !== B.앞) return String(a).localeCompare(String(b))
+  return A.숫자 - B.숫자 || A.뒤.localeCompare(B.뒤)
+}
+
 // 발매일이 빈 세트는 맨 뒤로(9로 시작하는 문자열은 어떤 날짜보다 크다).
 const 발매순 = (a: { date: string; s: string; n: string }, b: { date: string; s: string; n: string }) =>
-  (a.date || '9').localeCompare(b.date || '9') || a.s.localeCompare(b.s) || a.n.localeCompare(b.n)
+  (a.date || '9').localeCompare(b.date || '9') || a.s.localeCompare(b.s) || 번호순(a.n, b.n)
 
 // 목록 파일. 검색창이 이것만 받아 이름을 찾는다.
 // t: 'p'=포켓몬 · 't'=트레이너·에너지. 화면이 어느 쪽인지 표시하는 데 쓴다.
