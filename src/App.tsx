@@ -275,6 +275,64 @@ function App() {
     return true;
   };
 
+  // 세트 목록(코드→슬러그·이름). 공유 링크로 들어온 카드의 세트를 알아내는 데 쓴다.
+  // 다른 화면도 쓰는 것이라 한 번 받아 두면 캐시된다.
+  const 세트목록ref = useRef<{ slug: string; ed: 'ja' | 'en'; id: string; name: string }[] | null>(null);
+  useEffect(() => {
+    let 살아있음 = true;
+    void import('./lib/cardCatalog')
+      .then((m) => m.loadSetIndex())
+      .then((list) => {
+        if (!살아있음) return;
+        세트목록ref.current = list;
+        // ⚠️ 목록이 늦게 오면 그 사이 들어온 공유 링크를 놓친다. 도감에서 같은 실수를
+        //    한 적이 있다(뒤로가기로 목록이 사라졌다 — 2026-08-06). 적어 뒀다가 처리한다.
+        const 기다린것 = 공유대기ref.current;
+        공유대기ref.current = null;
+        if (기다린것) 공유카드기억(기다린것.title, 기다린것.rawTitle);
+      })
+      // 못 받아도 화면은 그대로 돈다 — 공유 링크 검색창이 예전처럼 보일 뿐이다.
+      .catch(() => undefined);
+    return () => {
+      살아있음 = false;
+    };
+  }, []);
+
+  // 공유 링크로 들어온 스니커덩크 카드를, 도감에서 누른 것과 같은 모양으로 기억한다.
+  // 그래야 검색창이 "제크로무 ex · 블랙볼트 · 174번"으로 보이고 마켓도 옮겨 다닐 수 있다.
+  //
+  // 스니커덩크 제목 꼴: "이름 [코드 번호/총장수](세트 설명)"
+  const 공유대기ref = useRef<{ title: string; rawTitle?: string } | null>(null);
+  const 공유카드기억 = (title: string, rawTitle?: string) => {
+    if (!세트목록ref.current) {
+      공유대기ref.current = { title, rawTitle };
+      return;
+    }
+    const m = String(title).match(/^(.*?)\s*\[([A-Za-z0-9+-]+)[\s-]+([^/\]]+?)\s*(?:\/[^\]]*)?\]/);
+    if (!m) return;
+    const [, 이름, 코드, 번호] = m;
+    const 세트 = 세트목록ref.current?.find((s) => s.id === 코드 && s.ed === 'ja');
+    if (!세트) return;
+    pokedexPickRef.current = {
+      ko: 이름.trim(),
+      en: '',
+      raw: rawTitle ?? title,
+      speciesEn: '',
+      slug: 세트.slug,
+      setCode: 코드,
+      setName: 세트.name,
+      setNameKo: 세트.name,
+      num: 번호.trim(),
+      jp: true,
+    };
+    마켓칸ref.current = 0;
+    자동이동ref.current = false; // 이미 그 카드를 보고 있다 — 저절로 옮기지 않는다
+    // ⚠️ 검색어도 그 카드용("SV11B 174")으로 바꾼다. 원본 제목을 그대로 두면 검색창에
+    //    일본어 괄호까지 든 긴 글자가 보이고, 마켓을 옮겨도 그 카드로 못 찾는다.
+    //    보여줄 글자는 위 정보로 만들어진다(보일검색어).
+    setQuery(도감검색어(pokedexPickRef.current, 마켓순서(true)[0]));
+  };
+
   // 카드 한 장(세트·번호·판까지 아는 것)으로 시세를 보러 간다. 도감·세트별 목록·
   // 작가별 목록이 모두 이 길을 쓴다 — 어느 화면에서 눌렀든 그 한 장을 찾아 준다.
   const 카드로가기 = (c: 도감카드정보) => {
@@ -767,6 +825,11 @@ function App() {
           }
           setPendingSnkr(cards[0]);
           setQuery(cards[0].title);
+          // 검색창에 원본 제목이 통째로 들어가 지저분했다 — 일본어 괄호까지 섞여
+          // "제크로무 ex BWR [SV11B 174/086](확장팩「…」)"로 보였다(점검 중 발견
+          // 2026-08-06). 제목에서 세트코드·번호를 뽑아 도감에서 온 것과 같은 한 줄로
+          // 보이게 한다. 뽑지 못하면 예전처럼 제목을 그대로 둔다.
+          공유카드기억(cards[0].title, cards[0].rawTitle);
         })
         .catch(() => setRestoringShare(false));
       return;
