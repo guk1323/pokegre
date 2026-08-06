@@ -1508,6 +1508,19 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   //    작가별 목록은 북미판 영문이라 여기 없으면 "(Professor Turo)"가 그대로 뜬다.
   "Professor's Research (Professor Sada)": '박사의 연구 (올림박사)',
   "Professor's Research (Professor Turo)": '박사의 연구 (투로박사)',
+  // 같은 규칙 — 한글은 일본판 쪽에 이미 있는 이름을 그대로 가져왔다.
+  //   SV1a 069 「ボスの指令（ゲーチス）」  → "보스의 지령 (게치스)"
+  //   S12a 161 「ボスの指令（アカギ）」    → "보스의 지령 (태홍)"
+  //   SM8b 086 「ネクロズマ たそがれのたてがみGX」 → "네크로즈마 황혼의 갈기 GX"
+  // ⚠️ 네크로즈마는 **일본판 어순**으로 적는다. 세트별·포켓몬명 목록이 그 이름으로
+  //    나오므로, 여기만 "황혼의 갈기 네크로즈마"로 적으면 같은 카드가 화면마다
+  //    다르게 보인다(2026-08-07 두 목록을 견줘 확인).
+  "Boss's Orders (Ghetsis)": '보스의 지령 (게치스)',
+  "Boss's Orders (Cyrus)": '보스의 지령 (태홍)',
+  'Dusk Mane Necrozma-GX': '네크로즈마 황혼의 갈기 GX',
+  'Dawn Wings Necrozma-GX': '네크로즈마 새벽의 날개 GX',
+  'Dusk Mane Necrozma': '네크로즈마 황혼의 갈기',
+  'Dawn Wings Necrozma': '네크로즈마 새벽의 날개',
   // B: 피오니(아버지)와 피오니아(딸)는 다른 인물이라 이름이 겹치면 안 된다.
   'Power Charge': '파워 차지',
   // C: 같은 한글명으로 겹치던 것들. 겹치는 쪽에 구분을 붙인다.
