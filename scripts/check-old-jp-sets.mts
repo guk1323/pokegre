@@ -16,6 +16,8 @@
 // 쓰는 법: npx tsx scripts/check-old-jp-sets.mts [최대장수]
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { koName } from '../src/lib/cardCatalog.ts'
+import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const 상한 = Number(process.argv[2]) > 0 ? Number(process.argv[2]) : Infinity
@@ -90,22 +92,28 @@ const 세트별 = new Map<string, { 봄: number; 다름: number; 맞음: number 
       세트별.set(s.slug, v)
       continue
     }
-    if (/^[\x20-\x7E]+$/.test(c.name)) {
+    // ⚠️ 원문끼리 견주면 안 된다 — 옛 세트는 원본의 일본어 칸이 오염돼 영어 음차가
+    //    들어 있다("グリマー" ↔ 정식 "ベトベター"). 화면에는 번역기가 "질퍽이"로 옳게
+    //    낸다. 양쪽을 다 한글로 바꿔, 사용자가 실제로 보는 글자로 견준다(2026-08-07).
+    const 우리 = 이름열쇠(koName('ja', c.name))
+    if (!/[가-힣]/.test(우리)) {
       영문++
       세트별.set(s.slug, v)
       continue
     }
-    const 우리 = 이름열쇠(c.name)
     const 같다 = 번호맞음.some((p) => {
-      const 저쪽 = 이름열쇠(제목이름(p.title))
-      return 저쪽.includes(우리) || 우리.includes(저쪽)
+      const 저쪽 = 이름열쇠(koreanizeTitle(제목이름(p.title)))
+      return !!저쪽 && (저쪽.includes(우리) || 우리.includes(저쪽))
     })
     if (같다) {
       맞음++
       v.맞음++
     } else {
       v.다름++
-      if (다름.length < 40) 다름.push(`${s.id} ${c.n}  우리 "${c.name}"  ↔  스니커덩크 "${제목이름(번호맞음[0].title)}"`)
+      if (다름.length < 60)
+        다름.push(
+          `${s.id} ${c.n}  우리 "${koName('ja', c.name)}"  ↔  스니커덩크 "${koreanizeTitle(제목이름(번호맞음[0].title))}"`,
+        )
     }
     세트별.set(s.slug, v)
     if (봄 % 25 === 0)

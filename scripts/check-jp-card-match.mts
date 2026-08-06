@@ -11,10 +11,17 @@
 //
 // ⚠️ 스니커덩크는 무료다 — PPT 크레딧을 쓰지 않는다.
 // ⚠️ 0건은 "어긋남"이 아니다. 스니커덩크에 그 카드가 없을 뿐이다. 따로 센다.
+// ⚠️ **원문끼리 비교하면 안 된다.** 옛 세트는 원본 데이터의 일본어 칸이 오염돼 있어
+//    정식 일본명 대신 영어 음차가 들어 있다(우리 "グリマー" ↔ 정식 "ベトベター").
+//    그래도 화면에는 우리 번역기가 "질퍽이"로 옳게 낸다. 원문으로 견주면 멀쩡한 카드
+//    43장이 전부 어긋남으로 잡힌다(첫 실행에서 실제로 그랬다 — 2026-08-07).
+//    그래서 **양쪽을 다 한글로 바꿔** 견준다. 그게 사용자가 실제로 보는 글자다.
 //
 // 쓰는 법: npx tsx scripts/check-jp-card-match.mts [세트당 장수(기본 3)] [세트슬러그…]
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { koName } from '../src/lib/cardCatalog.ts'
+import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const 인자 = process.argv.slice(2)
@@ -100,21 +107,26 @@ for (const s of 대상) {
       세트검사--
       continue
     }
-    // ⚠️ 우리 이름이 영문이면 일본어 제목과 글자로는 절대 안 맞는다("Lairon" ↔ "コドラ").
-    //    같은 카드인데 어긋났다고 세면 진짜 어긋남이 묻힌다(첫 실행에서 4건 다 이것이었다).
-    if (/^[\x20-\x7E]+$/.test(c.name)) {
+    // 우리 이름이 영문이어도 koName이 한글로 바꾸므로 그대로 견준다. 그래도 한글이
+    // 안 나오면(둘 중 하나라도) 글자로 견줄 수 없으니 따로 센다.
+    if (!/[가-힣]/.test(koName(s.ed, c.name))) {
       검사--
       세트검사--
       영문이라못봄++
       continue
     }
-    const 우리 = 이름열쇠(c.name)
-    if (번호맞는것.some((p) => 이름열쇠(제목이름(p.title)).includes(우리) || 우리.includes(이름열쇠(제목이름(p.title)))))
+    // 화면에 뜨는 한글끼리 견준다(원문은 오염돼 있어 믿을 수 없다).
+    const 우리 = 이름열쇠(koName(s.ed, c.name))
+    const 저쪽들 = 번호맞는것.map((p) => 이름열쇠(koreanizeTitle(제목이름(p.title))))
+    if (저쪽들.some((저쪽) => 저쪽 && (저쪽.includes(우리) || 우리.includes(저쪽))))
       맞음++
     else {
       세트어긋++
       if (어긋남.length < 20)
-        어긋남.push(`${s.id} ${c.n}  우리 "${c.name}"  ↔  스니커덩크 "${제목이름(번호맞는것[0].title)}"`)
+        어긋남.push(
+          `${s.id} ${c.n}  우리 "${koName(s.ed, c.name)}"  ↔  스니커덩크 "${koreanizeTitle(제목이름(번호맞는것[0].title))}"` +
+            `   (원문: "${c.name}" ↔ "${제목이름(번호맞는것[0].title)}")`,
+        )
     }
   }
   if (세트어긋) 세트별어긋남.set(s.slug, { 어긋: 세트어긋, 검사: 세트검사 })

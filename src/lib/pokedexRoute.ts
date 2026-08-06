@@ -104,3 +104,39 @@ export const pptSetName = (c: 도감카드정보): string => {
   //    PPT가 못 알아듣고 0건이 된다. 세트 조건 없이 이름으로만 찾는 편이 낫다.
   return /[가-힣]/.test(c.setName) ? '' : c.setName || '';
 };
+
+/**
+ * 마켓이 돌려준 카드가 **정말 그 카드인지** 포켓몬 이름으로 가려낸다.
+ *
+ * ⚠️ 번호만 맞추면 남의 카드를 그 카드인 양 보여 주게 된다. ja-neo4는 우리 데이터가
+ *    북미판 번호를 담고 있어, 38번을 누르면 화면엔 "다크암스타"인데 스니커덩크는
+ *    "상냥한 나인테일"을 준다 — 27장이 통째로 그렇다(2026-08-07 전수 확인).
+ *    옛 세트는 일본판이 원조라 북미판과 번호 매김이 달라서다.
+ *
+ * 판정은 **포켓몬 이름이 잡힐 때만** 한다. 트레이너·굿즈는 두 데이터의 표기가 갈려
+ * ("탈력감가드" ↔ "위크커버") 멀쩡한 카드를 버리게 된다. 확신이 없으면 null을
+ * 돌려주고, 부르는 쪽은 그대로 받아들인다 — 값을 못 보여 주는 손해보다 낫다.
+ *
+ * @returns true 같은 포켓몬 · false 다른 포켓몬 · null 판정 못 함
+ */
+let 포켓몬한글목록: string[] | null = null;
+export async function 같은카드인가(우리한글: string, 마켓한글: string): Promise<boolean | null> {
+  if (!우리한글 || !마켓한글) return null;
+  if (!포켓몬한글목록) {
+    try {
+      const m = await import('../data/pokemonNames.json');
+      포켓몬한글목록 = (m.default as { ko?: string }[])
+        .map((p) => p.ko ?? '')
+        .filter((s) => s.length >= 2)
+        // 긴 이름을 먼저 본다 — "이상해꽃"이 "이상해"보다 앞서야 한다.
+        .sort((a, b) => b.length - a.length);
+    } catch {
+      return null;
+    }
+  }
+  const 찾기 = (s: string) => 포켓몬한글목록!.find((n) => s.includes(n));
+  const 우리 = 찾기(우리한글);
+  const 저쪽 = 찾기(마켓한글);
+  if (!우리 || !저쪽) return null;
+  return 우리 === 저쪽;
+}

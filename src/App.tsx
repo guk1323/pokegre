@@ -6,7 +6,16 @@ import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type Popular
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_DAILY_LIMIT, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
-import { 도감검색어, 도감검색어들, 도감표시, 마켓순서, pptSetName, 짧은세트, type 도감카드정보 } from './lib/pokedexRoute';
+import {
+  도감검색어,
+  도감검색어들,
+  도감표시,
+  마켓순서,
+  같은카드인가,
+  pptSetName,
+  짧은세트,
+  type 도감카드정보,
+} from './lib/pokedexRoute';
 import { 시트가스스로닫힘 } from './lib/sheetHistory';
 import { loadNameDict, warmNameDict } from './lib/nameDict';
 
@@ -254,7 +263,9 @@ function App() {
   };
   // 지금 마켓에서 못 찾았을 때 다음 마켓으로 넘긴다. 더 갈 곳이 없으면 안내만 띄우고
   // 검색어는 그대로 둔다 — 사람이 직접 다른 탭을 눌러 볼 수 있어야 한다.
-  const 다음마켓으로 = (c: 도감카드정보) => {
+  // 옮기는 **까닭**을 같이 받는다. "거래 기록이 없어"와 "같은 번호에 다른 카드가
+  // 잡혀"는 사용자에게 전혀 다른 이야기다 — 뭉뚱그리면 사실과 다른 말을 하게 된다.
+  const 다음마켓으로 = (c: 도감카드정보, 다른카드였음 = false) => {
     if (!자동이동ref.current) return false;
     const 순서 = 마켓순서(c.jp);
     const 다음 = 마켓칸ref.current + 1;
@@ -273,7 +284,11 @@ function App() {
     // ⚠️ 옮긴 것을 말해 주지 않으면, 일본판 카드를 눌렀는데 스니커덩크가 아니라 이베이
     //    화면이 떠 있는 꼴이 된다. 사용자는 왜 다른 마켓을 보고 있는지 알 수 없고,
     //    그 마켓이 마침 조회에 실패하면 "카드가 없다"고 오해한다(2026-08-07 점검 중 발견).
-    set도감안내(`${앞.label}에는 거래 기록이 없어 ${m.label}에서 찾고 있습니다.`);
+    set도감안내(
+      다른카드였음
+        ? `${앞.label}에서는 같은 번호에 다른 카드가 잡혀 값을 쓰지 않고, ${m.label}에서 찾고 있습니다.`
+        : `${앞.label}에는 거래 기록이 없어 ${m.label}에서 찾고 있습니다.`,
+    );
     setSource(m.source);
     setEdition(m.edition);
     setQuery(도감검색어(c, m));
@@ -957,6 +972,19 @@ function App() {
               if (그카드) items = 두번째;
             }
           }
+          // ⚠️ 번호가 맞아도 **다른 포켓몬이면 그 카드가 아니다.** 옛 세트는 우리
+          //    데이터가 북미판 번호를 담고 있어, ja-neo4 38번을 누르면 화면엔
+          //    "다크암스타"인데 스니커덩크는 "상냥한 나인테일"을 준다(27장이 그렇다 —
+          //    2026-08-07 전수 확인). 남의 카드 값을 그 카드인 양 보여 주느니
+          //    값을 안 보여 주는 편이 낫다.
+          let 다른카드였음 = false;
+          if (그카드 && 도감) {
+            const 같나 = await 같은카드인가(도감.ko, 그카드.title ?? '');
+            if (같나 === false) {
+              그카드 = undefined;
+              다른카드였음 = true;
+            }
+          }
           // 도감에서 온 카드인데 이 마켓엔 없다 → 다음 마켓으로 넘긴다. 검색어를
           // 이름으로 바꿔치기하지 않는다(그러면 다음 마켓에서 그 카드를 못 찾는다).
           //
@@ -965,15 +993,17 @@ function App() {
           //    붙들고 있느니 값이 있는 마켓을 보여 주는 게 낫다(쏘콘 SV10 073이 여기서
           //    막혀 있었고, TCGplayer에는 $0.12가 있었다).
           if (도감 && (!그카드 || !그카드.price)) {
-            if (다음마켓으로(도감)) return;
+            if (다음마켓으로(도감, 다른카드였음)) return;
             // ⚠️ 결과가 있는데 "값이 없습니다"라고 하면 눈앞의 17건과 말이 어긋난다
             //    (점검 중 발견 2026-08-06 — 북미판 파이숭이를 스니커덩크에서 봤을 때).
             //    보여 줄 게 하나도 없을 때만 "값이 없다"고 한다.
             if (!그카드)
               set도감안내(
-                items.length === 0
-                  ? `${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에 값이 없습니다.`
-                  : `${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`,
+                다른카드였음
+                  ? `${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 같은 번호에 다른 카드가 잡혀, 값을 쓰지 않았습니다.`
+                  : items.length === 0
+                    ? `${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에 값이 없습니다.`
+                    : `${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`,
               );
           }
 
