@@ -1517,10 +1517,10 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   //    다르게 보인다(2026-08-07 두 목록을 견줘 확인).
   "Boss's Orders (Ghetsis)": '보스의 지령 (게치스)',
   "Boss's Orders (Cyrus)": '보스의 지령 (태홍)',
+  // 접미사 없는 꼴은 위(1486·1488줄)에 이미 있다 — GX가 붙은 꼴만 없어서 한글화가
+  // 안 됐다. 같은 키를 두 번 적으면 빌드가 막힌다(실제로 한 번 막혔다).
   'Dusk Mane Necrozma-GX': '네크로즈마 황혼의 갈기 GX',
   'Dawn Wings Necrozma-GX': '네크로즈마 새벽의 날개 GX',
-  'Dusk Mane Necrozma': '네크로즈마 황혼의 갈기',
-  'Dawn Wings Necrozma': '네크로즈마 새벽의 날개',
   // B: 피오니(아버지)와 피오니아(딸)는 다른 인물이라 이름이 겹치면 안 된다.
   'Power Charge': '파워 차지',
   // C: 같은 한글명으로 겹치던 것들. 겹치는 쪽에 구분을 붙인다.
