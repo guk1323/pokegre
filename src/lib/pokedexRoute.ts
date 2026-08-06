@@ -62,10 +62,26 @@ export const 마켓순서 = (jp: boolean): 마켓[] =>
 /** 그 마켓에서 쓸 검색어. 빈 문자열이면 그 마켓은 건너뛴다. */
 export function 도감검색어(c: 도감카드정보, m: 마켓): string {
   if (m.source === 'snkrdunk') return [c.setCode, c.num].filter(Boolean).join(' ') || c.ko;
-  // PPT는 영문 이름으로 찾는다. 북미판 카드면 카드 이름이 곧 영문이고, 일본판이면
-  // 그 포켓몬·트레이너의 영문 이름을 쓴다(카드 이름은 일본어라 안 걸린다).
-  return c.en || c.speciesEn || c.ko;
+  // PPT는 영문 이름으로 찾는다. 북미판 카드면 카드 이름이 곧 영문이라 그대로 쓴다.
+  //
+  // 일본판은 카드 이름이 일본어라 그대로는 안 걸린다. 대신 **한글 카드 이름**을 넘긴다 —
+  // 검색을 보내는 쪽(searchEbayCards)이 이미 한글→영문 번역을 태우므로 "리자몽 EX"가
+  // "Charizard EX"가 된다. 포켓몬 이름만("Charizard") 넘기면 그 포켓몬 카드가 죄다
+  // 걸려 너무 넓다(운영자 지적 2026-08-06).
+  // 한글 이름이 없을 때만 종 영문 이름으로 물러선다.
+  return c.en || c.ko || c.speciesEn;
 }
+
+/**
+ * 검색창·안내에 적을 짧은 세트 이름. 한글 세트 이름에는 "프로모션 : XY 프로모"처럼
+ * 분류가 앞에 붙는 것이 있는데, 검색창은 좁아서 그대로 넣으면 카드 이름이 밀린다.
+ * 콜론 뒤만 쓴다.
+ */
+export const 짧은세트 = (setNameKo: string) => setNameKo.split(/\s*:\s*/).pop() ?? setNameKo;
+
+/** 검색창에 보일 한 줄. 마켓을 옮겨 다녀도 이 글자는 그대로 둔다. */
+export const 도감표시 = (c: 도감카드정보) =>
+  [c.ko, 짧은세트(c.setNameKo), c.num && `${c.num}번`].filter(Boolean).join(' · ');
 
 /** 지금 검색어가 이 카드를 가리키는지 판단할 때 쓰는, 마켓별 검색어 전부. */
 export function 도감검색어들(c: 도감카드정보): string[] {

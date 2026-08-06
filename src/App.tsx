@@ -6,7 +6,7 @@ import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type Popular
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_DAILY_LIMIT, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
-import { 도감검색어, 도감검색어들, 마켓순서, pptSetName, type 도감카드정보 } from './lib/pokedexRoute';
+import { 도감검색어, 도감검색어들, 도감표시, 마켓순서, pptSetName, 짧은세트, type 도감카드정보 } from './lib/pokedexRoute';
 import { 시트가스스로닫힘 } from './lib/sheetHistory';
 import { loadNameDict, warmNameDict } from './lib/nameDict';
 
@@ -260,7 +260,7 @@ function App() {
     const 다음 = 마켓칸ref.current + 1;
     if (다음 >= 순서.length) {
       set도감안내(
-        `${c.ko} ${c.setNameKo} ${c.num}번은 지금 어느 마켓에도 값이 없습니다. ` +
+        `${c.ko} · ${짧은세트(c.setNameKo)} ${c.num}번은 지금 어느 마켓에도 값이 없습니다. ` +
           `검색어는 그대로 두었으니 위 탭을 눌러 직접 확인해 보실 수 있습니다.`,
       );
       return false;
@@ -272,6 +272,18 @@ function App() {
     setQuery(도감검색어(c, m));
     return true;
   };
+
+  // 검색창에 **보일** 글자. 마켓마다 실제로 보내는 검색어가 다르다(스니커덩크는
+  // "XYP 276", PPT는 "Charizard"). 그걸 그대로 보여 주면 마켓을 옮길 때마다 글자가
+  // 바뀌고, 특히 PPT에서는 "그냥 리자몽을 찾고 있나?" 싶게 된다(운영자 지적
+  // 2026-08-06). 도감에서 온 카드를 쫓는 동안에는 한글 한 가지로 통일해 보여 준다.
+  //
+  // 상태를 따로 두지 않고 지금 검색어에서 끌어낸다 — 따로 두면 다른 데서 검색어를
+  // 바꿨을 때 옛 글자가 남는다.
+  const 보일검색어 = (() => {
+    const c = 도감카드(query);
+    return c ? 도감표시(c) : query;
+  })();
 
   // 스니커덩크 제목에서 그 한 장을 찾는 무늬. [SV6 050 /101] · [PMCG2 No.036] 둘 다 받는다.
   const 제목무늬 = (setCode: string, num: string) =>
@@ -864,7 +876,7 @@ function App() {
           //    막혀 있었고, TCGplayer에는 $0.12가 있었다).
           if (도감 && (!그카드 || !그카드.price)) {
             if (다음마켓으로(도감)) return;
-            if (!그카드) set도감안내(`${도감.ko} ${도감.setNameKo} ${도감.num}번은 이 마켓에 값이 없습니다.`);
+            if (!그카드) set도감안내(`${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에 값이 없습니다.`);
           }
 
           // 스캔한 "세트+번호"가 0건이면(코드는 읽었지만 매칭 실패) 이름으로 자동 재검색.
@@ -991,7 +1003,7 @@ function App() {
             if (다음마켓으로(도감)) return;
             // 더 갈 곳이 없거나 사람이 직접 고른 마켓이다. 앞서 뜬 안내를 그대로 두면
             // 결과가 없는데 "값을 보여 드립니다"가 남는다.
-            set도감안내(`${도감.ko} ${도감.setNameKo} ${도감.num}번은 이 마켓에 값이 없습니다.`);
+            set도감안내(`${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에 값이 없습니다.`);
           }
           // 세트로 좁혀도 그 세트에 같은 이름이 여러 장 있다(리자몽 ex가 4장). 번호로
           // 그 한 장을 맨 앞에 세우고 골라 둔다. 나머지는 지우지 않는다 — 번호 표기가
@@ -1014,7 +1026,7 @@ function App() {
             const 순서 = 마켓순서(도감.jp);
             set도감안내(
               !고를것
-                ? `${도감.setNameKo} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
+                ? `${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
                 : 자동이동ref.current && 칸 > 0
                   ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
                   : null,
@@ -1839,13 +1851,18 @@ function App() {
                     <SearchBar
                       source={source}
                       onSourceChange={switchSource}
-                      value={query}
+                      value={보일검색어}
                       onChange={(v) => {
                         setQuery(v);
                         // 직접 타이핑하면 방금 스캔 맥락은 끝난 것 — 신고 링크·백업을 거둔다.
                         setScannedResult(null);
                         scanFallbackRef.current = null;
                         setScanFellBack(false);
+                        // 손으로 고쳤으면 도감에서 쫓던 카드도 놓아준다. 안 그러면
+                        // 사람이 친 글자 대신 카드 이름이 계속 보인다.
+                        pokedexPickRef.current = null;
+                        자동이동ref.current = false;
+                        set도감안내(null);
                       }}
                       // ⚠️ 지우기(x)는 검색어만 비우는 게 아니라 **홈으로 되돌린다**
                       //    (운영자 지시 2026-08-05). 검색어만 비우면 골라 둔 카드·사진
