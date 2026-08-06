@@ -12,8 +12,17 @@
 
 // TCGdex는 베이스 주소라 /high.webp를 붙인다(low.webp는 245px라 320px 표시에서 뿌옇게
 // 확대돼, 600px high를 받아 프록시가 선명하게 축소한다). 다른 소스는 완성된 주소 그대로.
+// ⚠️ 화질 꼬리(/high.webp)는 **tcgdex 꼴 주소에만** 붙는다. scrydex는 주소 끝이
+//    이미 화질 표시라(".../me5-15/small"), 꼬리를 붙이면 400이 된다(2026-08-07 확인).
+//    지금 화면은 작가 표지에 thumb만 쓰고 있어 탈이 안 났지만, 누가 cardImg를 태우면
+//    그 자리부터 깨진다. 붙일 곳이 아닌 주소는 그대로 둔다.
+const 꼬리안붙임 = /images\.scrydex\.com/i;
 export const cardImg = (base: string) =>
-  !base ? '' : /\.(png|jpe?g|webp)(\?|$)/i.test(base) ? base : `${base}/high.webp`;
+  !base
+    ? ''
+    : /\.(png|jpe?g|webp)(\?|$)/i.test(base) || 꼬리안붙임.test(base)
+      ? base
+      : `${base}/high.webp`;
 
 // 썸네일은 원본(로고 127KB·박스 59KB)을 그대로 받으면 느리다. 무료 CDN(wsrv.nl)으로
 // 필요한 크기의 WebP로 줄여 받는다(~5KB). w는 표시의 2배(레티나).
