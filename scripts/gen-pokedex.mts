@@ -134,8 +134,13 @@ const 트레이너목록 = [...trainers.entries()].sort((a, b) => b[1].length - 
   // ⚠️ 보여줄 이름은 **띄어쓰기가 있는 쪽**을 고른다. 열쇠에서 띄어쓰기를 뺐더니
   //    "체육관배지"처럼 붙은 이름이 대표가 되는 일이 생겼다. 사람이 읽기엔 띄어 쓴
   //    쪽이 낫고, 붙여 쓴 것도 검색에 걸린다(찾을 때도 띄어쓰기를 무시하므로).
+  // ⚠️ 대소문자를 무시하고 묶기 시작한 뒤로는 대문자 쪽이 대표가 될 수 있다
+  //    ("해피너스 Ex"). ex·V·GX 같은 표기는 공식이 소문자라 그쪽이 맞다
+  //    (점검 중 발견 2026-08-06). 띄어쓰기가 많은 쪽 → 그중 대문자가 적은 쪽.
   const 이름들 = [...new Set(arr.map((c) => c.ko))]
-  const ko = 이름들.sort((a, b) => (b.match(/[\s·]/g)?.length ?? 0) - (a.match(/[\s·]/g)?.length ?? 0))[0]
+  const 띄 = (s: string) => (s.match(/[\s·]/g) ?? []).length
+  const 대 = (s: string) => (s.match(/[A-Z]/g) ?? []).length
+  const ko = 이름들.sort((a, b) => 띄(b) - 띄(a) || 대(a) - 대(b))[0]
   index.push({ id, ko, en, c: arr.length, t: 't' })
 })
 writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index))
