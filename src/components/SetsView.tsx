@@ -437,9 +437,18 @@ export function SetsView({
                         </div>
                         {/* 두 줄까지 보여준다. 한 줄로 자르면 "로켓단의 뮤츠 ex"처럼 접두사가
                             긴 카드가 폰에서 전부 "로켓단의…"로 나와 어느 카드인지 알 수 없다. */}
-                        <p className="mt-1.5 line-clamp-2 min-h-[2rem] text-[11px] font-bold leading-snug text-black">
-                          {nm}
-                        </p>
+                        {/* ⚠️ 번호는 아래 "수록 카드" 목록과 같은 방식으로 붙인다. 한 세트에
+                            같은 이름이 둘 이상인 카드가 전체의 34%다(샤이니트레저 ex는 330장).
+                            여기만 번호가 없으면 같은 화면에서 규칙이 갈려, 위에서 고른 카드가
+                            아래 목록의 어느 장인지 알 수 없다(2026-08-07 점검 중 발견). */}
+                        <div className="mt-1.5 flex items-start justify-between gap-1.5">
+                          <p className="line-clamp-2 min-h-[2rem] text-[11px] font-bold leading-snug text-black">
+                            {nm}
+                          </p>
+                          <span className="flex-shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-neutral-500">
+                            {c.n}
+                          </span>
+                        </div>
                         {(() => {
                           const usd = usdByNum.get(String(Number(c.n)));
                           if (!usd) return null;

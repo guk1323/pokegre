@@ -268,7 +268,12 @@ function App() {
       return false;
     }
     마켓칸ref.current = 다음;
+    const 앞 = 순서[마켓칸ref.current - 1];
     const m = 순서[다음];
+    // ⚠️ 옮긴 것을 말해 주지 않으면, 일본판 카드를 눌렀는데 스니커덩크가 아니라 이베이
+    //    화면이 떠 있는 꼴이 된다. 사용자는 왜 다른 마켓을 보고 있는지 알 수 없고,
+    //    그 마켓이 마침 조회에 실패하면 "카드가 없다"고 오해한다(2026-08-07 점검 중 발견).
+    set도감안내(`${앞.label}에는 거래 기록이 없어 ${m.label}에서 찾고 있습니다.`);
     setSource(m.source);
     setEdition(m.edition);
     setQuery(도감검색어(c, m));
