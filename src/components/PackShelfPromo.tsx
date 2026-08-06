@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { livePacks } from '../lib/packSets';
+import { livePacks, packBySlug } from '../lib/packSets';
 import { trackEvent } from '../api/localStats';
 import { useKrw } from './KrwHint';
 // ⚠️ cardCatalog가 아니라 cardImg에서 가져온다 — cardCatalog는 이름 사전을 통째로
@@ -84,7 +84,11 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
   }, []);
 
   if (!items.length) return null;
-  const packName = (slug: string) => livePacks().find((p) => p.slug === slug)?.label.replace(/^\[.+?\]\s*/, '') ?? '';
+  // ⚠️ 팩 이름은 **전체 목록(packBySlug)**에서 찾아야 한다. livePacks()는 오늘 진열된
+  //    6개뿐이라, 자정에 진열이 바뀌면 어제 뽑은 카드의 팩 이름이 빈칸이 됐다.
+  //    TOP 5는 "이번 주" 기록이라 대부분 오늘 진열에 없는 팩이다 — 실제로 5개 중 4개가
+  //    빈칸이었다(운영자 지적 2026-08-06). 뽑기 화면은 원래부터 packBySlug를 쓴다.
+  const packName = (slug: string) => packBySlug.get(slug)?.label.replace(/^\[.+?\]\s*/, '') ?? '';
 
   return (
     <section className="mt-3">
