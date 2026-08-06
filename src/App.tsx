@@ -1015,8 +1015,18 @@ function App() {
               .trim()
               .toUpperCase()
               .replace(/^0+(?=[0-9])/, '');
-          const 그카드 = 도감
-            ? cards.find((c) => c.cardNumber && 번호열쇠(c.cardNumber) === 번호열쇠(도감.num))
+          // ⚠️ 이름 비교에서 괄호를 지우면 안 된다. "히스이 미끄네일"과 "히스이 미끄네일
+          //    (Mirror Holofoil)"이 같은 이름이 되어 버린다. 괄호는 다른 인쇄를 가리키는
+          //    표시이므로 그대로 두고 정확히 맞춘다.
+          const 다듬 = (s: string) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+          // 같은 번호에 인쇄 변형이 여럿 있다(054/071이 일반 · Mirror Holofoil 두 장).
+          // 그냥 첫 장을 고르면 값이 높은 쪽이 걸려, 054를 눌렀는데 미러가 열린다
+          // (점검 중 발견 2026-08-06). 이름이 정확히 같은 것을 먼저 본다.
+          const 번호맞음 = 도감
+            ? cards.filter((c) => c.cardNumber && 번호열쇠(c.cardNumber) === 번호열쇠(도감.num))
+            : [];
+          const 그카드 = 번호맞음.length
+            ? (번호맞음.find((c) => 다듬(c.name) === 다듬(도감!.ko)) ?? 번호맞음[0])
             : undefined;
           // "그 카드가 아님이 확실한가". 돌아온 카드 전부에 번호가 붙어 있는데 그중
           // 우리 번호가 없으면 확실히 아니다.
@@ -1045,10 +1055,19 @@ function App() {
             if (그카드) {
               정렬됨 = [그카드, ...cards.filter((c) => c !== 그카드)];
               고를것 = 그카드.tcgPlayerId;
-            } else if (cards.length === 1 && pptSetName(도감) && !cards[0].cardNumber) {
-              // 세트로 좁혀 한 장 남았고 그 한 장에 번호조차 없다 — 그게 그 카드다.
-              // 번호가 붙어 있는데 다른 번호면 위 확실히아님에서 이미 걸러졌다.
-              고를것 = cards[0].tcgPlayerId;
+            } else if (pptSetName(도감) && cards.every((c) => !c.cardNumber)) {
+              // ⚠️ PPT 일본판은 번호 칸이 비어 있어 번호로 못 맞춘다. 그럴 땐 **이름이
+              //    정확히 같은 것**을 고른다. 그냥 첫 장을 열면 같은 카드의 다른 인쇄가
+              //    걸린다 — 히스이 미끄네일 054를 눌렀는데 "(Mirror Holofoil)"이 열렸다
+              //    (점검 중 발견 2026-08-06).
+              const 이름같음 = cards.filter((c) => 다듬(c.name) === 다듬(도감.ko));
+              // 딱 한 장일 때만 연다. 여럿이면 어느 것인지 알 수 없으므로 목록만 보여 준다.
+              if (이름같음.length === 1) {
+                정렬됨 = [이름같음[0], ...cards.filter((c) => c !== 이름같음[0])];
+                고를것 = 이름같음[0].tcgPlayerId;
+              } else if (cards.length === 1) {
+                고를것 = cards[0].tcgPlayerId;
+              }
             }
             // 왜 이 결과를 보고 있는지 한 줄로 밝힌다. 틀린 것보다 빈칸이 낫고,
             // 빈칸보다는 사실이 낫다.
@@ -1056,11 +1075,15 @@ function App() {
             const 순서 = 마켓순서(도감.jp);
             if (고를것) trackEvent('card_found', 순서[칸].label);
             set도감안내(
-              !고를것
-                ? `${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
-                : 자동이동ref.current && 칸 > 0
-                  ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
-                  : null,
+              // ⚠️ 보여 줄 카드가 하나도 없는데 "다른 카드를 보여 드립니다"라고 하면
+              //    거짓말이 된다(점검 중 발견 2026-08-06).
+              cards.length === 0
+                ? `${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에 값이 없습니다.`
+                : !고를것
+                  ? `${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
+                  : 자동이동ref.current && 칸 > 0
+                    ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
+                    : null,
             );
           }
           setEbayItems(정렬됨);
