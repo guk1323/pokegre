@@ -18,11 +18,11 @@ export function Footer() {
         권리 침해 신고는 guk132312@gmail.com 으로 보내 주시면 확인 후 조치하겠습니다.
       </p>
       <div className="mt-2 flex justify-center gap-3 text-xs text-neutral-400">
-        <button type="button" onClick={() => setOpen('terms')} className="hover:text-neutral-600 hover:underline">
+        <button type="button" onClick={() => setOpen('terms')} className="-my-2 py-2 hover:text-neutral-600 hover:underline">
           이용약관
         </button>
         <span aria-hidden="true">·</span>
-        <button type="button" onClick={() => setOpen('privacy')} className="hover:text-neutral-600 hover:underline">
+        <button type="button" onClick={() => setOpen('privacy')} className="-my-2 py-2 hover:text-neutral-600 hover:underline">
           개인정보처리방침
         </button>
       </div>

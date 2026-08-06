@@ -46,7 +46,9 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
             reportCardTitleMiss(card.name, card.nameEn, `https://www.tcgplayer.com/product/${card.tcgPlayerId}`);
             setTitleReported(true);
           }}
-          className="mb-4 text-[11px] text-neutral-400 underline hover:text-neutral-600"
+          // ⚠️ 글줄이 17px이라 누르기 어려웠다(운영자 지시 2026-08-06). 여백으로 40px까지
+            //    넓히되 -my로 되돌려 줄 간격은 그대로 둔다.
+            className="-my-3 mb-1 py-3 text-[11px] text-neutral-400 underline hover:text-neutral-600"
         >
           카드 이름이 이상한가요?
         </button>

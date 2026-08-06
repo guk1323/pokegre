@@ -1291,7 +1291,7 @@ function App() {
               type="button"
               onClick={loadMore}
               disabled={loadingMore}
-              className="mt-4 w-full rounded-lg border border-neutral-300 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+              className="mt-4 w-full rounded-lg border border-neutral-300 py-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
             >
               {loadingMore ? '더 많은 페이지를 훑는 중...' : '결과 더 보기'}
             </button>
@@ -1377,7 +1377,7 @@ function App() {
               type="button"
               onClick={loadMoreEbay}
               disabled={ebayLoadingMore}
-              className="mt-4 w-full rounded-lg border border-neutral-300 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+              className="mt-4 w-full rounded-lg border border-neutral-300 py-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
             >
               {ebayLoadingMore ? '더 불러오는 중...' : '결과 더 보기'}
             </button>

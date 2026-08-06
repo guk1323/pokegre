@@ -131,7 +131,8 @@ export function PriceChart({
             <select
               value={condition}
               onChange={(e) => onConditionChange(e.target.value)}
-              className="appearance-none rounded-full border border-neutral-200 bg-white py-1 pl-3 pr-7 text-xs font-semibold text-neutral-700 focus:border-black focus:outline-none"
+              // ⚠️ 폰에서 26px이라 누르기 어려웠다(운영자 지시 2026-08-06). 36px로 키운다.
+              className="appearance-none rounded-full border border-neutral-200 bg-white py-[0.8rem] pl-3.5 pr-7 text-xs font-semibold text-neutral-700 focus:border-black focus:outline-none"
             >
               {conditions.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -259,7 +260,10 @@ export function PriceChart({
               key={r.key}
               type="button"
               onClick={() => onRangeChange(r.key)}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+              // ⚠️ 폰에서 21px밖에 안 돼 손가락으로 누르기 어려웠다(운영자 지시
+              //    2026-08-06). 위아래 여백을 늘려 36px로 키운다. 알약이 조금 굵어지지만
+              //    글자 크기는 그대로라 줄이 밀리지 않는다.
+              className={`rounded-full px-3 py-[0.85rem] text-[11px] font-semibold ${
                 range === r.key ? 'bg-black text-white' : 'text-neutral-500 hover:text-black'
               }`}
             >

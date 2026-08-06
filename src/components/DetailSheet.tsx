@@ -114,7 +114,10 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
             지나가 가려진다. 손잡이가 늘 맨 앞에 있어야 한다.
             아래 옅은 경계선은 스크롤된 콘텐츠와 손잡이 영역을 구분해준다. */}
         <div className="sticky top-0 z-10 -mx-4 flex items-center justify-center border-b border-neutral-100 bg-white py-3">
-          <button type="button" aria-label="닫기" onClick={onClose} className="px-10 py-1">
+          {/* ⚠️ 누를 자리를 py-1(14px)에서 py-4(44px)로 넓혔다. 보이는 회색 막대는
+              그대로다 — 시트를 닫는 유일한 손잡이인데 손가락으로 놓치기 쉬웠다
+              (운영자 지시 2026-08-06). 바깥 div의 py-3은 그대로라 시트 높이는 안 변한다. */}
+          <button type="button" aria-label="닫기" onClick={onClose} className="-my-3 px-10 py-[1.15rem]">
             <span className="block h-1.5 w-12 rounded-full bg-neutral-300" />
           </button>
         </div>

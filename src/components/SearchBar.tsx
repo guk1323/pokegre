@@ -61,7 +61,9 @@ export function SearchBar({
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setOpen((v) => !v)}
             aria-label={`검색할 마켓: ${SOURCE_LABEL[source]}`}
-            className="flex items-center gap-1 rounded-lg bg-neutral-900 py-1.5 pl-2.5 pr-2 text-xs font-bold text-white"
+            // ⚠️ 폰에서 누를 자리를 44px로 넓힌다(28px이었다). 보이는 알약은 그대로 두고
+            //    before로 투명한 여백만 두른다 — 검은 알약을 키우면 검색창을 덮는다.
+            className="relative flex items-center gap-1 rounded-lg bg-neutral-900 py-1.5 pl-2.5 pr-2 text-xs font-bold text-white before:absolute before:-inset-y-2 before:-inset-x-1.5 before:content-['']"
           >
             {SOURCE_LABEL[source]}
             <span className="text-[10px] opacity-60">▾</span>
@@ -138,7 +140,10 @@ export function SearchBar({
           aria-label="검색어 지우기"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => (onClear ? onClear() : onChange(''))}
-          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+          // ⚠️ 보이는 동그라미는 24px 그대로 두고, 누를 자리만 44px로 넓힌다(before는
+          //    투명하다). 동그라미 자체를 키우면 검색창 안에서 회색 원이 커 보인다.
+          //    자주 쓰는 버튼인데 24px은 손가락으로 놓치기 쉽다(운영자 지시 2026-08-06).
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 before:absolute before:-inset-2.5 before:content-['']"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
