@@ -3815,6 +3815,29 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
 // 명확히 표기한다(북미판=체결가와 혼동 금지). 키(App/Cert)는 서버에서만, 클라이언트엔 안 내림.
 const EBAY_OAUTH_URL = 'https://api.ebay.com/identity/v1/oauth2/token'
 const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
+
+// 한글판 매물에서 "카드가 아닌 물건"을 제목으로 걸러낸다.
+//
+// ⚠️ 이미 category_ids=183454(낱장 카드)로 받는데도 새어 나온다 — 파는 사람이 아무
+//    분류에나 올리기 때문이다. 실제로 지하철 QR 티켓 세트·보드게임·스티커가 섞여
+//    나왔다(운영자 지적 2026-08-06, 106건 중 5건).
+// ⚠️ 목록을 넓히면 **진짜 카드가 빠진다** — 그게 더 나쁘다. 그래서 넣기 전에 북미판
+//    카드 이름 23,444개에 그 낱말이 실제로 나오는지 세어 보고 정했다. 아래 여덟 개는
+//    세어 보고 **뺀** 것들이다(괄호는 걸리던 진짜 카드):
+//      sticker(Energy Sticker) · ticket(Reserved Ticket) · towel(Team Yell Towel)
+//      doll(Clefairy Doll) · cap(Patrol Cap) · hat(Pikachu with Grey Felt Hat)
+//      puzzle(Puzzle of Time) · backpack(Nemona's Backpack)
+//    sleeve·coin·bag·pin도 뺐다 — "in sleeve"처럼 진짜 카드의 포장 설명으로 쓰인다.
+//    ⚠️ 여기에 낱말을 더할 때는 반드시 위와 같이 카드 이름 전체를 세어 보고 넣을 것.
+//    낱말 경계(\b)로 맞춰 capture 안의 cap 같은 오검출을 막는다.
+//    복수형(stickers·tickets)은 카드 이름에 안 나오고 굿즈 제목에는 흔해서 남긴다.
+//    plate(Mystery Plate)·pouch(Energy Pouch)도 같은 이유로 뺐다.
+// ⚠️ "anniversary"·"limited edition"·"sealed"는 카드 **이름**에는 없지만 진짜 카드
+//    **매물 제목**에는 흔하다(예: "Celebrations 25th Anniversary Charizard").
+//    대조할 때 카드 이름만 보고 넣으면 이런 걸 놓친다 — 매물 제목까지 생각할 것.
+// sticker는 진짜 카드가 딱 하나(Energy Sticker)라, 그것만 빼고 잡는다.
+const NOT_A_CARD =
+  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|festa|goods|merch)\b/i
 const EBAY_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6시간(호가는 자주 안 변함 + 무료 콜 아낌)
 const EBAY_MAX_ENTRIES = 2000
 
@@ -3903,7 +3926,10 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
           condition: it.condition ?? '',
         }))
         .filter((x) => x.price != null && x.price > 0)
-      const body = JSON.stringify({ total: j.total ?? items.length, items })
+        .filter((x) => !NOT_A_CARD.test(x.title))
+      // ⚠️ total도 거른 뒤의 개수로 보낸다. 이베이가 준 total을 그대로 쓰면
+      //    "매물 34건"이라 적어 놓고 30건만 보여주게 된다.
+      const body = JSON.stringify({ total: items.length, items })
       cache.set(cacheKey, body)
       res.statusCode = 200
       res.setHeader('content-type', 'application/json')
