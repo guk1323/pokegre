@@ -33,6 +33,8 @@ interface PokeCard {
 interface SetMeta {
   slug: string;
   ed: 'ja' | 'en';
+  /** 세트코드(M6·sv08 등). 스니커덩크는 "세트코드 번호"로 찾는 게 가장 정확하다. */
+  id: string;
   name: string;
   releaseDate?: string;
   serie?: string;
@@ -41,7 +43,16 @@ interface SetMeta {
 // 한 번에 보여줄 포켓몬 수. 1,025종을 통째로 펴면 폰에서 끝없이 스크롤된다.
 const 한번에 = 60;
 
-export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void }) {
+export function PokedexView({
+  onPickCard,
+}: {
+  /**
+   * 카드 한 장을 눌렀을 때. 이름만 넘기면 "개굴닌자"로 72장이 다 나온다.
+   * 세트코드·번호·판을 같이 넘겨 그 한 장으로 좁힌다 — 사진 스캔이 쓰는 규칙과 같다
+   * (운영자 지시 2026-08-06).
+   */
+  onPickCard: (card: { ko: string; en: string; setCode: string; num: string; jp: boolean }) => void;
+}) {
   const [index, setIndex] = useState<PokeIndex[] | null>(null);
   const [sets, setSets] = useState<Map<string, SetMeta> | null>(null);
   const [q, setQ] = useState('');
@@ -171,7 +182,17 @@ export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void
                   key={`${c.s}-${c.n}-${i}`}
                   type="button"
                   // 카드를 누르면 그 이름으로 시세를 검색한다(세트 화면과 같은 동작).
-                  onClick={() => onPickCard(이름)}
+                  onClick={() =>
+                    onPickCard({
+                      ko: 이름,
+                      // 북미판 카드는 원문이 곧 영어 이름이다. 일본판이면 영어 이름이
+                      // 없으니 빈 값 — 부르는 쪽이 이름 대신 세트코드로 찾는다.
+                      en: meta?.ed === 'en' ? c.name : '',
+                      setCode: meta?.id ?? '',
+                      num: c.n,
+                      jp: meta?.ed !== 'en',
+                    })
+                  }
                   className="text-left"
                 >
                   {cat && cat.usable(c.img) ? (

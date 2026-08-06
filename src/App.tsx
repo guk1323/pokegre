@@ -1601,10 +1601,35 @@ function App() {
             <ArtistsView
               onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
             />
-          ) : view === 'pokedex' ? (
-            <PokedexView
-              onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
-            />
+            ) : view === 'pokedex' ? (
+              <PokedexView
+                // ⚠️ 이름만 넘기면 "개굴닌자"로 72장이 다 나온다. 사진 스캔이 쓰는 규칙을
+                //    그대로 쓴다 — 스니커덩크는 "세트코드 번호"(언어와 무관하고 한 장으로
+                //    좁혀진다), 이베이는 영어 색인이라 "영어 이름 번호"가 필요하다.
+                //    북미판 카드는 스니커덩크에 거의 없으므로 이베이로 보낸다.
+                onPickCard={(c) => {
+                  const 이베이 = !c.jp;
+                  // ⚠️ 스니커덩크는 "세트코드 번호"가 그 한 장으로 정확히 좁혀진다
+                  //    (M6 113 → 메가레쿠쟈 ex MUR 한 건). 반면 **이베이는 번호를 붙이면
+                  //    오히려 0건**이다 — 파는 사람이 제목에 번호를 안 적는 경우가 많다
+                  //    (실측 2026-08-06: "Eevee 166" 0건, "Eevee" 11건).
+                  //    그래서 북미판은 영어 이름만 넘긴다.
+                  const q = 이베이 ? c.en || c.ko : [c.setCode, c.num].filter(Boolean).join(' ') || c.ko;
+                  // ⚠️ 옛 일본판 세트 25개는 스니커덩크가 세트코드를 다르게 적는다
+                  //    (우리 XYP ↔ 저쪽 XY-P 등). 코드를 하나하나 맞추려 들면 끝이 없고
+                  //    틀리면 0건이 된다. 대신 사진 스캔이 쓰는 장치를 그대로 쓴다 —
+                  //    "번호로 0건이면 이름으로 다시 찾는다"(scanFallbackRef).
+                  scanFallbackRef.current = q !== c.ko ? c.ko : null;
+                  scanQueriesRef.current = null;
+                  setScanFellBack(false);
+                  navigate({
+                    view: 'cards',
+                    source: 이베이 ? 'ebay' : 'snkrdunk',
+                    edition: 이베이 ? 'english' : 'japanese',
+                    query: q,
+                  });
+                }}
+              />
           ) : view === 'mypage' ? (
             <DetailLayout
               main={myPageMain}
