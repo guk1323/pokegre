@@ -108,17 +108,21 @@ export function PokedexView({ onPickCard }: { onPickCard: (name: string) => void
     }
   }
 
+  // ⚠️ 찾을 때는 띄어쓰기를 무시한다. "박사의연구"라고 붙여 쳐도 "박사의 연구"가
+  //    나와야 한다 — 카드 이름의 띄어쓰기를 외우고 있는 사람은 없다.
+  const 붙임 = (s: string) => s.toLowerCase().replace(/[\s·]/g, '');
   const 찾은것 = useMemo(() => {
     if (!index) return [];
-    const s = q.trim().toLowerCase();
+    const s = 붙임(q);
     if (!s) return index;
-    const hit = index.filter((p) => p.ko.toLowerCase().includes(s) || p.en.toLowerCase().includes(s));
+    const hit = index.filter((p) => 붙임(p.ko).includes(s) || 붙임(p.en).includes(s));
     // ⚠️ 이름이 정확히 맞는 것을 맨 위로. "피카츄"를 치면 "피카츄"가 "캡틴피카츄"보다
     //    먼저 나와야 한다. 그다음은 이름이 그 말로 시작하는 것, 그다음 장수 많은 순.
     return hit.sort((a, b) => {
-      const 점수 = (p: PokeIndex) => (p.ko.toLowerCase() === s ? 0 : p.ko.toLowerCase().startsWith(s) ? 1 : 2);
+      const 점수 = (p: PokeIndex) => (붙임(p.ko) === s ? 0 : 붙임(p.ko).startsWith(s) ? 1 : 2);
       return 점수(a) - 점수(b) || b.c - a.c;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, q]);
 
   // 탭 제목도 지금 보는 포켓몬으로.

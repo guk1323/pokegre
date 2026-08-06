@@ -55,7 +55,7 @@ const buckets = new Map<number, (Entry & { date: string })[]>()
 // ⚠️ 그래서 여기만은 번역을 거친다. 포켓몬 쪽은 원문으로 맞추는 것과 반대인데,
 //    이유가 다르다 — 포켓몬은 대조표가 있어 원문이 더 정확하고, 트레이너는 판을
 //    묶어 줄 열쇠가 한글 이름밖에 없다.
-const trainers = new Map<string, (Entry & { date: string })[]>()
+const trainers = new Map<string, (Entry & { date: string; ko: string })[]>()
 const koCardName = (ed: 'ja' | 'en', n: string) =>
   ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
 
@@ -79,9 +79,13 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
       // 포켓몬이 아니면 트레이너·에너지다. 한글 이름으로 묶는다.
       const ko = koCardName(d.ed, nm)
       if (!ko) continue
-      const arr = trainers.get(ko) ?? []
-      arr.push(한장)
-      trainers.set(ko, arr)
+      // ⚠️ 띄어쓰기·가운뎃점만 다른 것은 같은 카드다. 그대로 두면 "체육관배지 16장"과
+      //    "체육관 배지 8장"이 따로 서 있어, 찾는 사람은 둘 다 눌러 봐야 한다
+      //    (운영자 지적 2026-08-06). 묶는 열쇠에서만 빼고, 보여줄 이름은 그대로 쓴다.
+      const key = ko.replace(/[\s·]/g, '')
+      const arr = trainers.get(key) ?? []
+      arr.push({ ...한장, ko })
+      trainers.set(key, arr)
     }
   }
 }
@@ -104,10 +108,15 @@ const index: Row[] = list
 //    포켓몬이 늘어도(새 세대) 10000까지는 한참 남는다.
 const TRAINER_ID_BASE = 10000
 const 트레이너목록 = [...trainers.entries()].sort((a, b) => b[1].length - a[1].length)
-트레이너목록.forEach(([ko, arr], i) => {
+트레이너목록.forEach(([, arr], i) => {
   const id = TRAINER_ID_BASE + i
   // 영어 이름은 북미판 카드가 있으면 그 원문을 쓴다(검색을 영어로도 되게).
   const en = arr.find((c) => !c.s.startsWith('ja-'))?.name ?? ''
+  // ⚠️ 보여줄 이름은 **띄어쓰기가 있는 쪽**을 고른다. 열쇠에서 띄어쓰기를 뺐더니
+  //    "체육관배지"처럼 붙은 이름이 대표가 되는 일이 생겼다. 사람이 읽기엔 띄어 쓴
+  //    쪽이 낫고, 붙여 쓴 것도 검색에 걸린다(찾을 때도 띄어쓰기를 무시하므로).
+  const 이름들 = [...new Set(arr.map((c) => c.ko))]
+  const ko = 이름들.sort((a, b) => (b.match(/[\s·]/g)?.length ?? 0) - (a.match(/[\s·]/g)?.length ?? 0))[0]
   index.push({ id, ko, en, c: arr.length, t: 't' })
 })
 writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index))
