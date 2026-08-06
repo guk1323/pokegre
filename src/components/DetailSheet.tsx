@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { 시트가스스로닫힘 } from '../lib/sheetHistory';
 
 // 좁은 화면(폰)에서 상세를 아래에서 올라오는 시트로 덮어 보여준다. 큰 화면은 오른쪽
 // 2단이 자연스럽지만, 폰에서 상세가 목록 맨 아래에 붙으면 눌러도 화면이 안 바뀌어
@@ -80,7 +81,13 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
       window.removeEventListener('popstate', onPop);
       window.removeEventListener('keydown', onKey);
       // 우리가 쌓은 history 항목을 정리한다. 이미 뒤로가기로 닫혔으면 건너뛴다.
-      if (window.history.state?.sheet) window.history.back();
+      // ⚠️ 이 back()으로 돌아가는 칸에는 **시트를 열기 전** 화면 상태가 적혀 있다.
+      //    그대로 두면 App이 그걸 복원해, 시트가 열려 있는 동안 바뀐 것(마켓·검색어)이
+      //    통째로 되돌아간다. 표식을 세워 그 복원만 건너뛰게 한다(lib/sheetHistory.ts).
+      if (window.history.state?.sheet) {
+        시트가스스로닫힘.on = true;
+        window.history.back();
+      }
     };
   }, [open]);
 

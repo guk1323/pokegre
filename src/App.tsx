@@ -7,6 +7,7 @@ import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
 import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_DAILY_LIMIT, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
 import { 도감검색어, 도감검색어들, 마켓순서, pptSetName, type 도감카드정보 } from './lib/pokedexRoute';
+import { 시트가스스로닫힘 } from './lib/sheetHistory';
 import { loadNameDict, warmNameDict } from './lib/nameDict';
 
 import {
@@ -654,6 +655,12 @@ function App() {
         }
       } | null;
       if (st?.sheet) return;
+      // 시트가 스스로 닫히며 부른 back()이다. 이 칸에 적힌 화면 상태는 시트를 열기 전
+      // 것이라, 복원하면 그 사이 바뀐 마켓·검색어가 되돌아간다(lib/sheetHistory.ts).
+      if (시트가스스로닫힘.on) {
+        시트가스스로닫힘.on = false;
+        return;
+      }
       const nav = st?.nav;
       if (!nav) return;
       setView(nav.view);
@@ -857,6 +864,7 @@ function App() {
           //    막혀 있었고, TCGplayer에는 $0.12가 있었다).
           if (도감 && (!그카드 || !그카드.price)) {
             if (다음마켓으로(도감)) return;
+            if (!그카드) set도감안내(`${도감.ko} ${도감.setName} ${도감.num}번은 이 마켓에 없습니다.`);
           }
 
           // 스캔한 "세트+번호"가 0건이면(코드는 읽었지만 매칭 실패) 이름으로 자동 재검색.
@@ -873,10 +881,14 @@ function App() {
             return;
           }
           if (도감 && 그카드) {
-            // 첫 마켓에서 바로 찾았으면 굳이 설명하지 않는다.
+            // 첫 마켓에서 바로 찾았거나 사람이 직접 고른 마켓이면 굳이 설명하지 않는다.
             const 칸 = 마켓칸ref.current;
             const 순서 = 마켓순서(도감.jp);
-            set도감안내(칸 > 0 ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.` : null);
+            set도감안내(
+              자동이동ref.current && 칸 > 0
+                ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
+                : null,
+            );
           }
           const 정렬됨 = 그카드 ? [그카드, ...items.filter((c) => c !== 그카드)] : items;
           setItems(정렬됨);
@@ -963,6 +975,9 @@ function App() {
           // 이 마켓에 그 카드가 없으면 다음 마켓으로 넘긴다. 검색어는 안 바꾼다.
           if (도감 && cards.length === 0) {
             if (다음마켓으로(도감)) return;
+            // 더 갈 곳이 없거나 사람이 직접 고른 마켓이다. 앞서 뜬 안내를 그대로 두면
+            // 결과가 없는데 "값을 보여 드립니다"가 남는다.
+            set도감안내(`${도감.ko} ${도감.setName} ${도감.num}번은 이 마켓에 없습니다.`);
           }
           // 세트로 좁혀도 그 세트에 같은 이름이 여러 장 있다(리자몽 ex가 4장). 번호로
           // 그 한 장을 맨 앞에 세우고 골라 둔다. 나머지는 지우지 않는다 — 번호 표기가
@@ -976,18 +991,22 @@ function App() {
             if (hit) {
               정렬됨 = [hit, ...cards.filter((c) => c !== hit)];
               고를것 = hit.tcgPlayerId;
-            } else if (cards.length === 1) {
+            } else if (cards.length === 1 && pptSetName(도감)) {
               // ⚠️ PPT 일본판은 카드번호 칸이 비어 있어 번호로 못 맞춘다(실측). 세트로
-              //    좁혀 한 장만 남았으면 그게 그 카드다 — 그냥 연다.
+              //    좁혀 한 장만 남았으면 그게 그 카드다 — 그냥 연다. 세트로 못 좁혔으면
+              //    한 장이어도 그 카드라고 단정하지 않는다.
               고를것 = cards[0].tcgPlayerId;
             }
-            // 첫 마켓이 아니었다면 왜 여기로 왔는지 알려 준다.
+            // 왜 이 결과를 보고 있는지 한 줄로 밝힌다. 틀린 것보다 빈칸이 낫고,
+            // 빈칸보다는 사실이 낫다.
             const 칸 = 마켓칸ref.current;
             const 순서 = 마켓순서(도감.jp);
             set도감안내(
-              칸 > 0
-                ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
-                : null,
+              !고를것
+                ? `${도감.setName} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
+                : 자동이동ref.current && 칸 > 0
+                  ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
+                  : null,
             );
           }
           setEbayItems(정렬됨);

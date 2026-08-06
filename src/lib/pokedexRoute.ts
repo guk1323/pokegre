@@ -76,5 +76,11 @@ export function 도감검색어들(c: 도감카드정보): string[] {
  * (ja-PMCG1 → "Expansion Pack", en-sv03 → "SV03: Obsidian Flames").
  * 대응표에 없으면 우리 이름을 그대로 써 본다 — 맞을 때도 있다.
  */
-export const pptSetName = (c: 도감카드정보): string =>
-  (pptSetNames as Record<string, string>)[c.slug] || c.setName || '';
+export const pptSetName = (c: 도감카드정보): string => {
+  const 아는이름 = (pptSetNames as Record<string, string>)[c.slug];
+  if (아는이름) return 아는이름;
+  // ⚠️ 대응표에 없으면 우리 이름을 써 보되, **한글이 섞였으면 보내지 않는다**.
+  //    일본판 세트 이름은 우리 쪽이 이미 한글이라("스톰에메랄드") 그대로 보내면
+  //    PPT가 못 알아듣고 0건이 된다. 세트 조건 없이 이름으로만 찾는 편이 낫다.
+  return /[가-힣]/.test(c.setName) ? '' : c.setName || '';
+};
