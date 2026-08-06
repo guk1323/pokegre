@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../api/localStats';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 import { koSetName } from '../lib/setNameKo';
+import type { 도감카드정보 } from '../lib/pokedexRoute';
+import { loadSetIndex, type SetIndexEntry } from '../lib/cardCatalog';
 import { useSubScreen } from '../lib/useSubScreen';
 // 표지 주소가 죽은 작가가 있어 카드 뒷면으로 대체한다(세트 화면과 같은 그림).
 import { CARD_BACK } from '../lib/cardCatalog';
@@ -25,6 +27,9 @@ interface ArtistCard {
   number: string;
   set: string;
   img: string;
+  /** 세트 슬러그(en-swsh11 등). scripts/fill-artist-slugs.mts가 채운다.
+   *  이게 있어야 카드를 눌러 **그 한 장**의 시세로 갈 수 있다(없으면 이름으로만 찾는다). */
+  s?: string;
 }
 
 interface ArtistFile {
@@ -136,7 +141,20 @@ function SearchInput({
   );
 }
 
-export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void }) {
+export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정보) => void }) {
+  // 슬러그 → 세트(코드·이름). 카드를 눌렀을 때 그 한 장으로 좁히는 데 쓴다.
+  // 세트 목록은 다른 화면도 쓰는 것이라 한 번 받아 두면 캐시된다.
+  const [setBySlug, setSetBySlug] = useState<Map<string, SetIndexEntry> | null>(null);
+  useEffect(() => {
+    let 살아있음 = true;
+    loadSetIndex()
+      .then((list) => 살아있음 && setSetBySlug(new Map(list.map((s) => [s.slug, s]))))
+      // 못 받아도 화면은 그대로 돈다 — 카드를 누르면 이름으로만 찾는다.
+      .catch(() => {});
+    return () => {
+      살아있음 = false;
+    };
+  }, []);
   const [index, setIndex] = useState<ArtistIndexEntry[] | null>(null);
   // 못 불러온 것과 "정말 비어 있는 것"은 다르다. 예전에는 실패해도 빈 목록으로 두어
   // "작가 데이터를 준비 중입니다"가 떴다 — 데이터는 다 있는데 못 받은 것이라 사실이 아니다.
@@ -322,11 +340,26 @@ export function ArtistsView({ onPickCard }: { onPickCard: (name: string) => void
                 // 변환기로 한글화한다. 포켓몬 이름은 한글로, 변환기에 없는 인물·트레이너
                 // 카드는 영문 그대로 남는다.
                 const koName = koreanizeEnglishCardName(c.name);
+                // 작가 데이터는 전부 북미판이다(pokemontcg.io 기준). 세트 슬러그가 있으면
+                // 세트·번호까지 넘겨 그 한 장으로 좁힌다. 없으면(22장) 이름만 넘긴다.
+                const meta = c.s ? setBySlug?.get(c.s) : undefined;
+                const 한장: 도감카드정보 = {
+                  ko: koName,
+                  en: c.name,
+                  raw: c.name,
+                  speciesEn: '',
+                  slug: c.s ?? '',
+                  setCode: meta?.id ?? '',
+                  setName: meta?.name ?? c.set,
+                  setNameKo: koSetName(meta?.name ?? c.set),
+                  num: meta ? c.number : '',
+                  jp: false,
+                };
                 return (
                   <button
                     key={`${c.name}-${c.number}-${i}`}
                     type="button"
-                    onClick={() => onPickCard(koName)}
+                    onClick={() => onPickCard(한장)}
                     className="text-left"
                   >
                     <div className="aspect-[5/7] overflow-hidden rounded-lg bg-neutral-100">

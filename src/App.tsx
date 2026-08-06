@@ -1814,9 +1814,7 @@ function App() {
           ) : view === 'centering' ? (
             <CenteringTool onSearchByPhoto={searchByPhoto} />
           ) : view === 'artists' ? (
-            <ArtistsView
-              onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
-            />
+            <ArtistsView onPickCard={카드로가기} />
             ) : view === 'pokedex' ? (
               // ⚠️ 이름만 넘기면 "개굴닌자"로 72장이 다 나온다. 세트·번호·판까지 넘겨
               //    그 한 장을 찾는다(카드로가기 → lib/pokedexRoute.ts).
