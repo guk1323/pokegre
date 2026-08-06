@@ -237,8 +237,23 @@ function App() {
   // q를 같이 들고 있는 이유: 사람이 검색어를 손으로 바꾸면 이 세트 조건이 저절로
   // 풀려야 한다. 한 번 쓰고 지워 버리면 "더 보기"가 조건 없이 이어받아 엉뚱한
   // 세트가 뒤에 붙는다.
-  const pokedexPickRef = useRef<{ q: string; setName: string; num: string } | null>(null);
-  const 도감세트 = (q: string) => (pokedexPickRef.current?.q === q ? pokedexPickRef.current : null);
+  const pokedexPickRef = useRef<{
+    q: string
+    /** 세트코드(M6·SV6 등). 스니커덩크 제목의 [코드 번호/…]와 맞춘다. */
+    setCode: string
+    /** 세트 이름(영문). 이베이는 이걸 setName 파라미터로 보낸다. */
+    setName: string
+    num: string
+    jp: boolean
+  } | null>(null);
+  const 도감카드 = (q: string) => (pokedexPickRef.current?.q === q ? pokedexPickRef.current : null);
+  const 도감세트 = (q: string) => {
+    const p = 도감카드(q);
+    return p && !p.jp ? p : null;
+  };
+  // 스니커덩크 제목에서 그 한 장을 찾는 무늬. [SV6 050 /101] · [PMCG2 No.036] 둘 다 받는다.
+  const 제목무늬 = (setCode: string, num: string) =>
+    new RegExp(`\\[${setCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[- ](?:No\\.)?0*${num.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[/\\]]|\\s)`, 'i');
   // 사진으로 찾은 카드는 소스마다 검색어가 다르다. 스니커덩크는 일본판 카탈로그라
   // "세트코드 번호"(M4 086/083)로 찾는 게 정확하고, 이베이·TCGplayer는 영문 이름이
   // 있어야 걸린다(Charizard ex 086/083). 탭만 바꿨을 때 갈아 끼우려고 둘 다 들고 있는다.
@@ -250,9 +265,11 @@ function App() {
   const scanQueriesRef = useRef<{ snkrdunk: string; ebay: string } | null>(savedNav().scanQueries ?? null);
   // 백업(이름) 재검색이 실제로 일어났음을 알리는 안내.
   const [scanFellBack, setScanFellBack] = useState(false);
-  // 도감에서 온 카드의 세트에 낙찰 기록이 아예 없어, 세트 조건을 풀고 이름으로 다시
-  // 찾은 경우. 안 알려 주면 "옵시디언 플레임즈 이브이"를 눌렀는데 엉뚱한 세트 카드가
-  // 나온 것처럼 보인다.
+  // 도감에서 온 카드를 그 세트에서 못 찾아(낙찰 기록이 없거나 PPT가 그 세트 이름을
+  // 모르거나) 조건을 풀고 이름으로 다시 찾은 경우. 안 알려 주면 "옵시디언 플레임즈
+  // 이브이"를 눌렀는데 엉뚱한 세트 카드가 나온 것처럼 보인다.
+  // ⚠️ 북미판은 이게 드문 일이 아니다 — 이베이 등급 낙찰이 있는 카드만 시세가 잡혀서,
+  //    흔한 카드·최신 세트는 대부분 여기로 온다(실측 14장 중 11장, 2026-08-06).
   const [세트낙찰없음, set세트낙찰없음] = useState(false);
   // 번호 대신 일러스트레이터로 찾아낸 경우 그 사실을 알려 준다(후보가 여럿이면 몇 개인지).
   const [scanFoundByArtist, setScanFoundByArtist] = useState(0);
@@ -775,9 +792,20 @@ function App() {
       setError(null);
       fetchMoreUniqueCards(trimmed, 1, new Set(), INITIAL_TARGET, undefined, ac.signal)
         .then(({ items, lastPage, exhausted }) => {
+          // 도감에서 눌러 온 일본판 카드는 "세트코드 번호"로 찾았지만, 스니커덩크 검색은
+          // 코드를 부분일치로 본다 — "SV6 050"에 SV6a 050이, "SV8 068"에 SV8a 068이
+          // 딸려 와 엉뚱한 카드가 맨 앞에 선다(실측 2026-08-06, 40장 중 5장).
+          // 그래서 결과 제목의 [코드 번호/…]로 그 한 장을 직접 골라낸다.
+          const 도감 = 도감카드(trimmed);
+          const 무늬 = 도감?.jp && 도감.setCode ? 제목무늬(도감.setCode, 도감.num) : null;
+          const 그카드 = 무늬 ? items.find((c) => 무늬.test(c.rawTitle ?? c.title)) : undefined;
+          // 결과는 왔는데 그 카드가 없으면(스니커덩크에 없거나 표기가 다른 세트) 남의
+          // 카드를 보여 주느니 이름으로 되돌린다 — 적어도 찾던 포켓몬은 나온다.
+          const 못찾음 = Boolean(무늬) && !그카드;
+
           // 스캔한 "세트+번호"가 0건이면(코드는 읽었지만 매칭 실패) 이름으로 자동 재검색.
           const fb = scanFallbackRef.current;
-          if (items.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
+          if ((items.length === 0 || 못찾음) && fb && fb.trim() && fb.trim() !== trimmed) {
             scanFallbackRef.current = null;
             setScanFellBack(true);
             // ⚠️ 대체한 검색어를 그 소스 자리에 다시 적어 둔다. 안 그러면 아래
@@ -788,8 +816,9 @@ function App() {
             setQuery(fb);
             return;
           }
-          setItems(items);
-          searchResultRef.current = { query: trimmed, count: items.length, source: 'snkrdunk' };
+          const 정렬됨 = 그카드 ? [그카드, ...items.filter((c) => c !== 그카드)] : items;
+          setItems(정렬됨);
+          searchResultRef.current = { query: trimmed, count: 정렬됨.length, source: 'snkrdunk' };
           setResultTick((n) => n + 1);
           setLastPage(lastPage);
           setExhausted(exhausted);
@@ -797,7 +826,13 @@ function App() {
           // 카드를 자동 선택한다. 폰에서는 null로 둬서 사용자가 누를 때까지 시트를
           // 안 띄운다.
           setSelectedId((prev) =>
-            items.some((c) => c.apparelId === prev) ? prev : isWideScreen() ? (items[0]?.apparelId ?? null) : null,
+            // 도감에서 그 한 장을 눌러 왔으면 폰에서도 바로 연다.
+            그카드?.apparelId ??
+            (정렬됨.some((c) => c.apparelId === prev)
+              ? prev
+              : isWideScreen()
+                ? (정렬됨[0]?.apparelId ?? null)
+                : null),
           );
         })
         .catch((e: unknown) => {
@@ -1673,7 +1708,7 @@ function App() {
                   scanFallbackRef.current = q !== c.ko ? c.ko : null;
                   scanQueriesRef.current = null;
                   setScanFellBack(false);
-                  pokedexPickRef.current = 이베이 && c.setName ? { q, setName: c.setName, num: c.num } : null;
+                  pokedexPickRef.current = { q, setCode: c.setCode, setName: c.setName, num: c.num, jp: !이베이 };
                   navigate({
                     view: 'cards',
                     source: 이베이 ? 'ebay' : 'snkrdunk',
@@ -1864,7 +1899,7 @@ function App() {
                   )}
                   {세트낙찰없음 && (
                     <p className="mt-1 text-xs text-neutral-400">
-                      그 세트의 카드는 낙찰 기록이 없어, 같은 이름의 다른 세트 카드를 보여 드립니다.
+                      그 카드는 이베이 낙찰 기록이 없어, 같은 이름의 다른 카드를 보여 드립니다.
                     </p>
                   )}
                   {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
