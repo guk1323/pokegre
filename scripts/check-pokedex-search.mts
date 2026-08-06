@@ -48,6 +48,20 @@ console.log(`  ${밀린것.length ? '△' : '✓'} 1등이 아님               
 for (const e of 밀린것.sort((a, b) => b.등수 - a.등수).slice(0, 12))
   console.log(`      ${e.이름.padEnd(18)} ${e.등수}등 · 1등은 "${e.앞}"`)
 
+// 영문 이름으로 쳐도 찾아지는지. 검색은 한글·영문 둘 다 보므로("Pikachu"도 걸린다),
+// 영문 이름이 있는 것은 그 이름으로도 자기가 나와야 한다.
+let 영문OK = 0
+let 영문총 = 0
+const 영문안됨: string[] = []
+for (const row of index) {
+  if (!row.en || !row.en.trim()) continue
+  영문총++
+  if (찾기(row.en).some((p) => p.id === row.id)) 영문OK++
+  else if (영문안됨.length < 8) 영문안됨.push(`${row.ko} (${row.en})`)
+}
+console.log(`  ${영문OK === 영문총 ? '✓' : '✗'} 영문 이름으로도 찾아짐        ${영문OK}/${영문총}`)
+for (const e of 영문안됨) console.log(`      ${e}`)
+
 // 띄어쓰기를 빼고 쳐도 찾아지는지(운영자가 "체육관배지"처럼 붙여 칠 수 있다)
 let 띄어쓰기OK = 0
 let 띄어쓰기총 = 0
