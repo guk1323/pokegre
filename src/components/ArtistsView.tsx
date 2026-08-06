@@ -419,7 +419,10 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="작가 이름 또는 포켓몬 (아리타, 피카츄)"
+            /* ⚠️ 작가 388명 중 68명은 한글 이름이 없다(회사·활동명이 대부분이라 옮길
+               한글이 없다). 그래서 "아네사키"로는 못 찾고 "Anesaki"로만 찾힌다
+               (2026-08-07 점검 중 확인). 영문으로도 된다는 것을 예시로 알린다. */
+            placeholder="작가 이름 또는 포켓몬 (아리타, Anesaki, 피카츄)"
             className="w-full flex-shrink-0 sm:w-60 md:w-72"
           />
         )}
