@@ -1033,7 +1033,12 @@ function App() {
           const 다듬 = (s: string) =>
             String(s)
               .toLowerCase()
+              // 꼬리에 붙는 번호를 뗀다. PPT는 두 가지 꼴로 붙인다:
+              //   "모란 - 105/078"  ·  "신뇽 (4)"
               .replace(/\s*-\s*[0-9a-z]+(?:\/[0-9a-z-]+)?\s*$/i, '')
+              // ⚠️ 괄호 안이 **번호뿐일 때만** 뗀다. 글자가 들었으면 다른 인쇄를
+              //    가리키므로(Master Ball Pattern · Holo Common) 남겨야 구분이 된다.
+              .replace(/\s*\(\s*[0-9]+(?:\/[0-9]+)?\s*\)\s*$/, '')
               .replace(/\s+/g, ' ')
               .trim();
           // 같은 번호에 인쇄 변형이 여럿 있다(054/071이 일반 · Mirror Holofoil 두 장).
