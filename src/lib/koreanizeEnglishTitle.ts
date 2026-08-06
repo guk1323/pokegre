@@ -1503,6 +1503,11 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Professor's Research (Professor Oak)": '박사의 연구 (오박사)',
   "Professor's Research (Professor Magnolia)": '박사의 연구 (매놀리아박사)',
   "Professor's Research (Professor Juniper)": '박사의 연구 (주박사)',
+  // ⚠️ 한글은 지어내지 않고 **일본판 쪽에 이미 있는 이름**을 그대로 가져왔다
+  //    (SV1S 076 「博士の研究（オーリム博士）」 → "박사의 연구 (올림박사)").
+  //    작가별 목록은 북미판 영문이라 여기 없으면 "(Professor Turo)"가 그대로 뜬다.
+  "Professor's Research (Professor Sada)": '박사의 연구 (올림박사)',
+  "Professor's Research (Professor Turo)": '박사의 연구 (투로박사)',
   // B: 피오니(아버지)와 피오니아(딸)는 다른 인물이라 이름이 겹치면 안 된다.
   'Power Charge': '파워 차지',
   // C: 같은 한글명으로 겹치던 것들. 겹치는 쪽에 구분을 붙인다.
