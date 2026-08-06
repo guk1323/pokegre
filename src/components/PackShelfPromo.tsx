@@ -18,15 +18,23 @@ const won = (n: number) => `${n.toLocaleString()} GP`;
 // ⚠️ 카드 "이름"은 서버가 준 것을 그대로 쓴다. 여기서 번역하려면 이름 사전을 받아야
 //    하는데, 사전이 내려받는 양의 절반이라 첫 화면이 다시 무거워진다(91KB로 줄여 뒀다).
 //    이름은 개봉한 사람의 화면이 서버에 알려 준다(PackSim의 sendHighlightName).
+// ⚠️ TOP 5에는 등급이 낮아도 **값이 $30을 넘으면** 오른다(서버의 HIGHLIGHT_USD).
+//    그래서 등급이 높은 것만 적어 두면 나머지는 등급 칸이 빈 채로 나간다.
+//    실제로 ACE SPEC·레어·언커먼·커먼이 빠져 있었다(2026-08-06). 순위표(RARITY_RANK)에
+//    있는 등급은 여기 다 있어야 한다 — 하나라도 빠지면 조용히 빈칸이 된다.
 const TIER_KO: Record<string, [string, string]> = {
   // [일본판, 북미판]
-  'Illustration rare': ['AR', 'IR'],
-  'Ultra Rare': ['SR', 'UR'],
-  'Special illustration rare': ['SAR', 'SIR'],
-  'Hyper rare': ['UR', 'HR'],
   'Mega Ultra Rare': ['MUR', 'MUR'],
   'Mega Hyper Rare': ['MHR', 'MHR'],
+  'Hyper rare': ['UR', 'HR'],
+  'Special illustration rare': ['SAR', 'SIR'],
+  'Ultra Rare': ['SR', 'UR'],
+  'Illustration rare': ['AR', 'IR'],
+  'ACE SPEC Rare': ['ACE', 'ACE'],
   'Double rare': ['RR', 'RR'],
+  Rare: ['레어', '레어'],
+  Uncommon: ['언커먼', '언커먼'],
+  Common: ['커먼', '커먼'],
 };
 
 // 1·2·3등 메달 색. 숫자만으로는 눈에 안 들어온다(사용자 지적 2026-08-04).
