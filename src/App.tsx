@@ -273,6 +273,22 @@ function App() {
     return true;
   };
 
+  // 카드 한 장(세트·번호·판까지 아는 것)으로 시세를 보러 간다. 도감·세트별 목록·
+  // 작가별 목록이 모두 이 길을 쓴다 — 어느 화면에서 눌렀든 그 한 장을 찾아 준다.
+  const 카드로가기 = (c: 도감카드정보) => {
+    pokedexPickRef.current = c;
+    마켓칸ref.current = 0;
+    자동이동ref.current = true;
+    // 검색어를 이름으로 바꿔치기하던 장치는 끈다. 그러면 카드가 누구인지 잊어버려
+    // 다음 마켓을 그 카드로 못 찾는다(운영자 지적 2026-08-06).
+    scanFallbackRef.current = null;
+    scanQueriesRef.current = null;
+    setScanFellBack(false);
+    set도감안내(null);
+    const m = 마켓순서(c.jp)[0];
+    navigate({ view: 'cards', source: m.source, edition: m.edition, query: 도감검색어(c, m) });
+  };
+
   // 검색창에 **보일** 글자. 마켓마다 실제로 보내는 검색어가 다르다(스니커덩크는
   // "XYP 276", PPT는 "Charizard"). 그걸 그대로 보여 주면 마켓을 옮길 때마다 글자가
   // 바뀌고, 특히 PPT에서는 "그냥 리자몽을 찾고 있나?" 싶게 된다(운영자 지적
@@ -1791,7 +1807,7 @@ function App() {
               initialSlug={setsInitialSlug}
               initialSerie={window.location.pathname.match(/^\/series\/([^/?#]+)/)?.[1] ?? null}
               onInitialSlugDone={() => setSetsInitialSlug(null)}
-              onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
+              onPickCard={카드로가기}
             />
           ) : view === 'community' ? (
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
@@ -1802,27 +1818,9 @@ function App() {
               onPickCard={(name) => navigate({ view: 'cards', source: 'snkrdunk', query: name })}
             />
             ) : view === 'pokedex' ? (
-              <PokedexView
-                // ⚠️ 이름만 넘기면 "개굴닌자"로 72장이 다 나온다. 사진 스캔이 쓰는 규칙을
-                //    그대로 쓴다 — 스니커덩크는 "세트코드 번호"(언어와 무관하고 한 장으로
-                //    좁혀진다), 이베이는 영어 색인이라 "영어 이름 번호"가 필요하다.
-                //    북미판 카드는 스니커덩크에 거의 없으므로 이베이로 보낸다.
-                onPickCard={(c) => {
-                  // 마켓을 옮겨 다닐 수 있게 카드 정보를 통째로 들고 간다. 첫 마켓에서
-                  // 못 찾으면 다음 마켓으로 넘어간다(lib/pokedexRoute.ts).
-                  pokedexPickRef.current = c;
-                  마켓칸ref.current = 0;
-                  자동이동ref.current = true;
-                  // 검색어를 이름으로 바꿔치기하던 장치는 끈다. 그러면 카드가 누구인지
-                  // 잊어버려 다음 마켓을 그 카드로 못 찾는다(운영자 지적 2026-08-06).
-                  scanFallbackRef.current = null;
-                  scanQueriesRef.current = null;
-                  setScanFellBack(false);
-                  set도감안내(null);
-                  const m = 마켓순서(c.jp)[0];
-                  navigate({ view: 'cards', source: m.source, edition: m.edition, query: 도감검색어(c, m) });
-                }}
-              />
+              // ⚠️ 이름만 넘기면 "개굴닌자"로 72장이 다 나온다. 세트·번호·판까지 넘겨
+              //    그 한 장을 찾는다(카드로가기 → lib/pokedexRoute.ts).
+              <PokedexView onPickCard={카드로가기} />
           ) : view === 'mypage' ? (
             <DetailLayout
               main={myPageMain}

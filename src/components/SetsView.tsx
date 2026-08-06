@@ -15,6 +15,7 @@ import {
 import pokemonNames from '../data/pokemonNames.json';
 import { serieSlug } from '../lib/setNameKo';
 import { isPocketSet } from '../lib/pocketSets';
+import type { 도감카드정보 } from '../lib/pokedexRoute';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
@@ -97,7 +98,11 @@ export function SetsView({
   initialSerie,
   onInitialSlugDone,
 }: {
-  onPickCard: (name: string) => void;
+  /**
+   * 카드 한 장을 눌렀을 때. 이름만 넘기면 같은 이름 카드가 다 나오므로, 세트·번호·판을
+   * 통째로 넘겨 그 한 장으로 좁힌다(도감이 쓰는 것과 같은 규칙 — lib/pokedexRoute.ts).
+   */
+  onPickCard: (card: 도감카드정보) => void;
   // 팩 개봉 화면의 "수록 카드 보기"가 특정 세트를 바로 열 때 쓴다.
   initialSlug?: string | null;
   // /series/<슬러그>로 들어왔을 때 그 시리즈가 있는 탭을 열고 거기로 스크롤한다.
@@ -283,6 +288,23 @@ export function SetsView({
     // 휴대폰 게임(Pokémon TCG Pocket) 세트. 목록은 그대로 보여 주되 카드를 눌러도
     // 시세로 보내지 않는다 — 실물이 없어 볼 값이 없다(운영자 결정 2026-08-06).
     const 포켓세트 = isPocketSet(selected.serie);
+    // 눌린 카드를 "어느 세트 몇 번인지"까지 갖춘 한 장으로 만든다. 이게 있어야 마켓을
+    // 옮겨 다니며 그 한 장을 찾을 수 있다.
+    const 한장 = (c: SetCard): 도감카드정보 => ({
+      ko: koName(selected.ed, c.name),
+      // 북미판은 카드 원문이 곧 영문 이름이다. 일본판은 없으니 빈 값 — 부르는 쪽이
+      // 한글 이름을 번역해 쓴다.
+      en: selected.ed === 'en' ? c.name : '',
+      raw: c.name,
+      // 세트 화면은 어느 포켓몬인지 모른다. 비워 두면 한글 이름으로 물러선다.
+      speciesEn: '',
+      slug: selected.slug,
+      setCode: selected.id,
+      setName: selected.name,
+      setNameKo: koSet(selected.ed, selected.name),
+      num: c.n,
+      jp: selected.ed !== 'en',
+    });
     const visible = (cards ?? []).slice(0, shown);
     // 값으로 고른 카드가 있으면 그것을 쓴다. 세트 파일에서 같은 번호를 찾아 그림·이름을
     // 가져온다(값만 있고 그림이 없으면 화면에 못 올린다).
@@ -395,7 +417,7 @@ export function SetsView({
                       <button
                         key={`top-${c.n}`}
                         type="button"
-                        onClick={포켓세트 ? undefined : () => onPickCard(nm)}
+                        onClick={포켓세트 ? undefined : () => onPickCard(한장(c))}
                         aria-disabled={포켓세트 || undefined}
                         className={`text-left ${포켓세트 ? 'cursor-default' : 'group'}`}
                       >
@@ -446,7 +468,7 @@ export function SetsView({
                   <button
                     key={`${c.n}-${i}`}
                     type="button"
-                    onClick={포켓세트 ? undefined : () => onPickCard(nm)}
+                    onClick={포켓세트 ? undefined : () => onPickCard(한장(c))}
                     aria-disabled={포켓세트 || undefined}
                     className={`text-left ${포켓세트 ? 'cursor-default' : 'group'}`}
                   >
