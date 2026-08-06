@@ -29,6 +29,8 @@ const 고칠것: Record<string, string> = {
   //   BWP 001 ヤナップ   → [BW-P 001] · 172 ランプラー → [BW-P 172]
   'ja-SMP': 'SM-P',
   'ja-BWP': 'BW-P',
+  //   SVP 031 イーブイ → [SV-P 031] · 121 ウパー → [SV-P 121]
+  'ja-SVP': 'SV-P',
 }
 // ⚠️ 하이픈이 늘 답은 아니다. SV2P·S10P·SMP2·CP1~6은 하이픈 없이 잘 걸리고,
 //    ja-SVP는 SVP·SV-P 둘 다 0건이라 코드가 또 다르거나 스니커덩크에 없다.
