@@ -260,7 +260,7 @@ function App() {
     const 다음 = 마켓칸ref.current + 1;
     if (다음 >= 순서.length) {
       set도감안내(
-        `${c.ko} ${c.setName} ${c.num}번은 지금 어느 마켓에도 값이 없습니다. ` +
+        `${c.ko} ${c.setNameKo} ${c.num}번은 지금 어느 마켓에도 값이 없습니다. ` +
           `검색어는 그대로 두었으니 위 탭을 눌러 직접 확인해 보실 수 있습니다.`,
       );
       return false;
@@ -864,7 +864,7 @@ function App() {
           //    막혀 있었고, TCGplayer에는 $0.12가 있었다).
           if (도감 && (!그카드 || !그카드.price)) {
             if (다음마켓으로(도감)) return;
-            if (!그카드) set도감안내(`${도감.ko} ${도감.setName} ${도감.num}번은 이 마켓에 없습니다.`);
+            if (!그카드) set도감안내(`${도감.ko} ${도감.setNameKo} ${도감.num}번은 이 마켓에 값이 없습니다.`);
           }
 
           // 스캔한 "세트+번호"가 0건이면(코드는 읽었지만 매칭 실패) 이름으로 자동 재검색.
@@ -972,12 +972,26 @@ function App() {
             setQuery(fb);
             return;
           }
-          // 이 마켓에 그 카드가 없으면 다음 마켓으로 넘긴다. 검색어는 안 바꾼다.
-          if (도감 && cards.length === 0) {
+          const 앞번호 = (s: string) => Number(String(s).split('/')[0]);
+          const 그카드 = 도감
+            ? cards.find((c) => c.cardNumber && 앞번호(c.cardNumber) === 앞번호(도감.num))
+            : undefined;
+          // "그 카드가 아님이 확실한가". 돌아온 카드 전부에 번호가 붙어 있는데 그중
+          // 우리 번호가 없으면 확실히 아니다.
+          //
+          // ⚠️ 결과가 있다고 찾은 게 아니다. XY 프로모에는 같은 이름의 리자몽 EX가 넉
+          //    장(030·075·213·276) 있는데, 276을 눌러도 값이 있는 030만 돌아온다. 예전엔
+          //    그걸 그 카드인 양 열어서 135만원짜리 남의 카드를 보여 줬다(운영자 발견
+          //    2026-08-06). 번호가 어긋나면 열지 않고 다음 마켓으로 간다.
+          // ⚠️ 반대로 PPT 일본판은 번호 칸이 비어 있는 카드가 많다. 그건 "아니다"라고
+          //    단정할 수 없으므로 그대로 둔다 — 아니면 값이 있는데도 계속 넘어간다.
+          const 확실히아님 =
+            Boolean(도감) && !그카드 && cards.length > 0 && cards.every((c) => Boolean(c.cardNumber));
+          if (도감 && (cards.length === 0 || 확실히아님)) {
             if (다음마켓으로(도감)) return;
             // 더 갈 곳이 없거나 사람이 직접 고른 마켓이다. 앞서 뜬 안내를 그대로 두면
             // 결과가 없는데 "값을 보여 드립니다"가 남는다.
-            set도감안내(`${도감.ko} ${도감.setName} ${도감.num}번은 이 마켓에 없습니다.`);
+            set도감안내(`${도감.ko} ${도감.setNameKo} ${도감.num}번은 이 마켓에 값이 없습니다.`);
           }
           // 세트로 좁혀도 그 세트에 같은 이름이 여러 장 있다(리자몽 ex가 4장). 번호로
           // 그 한 장을 맨 앞에 세우고 골라 둔다. 나머지는 지우지 않는다 — 번호 표기가
@@ -986,15 +1000,12 @@ function App() {
           let 정렬됨 = cards;
           let 고를것: string | null = null;
           if (도감) {
-            const 앞번호 = (s: string) => Number(String(s).split('/')[0]);
-            const hit = cards.find((c) => c.cardNumber && 앞번호(c.cardNumber) === 앞번호(도감.num));
-            if (hit) {
-              정렬됨 = [hit, ...cards.filter((c) => c !== hit)];
-              고를것 = hit.tcgPlayerId;
-            } else if (cards.length === 1 && pptSetName(도감)) {
-              // ⚠️ PPT 일본판은 카드번호 칸이 비어 있어 번호로 못 맞춘다(실측). 세트로
-              //    좁혀 한 장만 남았으면 그게 그 카드다 — 그냥 연다. 세트로 못 좁혔으면
-              //    한 장이어도 그 카드라고 단정하지 않는다.
+            if (그카드) {
+              정렬됨 = [그카드, ...cards.filter((c) => c !== 그카드)];
+              고를것 = 그카드.tcgPlayerId;
+            } else if (cards.length === 1 && pptSetName(도감) && !cards[0].cardNumber) {
+              // 세트로 좁혀 한 장 남았고 그 한 장에 번호조차 없다 — 그게 그 카드다.
+              // 번호가 붙어 있는데 다른 번호면 위 확실히아님에서 이미 걸러졌다.
               고를것 = cards[0].tcgPlayerId;
             }
             // 왜 이 결과를 보고 있는지 한 줄로 밝힌다. 틀린 것보다 빈칸이 낫고,
@@ -1003,7 +1014,7 @@ function App() {
             const 순서 = 마켓순서(도감.jp);
             set도감안내(
               !고를것
-                ? `${도감.setName} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
+                ? `${도감.setNameKo} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
                 : 자동이동ref.current && 칸 > 0
                   ? `${순서[칸 - 1].label}에 값이 없어 ${순서[칸].label} 값을 보여 드립니다.`
                   : null,

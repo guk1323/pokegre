@@ -65,8 +65,10 @@ export function PokedexView({
     slug: string
     /** 세트코드(SV6 등). 스니커덩크는 "코드 번호"로 찾는 게 가장 정확하다. */
     setCode: string
-    /** 우리 세트 이름 */
+    /** 우리 세트 이름(원문) */
     setName: string
+    /** 한글 세트 이름(화면 문구용) */
+    setNameKo: string
     num: string
     jp: boolean
   }) => void;
@@ -211,6 +213,7 @@ export function PokedexView({
                       slug: c.s,
                       setCode: meta?.id ?? '',
                       setName: meta?.name ?? '',
+                      setNameKo: 세트,
                       num: c.n,
                       jp: meta?.ed !== 'en',
                     })

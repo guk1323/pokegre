@@ -25,7 +25,11 @@ export interface 도감카드정보 {
   speciesEn: string;
   slug: string;
   setCode: string;
+  /** 우리 세트 이름(원문). PPT 대응표를 못 찾았을 때 그대로 보내 본다. */
   setName: string;
+  /** 화면에 적을 한글 세트 이름. 안내 문구는 반드시 이걸 쓴다 — 원문에는 일본어가
+   *  섞여 있어("XY プロモ") 그대로 내보내면 안내문에 일본어가 나간다. */
+  setNameKo: string;
   num: string;
   jp: boolean;
 }
