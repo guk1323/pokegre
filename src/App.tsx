@@ -1673,37 +1673,11 @@ function App() {
                       SNKRDUNK는 세트+번호(확실), 이베이는 영어 이름+번호. */}
                   <CardScanButton onResult={({ result }) => void applyScanWithLookup(result)} />
                 </div>
-                {scanFoundByArtist > 0 && (
-                  <p className="text-xs text-neutral-400 mt-2">
-                    카드 번호가 안 보여서 일러스트레이터로 찾았습니다. 내 카드가 아니면
-                    카드 이름으로 다시 검색해 보세요.
-                  </p>
-                )}
-                {scanFellBack && (
-                  <p className="text-xs text-neutral-400 mt-2">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
-                )}
-                {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
-                {scannedResult && (
-                  <p className="text-xs text-neutral-400 mt-2">
-                    {scanReported ? (
-                      '알려주셔서 감사합니다. 개선에 참고하겠습니다.'
-                    ) : (
-                      <>
-                        찾는 카드가 아닌가요?{' '}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            reportScanMiss(scannedResult);
-                            setScanReported(true);
-                          }}
-                          className="font-semibold text-[#2a78d6] hover:underline"
-                        >
-                          스캔이 틀렸습니다
-                        </button>
-                      </>
-                    )}
-                  </p>
-                )}
+                {/* ⚠️ 스캔 안내 세 줄은 여기(검색창 바로 아래)에 있었는데, 뜰 때마다
+                    검색창과 판 토글을 갈라놓아 붙어 있어야 할 두 줄이 떨어졌다
+                    (운영자 지적 2026-08-06 — "검색바랑 토글은 계속 붙어있는 게 이쁘다").
+                    아래 토글 줄 다음으로 옮겼다 — 셋 다 "이 검색 결과가 왜 이런지"를
+                    말하는 글이라, 결과 바로 위가 오히려 제자리다. */}
               </div>
 
               {/* ⚠️ 탭에 적힌 건 외국 상호 세 개뿐이고 어디 시세인지 설명이 한 줄도
@@ -1787,6 +1761,45 @@ function App() {
                         : 'eBay — 등급별 낙찰가입니다.'}
                 </p>
               </div>
+
+              {/* 스캔 안내. "이 결과가 왜 이렇게 나왔는지"를 말하는 글이라 결과 바로
+                  위에 둔다. 검색창과 판 토글 사이에 있으면 뜰 때마다 그 둘을 갈라놓는다
+                  (운영자 지적 2026-08-06). 뜰 때만 자리를 차지하므로 평소엔 영향이 없다. */}
+              {(scanFoundByArtist > 0 || scanFellBack || scannedResult) && (
+                <div className="mx-auto mb-4 max-w-3xl pl-1.5">
+                  {scanFoundByArtist > 0 && (
+                    <p className="text-xs text-neutral-400">
+                      카드 번호가 안 보여서 일러스트레이터로 찾았습니다. 내 카드가 아니면 카드 이름으로 다시 검색해
+                      보세요.
+                    </p>
+                  )}
+                  {scanFellBack && (
+                    <p className="mt-1 text-xs text-neutral-400">번호로 찾지 못해 카드 이름으로 다시 검색했습니다.</p>
+                  )}
+                  {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
+                  {scannedResult && (
+                    <p className="mt-1 text-xs text-neutral-400">
+                      {scanReported ? (
+                        '알려주셔서 감사합니다. 개선에 참고하겠습니다.'
+                      ) : (
+                        <>
+                          찾는 카드가 아닌가요?{' '}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              reportScanMiss(scannedResult);
+                              setScanReported(true);
+                            }}
+                            className="font-semibold text-[#2a78d6] hover:underline"
+                          >
+                            스캔이 틀렸습니다
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* 검색어가 없으면 소스와 무관하게 항상 홈(인기 검색어 + 뉴스)을 띄운다.
                   스니덩크/이베이 토글은 "검색 결과를 어느 소스에서 가져올지"만 정하는
