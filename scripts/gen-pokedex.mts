@@ -47,6 +47,11 @@ const list = pokemonNames as Pokemon[]
 // 긴 이름부터 — 짧은 이름이 긴 이름 안에 들어 있는 경우를 먼저 가로채지 않게.
 const byJa = [...list].sort((a, b) => b.ja.length - a.ja.length)
 const byEn = [...list].sort((a, b) => b.en.length - a.en.length)
+// ⚠️ 표기 흔들림을 걷어내고 견준다. 우리 사전은 `Farfetch’d`(굽은 따옴표)인데 카드
+//    원문은 `Farfetch'd`(곧은 따옴표)라 파오리가 안 잡혔고, `deoxys`·`weezing`처럼
+//    소문자로 적힌 원문도 놓쳤다(2026-08-07 점검 중 발견).
+const 견줌 = (s: string) => s.replace(/[’‘'`´]/g, "'").replace(/\s+/g, ' ').toLowerCase()
+const 들었나 = (통: string, 조각: string) => 견줌(통).includes(견줌(조각))
 
 const idx = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf-8')) as SetMeta[]
 const meta = new Map(idx.map((s) => [s.slug, s]))
@@ -86,6 +91,8 @@ const buckets = new Map<number, (Entry & { date: string })[]>()
 const trainers = new Map<string, (Entry & { date: string; ko: string })[]>()
 // 한글 포켓몬 이름 → 도감번호. 위 대조에서 빠진 카드를 이름으로 건져 올릴 때 쓴다.
 const koPokemon = new Map(list.map((p) => [p.ko.replace(/[\s·]/g, ''), p.id]))
+// 한글 이름으로 찾을 때도 긴 것부터 본다("이상해꽃"이 "이상해"보다 앞서야 한다).
+const byKo = [...list].sort((a, b) => b.ko.length - a.ko.length)
 // ⚠️ 화면이 쓰는 것과 **같은 함수**를 쓴다. 예전에는 여기서 따로 만들었는데, 화면은
 //    옛 세트의 깨진 원본을 더 손보고 있어서 결과가 갈렸다 — 같은 카드가 세트 화면에서는
 //    "로켓단의 레트라", 도감에서는 "Team 로켓단의 레트라"로 보였다(점검 중 발견
@@ -110,7 +117,7 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
     //    트레이너로 새어 나갔다(2026-08-07 회귀 검사에서 발견). 종류표는 세트·번호를
     //    맞춰 온 것이라 번호 표기가 어긋나면 남의 카드 종류를 가져온다.
     //    종류표는 **이름으로 못 찾았을 때만** 쓴다 — 반대 판 사전까지 뒤져 볼지 정하는 데.
-    let hit = pool.find((p) => nm.includes(d.ed === 'ja' ? p.ja : p.en))
+    let hit = pool.find((p) => 들었나(nm, d.ed === 'ja' ? p.ja : p.en))
     if (!hit) {
       const 종류 = 카드종류(slug, m.id, String(c.n))
       // ⚠️ 일본판 세트인데 원문이 영문인 카드가 526장 있다(원본 오염). 제 판 사전으로만
@@ -118,7 +125,15 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
       //    사전도 본다. 트레이너·에너지라고 하면 뒤지지 않는다(엉뚱한 매칭을 막는다).
       if (종류 === 'p') {
         const 반대 = d.ed === 'ja' ? byEn : byJa
-        hit = 반대.find((p) => nm.includes(d.ed === 'ja' ? p.en : p.ja))
+        hit = 반대.find((p) => 들었나(nm, d.ed === 'ja' ? p.en : p.ja))
+        // ⚠️ 원문이 오염돼 양쪽 사전 다 못 알아보는 카드가 있다 — `バゴン（デルタ種）`은
+        //    아공이인데 정식 일본명이 `タツベイ`라 안 걸린다. 그래도 **화면 이름은 이미
+        //    맞다**("아공이 (델타종)"). 원본이 포켓몬이라고 한 카드에 한해 한글 이름으로도
+        //    찾는다 — 트레이너는 여기 오지 않으므로 "마그마단의 슈퍼볼"이 새지 않는다.
+        if (!hit) {
+          const ko = koCardName(d.ed, nm)
+          if (ko) hit = byKo.find((p) => 들었나(ko, p.ko))
+        }
       }
     }
     if (hit) {
