@@ -1000,9 +1000,20 @@ function App() {
             setQuery(fb);
             return;
           }
-          const 앞번호 = (s: string) => Number(String(s).split('/')[0]);
+          // 카드 번호 비교용 열쇠. 빗금 앞만 보고, 앞의 0을 떼고, 대소문자를 맞춘다.
+          //   "125/197" → 125 · "030/XY-P" → 30 · "XY133" → XY133 · "SM169" → SM169
+          // ⚠️ 숫자로 바꿔 비교하면 안 된다. 프로모 번호는 글자가 섞여 있어(XY133·BW97)
+          //    Number()가 NaN이 되고, NaN끼리는 절대 같지 않아 **전부 못 찾는다**
+          //    (운영자 발견 2026-08-06 — 지우개굴닌자 EX XY133이 눈앞에 있는데도
+          //    "찾지 못해"라고 나왔다).
+          const 번호열쇠 = (s: string) =>
+            String(s)
+              .split('/')[0]
+              .trim()
+              .toUpperCase()
+              .replace(/^0+(?=[0-9])/, '');
           const 그카드 = 도감
-            ? cards.find((c) => c.cardNumber && 앞번호(c.cardNumber) === 앞번호(도감.num))
+            ? cards.find((c) => c.cardNumber && 번호열쇠(c.cardNumber) === 번호열쇠(도감.num))
             : undefined;
           // "그 카드가 아님이 확실한가". 돌아온 카드 전부에 번호가 붙어 있는데 그중
           // 우리 번호가 없으면 확실히 아니다.
