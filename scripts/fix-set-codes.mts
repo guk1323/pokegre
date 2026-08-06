@@ -20,6 +20,11 @@ const WRITE = process.argv.includes('--write')
 const 고칠것: Record<string, string> = {
   'ja-sn11': 'SM11',
   'ja-sn10a': 'SM10a',
+  // 프로모 세트는 스니커덩크가 하이픈을 넣어 적는다(2026-08-07 카드 3장씩 견줘 확인).
+  //   SP  001 ピカチュウ → [S-P 001]  · 160 ガラルバリヤード → [S-P 160]
+  //   XYP 001 ピカチュウ → [XY-P 001] · 219 アグノム       → [XY-P 219]
+  'ja-SP': 'S-P',
+  'ja-XYP': 'XY-P',
 }
 
 const p = path.join(ROOT, 'public/sets/index.json')
