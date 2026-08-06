@@ -30,8 +30,10 @@ const 도감 = JSON.parse(readFileSync(path.join(ROOT, 'public/pokedex/index.jso
 const ko = (ed: 'ja' | 'en', n: string) =>
   ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
 
-// 띄어쓰기·가운뎃점만 다른 것은 같은 이름으로 본다(gen-pokedex가 묶은 기준과 같게).
-const 열쇠 = (s: string) => s.replace(/[\s·]/g, '')
+// 띄어쓰기·가운뎃점·대소문자만 다른 것은 같은 이름으로 본다.
+// ⚠️ gen-pokedex가 묶는 기준과 **똑같아야** 한다. 한쪽만 고치면 의도해서 합친 것을
+//    "섞였다"고 잘못 세게 된다("뮤 ex"와 "뮤 Ex" — 2026-08-06).
+const 열쇠 = (s: string) => s.replace(/[\s·]/g, '').toLowerCase()
 
 let 트레이너수 = 0
 const 섞인것: { 이름: string; 종류: string[]; 장수: number }[] = []

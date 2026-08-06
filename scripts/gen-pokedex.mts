@@ -57,6 +57,8 @@ const buckets = new Map<number, (Entry & { date: string })[]>()
 //    이유가 다르다 — 포켓몬은 대조표가 있어 원문이 더 정확하고, 트레이너는 판을
 //    묶어 줄 열쇠가 한글 이름밖에 없다.
 const trainers = new Map<string, (Entry & { date: string; ko: string })[]>()
+// 한글 포켓몬 이름 → 도감번호. 위 대조에서 빠진 카드를 이름으로 건져 올릴 때 쓴다.
+const koPokemon = new Map(list.map((p) => [p.ko.replace(/[\s·]/g, ''), p.id]))
 const koCardName = (ed: 'ja' | 'en', n: string) =>
   ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(n)) : koreanizeEnglishCardName(n)
 
@@ -82,10 +84,24 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
       // 포켓몬이 아니면 트레이너·에너지다. 한글 이름으로 묶는다.
       const ko = koCardName(d.ed, nm)
       if (!ko) continue
+      // ⚠️ 원문으로 못 알아본 **포켓몬**이 여기로 흘러든다. 옛 세트(e시리즈·PCG·neo)는
+      //    TCGdex의 일본어 칸이 정식 이름 대신 영어명 가타카나로 오염돼 있어서
+      //    (デンリュウ가 아니라 アンファロス) 위 대조에서 빠진다. 그대로 두면 도감에
+      //    "라이츄"가 두 개 서고, 옛 카드 837장이 트레이너 쪽에 갇힌다(운영자 점검
+      //    2026-08-06). 한글 이름이 포켓몬 이름과 같으면 그 포켓몬 무더기로 보낸다.
+      const 같은포켓몬 = koPokemon.get(ko.replace(/[\s·]/g, ''))
+      if (같은포켓몬) {
+        const arr = buckets.get(같은포켓몬) ?? []
+        arr.push(한장)
+        buckets.set(같은포켓몬, arr)
+        continue
+      }
       // ⚠️ 띄어쓰기·가운뎃점만 다른 것은 같은 카드다. 그대로 두면 "체육관배지 16장"과
       //    "체육관 배지 8장"이 따로 서 있어, 찾는 사람은 둘 다 눌러 봐야 한다
       //    (운영자 지적 2026-08-06). 묶는 열쇠에서만 빼고, 보여줄 이름은 그대로 쓴다.
-      const key = ko.replace(/[\s·]/g, '')
+      // ⚠️ 대소문자도 지운다. "뮤 ex"와 "뮤 Ex"가 따로 서 있었다(운영자 점검
+      //    2026-08-06). 같은 카드인데 표기만 다른 것이다.
+      const key = ko.replace(/[\s·]/g, '').toLowerCase()
       const arr = trainers.get(key) ?? []
       arr.push({ ...한장, ko })
       trainers.set(key, arr)
