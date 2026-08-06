@@ -92,8 +92,16 @@ export function PokedexView({
     ])
       .then(([px, sx]: [PokeIndex[], SetMeta[]]) => {
         if (dead) return;
+        indexRef.current = px;
         setIndex(px);
         setSets(new Map(sx.map((s) => [s.slug, s])));
+        // 목록이 늦게 와서 미뤄 둔 복원이 있으면 지금 연다(아래 설명 참고).
+        const 기다린것 = 복원대기.current;
+        복원대기.current = null;
+        if (기다린것 != null) {
+          const p = px.find((x) => x.id === 기다린것);
+          if (p) void open(p, false);
+        }
       })
       .catch(() => !dead && setLoadFailed(true));
     void import('../lib/cardCatalog')
@@ -106,6 +114,13 @@ export function PokedexView({
 
   useEffect(() => set보임(한번에), [q]);
 
+  // ⚠️ 목록(index)은 받아오는 데 시간이 걸린다. 복원은 화면이 붙자마자 불리므로 그때는
+  //    아직 null이다. 그대로 두면 카드를 눌러 시세를 보고 **뒤로가기로 돌아왔을 때
+  //    보던 목록이 사라진다** — 램프라를 다시 검색해야 했다(점검 중 발견 2026-08-06).
+  //    ref로 최신 목록을 보고, 아직 없으면 적어 뒀다가 도착했을 때 연다.
+  const indexRef = useRef<PokeIndex[] | null>(null);
+  const 복원대기 = useRef<number | null>(null);
+
   // 목록으로 돌아갈 때 주소도 되돌린다(useSubScreen 설명 참고).
   const sub = useSubScreen<number>(
     'pokedex',
@@ -113,10 +128,12 @@ export function PokedexView({
       if (id == null) {
         setPicked(null);
         setCards(null);
+        복원대기.current = null;
         return;
       }
-      const p = index?.find((x) => x.id === id);
+      const p = indexRef.current?.find((x) => x.id === id);
       if (p) void open(p, false);
+      else 복원대기.current = id;
     },
     { path: '/pokedex', title: '포켓몬·트레이너별 카드 목록 | pokegre' },
   );
