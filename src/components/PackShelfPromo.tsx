@@ -121,11 +121,10 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
               aria-label={`${h.name || '카드'} — 오늘의 상점 열기`}
               // 폰에서는 한 줄씩 눕히고(그림 왼쪽·글 오른쪽), 큰 화면에서는 세워서
               // 다섯 칸으로 편다. 어느 쪽이든 빈 자리가 안 생긴다.
-              // ⚠️ **핸드폰에서는 앞 3줄만 보인다.** 다섯 줄이 412px(홈의 20%)을 먹는데,
-              //    상점 진열대까지 합치면 뽑기가 홈의 절반이었다(2026-08-08 실측).
-              //    이름이 "TOP 5"라 개수는 그대로 두고 **넓은 화면에서만 다섯을 편다** —
-              //    핸드폰에서 4·5등을 보려면 상점에 들어가면 된다.
-              className={`${i >= 3 ? 'hidden sm:flex' : 'flex'} items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 text-left sm:p-2 transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2`}
+              // ⚠️ **다섯 줄을 다 보여준다.** 한때 핸드폰에서 3줄만 보이게 했다가 되돌렸다 —
+              //    이름이 "TOP 5"인데 세 개만 나오면 말이 안 된다(2026-08-08 지적).
+              //    대신 **줄 높이를 낮춰서** 다섯을 넣는다(아래 세트 이름 줄 참고).
+              className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 text-left sm:p-2 transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2"
             >
               {/* 메달은 카드 왼쪽 위 모서리에 살짝 걸치게 둔다(사용자 지시 2026-08-04 —
                   글자 쪽으로 뺐다가 되돌렸다). 모서리라 그림을 거의 안 가린다. */}
@@ -161,7 +160,10 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
                   {/* 언제 뽑은 것인지. 이번 주 안에서도 오늘 것과 엿새 전 것은 다르다. */}
                   {h.at ? <span className="ml-1 text-neutral-400">{pulledOn(h.at)}</span> : null}
                 </p>
-                {pn && <p className="line-clamp-1 text-[11px] text-neutral-400">{pn}</p>}
+                {/* ⚠️ 핸드폰에서는 이 줄을 접는다. 한 줄에 세 줄씩 쌓으면 다섯 줄이
+                    412px을 먹었다. 팩 이름은 넓은 화면에서만 보인다 — 좁은 화면에서
+                    꼭 필요한 것은 카드 이름·뽑은 사람·값이다. */}
+                {pn && <p className="hidden line-clamp-1 text-[11px] text-neutral-400 sm:block">{pn}</p>}
               </div>
               <p className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-neutral-900 sm:text-left">
                 {h.usd ? krw(h.usd, 'usd') : ''}
@@ -222,13 +224,17 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
             const img = art[p.slug]?.boxImg || art[p.slug]?.logo;
             return (
               <div key={p.slug} className="w-[28%] shrink-0 snap-start px-1 text-center sm:w-auto">
-                <div className="flex h-36 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3 sm:h-32">
+                {/* ⚠️ 칸 높이를 **핸드폰에서 낮춘다.** 가로로 밀게 바꾸면서 한 칸이 좁아져
+                    그림이 작아졌는데, 높이는 144px 그대로라 **그림 위가 휑하게 비었다**
+                    (2026-08-08 지적). 그림 크기에 맞춰 96px로 낮춘다.
+                    넓은 화면은 한 칸이 넓어 그림도 크므로 그대로 둔다. */}
+                <div className="flex h-24 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-2 sm:h-32 sm:pt-3">
                   {img && (
                     <img
                       src={thumb(img, 320)}
                       alt=""
                       loading="lazy"
-                      className="max-h-36 object-contain transition group-hover:-translate-y-0.5 sm:max-h-32"
+                      className="max-h-20 object-contain transition group-hover:-translate-y-0.5 sm:max-h-32"
                     />
                   )}
                 </div>
