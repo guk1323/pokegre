@@ -56,6 +56,10 @@ const 아는짝 = new Set([
   'ja-sn10a|SM10a', 'ja-sn11|SM11',
   'ja-XY1a|XY1x', 'ja-XY1b|XY1y', 'ja-XY5a|XY5g', 'ja-XY5b|XY5t',
   'ja-XY8a|XY8b', 'ja-XY8b|XY8r', 'ja-XY11a|XY11b', 'ja-XY11b|XY11r',
+  //  · pokemontcg.io는 EX 트레이너 키트를 tk1a/tk1b·tk2a/tk2b로 부른다. a/b가 어느 덱인지
+  //    사진 넉 장을 내려받아 확인했다 — tk1a=Bagon(라티아스 덱 1번), tk1b=Electrike(라티오스),
+  //    tk2a=Beldum(플러시), tk2b=Arcanine(마이농). 우리 짝과 그대로 맞는다(2026-08-07).
+  'en-tk-ex-latia|tk1a', 'en-tk-ex-latio|tk1b', 'en-tk-ex-p|tk2a', 'en-tk-ex-m|tk2b',
 ].map((x) => x.toLowerCase()))
 
 let 봄 = 0, 맞음 = 0, 아는것 = 0
