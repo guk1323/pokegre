@@ -17,6 +17,7 @@
 //   · PPT: 영문 카드 이름. **일본판 DB도 영문 이름으로 색인돼 있다.**
 //     세트는 검색어에 붙이면 0건이고, setName 파라미터로 따로 보내야 걸러진다.
 import pptSetNames from '../data/pptSetNames.json';
+import setCardNumberAlias from '../data/setCardNumberAlias.json';
 
 export interface 도감카드정보 {
   ko: string;
@@ -118,6 +119,18 @@ export function 도감검색어들(c: 도감카드정보): string[] {
  *    en-ex10에는 언노운이 한 장도 없어 서로 섞이지 않는다(2026-08-07 전수 확인).
  *    같은 이름을 더 넣을 일이 생기면 **번호가 겹치는지부터 세어 볼 것.**
  */
+// 저쪽(PPT) 번호를 **우리 번호로** 되돌린다. 세트마다 번호 체계가 다를 수 있어서다.
+// 표는 src/data/setCardNumberAlias.json (우리 번호 → 저쪽 번호).
+// 셀레브레이션즈 클래식 컬렉션이 그렇다 — 우리 CC002가 저쪽에선 4/102다.
+const 되돌림표: Record<string, Record<string, string>> = {};
+for (const [slug, t] of Object.entries(setCardNumberAlias as Record<string, Record<string, string>>)) {
+  const m: Record<string, string> = {};
+  for (const [우리, 저쪽] of Object.entries(t)) m[저쪽.toUpperCase()] = 우리;
+  되돌림표[slug] = m;
+}
+export const 저쪽번호를우리번호로 = (slug: string, 저쪽번호: string): string =>
+  되돌림표[slug]?.[String(저쪽번호).trim().toUpperCase()] ?? 저쪽번호;
+
 export const pptSetName = (c: 도감카드정보): string => {
   const 아는이름 = (pptSetNames as Record<string, string>)[c.slug];
   if (아는이름) return 아는이름;

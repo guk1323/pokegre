@@ -33,7 +33,7 @@ COPY src/lib/packSets.ts src/lib/packDraw.ts src/lib/koreanizeTitle.ts src/lib/k
 COPY src/data/pokemonNames.json src/data/pokemonNameAliases.json src/data/packNames.json src/data/cardNameKoEn.json ./src/data/
 # 세트별 힛카드(값이 제일 높은 카드). scripts/fetch-set-hit-cards.mjs가 미리 받아 둔 것.
 # 앨범 시세를 매일 받는 22세트 말고 나머지 세트의 힛카드가 여기서 나온다.
-COPY src/data/setHitCards.json src/data/pptSetNames.json ./src/data/
+COPY src/data/setHitCards.json src/data/pptSetNames.json src/data/setCardNumberAlias.json ./src/data/
 # 카드 이름 검색용 색인(31,603장). 서버만 읽는다 — public/ 에 두면 3MB가 그대로
 # 공개돼 크롤러가 긁어 간다. scripts/gen-card-index.mts 로 만든다.
 COPY card-index.json ./

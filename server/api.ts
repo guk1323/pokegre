@@ -29,6 +29,7 @@ import {
 } from '../src/lib/packSets.ts'
 import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
 import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
+import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -4672,7 +4673,11 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
     const c = splitCsvLine(line)
     const slug = slug별.get(c[I.setName])
     if (!slug) continue
-    const num = stripZeros(String(c[I.cardNumber] ?? '').split('/')[0].trim())
+    // ⚠️ 세트에 따라 저쪽이 **다른 번호 체계**를 쓴다. 셀레브레이션즈 클래식 컬렉션은
+    //    우리가 CC001~CC025로 두는데 저쪽은 원본 카드 번호(4/102)를 쓴다. 그대로 두면
+    //    그 25장은 시세가 통째로 안 붙는다(2026-08-07 덤프 대조로 확인).
+    const 되돌림 = 번호되돌리기(slug, String(c[I.cardNumber] ?? ''))
+    const num = stripZeros(되돌림.split('/')[0].trim())
     const market = Number(c[I.marketPrice])
     if (!num || !(market > 0)) continue
     const nm = String(c[I.name] ?? '')
@@ -4716,6 +4721,18 @@ const packWarmDue = (hit?: PackPriceEntry) =>
   !hit || (!packPriceFresh(hit) && Date.now() - (hit.triedAt ?? hit.at) >= PACK_WARM_RETRY_MS)
 const PACK_PRICE_FILE = dataFile('pack-prices.json')
 const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
+
+// 저쪽(PPT) 번호를 **우리 번호로** 되돌린다. 세트마다 번호 체계가 다를 수 있어서다.
+// 표는 src/data/setCardNumberAlias.json에 둔다(우리 번호 → 저쪽 번호).
+const 번호별칭 = setCardNumberAlias as Record<string, Record<string, string>>
+const 되돌림표 = new Map<string, Map<string, string>>()
+for (const [slug, t] of Object.entries(번호별칭)) {
+  const m = new Map<string, string>()
+  for (const [우리, 저쪽] of Object.entries(t)) m.set(저쪽.toUpperCase(), 우리)
+  되돌림표.set(slug, m)
+}
+export const 번호되돌리기 = (slug: string, 저쪽번호: string): string =>
+  되돌림표.get(slug)?.get(String(저쪽번호).trim().toUpperCase()) ?? 저쪽번호
 
 // 앨범을 열 때 받아오면 세트당 1분씩 걸려 못 쓴다(PPT 분당 한도). 대신
 // ① 캐시를 파일로 남겨 재배포 직후에도 어제 시세가 바로 뜨고
