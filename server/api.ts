@@ -3906,7 +3906,11 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
   //    값이 높은 순으로 받으므로 잘리면 **싼 카드가 안 보인다** — "다 나온다"고
   //    믿게 두면 안 된다.
   const CARD_FIND_LIMIT = 200
-  const 찾기캐시 = new TtlCache<string>(6 * 60 * 60 * 1000, 500)
+  // ⚠️ 칸 수를 500 → 150으로 줄였다. 한 칸이 **41KB**다(200장 × 카드 정보).
+  //    500칸이면 20MB인데, 운영 기계는 512MB이고 실측 여유가 220MB뿐이다
+  //    (2026-08-07 /proc/meminfo). 150칸이면 6MB로, 서로 다른 이름 150개를
+  //    6시간 안에 찾는 일은 지금 사용량에서 오지 않는다.
+  const 찾기캐시 = new TtlCache<string>(6 * 60 * 60 * 1000, 150)
   app.use('/api/local/card-find', async (req, res) => {
     const q = new URL(req.url ?? '', 'http://x').searchParams
     const 말 = q.get('search')?.trim() ?? ''
@@ -4994,6 +4998,12 @@ function exportDue(종류: string): boolean {
  *    하루치로 오고, 그걸 전체 크레딧 소진으로 읽으면 크레딧이 15만 남았는데도
  *    방문자 시세가 통째로 막힌다(2026-08-07에 실제로 그랬다).
  */
+// 통째 받기 파일의 크기 한계(압축을 푼 뒤 기준). 이걸 넘으면 그날은 건너뛴다.
+// 40MB짜리 CSV면 문자열 80MB + Map + JSON까지 한때 150MB 넘게 쓴다 — 여유 220MB에서
+// 위험하다. 실제 덤프가 얼마나 큰지는 아직 못 봤다(첫 수신 2026-08-08 오전 9시 예정).
+// 로그에 실제 크기가 찍히므로, 확인한 뒤 이 값을 조정할 것.
+const EXPORT_MAX_BYTES = 40 * 1024 * 1024
+
 async function fetchExport(apiKey: string, 종류: string): Promise<string | null> {
   const today = utcDay()
   try {
@@ -5015,8 +5025,22 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
     const buf = Buffer.from(await r.arrayBuffer())
     exportDoneDay[종류] = today
     void savePptState()
-    let text: string
-    try { text = gunzipSync(buf).toString('utf8') } catch { text = buf.toString('utf8') }
+    // ⚠️ **크기를 먼저 본다.** 여기서 CSV를 통째로 문자열로 만드는데, 자바스크립트
+    //    문자열은 글자당 2바이트라 20MB 파일이 메모리에서 40MB가 된다. 게다가 그걸로
+    //    Map을 만들고 다시 JSON 문자열로 저장하므로 **한때 세 벌이 같이 떠 있다.**
+    //    기계는 512MB이고 실측 여유가 220MB뿐이다(2026-08-07). 너무 크면 받아 놓고
+    //    쓰지 않는다 — 사이트가 죽는 것보다 그 날 갱신을 거르는 게 낫다.
+    let 푼것: Buffer
+    try { 푼것 = gunzipSync(buf) } catch { 푼것 = buf }
+    if (푼것.length > EXPORT_MAX_BYTES) {
+      console.log(
+        `[pokegre] 통째 받기(${종류})가 너무 큽니다: ${(푼것.length / 1024 / 1024).toFixed(1)}MB ` +
+          `> 한계 ${(EXPORT_MAX_BYTES / 1024 / 1024).toFixed(0)}MB — 이번엔 건너뜁니다. ` +
+          `한계를 올리려면 기계 메모리를 먼저 키울 것.`,
+      )
+      return null
+    }
+    const text: string = 푼것.toString('utf8')
     console.log(
       `[pokegre] 통째 받기(${종류}) 성공: ${(buf.length / 1024 / 1024).toFixed(1)}MB` +
         (남음 != null ? ` · 오늘 남은 몫 ${남음}회` : ''),
