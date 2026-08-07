@@ -4170,6 +4170,24 @@ const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 // sticker는 진짜 카드가 딱 하나(Energy Sticker)라, 그것만 빼고 잡는다.
 const NOT_A_CARD =
   /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|festa|goods|merch)\b/i
+// 세트 이름에 흔히 붙는 말. 찾는 이름 뒤에 이게 오면 카드 이름이 아니라 세트 이름이다.
+const 세트를뜻하는말 = 'Heroes|Edition|Collection|Box|Set|Deck|Promo|Series|Pack|Starter'
+/**
+ * 이 매물이 정말 그 카드인가. 찾는 말 뒤에 세트를 뜻하는 말이 붙은 자리는 지우고,
+ * 그래도 찾는 말이 남아 있으면 그 카드로 본다.
+ *
+ * ⚠️ 검색어의 **첫 낱말만** 본다(대개 포켓몬 이름이다). 낱말을 다 따지면
+ *    "Charizard VSTAR"처럼 뒤에 등급·번호가 붙은 검색에서 멀쩡한 것도 걸러진다.
+ * ⚠️ 영문이 아닌 검색어는 그냥 통과시킨다 — 화면이 이미 영문으로 바꿔 보내지만,
+ *    사전에 없어 한글이 그대로 올라오면 여기서 다 걸러 버리면 안 된다.
+ */
+const 그카드가맞나 = (title: string, q: string): boolean => {
+  const 첫낱말 = (q.trim().split(/\s+/)[0] ?? '').replace(/[^A-Za-z'-]/g, '')
+  if (첫낱말.length < 3) return true
+  const 지움 = title.replace(new RegExp(`\\b${첫낱말}\\s+(?:${세트를뜻하는말})\\b`, 'ig'), ' ')
+  return new RegExp(`\\b${첫낱말}\\b`, 'i').test(지움)
+}
+
 const EBAY_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6시간(호가는 자주 안 변함 + 무료 콜 아낌)
 const EBAY_MAX_ENTRIES = 2000
 
@@ -4248,6 +4266,13 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
           condition?: string
         }>
       }
+      // ⚠️ **세트 이름이 포켓몬 이름과 같은 경우를 걸러낸다.** 이베이는 제목 전체에서
+      //    글자를 찾으므로 "이브이"로 찾으면 "Eevee Heroes"(세트 이름) 카드가 전부
+      //    걸린다 — 마릴·리피아가 나오고, 화면 맨 위 "최저 $1.25"가 **마릴 값**이었다
+      //    (2026-08-07 발견). 찾는 이름 뒤에 세트를 뜻하는 말이 붙어 있으면 그건
+      //    세트 이름이므로 지우고, 그래도 이름이 남아 있는 것만 그 카드로 본다.
+      //    실측: 이브이 24건 → 2건(최저 $1.25 마릴 → $2.75 진짜 이브이 ex).
+      //    블래키·리자몽·에브이·피카츄는 최저가가 안 바뀐다(멀쩡한 걸 안 걸러낸다).
       const items = (j.itemSummaries ?? [])
         .map((it) => ({
           title: it.title ?? '',
@@ -4259,6 +4284,7 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
         }))
         .filter((x) => x.price != null && x.price > 0)
         .filter((x) => !NOT_A_CARD.test(x.title))
+        .filter((x) => 그카드가맞나(x.title, q))
       // ⚠️ total도 거른 뒤의 개수로 보낸다. 이베이가 준 total을 그대로 쓰면
       //    "매물 34건"이라 적어 놓고 30건만 보여주게 된다.
       const body = JSON.stringify({ total: items.length, items })
