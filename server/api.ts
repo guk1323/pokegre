@@ -2431,10 +2431,12 @@ interface ShapedEbayCard {
 // have='ebay'이면 낙찰 기록이 있는 카드만, 'tcgplayer'면 TCGplayer 마켓가가 있는 카드만
 // 남긴다. 소스별로 목록이 달라야 하고(이베이엔 낙찰 카드, TCGplayer엔 시세 있는 카드),
 // 캐시도 have별로 나뉜다.
-// 이베이·TCGplayer 카드의 "번호 → 영문 이름". 공유 링크(/e/·/t/) 미리보기 제목을 서버가
-// 만들려면 이름이 있어야 하는데, PPT는 번호로 카드 한 장을 찾는 기능이 없다(확인함).
-// 대신 시세를 볼 때마다 응답이 서버를 지나가므로, 그때 이름을 주워 둔다. 크레딧이 안 든다.
-// 못 주운 카드는 링크에 실려 온 ?n=으로 넘어간다.
+// 이베이·TCGplayer 카드의 "번호 → 영문 이름". 공유 링크(/e/·/t/) 미리보기 제목에 쓴다.
+// 시세를 볼 때마다 응답이 서버를 지나가므로 그때 이름을 주워 둔다 — 크레딧이 안 든다.
+// ⚠️ 여기 'PPT는 번호로 카드 한 장을 찾는 기능이 없다(확인함)'고 적혀 있었는데 **틀렸다.**
+//    tcgPlayerId로 부르면 그 한 장을 준다(2026-08-07 직접 확인). 그 잘못된 단정 때문에
+//    공유 링크가 아예 안 열리는 버그까지 있었다. 못 주운 카드는 fetchCardNameForShare가
+//    받아 온다(하루 상한 있음).
 const cardNameById = new Map<string, string>()
 const CARD_NAME_MAX = 20_000
 const CARD_NAMES_FILE = dataFile('card-names.json')
