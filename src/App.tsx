@@ -29,7 +29,7 @@ import {
 } from './lib/pokedexRoute';
 import { 시트가스스로닫힘 } from './lib/sheetHistory';
 // 사전을 하나도 안 가져오는 파일이라 첫 화면 무게가 늘지 않는다(lib/cardImg.ts 머리말).
-import { cardImg, thumb, usable } from './lib/cardImg';
+import { cardImg, thumb, usable, 공유이름 } from './lib/cardImg';
 import { loadNameDict, warmNameDict } from './lib/nameDict';
 
 import {
@@ -144,25 +144,8 @@ const VIEW_TITLE: Partial<Record<MainView, string>> = {
 // 카드 이름을 탭 제목에 쓸 만큼만 다듬는다. 서버(server/index.ts의 shareName)와 같은
 // 규칙이어야 새로고침 전후로 탭 이름이 안 바뀐다 — 뒤의 (팩 이름)과 [세트 번호]를 떼고
 // 40자에서 자른다.
-// ⚠️ **괄호를 다 떼면 안 된다.** 뗄 것과 남길 것이 섞여 있다.
-//    뗄 것  — 스니커덩크가 붙이는 **팩 이름**: "리자드 AR[SV2a 169/165](확장팩「…」)"
-//    남길 것 — **카드를 가르는 말**: "아보 (Delta Species)" · "이브이 (Master Ball Pattern)"
-//               "움브레온 VMAX (Alternate Art Secret)" · "뮤츠 (Mirror Holofoil)"
-//    다 떼고 있어서 "아보 (Delta Species)"가 그냥 "아보"가 됐다 — 전혀 다른 카드인데
-//    제목과 공유 미리보기에서 구별이 안 된다. 저쪽 카드 58,215장 중 **6,499장**이
-//    이런 이름이다(2026-08-07 실측).
-//    ⚠️ 이 함수는 App.tsx의 shareTitle과 **글자까지 같아야 한다** — 다르면 새로고침
-//       전후로 탭 이름이 바뀐다.
-const 뜻있는괄호 =
-  /holo|reverse|mirror|delta|cosmos|master ball|pok[ée]? ?ball|shadowless|stamp|1st|full art|secret|prism|rainbow|pattern|jumbo|error|misprint|알?터네이트|델타|미러|리버스|마스터볼|몬스터볼/i
-const 꼬리괄호떼기 = (s: string) =>
-  s.replace(/\s*\(([^()]*)\)\s*$/, (전체: string, 안: string) => (뜻있는괄호.test(안) ? 전체 : ''));
-function shareTitle(title: string): string {
-  return 꼬리괄호떼기(title)
-    .replace(/\s*\[[^\]]*\]\s*$/, '')
-    .trim()
-    .slice(0, 40);
-}
+// 카드 이름을 탭 제목에 쓸 만큼만 다듬는다. **서버·공유 버튼과 같은 함수**를 쓴다
+// (lib/cardImg.ts의 공유이름) — 세 벌로 두면 같은 카드를 셋이 다르게 부른다.
 
 // 주소 → 화면. 위 표의 반대다.
 // ⚠️ 반드시 **첫 렌더 전에** 정해야 한다. 예전엔 useEffect에서 정했는데, 그 한 박자
@@ -1603,7 +1586,7 @@ function App() {
       if (cur !== path) window.history.replaceState(window.history.state, '', path + q);
       // 탭 제목도 그 카드로. 서버가 /c/<번호>에 붙이는 것과 같은 모양이다.
       const nm = selectedCard?.title ?? ebaySelectedCard?.name ?? '';
-      document.title = nm ? `${shareTitle(nm)} 시세 | pokegre` : HOME_TITLE;
+      document.title = nm ? `${공유이름(nm)} 시세 | pokegre` : HOME_TITLE;
       return;
     }
     // 공유 링크로 막 들어와 카드를 되살리는 중이면 건드리지 않는다(주소가 먼저 지워진다).

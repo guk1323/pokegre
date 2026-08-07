@@ -58,3 +58,28 @@ export const 기준일글 = (at?: number): string => {
   if (Number.isNaN(d.getTime())) return '';
   return ` · ${d.getMonth() + 1}.${d.getDate()} 기준`;
 };
+
+// 공유·탭 제목에 쓸 카드 이름. **한 곳에서만 정한다.**
+//
+// ⚠️ 예전엔 세 곳이 제각각이었다(2026-08-07 발견).
+//      화면 큰 글씨   "메가레쿠쟈 ex MUR [M6 113/076]"        (괄호만 뗌)
+//      탭 제목        "메가레쿠쟈 ex MUR"                     (둘 다 뗌)
+//      공유 시트 제목  "메가레쿠쟈 ex MUR [M6 113/076](확장팩「…」)"  (원본 그대로)
+//    링크를 받은 사람이 여는 화면 제목과 보낸 사람이 본 공유 제목이 달랐다.
+//
+// ⚠️ **괄호를 다 떼면 안 된다.** 뗄 것과 남길 것이 섞여 있다.
+//      뗄 것  — 스니커덩크가 붙이는 팩 이름 "(확장팩「스칼렛ex」)"
+//      남길 것 — 카드를 가르는 말 "(Delta Species)"·"(Master Ball Pattern)"
+//                "(Alternate Art Secret)"·"(Mirror Holofoil)"
+//    저쪽 카드 58,215장 중 6,499장이 뜻 있는 괄호로 끝난다.
+//
+// ⚠️ 서버(server/index.ts)도 이 함수를 가져다 쓴다. 두 벌로 두면 새로고침 전후로
+//    탭 이름이 바뀐다.
+const 뜻있는괄호 =
+  /holo|reverse|mirror|delta|cosmos|master ball|pok[ée]? ?ball|shadowless|stamp|1st|full art|secret|prism|rainbow|pattern|jumbo|error|misprint|알?터네이트|델타|미러|리버스|마스터볼|몬스터볼/i;
+export const 공유이름 = (title: string): string =>
+  title
+    .replace(/\s*\(([^()]*)\)\s*$/, (전체: string, 안: string) => (뜻있는괄호.test(안) ? 전체 : ''))
+    .replace(/\s*\[[^\]]*\]\s*$/, '')
+    .trim()
+    .slice(0, 40);
