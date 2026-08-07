@@ -2410,6 +2410,14 @@ interface RawPriceTrackerCard {
   variants?: Record<string, { printing?: string; conditionUsed?: string }>
   ebay?: {
     salesByGrade?: Record<string, RawEbayGrade>
+    // ⚠️ **개별 낙찰 기록**이 여기 통째로 온다(등급별로 나뉘어). 지금까지 통계만 쓰고
+    //    이건 버리고 있었다 — 블레인의 리자몽 202건, 에브이 ex 663건이 응답에 들어
+    //    있는데 한 건도 안 보여 줬다(2026-08-07 발견). 이미 받는 값이라 크레딧이
+    //    더 들지 않는다. "합계 202건"보다 "1월 18일 $160에 팔렸다"가 훨씬 쓸모 있다.
+    soldListings?: Record<
+      string,
+      { price?: number; soldDate?: string; url?: string; listingType?: string; bestOfferAccepted?: boolean }[]
+    >
     totalSales?: number
     // 등급별 × 날짜별 낙찰 평균가. { psa10: { "2026-05-05": { average: 99.99 } } }
     priceHistory?: Record<string, Record<string, { average?: number } | null>>
@@ -2455,8 +2463,16 @@ interface ShapedEbayCard {
     confidence: string | null
     // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
     history: { date: string; price: number }[]
+    // 실제 낙찰 몇 건(최근 순). 통계가 아니라 **낱개 거래**다.
+    // ⚠️ 등급당 EBAY_SALES_PER_GRADE건까지만 넘긴다. 전부 넘기면 응답이 264KB까지
+    //    부풀고(에브이 ex 663건), 화면에서 다 보여 줄 수도 없다.
+    sales: { price: number; date: string; url: string; auction: boolean }[]
   }[]
 }
+
+// 등급 하나에 몇 건까지 보여 줄지. 사람이 훑어보는 데는 이 정도면 충분하고,
+// 더 보고 싶으면 등급 줄을 눌러 이베이 낙찰내역으로 갈 수 있다.
+const EBAY_SALES_PER_GRADE = 5
 
 // PokemonPriceTracker 원본 응답에는 화면에 안 쓰는 정보(개별 낙찰 목록, 전체 가격
 // 히스토리, smartMarketPrice 등)까지 들어 있다. 원본을 그대로 프록시로 흘리면 이
@@ -2639,6 +2655,18 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
             smartPrice: stat.smartMarketPrice?.price ?? null,
             confidence: stat.smartMarketPrice?.confidence ?? null,
             history: shapeGradeHistory(history[grade]),
+            sales: (card.ebay?.soldListings?.[grade] ?? [])
+              .filter((x) => (x.price ?? 0) > 0 && x.soldDate)
+              // 최근 것부터. 저쪽이 어떤 순서로 주는지 보장이 없어 우리가 정렬한다.
+              .sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate)))
+              .slice(0, EBAY_SALES_PER_GRADE)
+              .map((x) => ({
+                price: x.price ?? 0,
+                date: String(x.soldDate).slice(0, 10),
+                url: x.url ?? '',
+                // 경매인지 즉시구매인지. 경매가는 "그날 시장이 매긴 값"이라 더 믿을 만하다.
+                auction: String(x.listingType ?? '').toLowerCase() === 'auction',
+              })),
           }))
           .sort((a, b) => b.count - a.count),
       }

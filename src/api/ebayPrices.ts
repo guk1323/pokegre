@@ -44,6 +44,9 @@ export interface EbayGradeStat {
   confidence: string | null;
   // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
   history: EbayGradePoint[];
+  // 실제 낙찰 몇 건(최근 순, 등급당 최대 5건). 통계가 아니라 낱개 거래다.
+  // 옛 응답 캐시에는 없을 수 있어 옵션으로 둔다.
+  sales?: { price: number; date: string; url: string; auction: boolean }[];
 }
 
 // TCGplayer(미국 마켓) 시세. 미감정(로우) 카드 기준. 값이 있을 때만 서버가 담아준다.

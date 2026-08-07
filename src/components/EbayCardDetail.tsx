@@ -112,6 +112,31 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
                     )}
                   </div>
                 </a>
+                {/* 실제 낙찰 낱개. "28건"이라는 숫자보다 "1월 18일에 $160에 팔렸다"가
+                    훨씬 와닿는다. 이 값은 예전부터 응답에 들어 있었는데 안 쓰고 있었다
+                    (2026-08-07 발견). 누르면 그 매물로 바로 간다. */}
+                {g.sales && g.sales.length > 0 && (
+                  <ul className="border-t border-neutral-50 bg-neutral-50/60 px-3 py-1.5">
+                    {g.sales.map((s) => (
+                      <li key={s.url || `${s.date}-${s.price}`}>
+                        <a
+                          href={s.url || undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-baseline justify-between gap-2 py-0.5 text-[11px] hover:underline"
+                        >
+                          <span className="text-neutral-500">
+                            {s.date.slice(2).replace(/-/g, '.')}
+                            <span className="ml-1 text-neutral-400">{s.auction ? '경매' : '즉시구매'}</span>
+                          </span>
+                          <span className="flex-shrink-0 font-semibold text-neutral-700">
+                            {krw(s.price, 'usd')}
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             );
           })}
