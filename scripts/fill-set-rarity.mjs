@@ -68,7 +68,7 @@ const POCKET_MAP = {
   'Crown Rare': 'Hyper rare',    // 왕관, 세트당 2~3장
 }
 
-// 북미판은 limitless가 완전히 다른 코드를 쓴다(우리 sv08 ↔ limitless SCR).
+// 영문판은 limitless가 완전히 다른 코드를 쓴다(우리 sv08 ↔ limitless SCR).
 // 이름으로 맞추면 틀리기 쉬워서 발매일+장수로 하나로 좁혀지는 것만 적었다
 // (scripts/en-limitless-map.json). 한 코드에 우리 세트가 둘 이상 붙는 것은 뺐다 —
 // 본세트와 트레이너갤러리처럼 같은 날 나온 것들이라 섞이면 엉뚱한 카드가 들어간다.
@@ -121,7 +121,7 @@ for (const slug of slugs) {
     console.log(`  ${slug}: 파일 없음`)
     continue
   }
-  // 일본판은 /cards/jp/<코드>, 북미판은 /cards/<코드>다.
+  // 일본판은 /cards/jp/<코드>, 영문판은 /cards/<코드>다.
   const pocket = d.ed === 'en' && POCKET.test(d.id)
   const url = pocket
     ? `https://pocket.limitlesstcg.com/cards/${d.id}?display=list`

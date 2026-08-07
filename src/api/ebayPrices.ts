@@ -5,7 +5,7 @@ import { 레어도떼기, 레어도맞나 } from '../lib/rarityCode';
 // PPT가 쓰는 세트 이름 → 우리 한글 세트 이름.
 //
 // 왜: 영문 세트명 사전이 못 잡는 이름이 있다. 일본판 세트를 PPT는 "Start Deck 100
-// Battle Collection"이라 부르는데, 그 사전은 북미판 이름만 알아서 영문이 그대로
+// Battle Collection"이라 부르는데, 그 사전은 영문판 이름만 알아서 영문이 그대로
 // 화면에 나갔다 — 목록에서는 "스타트 덱 100 배틀컬렉션"으로 보다가 상세에서
 // 영문을 보게 된다(점검 중 발견 2026-08-06).
 // 우리는 이미 slug↔PPT 이름 대응표를 갖고 있으니 거꾸로 찾으면 된다.
@@ -81,8 +81,8 @@ export const EBAY_PAGE_SIZE = 12;
 const EBAY_RARITY_PAGE_SIZE = 48;
 
 // 카드 발매판. PokemonPriceTracker는 일본판/영문판을 각각 별도 DB로 들고 있어서
-// language 파라미터로 고른다. SNKRDUNK는 일본 마켓이라 북미판 카탈로그가 없고,
-// 그래서 북미판 시세는 이쪽(eBay)에서만 볼 수 있다.
+// language 파라미터로 고른다. SNKRDUNK는 일본 마켓이라 영문판 카탈로그가 없고,
+// 그래서 영문판 시세는 이쪽(eBay)에서만 볼 수 있다.
 // 한글판은 PPT가 아니라 이베이 Browse API(호가)로 별도 처리하지만, 발매판 토글을
 // 공유하려고 여기 함께 둔다. PPT 검색 함수엔 'korean'을 넘기지 않게 호출부에서 막는다.
 export type CardEdition = 'japanese' | 'english' | 'korean';
@@ -182,7 +182,7 @@ export async function fetchCardNameById(
       // 번호에서 "XY95" 같은 앞부분만 쓴다("104/110"이면 104).
       const num = String(c?.cardNumber ?? '').split('/')[0].trim();
       // ⚠️ 어느 판에서 찾았는지도 알려야 한다. 화면이 다른 판으로 검색하면 0건이 된다
-      //    (북미판 카드를 일본판 탭에서 찾은 꼴 — 2026-08-07에 그렇게 안 나왔다).
+      //    (영문판 카드를 일본판 탭에서 찾은 꼴 — 2026-08-07에 그렇게 안 나왔다).
       return { query: num ? `${name} ${num}` : name, edition: language };
     } catch {
       /* 다음 판으로 넘어간다 */

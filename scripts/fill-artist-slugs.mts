@@ -26,7 +26,7 @@ type SetMeta = { slug: string; ed: 'ja' | 'en'; name: string }
 const index = JSON.parse(readFileSync(path.join(SETS, 'index.json'), 'utf-8')) as SetMeta[]
 const meta = new Map(index.map((s) => [s.slug, s]))
 
-/** 번호+이름 → 그 조합을 가진 세트 슬러그들. 작가 데이터가 북미판이라 en만 본다. */
+/** 번호+이름 → 그 조합을 가진 세트 슬러그들. 작가 데이터가 영문판이라 en만 본다. */
 const 짝 = new Map<string, string[]>()
 // ⚠️ 카드 이름 표기가 두 데이터에서 조금씩 다르다 — "Tapu Lele-GX"와 "Tapu Lele GX",
 //    "Togepi & Cleffa & Igglybuff-GX"처럼 붙임표 자리가 갈린다. 붙임표·따옴표를 공백으로

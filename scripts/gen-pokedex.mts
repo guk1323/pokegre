@@ -5,7 +5,7 @@
 // 미리 만들어 두면 검색은 목록 파일 하나(작다)로 하고, 고른 포켓몬 것만 따로 받는다.
 // 작가 화면(public/artists/by-card.json)이 같은 방식이다.
 //
-// ⚠️ 이름 대조는 **번역 전 원문**으로 한다. 일본판은 일본어, 북미판은 영어와 맞춘다.
+// ⚠️ 이름 대조는 **번역 전 원문**으로 한다. 일본판은 일본어, 영문판은 영어와 맞춘다.
 //    한글로 옮긴 뒤에 맞추면 번역이 틀린 카드는 통째로 빠진다.
 // ⚠️ 긴 이름부터 맞춘다. "리자몽"을 먼저 맞추면 "메가리자몽"이 리자몽으로 잡힌다.
 //    실제로는 메가리자몽도 리자몽 카드가 맞지만, 진화 전후를 섞지 않으려면 긴 쪽이 맞다.
@@ -59,7 +59,7 @@ const meta = new Map(idx.map((s) => [s.slug, s]))
 // 카드가 포켓몬인지 트레이너·에너지인지 **원본에 물어 둔 것**. 이름으로 짐작하면
 // "빛나는 리자몽"·"피카츄 ex"가 트레이너로 가고, 반대로 포켓몬 이름이 든 트레이너
 // ("마그마단의 슈퍼볼")가 포켓몬으로 갈 수 있다(2026-08-07 점검 중 발견).
-// 세 갈래로 받아 뒀다 — 세트 단위 REST(cardCategories) · 북미판 GraphQL(cardFacts) ·
+// 세 갈래로 받아 뒀다 — 세트 단위 REST(cardCategories) · 영문판 GraphQL(cardFacts) ·
 // 옛 일본판 카드 상세(oldJpDex). 아는 카드는 38,009장 중 29,155장(77%)이다.
 const 종류표 = cardCategories as Record<string, Record<string, string>>
 const 북미표 = cardFacts as Record<string, { c?: string }>
@@ -83,7 +83,7 @@ const 카드종류 = (slug: string, setId: string, n: string): 'p' | 't' | 'e' |
 const buckets = new Map<number, (Entry & { date: string })[]>()
 
 // 트레이너·에너지 카드. 포켓몬처럼 이름표(ja/en/ko 대조표)가 없으므로 **한글 카드
-// 이름**으로 묶는다 — 일본판 「博士の研究」와 북미판 「Professor's Research」가 둘 다
+// 이름**으로 묶는다 — 일본판 「博士の研究」와 영문판 「Professor's Research」가 둘 다
 // "박사의 연구"가 되어 한 무더기가 된다(운영자 지시 2026-08-06).
 // ⚠️ 그래서 여기만은 번역을 거친다. 포켓몬 쪽은 원문으로 맞추는 것과 반대인데,
 //    이유가 다르다 — 포켓몬은 대조표가 있어 원문이 더 정확하고, 트레이너는 판을
@@ -209,7 +209,7 @@ const TRAINER_ID_BASE = 10000
 const 트레이너목록 = [...trainers.entries()].sort((a, b) => b[1].length - a[1].length)
 트레이너목록.forEach(([, arr], i) => {
   const id = TRAINER_ID_BASE + i
-  // 영어 이름은 북미판 카드가 있으면 그 원문을 쓴다(검색을 영어로도 되게).
+  // 영어 이름은 영문판 카드가 있으면 그 원문을 쓴다(검색을 영어로도 되게).
   const en = arr.find((c) => !c.s.startsWith('ja-'))?.name ?? ''
   // ⚠️ 보여줄 이름은 **띄어쓰기가 있는 쪽**을 고른다. 열쇠에서 띄어쓰기를 뺐더니
   //    "체육관배지"처럼 붙은 이름이 대표가 되는 일이 생겼다. 사람이 읽기엔 띄어 쓴

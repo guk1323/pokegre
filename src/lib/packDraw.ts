@@ -3,7 +3,7 @@
 import { GOD_TIERS, type RateProfile } from './packSets.ts';
 
 // m: 반짝이 변형판. master=마스터볼 미러(일본판 151 박스당 1장), poke=몬스터볼 미러
-// (일본판 151 팩당 1장), rev=리버스 홀로(북미판 팩당 2장).
+// (일본판 151 팩당 1장), rev=리버스 홀로(영문판 팩당 2장).
 export type MirrorFlag = 'master' | 'poke' | 'rev';
 export type PackCard = { n: string; name: string; img?: string; r?: string; m?: MirrorFlag };
 export type MirrorKind = 'jp151' | 'na' | 'prismatic';
@@ -21,7 +21,7 @@ export const RARITY_RANK: Record<string, number> = {
   'Special illustration rare': 7,
   'Hyper rare': 8,
   'Mega Ultra Rare': 9, // 일본판 메가 시리즈 전용 최상위(카드 전체 금색) — 세트당 1장
-  'Mega Hyper Rare': 9, // 북미판 메가 시리즈의 같은 등급(MHR) — 세트당 2장
+  'Mega Hyper Rare': 9, // 영문판 메가 시리즈의 같은 등급(MHR) — 세트당 2장
 };
 export const rankOf = (r?: string) => RARITY_RANK[r ?? ''] ?? 0;
 export const usableCards = (cards: PackCard[]) => cards.filter((c) => c.r && c.r in RARITY_RANK);
@@ -178,7 +178,7 @@ export function drawPack(cards: PackCard[], profile: RateProfile, godRate = 0, m
 // 일본판은 실물처럼 박스 보장 봉입을 지킨다(사용자 제공 공식 스펙):
 //   일반(30팩): AR 3장 + RR 4~5장 + SR이상 1장 + ACE 1장(수록 세트만)
 //   151(20팩): AR 3장 + RR 4~5장 + SR이상 1장 + 마스터볼 미러 1장
-// 북미판(36팩)은 보장이 없어 순수 독립시행이다. 갓팩은 박스 안에서도 팩별 독립 판정.
+// 영문판(36팩)은 보장이 없어 순수 독립시행이다. 갓팩은 박스 안에서도 팩별 독립 판정.
 export type BoxGuarantee = 'jp' | 'jp151' | null;
 
 export function drawBox(

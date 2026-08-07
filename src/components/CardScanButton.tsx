@@ -39,7 +39,7 @@ export function CardScanButton({
       const snkrdunk = num ? [result.setCode, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
       const ebay = num ? [result.pokemonNameEn, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
       if (snkrdunk || ebay) {
-        // 'english'만 북미판으로, 그 외(japanese·korean 등)는 전부 일본판 시장으로.
+        // 'english'만 영문판으로, 그 외(japanese·korean 등)는 전부 일본판 시장으로.
         onResult({ snkrdunk, ebay, edition: result.edition === 'english' ? 'english' : 'japanese', result });
       } else {
         setError('카드를 인식하지 못했습니다. 다시 찍어보세요.');

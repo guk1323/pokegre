@@ -23,10 +23,10 @@ async function matchExactCard(index: SetIndexEntry[], r: CardScanResult): Promis
   const code = (r.setCode ?? '').trim().toLowerCase();
   if (!code) return { ok: false, reason: '세트 코드를 읽지 못했습니다.' };
   const ed = r.edition === 'english' ? 'en' : 'ja';
-  // 같은 판(일본판/북미판)에서 세트 id가 코드와 일치하는 세트를 찾는다.
+  // 같은 판(일본판/영문판)에서 세트 id가 코드와 일치하는 세트를 찾는다.
   const cand = index.filter((s) => s.ed === ed && (s.id ?? '').toLowerCase() === code);
   if (cand.length === 0) {
-    return { ok: false, reason: `세트 '${r.setCode}'(${ed === 'en' ? '북미판' : '일본판'})를 우리 목록에서 찾지 못했습니다.` };
+    return { ok: false, reason: `세트 '${r.setCode}'(${ed === 'en' ? '영문판' : '일본판'})를 우리 목록에서 찾지 못했습니다.` };
   }
   const set = cand[0];
   let data: { cards?: SetCard[] };
@@ -135,7 +135,7 @@ export function ScanTest() {
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-neutral-400">판</dt>
-                  <dd className="font-semibold text-neutral-800">{raw.edition === 'english' ? '북미판' : '일본판/한글판'}</dd>
+                  <dd className="font-semibold text-neutral-800">{raw.edition === 'english' ? '영문판' : '일본판/한글판'}</dd>
                 </div>
               </dl>
             ) : (

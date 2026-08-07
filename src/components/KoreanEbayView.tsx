@@ -78,7 +78,7 @@ export function KoreanEbayView({ query }: { query: string }) {
   const min = Math.min(...items.map((i) => i.price));
   return (
     <div>
-      {/* 호가임을 분명히 — 북미판(체결가)과 헷갈리면 안 된다. */}
+      {/* 호가임을 분명히 — 영문판(체결가)과 헷갈리면 안 된다. */}
       <div className="mb-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-black">이베이 한글판</span>

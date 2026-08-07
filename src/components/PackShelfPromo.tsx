@@ -23,7 +23,7 @@ const won = (n: number) => `${n.toLocaleString()} GP`;
 //    실제로 ACE SPEC·레어·언커먼·커먼이 빠져 있었다(2026-08-06). 순위표(RARITY_RANK)에
 //    있는 등급은 여기 다 있어야 한다 — 하나라도 빠지면 조용히 빈칸이 된다.
 const TIER_KO: Record<string, [string, string]> = {
-  // [일본판, 북미판]
+  // [일본판, 영문판]
   'Mega Ultra Rare': ['MUR', 'MUR'],
   'Mega Hyper Rare': ['MHR', 'MHR'],
   'Hyper rare': ['UR', 'HR'],

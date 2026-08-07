@@ -53,7 +53,7 @@ export const SLAB_GRADES = [
   '기타 감정품',
 ] as const;
 
-export const EDITION_LABEL = { jp: '일본판', na: '북미판', kr: '한글판' } as const;
+export const EDITION_LABEL = { jp: '일본판', na: '영문판', kr: '한글판' } as const;
 export type Edition = keyof typeof EDITION_LABEL;
 
 // 등급별 한 줄 설명. 등록 화면에서 고를 때 바로 보이게 해서 후하게 매기는 걸 줄인다.

@@ -12,9 +12,9 @@
 //    "Charizard" 한 번으로 처리되어 6시간 담아 둔 것을 다시 쓴다.
 // ⚠️ ex·V·VMAX·GX는 **여기 넣으면 안 된다.** 그건 레어도가 아니라 카드 이름의
 //    일부이고 저쪽이 알아듣는다.
-// ⚠️ **일본판과 북미판이 같은 레어도를 다르게 부른다.** 한 코드에 양쪽 표기를 다 적는다.
-//    일본판 "Special Art Rare" ↔ 북미판 "Special Illustration Rare" (2026-08-08 실측).
-//    한쪽만 적으면 북미판에서 "Charizard SAR"이 안 걸린다 — 실제로 그랬다.
+// ⚠️ **일본판과 영문판이 같은 레어도를 다르게 부른다.** 한 코드에 양쪽 표기를 다 적는다.
+//    일본판 "Special Art Rare" ↔ 영문판 "Special Illustration Rare" (2026-08-08 실측).
+//    한쪽만 적으면 영문판에서 "Charizard SAR"이 안 걸린다 — 실제로 그랬다.
 export const 레어도표 = new Map<string, string[]>([
   ['SAR', ['Special Art Rare', 'Special Illustration Rare']],
   ['AR', ['Art Rare', 'Illustration Rare']],

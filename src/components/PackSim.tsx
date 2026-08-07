@@ -81,10 +81,10 @@ const RARITY: Record<string, { ko: string; cls: string }> = {
   'Mega Hyper Rare': { ko: '메가 하이퍼레어 MHR', cls: 'text-yellow-600 ring-yellow-500' },
 };
 
-// ⚠️ 같은 카드라도 판마다 등급 이름이 다르다. 데이터 키(위 RARITY)는 북미판 이름을
+// ⚠️ 같은 카드라도 판마다 등급 이름이 다르다. 데이터 키(위 RARITY)는 영문판 이름을
 // 쓰고 있으므로, 일본판은 아래 표로 바꿔 부른다:
-//   풀아트 = 일본판 SR(슈퍼레어) / 북미판 UR  ·  금색 = 일본판 UR(울트라레어) / 북미판 HR
-//   일러스트 = 일본판 AR·SAR / 북미판 IR·SIR
+//   풀아트 = 일본판 SR(슈퍼레어) / 영문판 UR  ·  금색 = 일본판 UR(울트라레어) / 영문판 HR
+//   일러스트 = 일본판 AR·SAR / 영문판 IR·SIR
 const JP_KO: Record<string, string> = {
   'Ultra Rare': '슈퍼레어 SR',
   'Hyper rare': '울트라레어 UR',
@@ -149,7 +149,7 @@ const fitNum = (s: string) =>
 // 박스 개봉 한 줄 안내. 개봉 중에는 따로 띄우고, 다 뒤집은 뒤에는 결과 머리띠 안에
 // 들어간다 — 두 군데서 쓰므로 문구를 한 곳에 둔다.
 const boxLine = (packs: number, cards: number, jp: boolean) =>
-  `박스 개봉 결과 — ${packs}팩 · ${cards}장${jp ? ' (박스 보장 봉입 적용)' : ' (북미판은 보장 없음)'}`;
+  `박스 개봉 결과 — ${packs}팩 · ${cards}장${jp ? ' (박스 보장 봉입 적용)' : ' (영문판은 보장 없음)'}`;
 
 // 카드 몇 장을 한 줄에 놓을지. 5장·7장짜리 팩은 한 줄로, 10장짜리는 5개씩 두 줄로
 // 놓는다(운영자 지시 2026-08-05).
@@ -202,10 +202,10 @@ function buildGroups(live: PackSet[]): RateGroup[] {
         ? `일본판 강화 확장팩 (${size}장)`
         : `일본판 정규 확장팩 (${size}장)`
     : profile === NA_MEGA
-      ? `북미판 메가 시리즈 부스터 (${size}장)`
+      ? `영문판 메가 시리즈 부스터 (${size}장)`
       : profile === NA_PRISMATIC || profile === NA_151
-        ? `북미판 특별세트 (${size}장)`
-        : `북미판 메인 부스터 (${size}장)`;
+        ? `영문판 특별세트 (${size}장)`
+        : `영문판 메인 부스터 (${size}장)`;
   return {
     kind,
     // 같은 종류라도 ACE SPEC 수록 여부로 확률이 갈린다.
@@ -572,7 +572,7 @@ export function PackSim({
     }
   }
 
-  // 박스 개봉: 일본판은 보장 봉입, 북미판은 독립시행. 결과는 한 팩씩 넘겨 가며 공개한다.
+  // 박스 개봉: 일본판은 보장 봉입, 영문판은 독립시행. 결과는 한 팩씩 넘겨 가며 공개한다.
   async function openBox(slug2: string, from?: 'stash') {
     const target = packBySlug.get(slug2);
     if (!sim || !target?.boxPacks) return;
@@ -777,7 +777,7 @@ export function PackSim({
   // ⚠️ 검색어는 반드시 영문(TCGplayer 표기)이어야 한다. 한글로 바꿨다 되돌리면
   // "Team Rocket's"가 "로켓단의"로 남거나 트레이너 이름이 아예 안 바뀌어 검색이
   // 빗나간다 — 실제로 231번 뮤츠가 "매물 없음"으로 나왔다.
-  //   북미판: 원본 이름이 이미 영문이라 그대로 쓴다.
+  //   영문판: 원본 이름이 이미 영문이라 그대로 쓴다.
   //   일본판: 원본이 일본어라, 시세를 받을 때 함께 저장해 둔 영문 이름을 쓴다.
   //           (아직 못 받았으면 한글→영문 번역으로 최선을 다한다)
   const pickTarget = (slug2: string, n: string, rawName: string): PickTarget => {
@@ -881,7 +881,7 @@ export function PackSim({
     });
   })();
 
-  // 박스는 150장(북미판은 360장)이라 다 펴 놓으면 세로로 7,000px이 넘는다. 그런데
+  // 박스는 150장(영문판은 360장)이라 다 펴 놓으면 세로로 7,000px이 넘는다. 그런데
   // 실제로 볼 값어치가 있는 건 몇 장뿐이다 — 방금 연 박스는 150장 중 1만원 넘는 게
   // 3장, 후광이 걸린 게 4장이었고 나머지 145장을 합쳐 8,700원이었다.
   // 그래서 **값나가는 것만 펴고 나머지는 한 줄로 접는다**(운영자 지시 2026-08-05).
@@ -1044,7 +1044,7 @@ export function PackSim({
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
             { label: '일본판', dot: 'bg-rose-500', packs: liveToday.filter((p) => p.jp) },
-            { label: '북미판', dot: 'bg-blue-500', packs: liveToday.filter((p) => !p.jp) },
+            { label: '영문판', dot: 'bg-blue-500', packs: liveToday.filter((p) => !p.jp) },
           ].map((row) => (
             <div key={row.label} className="mt-5">
               <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-neutral-600">
@@ -1149,7 +1149,7 @@ export function PackSim({
                                     <>
                                       {/* ⚠️ 몇 팩짜리인지 버튼에 적는다(운영자 지시 2026-08-05).
                                           박스 값이 팩의 30~36배라, 팩 수를 모르면 왜 이만큼
-                                          비싼지 알 수 없었다. 일본판 30팩·북미판 36팩으로 서로
+                                          비싼지 알 수 없었다. 일본판 30팩·영문판 36팩으로 서로
                                           다르기도 하다. */}
                                       <span className="block text-[11px] font-semibold opacity-80">
                                         1박스 ({s2.boxPacks}팩)
@@ -1933,7 +1933,7 @@ export function PackSim({
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <p className="text-sm font-bold text-amber-700">갓팩</p>
             <p className="mt-1 text-xs text-neutral-600">
-              실물과 같게 151류 강화 확장팩에 있습니다 — 일본판 151은 750팩에 1번, 북미판
+              실물과 같게 151류 강화 확장팩에 있습니다 — 일본판 151은 750팩에 1번, 영문판
               특별세트(Prismatic·151)는 1,000팩에 1번. 걸리면 팩 전체가 아트레어(AR) 이상으로
               나옵니다. 일반 확장팩에는 갓팩이 없습니다.
             </p>
@@ -1945,7 +1945,7 @@ export function PackSim({
               일본판 박스는 실물과 같은 보장 봉입이 있습니다 — <b>SR 이상 1장 · AR 3장 · RR 4~5장</b>
               (151은 마스터볼 미러 1장 추가)이 반드시 들어가고, 나머지 팩은
               커먼·언커먼·레어로 채웁니다. 보장이 있어도 박스 한 개의 기대값은 위 표와 같습니다.
-              낱팩은 팩마다 위 표의 확률을 따로 굴립니다. 북미판 박스는 실물처럼 보장이 없어
+              낱팩은 팩마다 위 표의 확률을 따로 굴립니다. 영문판 박스는 실물처럼 보장이 없어
               순수 확률입니다.
             </p>
           </div>
@@ -1954,7 +1954,7 @@ export function PackSim({
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
               메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금색이고, 일본판은 MUR(세트당
-              1종·약 3,000팩 = 박스 100개에 1장꼴), 북미판은 MHR(세트당 2종)로 부릅니다. 메가
+              1종·약 3,000팩 = 박스 100개에 1장꼴), 영문판은 MHR(세트당 2종)로 부릅니다. 메가
               시리즈에는 일반 금색 UR 대신 이 등급이 들어갑니다.
             </p>
           </div>

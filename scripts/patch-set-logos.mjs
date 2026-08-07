@@ -1,6 +1,6 @@
 // 세트 목록 썸네일을 "첫 카드"가 아니라 "팩(패키지) 로고"로 쓰기 위해,
 // 각 세트에 logo URL을 붙인다.
-//  - 북미판(en): TCGdex 로고. 카드 이미지 base(.../en/sv/sv08.5/001)에서 번호를 logo로 치환.
+//  - 영문판(en): TCGdex 로고. 카드 이미지 base(.../en/sv/sv08.5/001)에서 번호를 logo로 치환.
 //  - 일본판(ja): TCGdex엔 로고가 없어 LimitlessTCG 팩 로고(s3.limitlesstcg.com/sets/jp/<id>.png).
 // 실제로 존재하는(HEAD 200) 것만 저장한다. 없으면 화면에서 첫 카드로 대체된다.
 import { readFile, writeFile } from 'node:fs/promises'

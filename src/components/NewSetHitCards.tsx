@@ -161,7 +161,7 @@ export function NewSetHitCards({
             </div>
             <p className="truncate text-[11px] font-semibold text-neutral-800">{c.ko || c.name}</p>
             {/* ⚠️ **번호를 같이 적는다.** 힛카드는 값 높은 순이라 **같은 카드의 다른 인쇄가
-                나란히 뜬다** — 스톰에메랄드는 "메가레쿠쟈 ex"가 113·110·095로 셋이 걸렸다
+                나란히 뜬다** — 스톰에메랄다는 "메가레쿠쟈 ex"가 113·110·095로 셋이 걸렸다
                 (2026-08-07 확인). 이름만 적으면 똑같은 줄 셋이 값만 다르게 보여
                 무엇이 무엇인지 알 수 없다. 그림은 다르지만 글자로도 구분이 돼야 한다. */}
             <div className="flex items-baseline justify-between gap-1">

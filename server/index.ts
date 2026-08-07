@@ -220,7 +220,7 @@ function buildCardHtml(
   const desc =
     card && card.price > 0
       ? `스니커덩크 최저가 ¥${yen.format(card.price)} · 등급별 시세는 pokegre에서`
-      : '일본판·북미판 시세를 한국어로 봅니다.'
+      : '일본판·영문판 시세를 한국어로 봅니다.'
   const url = `https://pokegre.com${sharePath}`
 
   let html = TEMPLATE
@@ -566,11 +566,11 @@ app.get('/sets', async (_req, res) => {
   res.set('Cache-Control', HTML_CACHE).send(
     seoPage({
       title: '포켓몬 카드 세트 목록 | pokegre',
-      desc: `일본판·북미판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장을 한국어 이름으로 봅니다. 세트마다 값이 높은 카드도 함께 보여줍니다.`,
+      desc: `일본판·영문판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장을 한국어 이름으로 봅니다. 세트마다 값이 높은 카드도 함께 보여줍니다.`,
       url: 'https://pokegre.com/sets',
       body:
         '<h1>포켓몬 카드 세트 목록</h1>' +
-        `<p>일본판·북미판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장입니다. ` +
+        `<p>일본판·영문판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장입니다. ` +
         '세트를 누르면 수록 카드를 한국어 이름으로 보고, 값이 높은 카드도 함께 볼 수 있습니다.</p>' +
         본문,
     }),
@@ -635,7 +635,7 @@ app.get('/pokedex', async (_req, res) => {
       body:
         '<h1>포켓몬·트레이너별 카드</h1>' +
         `<p>포켓몬 ${포켓몬수}종, 트레이너·에너지 ${list.length - 포켓몬수}종, 카드 ${장수.toLocaleString()}장입니다. ` +
-        '이름을 고르면 그 카드가 일본판·북미판을 통틀어 발매 순으로 나오고, ' +
+        '이름을 고르면 그 카드가 일본판·영문판을 통틀어 발매 순으로 나오고, ' +
         '어느 세트에서 나온 카드인지도 함께 적습니다.</p>' +
         `<ul>${li}</ul>`,
     }),
@@ -660,7 +660,7 @@ app.get('/packsim', (_req, res) => {
       body:
         '<h1>오늘의 상점</h1>' +
         '<p>실제 봉입률에 맞춰 포켓몬 카드 팩을 열어 보는 곳입니다. ' +
-        '상품은 매일 자정에 새롭게 갱신됩니다. 오늘은 일본판 3종·북미판 3종이 진열돼 있습니다.</p>' +
+        '상품은 매일 자정에 새롭게 갱신됩니다. 오늘은 일본판 3종·영문판 3종이 진열돼 있습니다.</p>' +
         `<ul>${li}</ul>` +
         '<p>비공식 팬 시뮬레이션입니다. 실제 카드 거래가 아니며 GP는 현금 가치가 없습니다.</p>',
     }),

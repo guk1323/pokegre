@@ -31,7 +31,7 @@ interface Extra {
 // 믿으면 안 된다 — 감정품이 몇 장 없으니 값이 훨씬 높게 잡히는 일이 잦다.
 const 적음 = 50;
 
-// ⚠️ 판(edition)을 꼭 넘겨야 한다. 저쪽은 판을 안 주면 **북미판으로 찾아서**
+// ⚠️ 판(edition)을 꼭 넘겨야 한다. 저쪽은 판을 안 주면 **영문판으로 찾아서**
 //    일본판 카드가 전부 "감정 기록 없음"이 된다(2026-08-07에 이걸로 빈손이 났다).
 export function GradedPopulation({ tcgPlayerId, edition }: { tcgPlayerId: string; edition?: string }) {
   const [것, set것] = useState<Extra | null>(null);

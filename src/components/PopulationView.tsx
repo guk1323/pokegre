@@ -189,7 +189,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     void 찾기실행(말, 판);
   };
 
-  // ⚠️ **판을 바꾸면 다시 찾는다.** 예전엔 일본판/북미판을 눌러도 화면에 그대로 옛
+  // ⚠️ **판을 바꾸면 다시 찾는다.** 예전엔 일본판/영문판을 눌러도 화면에 그대로 옛
   //    결과가 남아 있어서, 판을 바꾼 줄 알고 보다가 반대쪽 카드를 보게 됐다.
   //    찾은 게 없으면(처음 들어왔거나 카드 상세에서 넘어온 경우) 토글만 바꾼다.
   const 판바꾸기 = (p: 'japanese' | 'english') => {
@@ -218,25 +218,54 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
   // ⚠️ **처음 화면이 비어 있으면 뭘 하는 자리인지 모른다.** 도감 화면들은 들어가자마자
   //    목록이 보이는데 여기만 검색칸 하나뿐이라 본문이 174px밖에 안 됐다(2026-08-08).
-  //    처음엔 글자 알약(인기 검색어)을 뒀는데 **아무 정보가 없어 밋밋했다** —
-  //    이름만 적힌 동그라미는 이 화면이 무엇을 해 주는지 하나도 안 알려 준다.
-  //    → **실제 카드 그림**을 보여 준다. 홈의 신팩 힛카드를 그대로 쓴다:
-  //      ① 이미 서버에 담겨 있어 **크레딧이 안 든다**
-  //      ② 값이 높은 카드라 **감정 수량이 실제로 궁금한 카드**들이다
-  //      ③ 홈과 같은 그림·같은 이름이라 사이트가 따로 놀지 않는다
+  //    ① 처음엔 글자 알약(인기 검색어)을 뒀는데 **아무 정보가 없어 밋밋했다** —
+  //       이름만 적힌 동그라미는 이 화면이 무엇을 해 주는지 하나도 안 알려 준다.
+  //    ② 그래서 홈의 **신팩** 힛카드를 썼는데 이것도 틀렸다. **갓 나온 세트는 감정된
+  //       카드가 없다** — 스톰에메랄다(7/31 발매) 라이코 ex를 눌러 보니 팝수 자료가
+  //       아예 없었다(2026-08-08 실측). 팝수 화면에서 팝수가 없는 카드를 권한 셈이다.
+  //    → **발매한 지 1년이 넘은 세트**의 힛카드를 쓴다. 그쯤이면 감정이 쌓인다
+  //      (메가브레이브 2025-08 메가루카리오 ex: PSA·BGS·SGC 합쳐 6,834장).
+  //      세트 목록은 우리 파일이라 공짜고, 힛카드도 서버에 담겨 있어 크레딧이 안 든다.
+  //      그림·한글 이름은 우리 세트 파일에서 이어 붙인다.
   useEffect(() => {
     let 취소 = false;
-    void fetch('/api/local/latest-hit-set')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { name?: string; cards?: { n: string; ko?: string; name?: string; img?: string }[] } | null) => {
-        if (취소 || !j) return;
-        const 카드 = (j.cards ?? [])
-          .filter((c) => c.img && (c.ko || c.name))
-          .map((c) => ({ n: String(c.n ?? ''), 이름: String(c.ko || c.name), img: String(c.img) }))
-          .slice(0, 6);
-        set맛보기({ 세트: String(j.name ?? ''), 카드 });
-      })
-      .catch(() => undefined);
+    const 한해전 = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+    void (async () => {
+      try {
+        const idx = (await (await fetch('/sets/index.json')).json()) as {
+          slug: string; name: string; releaseDate?: string; serie?: string;
+        }[];
+        // 발매일이 1년 넘은 것 중 가장 최근 세트부터 훑는다. 힛카드가 없는 세트도 있어
+        // 몇 개는 그냥 넘어간다(모바일 포켓은 실물이 없어 감정 자체가 없다).
+        const 후보 = idx
+          .filter((s2) => s2.releaseDate && s2.releaseDate <= 한해전 && !(s2.serie ?? '').includes('Pocket'))
+          .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
+          .slice(0, 8);
+        for (const 세트 of 후보) {
+          if (취소) return;
+          const 힛 = (await (await fetch(`/api/local/set-hit-cards?slug=${encodeURIComponent(세트.slug)}`)).json()) as {
+            cards?: { n: string; usd: number; name: string }[];
+          };
+          const 목록 = 힛.cards ?? [];
+          if (목록.length < 3) continue;
+          const 카드자료 = (await (await fetch(`/sets/${세트.slug}.json`)).json()) as {
+            cards?: { n: string; name: string; img?: string }[];
+          };
+          const 번호로 = new Map((카드자료.cards ?? []).map((c) => [String(Number(c.n)), c]));
+          const 카드 = 목록
+            .map((h) => ({ h, c: 번호로.get(String(Number(h.n))) }))
+            .filter((x) => x.c?.img)
+            .map((x) => ({ n: String(x.h.n), 이름: 보일이름('japanese', x.c!.name), img: String(x.c!.img) }))
+            .slice(0, 6);
+          if (카드.length >= 3) {
+            if (!취소) set맛보기({ 세트: 세트.name, 카드 });
+            return;
+          }
+        }
+      } catch {
+        // 맛보기는 있으면 좋은 것이라, 실패하면 조용히 넘어간다.
+      }
+    })();
     return () => {
       취소 = true;
     };
@@ -336,7 +365,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                 판 === p ? 'bg-black text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'
               }`}
             >
-              {p === 'japanese' ? '일본판' : '북미판'}
+              {p === 'japanese' ? '일본판' : '영문판'}
             </button>
           ))}
         </div>

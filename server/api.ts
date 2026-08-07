@@ -408,7 +408,7 @@ export function startCoverWarmup(): void {
 
 // 받아 둔 썸네일을 디스크에도 남긴다. 메모리 캐시는 배포할 때마다 통째로 날아가는데,
 // 원본(tcgdex)이 한 장에 7~11초라 그때마다 방문자가 그 시간을 다시 치른다
-// (실측: 북미판 세트 하나 여는 데 첫 24장 30초, 캐시가 살아 있으면 420ms).
+// (실측: 영문판 세트 하나 여는 데 첫 24장 30초, 캐시가 살아 있으면 420ms).
 // ⚠️ 상한을 정할 땐 볼륨 전체(973MB)를 나눠 쓴다는 걸 잊지 말 것. 예전엔 그림 600MB +
 //    게시글 사진 300MB로 잡아 둬서, 둘 다 상한까지 차면 회원·게시글·앨범 JSON과 백업이
 //    쓸 자리가 74MB밖에 안 남았다. 디스크가 차면 JSON 저장이 실패해 데이터가 상한다.
@@ -3569,7 +3569,7 @@ function mountFleaMarket(app: Mountable) {
     }
     const url = new URL(req.url ?? '', 'http://localhost')
     const q = (url.searchParams.get('q') ?? '').trim().toLowerCase()
-    // jp = 일본판, na = 북미판, kr = 한글판(한글 자료가 붙은 카드만)
+    // jp = 일본판, na = 영문판, kr = 한글판(한글 자료가 붙은 카드만)
     const ed = url.searchParams.get('ed') ?? 'jp'
     if (q.length < 1) {
       sendJson(res, 200, { rows: [], total: 0 })
@@ -3958,7 +3958,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       u.searchParams.set('search', 말)
       u.searchParams.set('language', 판)
       // ⚠️ 12장만 받고 있었다. 팝수 조회는 **그 이름의 카드를 다 훑어보는 화면**이라
-      //    12장은 턱없이 적다 — "개굴닌자"는 일본판 53장·북미판 71장이 있는데 12장만
+      //    12장은 턱없이 적다 — "개굴닌자"는 일본판 53장·영문판 71장이 있는데 12장만
       //    나왔다(2026-08-07 사장님 지적). 시세 검색(12장 + 더 보기)과 목적이 다르다.
       //    장당 1크레딧이라 60장이어도 60크레딧이고, 6시간 캐시에 담긴다.
       u.searchParams.set('limit', String(CARD_FIND_LIMIT))
@@ -4184,7 +4184,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
 // ── 이베이 한글판(Korean Version) 시세 ────────────────────────────────────
 // Browse API로 "카드명 Korean Version" 현재 매물가(호가)를 받는다. 체결가(낙찰가)를 주는
 // Marketplace Insights는 이베이 별도 승인이 필요해 지금은 호가. 그래서 화면에 "현재 매물가"로
-// 명확히 표기한다(북미판=체결가와 혼동 금지). 키(App/Cert)는 서버에서만, 클라이언트엔 안 내림.
+// 명확히 표기한다(영문판=체결가와 혼동 금지). 키(App/Cert)는 서버에서만, 클라이언트엔 안 내림.
 const EBAY_OAUTH_URL = 'https://api.ebay.com/identity/v1/oauth2/token'
 const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 
@@ -4193,7 +4193,7 @@ const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 // ⚠️ 이미 category_ids=183454(낱장 카드)로 받는데도 새어 나온다 — 파는 사람이 아무
 //    분류에나 올리기 때문이다. 실제로 지하철 QR 티켓 세트·보드게임·스티커가 섞여
 //    나왔다(운영자 지적 2026-08-06, 106건 중 5건).
-// ⚠️ 목록을 넓히면 **진짜 카드가 빠진다** — 그게 더 나쁘다. 그래서 넣기 전에 북미판
+// ⚠️ 목록을 넓히면 **진짜 카드가 빠진다** — 그게 더 나쁘다. 그래서 넣기 전에 영문판
 //    카드 이름 23,444개에 그 낱말이 실제로 나오는지 세어 보고 정했다. 아래 여덟 개는
 //    세어 보고 **뺀** 것들이다(괄호는 걸리던 진짜 카드):
 //      sticker(Energy Sticker) · ticket(Reserved Ticket) · towel(Team Yell Towel)
@@ -5358,7 +5358,7 @@ interface PopDetail {
   updatedAt?: string
 }
 
-/** 한 판(일본판/북미판)만 물어본다. 2크레딧. */
+/** 한 판(일본판/영문판)만 물어본다. 2크레딧. */
 async function 감정수량한판(apiKey: string, id: string, 판: 'japanese' | 'english'): Promise<PopEntry | null> {
   const r = await fetch(
     `${PRICE_TRACKER_ORIGIN}/population?tcgPlayerId=${encodeURIComponent(id)}&language=${판}`,
@@ -5387,7 +5387,7 @@ async function 감정수량한판(apiKey: string, id: string, 판: 'japanese' | 
 }
 
 /**
- * ⚠️ **판을 반드시 붙여 물어야 한다.** 안 붙이면 저쪽이 북미판으로 찾아서, 일본판
+ * ⚠️ **판을 반드시 붙여 물어야 한다.** 안 붙이면 저쪽이 영문판으로 찾아서, 일본판
  *    카드는 감정 기록이 멀쩡히 있는데도 전부 "없음"으로 온다(2026-08-07에 이걸로
  *    18,726장짜리 카드가 빈손으로 나왔다). 화면이 판을 알려주면 그것만 묻고,
  *    모르면 둘 다 물어본다(4크레딧).
@@ -5759,7 +5759,7 @@ const HIGHLIGHT_FRESH_MS = 7 * 24 * 60 * 60 * 1000
 //      등급이 낮은 카드가 빠진다. 이 교훈은 앨범 기본 담기(keepByDefault)에서 이미 겪었다.
 // ⚠️ 처음엔 SAR·SIR(7) 이상이었는데 너무 드물었다. 실제로 돌려 재보니 일본판은
 //    박스를 통째로 열어도 5번에 1번만 걸렸다(banner-rate.mts, 2026-08-04):
-//      일본판 105~143팩에 1번(박스 17~22%) · 북미판 53~73팩에 1번(박스 35~54%)
+//      일본판 105~143팩에 1번(박스 17~22%) · 영문판 53~73팩에 1번(박스 35~54%)
 //    일본판 박스 보장이 "SR 이상 1장"인데 SR이 기준 바로 아래라 보장이 헛돌았다.
 //    한 단계 낮춰(6 = SR·UR 이상) 일본판도 박스 한 번이면 대개 걸리게 했다.
 const HIGHLIGHT_USD = 30
@@ -6678,7 +6678,7 @@ function mountAuth(
       }
 
       // POST /packsim/box — 박스를 통째로 산다·연다. 일본판은 실물처럼 보장 봉입
-      // (AR 3장·RR 4~5장·SR이상 1장·ACE/마스터볼), 북미판 박스는 순수 독립시행.
+      // (AR 3장·RR 4~5장·SR이상 1장·ACE/마스터볼), 영문판 박스는 순수 독립시행.
       // 북미 특별세트는 실물에 36팩 박스가 없어(boxPacks=0) 박스 구매 불가.
       if (segments[0] === 'packsim' && segments[1] === 'box' && req.method === 'POST') {
         const user = await currentUser(req)
@@ -6919,7 +6919,7 @@ function mountAuth(
         }
         const cards = await readPackCards(pack)
         const byN = new Map(cards.map((c) => [c.n, c]))
-        // 자랑글에 쓸 등급 약칭. 일본판은 풀아트를 SR, 금색을 UR이라 부르고 북미판은
+        // 자랑글에 쓸 등급 약칭. 일본판은 풀아트를 SR, 금색을 UR이라 부르고 영문판은
         // UR·HR이라 부른다 — 어느 판 팩인지 알고 있으니 그 판 이름으로 적는다.
         const tierKo: Record<string, string> = {
           Common: '커먼', Uncommon: '언커먼', Rare: '레어', 'Double rare': 'RR',
@@ -6974,7 +6974,7 @@ function mountAuth(
         // 본문은 이용자가 쓴 글. 카드 목록은 pull(이미지 그리드)로 보여주므로 글이 없으면
         // 짧은 기본 문장만 넣는다.
         const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 1000) : ''
-        const content = comment || `${pack.jp ? '일본판' : '북미판'} ${packName} ${last.box ? '박스를' : '팩을'} 열었습니다.`
+        const content = comment || `${pack.jp ? '일본판' : '영문판'} ${packName} ${last.box ? '박스를' : '팩을'} 열었습니다.`
         const post: CommunityPost = {
           id: Date.now(),
           title,

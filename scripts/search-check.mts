@@ -46,7 +46,7 @@ function cardNames(): string[] {
 // 세트(확장팩) 이름. 사람들은 "와일드블레이즈"처럼 팩 이름으로도 찾는다.
 // ⚠️ 처음엔 카드 이름만 봤다가, 옛 일본판 세트 54개가 영어 검색에서 통째로 한글로
 //    나가는 걸 이 검사가 못 잡았다(2026-08-03). 카드와 세트는 다른 목록이다.
-// ⚠️ 판을 나눠 잰다. 북미판 세트 이름("옵시디언 플레임")을 일본어로 바꿀 이유는 없다 —
+// ⚠️ 판을 나눠 잰다. 영문판 세트 이름("옵시디언 플레임")을 일본어로 바꿀 이유는 없다 —
 //    섞어서 재면 "일본어로 절반밖에 안 나간다"는 엉뚱한 숫자가 나온다.
 function setNames(want: 'ja' | 'en'): string[] {
   const idx = JSON.parse(readFileSync('public/sets/index.json', 'utf8')) as {
@@ -86,7 +86,7 @@ function readTerms(file: string): Map<string, number> {
   return out
 }
 
-// only: 한 방향만 재고 싶을 때(북미판 세트 이름은 영어 쪽만 뜻이 있다).
+// only: 한 방향만 재고 싶을 때(영문판 세트 이름은 영어 쪽만 뜻이 있다).
 function report(title: string, terms: Map<string, number>, only?: 'ja' | 'en') {
   const total = [...terms.values()].reduce((s, n) => s + n, 0)
   let jaOk = 0
@@ -142,8 +142,8 @@ function report(title: string, terms: Map<string, number>, only?: 'ja' | 'en') {
 const cards = new Map(cardNames().map((n) => [n, 1] as const))
 let lop = report('우리가 가진 카드 이름 전부', cards)
 lop += report('일본판 세트(확장팩) 이름', new Map(setNames('ja').map((n) => [n, 1] as const)))
-// 북미판 세트 이름은 이베이·TCGplayer로만 찾는다. 스니커덩크(일본판)에 던질 이름이 아니다.
-report('북미판 세트(확장팩) 이름 — 영어 쪽만', new Map(setNames('en').map((n) => [n, 1] as const)), 'en')
+// 영문판 세트 이름은 이베이·TCGplayer로만 찾는다. 스니커덩크(일본판)에 던질 이름이 아니다.
+report('영문판 세트(확장팩) 이름 — 영어 쪽만', new Map(setNames('en').map((n) => [n, 1] as const)), 'en')
 
 if (termsArg >= 0 && process.argv[termsArg + 1]) {
   lop += report('방문자가 실제로 친 검색어', readTerms(process.argv[termsArg + 1]))

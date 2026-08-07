@@ -245,7 +245,7 @@ for (const [name, slug] of cleanNames) {
 // ⑦ 자동 사전(cardNameKoEn.json)의 한글 키가 지금 화면에 나오는 이름과 어긋나는지.
 // 이 사전은 "한글 카드명 → 영문 카드명"인데, 영문→한글 방향으로 뒤집어서도 쓴다.
 // 그래서 키가 옛 이름으로 남아 있으면 손으로 고쳐 둔 이름을 도로 덮어 버린다 —
-// 일본판 이름을 "페퍼의 샌드위치"로 고쳤는데 북미판 화면에서는 여전히
+// 일본판 이름을 "페퍼의 샌드위치"로 고쳤는데 영문판 화면에서는 여전히
 // "페퍼의 모래두지위치"로 나오던 것이 이 경우였다(자동 사전이 먼저 조회된다).
 const autoKo = JSON.parse(readFileSync(join(ROOT, 'src/data/cardNameKoEn.json'), 'utf8')) as Record<string, string>
 const liveKo = new Set<string>()

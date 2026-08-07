@@ -89,7 +89,7 @@ const report = []
 const skipped = []
 
 for (const meta of index) {
-  if (meta.ed !== 'en') continue // pokemontcg.io는 북미판만 다룬다
+  if (meta.ed !== 'en') continue // pokemontcg.io는 영문판만 다룬다
   const file = path.join(SETS, `${meta.slug}.json`)
   let data
   try {
@@ -143,7 +143,7 @@ for (const meta of index) {
   }
 }
 
-console.log(`그림이 빈 북미판 카드 ${blankTotal}장 · 이번에 찾은 것 ${filledTotal}장\n`)
+console.log(`그림이 빈 영문판 카드 ${blankTotal}장 · 이번에 찾은 것 ${filledTotal}장\n`)
 for (const line of report) console.log(line)
 if (skipped.length) {
   console.log('\n⚠️ 짝은 맞는데 못 받은 세트:')

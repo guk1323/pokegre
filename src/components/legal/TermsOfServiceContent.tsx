@@ -2,7 +2,7 @@ export function TermsOfServiceContent() {
   return (
     <div className="space-y-5 text-sm leading-relaxed text-neutral-700">
       <p>
-        이 약관은 pokegre(이하 "서비스")가 제공하는 일본판·북미판 포켓몬 카드 시세 조회 및 커뮤니티 서비스의 이용 조건과
+        이 약관은 pokegre(이하 "서비스")가 제공하는 일본판·영문판 포켓몬 카드 시세 조회 및 커뮤니티 서비스의 이용 조건과
         절차, 이용자와 서비스 제공자의 권리·의무 및 책임사항을 규정합니다.
       </p>
 

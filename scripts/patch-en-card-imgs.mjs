@@ -1,4 +1,4 @@
-// TCGdex에 카드 이미지가 없는 북미판 세트를 pokemontcg.io(정식 API, 키 보유)로 채운다.
+// TCGdex에 카드 이미지가 없는 영문판 세트를 pokemontcg.io(정식 API, 키 보유)로 채운다.
 // 세트 이름으로 맞는 세트를 찾고(카드 수·발매연도로 확인), 카드 번호로 매칭한다.
 // TG01 같은 문자 번호도 있어서 번호는 문자열 그대로(대문자) 비교하고 숫자 비교로 보완한다.
 import { readFile, writeFile } from 'node:fs/promises'

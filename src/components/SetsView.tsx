@@ -22,19 +22,19 @@ import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
 
 // 세트(발매 패키지)별 수록 카드. 데이터는 TCGdex에서 미리 긁어 public/sets/에 저장해둔 걸
-// 읽는다. 일본판(ja)·북미판(en). 카드 이름은 원어로 저장돼 있어 화면에서 우리 변환기로
+// 읽는다. 일본판(ja)·영문판(en). 카드 이름은 원어로 저장돼 있어 화면에서 우리 변환기로
 // 한글화한다. 공개 화면(더보기 ▾ 메뉴). 세트 데이터는 정적 public/sets JSON이라 서버 인증 불필요.
 // 타입·이미지 규칙·한글화는 플리마켓 카드 고르기와 함께 쓰므로 lib/cardCatalog.ts에 있다.
 
 const PAGE = 60;
 
 // 시리즈(세트 묶음) 이름. 자동 번역에 맡기면 소리로만 옮겨지거나(ブラック＆ホワイト →
-// "블랙＆호와이토") 일본판·북미판이 서로 다르게 나와서, 화면에 뜰 이름은 여기서 못 박는다.
+// "블랙＆호와이토") 일본판·영문판이 서로 다르게 나와서, 화면에 뜰 이름은 여기서 못 박는다.
 //
 // 규칙 세 가지 (2026-08-03 확정):
 //  ① 일본판 앞에 붙는 "포켓몬카드게임"은 뗀다 — 어차피 전부 포켓몬 카드다.
 //  ② & 앞뒤에 공백 한 칸. 일본판의 전각 ＆도 반각 &로 맞춘다.
-//  ③ 같은 시리즈면 일본판·북미판 탭에서 글자가 똑같아야 한다.
+//  ③ 같은 시리즈면 일본판·영문판 탭에서 글자가 똑같아야 한다.
 // ⚠️ 주소(/series/<슬러그>)와 사이트맵은 원문으로 만든다(serieSlug). 여기를 바꿔도
 //    주소는 그대로라 링크가 깨지지 않는다.
 const SERIE_LABEL: Record<string, string> = {
@@ -45,12 +45,12 @@ const SERIE_LABEL: Record<string, string> = {
   '剣と盾': '소드 & 실드',
   'ポケモンカードゲーム スカーレット&バイオレット': '스칼렛 & 바이올렛',
   'ポケモンカードゲーム MEGA': '메가 에볼루션',
-  // ⚠️ 북미판 이름(e카드·네오)을 붙이면 안 된다. 일본판 e블록·neo는 북미판
+  // ⚠️ 영문판 이름(e카드·네오)을 붙이면 안 된다. 일본판 e블록·neo는 영문판
   //    Aquapolis·Neo Genesis와 다른 상품이라, 같은 이름을 붙이면 목록을 연 사람이
   //    카드가 다른 걸 보고 우리가 틀렸다고 본다. 붙어 나오던 띄어쓰기만 맞춘다.
   'ポケモンカードe': '포켓몬 카드 e',
   'ポケモンカード★neo': '포켓몬 카드 neo',
-  // 북미판
+  // 영문판
   Miscellaneous: '기타',
   Gym: '짐',
   Neo: '네오',
@@ -124,8 +124,8 @@ export function SetsView({
   // 사용자 잘못인 것처럼 보이고, 사이트에 세트가 없다고 오해하게 만든다.
   // 배포 중(7초)이나 지하철에서 신호가 끊길 때 실제로 이 화면이 뜬다.
   const [loadFailed, setLoadFailed] = useState(false);
-  // 일본판 / 북미판 / 모바일 포켓 3분류. Pocket은 실물 아닌 디지털 게임(Pokémon TCG Pocket)이라
-  // 실물 시세가 없어서 따로 뗀다 — 북미판에 섞이면 눌러도 시세가 빈 막다른 길이 됨.
+  // 일본판 / 영문판 / 모바일 포켓 3분류. Pocket은 실물 아닌 디지털 게임(Pokémon TCG Pocket)이라
+  // 실물 시세가 없어서 따로 뗀다 — 영문판에 섞이면 눌러도 시세가 빈 막다른 길이 됨.
   const [tab, setTab] = useState<'ja' | 'en' | 'pocket'>('ja');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<SetIndexEntry | null>(null);
@@ -163,11 +163,11 @@ export function SetsView({
     // 남아 같은 시리즈가 두 줄로 갈린다.
     trackEvent('series', koSerie(hit.ed, hit.serie ?? ''));
     // ⚠️ 그 시리즈가 "더 보기" 밖이면 화면에 아예 없어서 스크롤할 자리도 없다.
-    //    소드&실드는 북미판 목록 아래쪽이라, 검색으로 들어와도 맨 위(2026년 신상)만
+    //    소드&실드는 영문판 목록 아래쪽이라, 검색으로 들어와도 맨 위(2026년 신상)만
     //    보였다(2026-08-07 점검 중 발견).
     //
     // ⚠️ 몇 개나 펼쳐야 하는지 **미리 셀 수 없다.** 목록은 발매일 순이라 시리즈가
-    //    이어 붙어 있지 않다 — 북미판에서 스칼렛&바이올렛(8번째부터) 사이에 맥도날드
+    //    이어 붙어 있지 않다 — 영문판에서 스칼렛&바이올렛(8번째부터) 사이에 맥도날드
     //    컬렉션(13번째부터)이 끼어든다. 그래서 자리를 세는 대신 **찾을 때까지 펼친다.**
     //
     // ⚠️ 펼치기는 탭이 바뀐 뒤에 해야 한다. 탭이 바뀌면 목록 개수를 처음으로 되돌리는
@@ -320,7 +320,7 @@ export function SetsView({
     // 옮겨 다니며 그 한 장을 찾을 수 있다.
     const 한장 = (c: SetCard): 도감카드정보 => ({
       ko: koName(selected.ed, c.name),
-      // 북미판은 카드 원문이 곧 영문 이름이다. 일본판은 없으니 빈 값 — 부르는 쪽이
+      // 영문판은 카드 원문이 곧 영문 이름이다. 일본판은 없으니 빈 값 — 부르는 쪽이
       // 한글 이름을 번역해 쓴다.
       en: selected.ed === 'en' ? c.name : '',
       raw: c.name,
@@ -372,7 +372,7 @@ export function SetsView({
             <h2 className="text-xl font-extrabold leading-tight text-black">{koSet(selected.ed, selected.name)}</h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white ${selected.ed === 'ja' ? 'bg-rose-500' : 'bg-indigo-500'}`}>
-                {selected.ed === 'ja' ? '일본판' : '북미판'}
+                {selected.ed === 'ja' ? '일본판' : '영문판'}
               </span>
               <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{selected.count}종</span>
               {selected.releaseDate && (
@@ -627,11 +627,11 @@ export function SetsView({
         )}
       </div>
 
-      {/* 판 선택: 일본판 / 북미판 / 모바일 포켓 */}
+      {/* 판 선택: 일본판 / 영문판 / 모바일 포켓 */}
       <div className="mb-4 inline-flex rounded-full border border-neutral-300 p-1">
         {([
           ['ja', '일본판'],
-          ['en', '북미판'],
+          ['en', '영문판'],
           ['pocket', '모바일 포켓'],
         ] as const).map(([e, label]) => (
           <button

@@ -91,7 +91,7 @@ function NewListingForm({
   // 카드는 반드시 카탈로그에서 고른다. 자유 입력이면 같은 카드가 여러 갈래로
   // 흩어져 시세가 안 모인다.
   const card = initialCard;
-  // 판본은 어느 탭(일본판·북미판·한글판)에서 들어왔는지로 이미 정해져 있다.
+  // 판본은 어느 탭(일본판·영문판·한글판)에서 들어왔는지로 이미 정해져 있다.
   const edition = initialCard.ed;
   const [grade, setGrade] = useState('A');
   const [certNo, setCertNo] = useState('');

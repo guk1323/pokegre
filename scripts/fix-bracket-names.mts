@@ -3,9 +3,9 @@
 //  ② 앞부분이 오염된 이름 — `壁を台無しにする[aerodactyl]`("벽을 망치는") → **영문명이
 //     유일한 단서**다. 그걸 지우면 더 나빠지므로, 영문명으로 정식 일본명을 찾아 바꾼다.
 // ⚠️ "안농 [G]"처럼 대괄호 안이 한 글자인 것은 카드를 가려내는 표기다 — 건드리지 않는다.
-// ⚠️ **판에 맞는 이름을 넣어야 한다.** 북미판 세트에 일본명을 넣으면 화면에 "ナッシー"가
+// ⚠️ **판에 맞는 이름을 넣어야 한다.** 영문판 세트에 일본명을 넣으면 화면에 "ナッシー"가
 //    그대로 뜬다(첫 시도에서 실제로 그랬다 — 2026-08-07 회귀 검사에서 잡았다).
-//    북미판은 영문명, 일본판은 일본명을 쓴다.
+//    영문판은 영문명, 일본판은 일본명을 쓴다.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { koName } from '/Users/sonhunguk/Documents/GitHub/pokemon-card-price-tracker/src/lib/cardCatalog.ts'
 const ROOT = '/Users/sonhunguk/Documents/GitHub/pokemon-card-price-tracker'

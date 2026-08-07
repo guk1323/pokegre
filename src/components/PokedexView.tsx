@@ -54,7 +54,7 @@ export function PokedexView({
   onPickCard: (card: {
     /** 화면에 보이는 한글 카드 이름 */
     ko: string
-    /** 영문 카드 이름(북미판 카드일 때만). PPT 검색에 쓴다. */
+    /** 영문 카드 이름(영문판 카드일 때만). PPT 검색에 쓴다. */
     en: string
     /** 번역 전 원문 이름. 스니커덩크 2차 검색("이름 번호")에 쓴다. */
     raw: string
@@ -224,7 +224,7 @@ export function PokedexView({
                   onClick={() =>
                     onPickCard({
                       ko: 이름,
-                      // 북미판 카드는 원문이 곧 영어 이름이다. 일본판이면 영어 이름이
+                      // 영문판 카드는 원문이 곧 영어 이름이다. 일본판이면 영어 이름이
                       // 없으니 빈 값 — 부르는 쪽이 종 영문 이름(speciesEn)으로 찾는다.
                       en: meta?.ed === 'en' ? c.name : '',
                       raw: c.name,

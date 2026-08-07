@@ -12,13 +12,13 @@ import path from 'node:path'
 
 const SETS_DIR = path.resolve(process.cwd(), 'public/sets')
 
-// 뽑기에 넣을 인기 세트. 일본판은 5장팩, 북미판은 10장팩이다.
+// 뽑기에 넣을 인기 세트. 일본판은 5장팩, 영문판은 10장팩이다.
 export const PACKSIM_SETS = [
   // 일본판
   'ja-SV2a', 'ja-SV3', 'ja-SV4a', 'ja-SV6', 'ja-SV7', 'ja-SV8', 'ja-SV8a',
   'ja-SV9', 'ja-SV10', 'ja-SV11B', 'ja-SV11W', 'ja-M1L', 'ja-M1S', 'ja-M2a',
   'ja-M3', 'ja-M4', 'ja-M5',
-  // 북미판
+  // 영문판
   'en-sv03', 'en-sv03.5', 'en-sv04.5', 'en-sv06', 'en-sv07', 'en-sv08',
   'en-sv08.5', 'en-sv09', 'en-sv10', 'en-me01',
 ]

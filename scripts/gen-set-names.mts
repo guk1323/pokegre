@@ -1,6 +1,6 @@
-// 세트 이름 사전 두 개를 만든다: 북미판 "한글→영어", 일본판 "한글→일본어".
+// 세트 이름 사전 두 개를 만든다: 영문판 "한글→영어", 일본판 "한글→일본어".
 //
-// 왜 필요한가: 북미판 세트는 원래 이름이 영어인데, 화면에는 한글로 보여준다
+// 왜 필요한가: 영문판 세트는 원래 이름이 영어인데, 화면에는 한글로 보여준다
 // ("Perfect Order" → "퍼펙트 오더"). 그런데 이베이·TCGplayer로 검색할 때 그 한글을
 // 다시 영어로 되돌리지 못해 한글 그대로 나갔다(2026-08-03 기준 213개 중 177개).
 // 영어 이름은 public/sets/index.json에 그대로 있으므로 추측할 필요가 전혀 없다 —
@@ -38,7 +38,7 @@ for (const s of idx) {
 
 const sorted = Object.fromEntries(Object.entries(out).sort((a, b) => a[0].localeCompare(b[0])))
 writeFileSync('src/data/setNameKoEn.json', `${JSON.stringify(sorted, null, 2)}\n`)
-console.log(`북미판 세트 한글→영어 ${Object.keys(sorted).length}개를 src/data/setNameKoEn.json에 저장했습니다.`)
+console.log(`영문판 세트 한글→영어 ${Object.keys(sorted).length}개를 src/data/setNameKoEn.json에 저장했습니다.`)
 if (clash.length) {
   console.log(`\n한글 이름이 겹쳐서 뺀 것 ${clash.length}개:`)
   clash.forEach((c) => console.log(`  ${c}`))

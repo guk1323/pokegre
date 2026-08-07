@@ -376,7 +376,7 @@ const TRAINER_EN_TO_KO: Record<string, string> = {
   Gladion: '글라디오', // 릴리에의 오빠
   Faba: '자우보', // 에테르재단
   Hapu: '하푸우', // 포니섬 왕
-  Blue: '그린', // グリーン. 북미판만 Blue, 한국/일본은 그린
+  Blue: '그린', // グリーン. 영문판만 Blue, 한국/일본은 그린
   Molayne: '머마네',
   Kahili: '카히리',
   Wicke: '비커', // 에테르재단 비서
@@ -1432,14 +1432,14 @@ const UNVERIFIED_EN_TO_KO: Record<string, string> = {
 };
 
 
-// 북미판·모바일 포켓 카드 이름(2026-07-28 사용자 확인). 2020년 이후 세트인데 영어 그대로
+// 영문판·모바일 포켓 카드 이름(2026-07-28 사용자 확인). 2020년 이후 세트인데 영어 그대로
 // 나오던 67종이다. 인물 이름은 한국 공식명을 따랐다(May=봄이, Lyra=금선, Zinnia=피아나,
 // Grimsley=블랑사).
 //
 // ⚠️ 한글 이름이 이미 다른 영문에 매여 있는 것은 화면 표시(영문→한글)에만 쓴다.
 // 검색(한글→영문)까지 바꾸면 먼저 확인해 둔 카드가 안 걸린다:
-//   제트        일본판 Zett          / 북미판 Jett
-//   구멍파는삽  일본판 Digging Shovel / 북미판 Hole-Digging Shovel
+//   제트        일본판 Zett          / 영문판 Jett
+//   구멍파는삽  일본판 Digging Shovel / 영문판 Hole-Digging Shovel
 const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   // 캐스퐁은 세트마다 앞뒤가 뒤집혀 온다("Castform Rain Form" / "Rain Castform").
   // 뒤집힌 쪽은 조각 치환으로 안 되므로 통째로 적는다.
@@ -1449,7 +1449,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   'Clefairy Doll': '삐삐인형',
   'Rotom Bike': '로토무 자전거',
   'Rotom Phone': '로토무 스마트폰',
-  // 북미판 사전에 없어 뒷말이 영어로 남던 것.
+  // 영문판 사전에 없어 뒷말이 영어로 남던 것.
   // 같은 카드의 다른 영문 표기(PPT와 TCGdex가 다르게 적어 온다). 한글은 같게 맞춘다.
   // PPT는 일본판 카드에 자기네 영문 이름을 붙인다. 그 이름이 화면에 그대로 뜨므로
   // 여기에도 짝을 달아 둔다(안 달면 eBay·TCGplayer 일본판 탭에서 영어로 보인다).
@@ -1505,7 +1505,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Professor's Research (Professor Juniper)": '박사의 연구 (주박사)',
   // ⚠️ 한글은 지어내지 않고 **일본판 쪽에 이미 있는 이름**을 그대로 가져왔다
   //    (SV1S 076 「博士の研究（オーリム博士）」 → "박사의 연구 (올림박사)").
-  //    작가별 목록은 북미판 영문이라 여기 없으면 "(Professor Turo)"가 그대로 뜬다.
+  //    작가별 목록은 영문판 영문이라 여기 없으면 "(Professor Turo)"가 그대로 뜬다.
   "Professor's Research (Professor Sada)": '박사의 연구 (올림박사)',
   "Professor's Research (Professor Turo)": '박사의 연구 (투로박사)',
   // 같은 규칙 — 한글은 일본판 쪽에 이미 있는 이름을 그대로 가져왔다.
@@ -1532,7 +1532,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   // 이 카드는 괄호까지가 원본 이름이다(neo4 096).
   "Thought Wave Machine (Rocket's Secret Machine)": "사고파 머신 (로켓단의 비밀메카)",
 
-  // 옛 북미판 카드 5·6차 96종 — 2026-07-28 사용자 확인.
+  // 옛 영문판 카드 5·6차 96종 — 2026-07-28 사용자 확인.
   "Apricorn Forest": "규토리의 숲", // 일본판(アプリコーンの森)과 같게 맞춤
   "Arcade Game": "오락실 게임",
   "Bill's Teleporter": "이수재의 텔레포터",
@@ -1628,10 +1628,10 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Water Cube 01": "워터큐브 01",
   "Weakness Guard": "약점 가드",
 
-  // 일본 원판 'がくしゅうそうち' 하나를 북미판이 시대에 따라 다르게 불렀다.
+  // 일본 원판 'がくしゅうそうち' 하나를 영문판이 시대에 따라 다르게 불렀다.
   // 한국 이름은 둘 다 '학습장치'라 화면에는 같이 나오고, 검색은 먼저 있던 Exp. Share 를 쓴다.
 
-  // 옛 북미판 카드 4차 49종 — 2026-07-28 사용자 확인.
+  // 옛 영문판 카드 4차 49종 — 2026-07-28 사용자 확인.
   // 'Prof. Oak's Research'는 'Professor Oak's Research'와 같은 카드의 다른 표기다.
   // 둘 다 '오박사의 연구'로 보이게 두고, 검색(한글→영문)은 먼저 있던 쪽을 쓴다.
   "Ancient Ruins": "고대의 유적",
@@ -1684,7 +1684,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Team Magma's Technical Machine 01": "마그마단의 기술머신 01",
   "Venture Bomb": "벤처 폭탄",
 
-  // 옛 북미판 카드 3차 50종 — 2026-07-28 사용자 확인.
+  // 옛 영문판 카드 3차 50종 — 2026-07-28 사용자 확인.
   "Bubble Coat": "버블 코트",
   "Buck's Training": "맥의 수련",
   "Conductive Quarry": "전도 채석장",
@@ -1736,7 +1736,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Technical Machine TS-2": "기술머신 TS-2",
   "Time-Space Distortion": "시공의 일그러짐",
 
-  // 옛 북미판 카드 2차 50종 — 2026-07-28 사용자 확인.
+  // 옛 영문판 카드 2차 50종 — 2026-07-28 사용자 확인.
   "Aaron's Collection": "충호의 컬렉션",
   "Aqua Diffuser": "아쿠아 디퓨저",
   "Bertha's Warmth": "들국화의 온기",
@@ -1787,7 +1787,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Upper Energy": "어퍼 에너지",
   "Volkner's Philosophy": "전진의 철학",
 
-  // 옛 북미판 카드(2016년 이전) 1차 50종 — 2026-07-28 사용자 확인.
+  // 옛 영문판 카드(2016년 이전) 1차 50종 — 2026-07-28 사용자 확인.
   "AZ": "AZ",
   "Archie's Ace in the Hole": "아강의 에이스",
   "Bebe's Search": "베베의 검색",
@@ -2019,7 +2019,7 @@ export function koreanizeEnglishCardName(name: string): string {
     if (found) return `${found} ${suffixed[2]}`;
   }
 
-  // 북미판 세트인데 원본 DB가 "ナッシー[Exeggutor]"처럼 일본어 이름에 영어 이름을
+  // 영문판 세트인데 원본 DB가 "ナッシー[Exeggutor]"처럼 일본어 이름에 영어 이름을
   // 대괄호로 덧붙여 둔 경우가 있다. 대괄호 안이 진짜 이름이라 그것만 남긴다.
   const bracketed = name.trim().match(/^[ァ-ヶー・]+\[(.+)\]$/);
   const base = bracketed ? bracketed[1] : name;
@@ -2066,7 +2066,7 @@ export function koreanizeEnglishCardName(name: string): string {
 }
 
 // 일본판 세트명은 "SV4a: Shiny Treasure ex"처럼 팩 코드가 앞에 붙어 오므로, 그 코드로
-// 한글 팩 이름을 찾는다. 북미판 세트("Obsidian Flames" 등)는 코드가 없어 원문을 유지한다.
+// 한글 팩 이름을 찾는다. 영문판 세트("Obsidian Flames" 등)는 코드가 없어 원문을 유지한다.
 export function koreanizeEnglishSetName(setName: string): string {
   const match = setName.match(/^([A-Za-z0-9-]+):\s*/);
   if (!match) return setName;

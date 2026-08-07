@@ -11,7 +11,7 @@ import pokemonNames from '../data/pokemonNames.json';
 import pokemonNameAliases from '../data/pokemonNameAliases.json';
 import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
-// 북미판 세트의 "한글 이름 → 원래 영어 이름". scripts/gen-set-names.mts가 만든다.
+// 영문판 세트의 "한글 이름 → 원래 영어 이름". scripts/gen-set-names.mts가 만든다.
 // 세트가 늘거나 한글 이름 규칙이 바뀌면 그 스크립트를 다시 돌린다.
 import setNameKoEn from '../data/setNameKoEn.json';
 import { 전각부호펴기 } from './punct';
@@ -106,7 +106,7 @@ const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['히스이', 'Hisuian '],
   ['팔데아', 'Paldean '],
   // ── 2026-08-02: 이베이·TCGplayer 검색에서 한글로 남던 말들 ───────────────
-  // 북미판 세트 데이터에서 실제 표기를 확인하고 넣었다(δ는 이름 뒤에 붙는다).
+  // 영문판 세트 데이터에서 실제 표기를 확인하고 넣었다(δ는 이름 뒤에 붙는다).
   ['(델타종)', 'δ'], // 독침붕 (델타종) → Beedrill δ. 150종
   ['나쁜 ', 'Dark '], // 나쁜 냄새꼬 → Dark Koffing. 옛 로켓단 세트
   ['상냥한 ', 'Light '], // 상냥한 해루미 → Light Sunflora
@@ -119,15 +119,15 @@ const STRUCTURAL_EN_TERMS: [string, string][] = [
   ['프로모', 'Promo'], // 세트 12개가 "…Promos". 9번 검색됨 — 이 목록에서 제일 많다
   ['맥도날드', "McDonald's"], // 세트 12개가 "McDonald's Collection …"
   ['체육관', 'Gym'], // 세트 "Gym Challenge"·카드 "Aspertia City Gym"
-  ['에너지', 'Energy'], // 북미판 카드 이름에 646번
+  ['에너지', 'Energy'], // 영문판 카드 이름에 646번
   ['트레이너', 'Trainer'], // 카드 이름에 11번("Coach Trainer")
   ['초판', '1st Edition'], // 카드 이름이 아니라 이베이 매물에 붙는 말
   // ⚠️ 긴 것을 먼저 놔야 한다. "포켓몬"만 넣었더니 "포켓몬스터"가 「Pokemon스터」로
   //    쪼개졌다(아래 STRUCTURAL_EN_TERMS는 적힌 순서대로 돈다).
   ['포켓몬스터', 'Pocket Monsters'], // 이베이 실측: 이 이름으로 매물이 잡힌다("…Pocket Monster Recover")
-  ['포켓몬', 'Pokémon'], // 북미판 카드 이름에 81번("Pokémon Flute"). é까지 그대로 쓴다
+  ['포켓몬', 'Pokémon'], // 영문판 카드 이름에 81번("Pokémon Flute"). é까지 그대로 쓴다
   ['배틀', 'Battle'], // 카드·세트 이름에 15번("Battle City")
-  // 트레이너 소유격. 우리 일본판 카드명과 북미판 카드명을 같은 포켓몬으로 짝지어
+  // 트레이너 소유격. 우리 일본판 카드명과 영문판 카드명을 같은 포켓몬으로 짝지어
   // 확인한 것만 담았다(scripts로 뽑고 표가 갈리지 않는 것만 골랐다).
   ['웅의', "Brock's "],
   ['민화의', "Erika's "],
@@ -163,7 +163,7 @@ const longestFirstTerms = [
   ...STRUCTURAL_EN_TERMS.map(([ko, en]) => ({ ko, en })),
 ].sort((a, b) => b.ko.length - a.ko.length);
 
-// 북미판(english) 전용. 한글(일본판) 팩 이름 → 영문판 세트명. 일본판과 영문판은
+// 영문판(english) 전용. 한글(일본판) 팩 이름 → 영문판 세트명. 일본판과 영문판은
 // 발매 단위가 1:1로 안 맞아서(일본판 두 팩이 영문판 한 세트로 묶이고, 수록 카드도
 // 다르다) 가장 가까운 세트로 잇는다. 팩 이름을 친 사람은 "그 시기 그 카드들"을 찾는
 // 것이므로 이 정도면 목적에 닿는다.
@@ -271,7 +271,7 @@ const PACK_KO_EN: [string, string][] = [
   ['유적을 넘어서...', 'Crossing the Ruins...'],
   ['금, 은, 신세계로...', 'Gold, Silver, to a New World...'],
   // 그 밖
-  ['스톰에메랄드', 'Storm Emerald'],
+  ['스톰에메랄다', 'Storm Emerald'],
   ['스노해저드', 'Snow Hazard'],
   ['새로운 시련의 저편', 'Beyond a New Trial'],
   ['어둠에서의 도전', 'Challenge from the Darkness'],
@@ -425,8 +425,8 @@ export function translateSearchQueryToEnglish(
   // 짧은 이름(추명·이슬 등)도 여기서는 안전하다 — 전체가 일치할 때만이라서.
   // 띄어쓰기가 달라도 같은 카드로 본다("테라스탈오브" = "테라스탈 오브").
   // 같은 한글 이름이라도 판에 따라 영문명이 다르다. PPT는 일본판 카드에 자기네 영문
-  // 번역을 붙이는데, 그게 북미판 정식 이름과 다른 경우가 많다
-  // ("아이언 디펜더"가 북미판은 Iron Defender, 일본판은 Iron X Defense).
+  // 번역을 붙이는데, 그게 영문판 정식 이름과 다른 경우가 많다
+  // ("아이언 디펜더"가 영문판은 Iron Defender, 일본판은 Iron X Defense).
   // 그래서 일본판을 찾을 때는 PPT에서 받아 만든 자동 사전을 먼저 본다.
   const lookup = (ko: string) => {
     const ns = ko.replace(/[\s·]/g, '');
@@ -451,7 +451,7 @@ export function translateSearchQueryToEnglish(
 
   let result = trimmed;
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. 짧은 일반어를 먼저 바꾸면 팩 이름이
-  // 조각나 안 걸린다. 일본판은 팩 코드로, 북미판은 영문 세트명으로 간다.
+  // 조각나 안 걸린다. 일본판은 팩 코드로, 영문판은 영문 세트명으로 간다.
   //
   // ⚠️ 일본판이라도 팩 코드가 없는 옛 확장팩이 54개 있다(XY·PCG·e카드·neo 시대).
   //    코드 목록(packNames.json)은 최근 세트만 담고 있어서, 그것만 보면 이 세트들은

@@ -7,7 +7,7 @@
 export type Slot = { rolls: [string, number][]; fb: 'cu' | 'rare' };
 export type RateProfile = { commons: number; uncommons: number; slots: Slot[] };
 
-// 북미판 메인 부스터(10장·박스 36팩, 박스 보장 없음) — 사용자 제공 최종 확률표(2026-07-26).
+// 영문판 메인 부스터(10장·박스 36팩, 박스 보장 없음) — 사용자 제공 최종 확률표(2026-07-26).
 // HR 1/140 · SIR 1/86 · UR 1/15 · IR 1/13 · ACE 1/20 · RR 1/6.
 // HR·SIR은 예전 값(1/60·1/40)보다 실측이 훨씬 짜서 낮췄다.
 export const NA_REGULAR: RateProfile = {
@@ -18,7 +18,7 @@ export const NA_REGULAR: RateProfile = {
     { rolls: [['Ultra Rare', 0.066], ['Double rare', 0.169], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
   ],
 };
-// 북미판 메가 시리즈(Mega Evolution) 전용 — 세트 데이터로 직접 확인(2026-07-26):
+// 영문판 메가 시리즈(Mega Evolution) 전용 — 세트 데이터로 직접 확인(2026-07-26):
 // 금색 HR·ACE가 없고, 대신 일본판 MUR에 해당하는 MHR(메가 하이퍼레어) 2장이 최상위다.
 // MHR 0.07%(약 1,430팩당 1장)는 사용자 검증 완료(2026-07-26) — 해외 실측 집계가
 // 1,200~1,500팩당 1장(0.067~0.083%)이라 이 값이 그 한가운데다.
@@ -31,7 +31,7 @@ export const NA_MEGA: RateProfile = {
   ],
 };
 
-// 북미판 특별세트는 둘이 구성이 달라 프로필을 나눈다(세트 데이터로 직접 확인, 2026-07-26):
+// 영문판 특별세트는 둘이 구성이 달라 프로필을 나눈다(세트 데이터로 직접 확인, 2026-07-26):
 // Prismatic은 IR이 아예 없고(0장) ACE 6장 수록, 북미 151은 IR 16장 수록·ACE 없음.
 // 확률은 사용자 조사 자료(2026-07, TCGplayer 실측 집계) 기준.
 // Prismatic Evolutions: SIR 1/45, HR 1/180, UR 1/13, ACE 1/21. 리버스 대신
@@ -44,7 +44,7 @@ export const NA_PRISMATIC: RateProfile = {
     { rolls: [['Ultra Rare', 0.0769], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.0476]], fb: 'rare' },
   ],
 };
-// 북미판 151: IR 1/12, SIR 1/32, HR 1/51, UR 1/16. ACE 수록 없음, 리버스 2장은 일반과 같다.
+// 영문판 151: IR 1/12, SIR 1/32, HR 1/51, UR 1/16. ACE 수록 없음, 리버스 2장은 일반과 같다.
 export const NA_151: RateProfile = {
   commons: 5,
   uncommons: 3,
@@ -118,7 +118,7 @@ export const JP_151: RateProfile = {
   ],
 };
 
-// jp=true면 일본판(카드명 일본어·5장) · false면 북미판.
+// jp=true면 일본판(카드명 일본어·5장) · false면 영문판.
 // ACE SPEC은 시대에 따라 수록되지 않은 세트가 있다(북미 옵시디언 플레임처럼 부활 전,
 // 블랙볼트·화이트플레어처럼 종료 후). 그런 세트에도 ACE를 확률표에 두면 절대 나올 수
 // 없는 등급을 광고하게 된다 — 실제 뽑기에서는 그 등급 풀이 비어 fallback으로 빠진다.
@@ -139,7 +139,7 @@ export const NA_REGULAR_NO_ACE = withoutAce(NA_REGULAR);
 // 기준: 포켓몬센터 공식 정가(사용자 확인, 2026-07) —
 //   일본판 일반팩 180엔(2026-04까지 출시작)·200엔(2026-05부터) ≈ 1,600원·1,800원
 //   일본판 하이클래스팩 550엔(10장) ≈ 4,900원 (전용 확률 프로필 만들 때 쓸 것)
-//   북미판 부스터 $4.49 ≈ 6,500원 (특별세트도 정가는 같다)
+//   영문판 부스터 $4.49 ≈ 6,500원 (특별세트도 정가는 같다)
 // ⚠️ 정가·환율이 바뀌면 이 표만 고치면 된다.
 export type PackSet = {
   slug: string;
@@ -155,7 +155,7 @@ export type PackSet = {
   // prismatic = 몬스터볼 포일 1/3팩 + 마스터볼 포일 1/20팩(리버스 없음).
   mirror?: 'jp151' | 'na' | 'prismatic';
   // 박스 구성 팩 수. 0이면 박스 판매 없음(북미 특별세트 — 실물에도 36팩 박스가 없다).
-  // 일본판 박스는 보장 봉입(drawBox), 북미판 박스는 순수 독립시행이다.
+  // 일본판 박스는 보장 봉입(drawBox), 영문판 박스는 순수 독립시행이다.
   boxPacks?: number;
   // 원본 세트 파일의 등급 이름을 뽑기 표준 이름으로 바꾼다.
   // 원본(TCGdex)이 같은 자리를 세트마다 다르게 적어 둔 곳이 있다 — 북미 메가 시리즈의
@@ -194,7 +194,7 @@ const JP_RARITY_ALIAS: Record<string, string> | undefined = undefined;
 // ⚠️ 블랙볼트·화이트플레어는 이 어긋남이 없다. 'Secret Rare'가 아예 없고 번호도 다르다:
 //   159~166번 Ultra Rare 8장(= SR) · 167~173번 SAR 7장 · 174번 Black White Rare 1장(= 최상위)
 // 여기에 위 맞바꿈을 쓰면 SR 8장이 금색 UR 자리로 올라가 버린다. 최상위 이름만 바꾼다
-// (북미판 자매편 en-sv10.5b도 같은 처리를 하고 있다).
+// (영문판 자매편 en-sv10.5b도 같은 처리를 하고 있다).
 const JP_BW_RARITY_ALIAS: Record<string, string> = { 'Black White Rare': 'Hyper rare' };
 
 // 일본판 메가 시리즈. 최상위 MUR이 데이터에는 'Mega Hyper Rare'로 적혀 있는데
@@ -229,7 +229,7 @@ const JP = (id: string, name: string, price = 1600, extra: Partial<PackSet> = {}
 });
 const NA = (id: string, name: string, profile = NA_REGULAR, price = 6500, extra: Partial<PackSet> = {}): PackSet => ({
   slug: `en-${id}`,
-  label: `[북미판] ${name}`,
+  label: `[영문판] ${name}`,
   src: `/sets/en-${id}.json`,
   jp: false,
   profile,
@@ -273,7 +273,7 @@ export const PACK_SETS: PackSet[] = [
   JP('SV1S', '스칼렛 ex', 1600, { profile: JP_REGULAR_NO_ACE }),
   // 일본판 메가 시리즈. 어비스아이와 등급 구성이 같아 같은 표(사용자 확인, 2026-08-02).
   JP('M2', '인페르노X', 1600, { profile: JP_MEGA, rarityAlias: JP_M2_RARITY_ALIAS }),
-  // 북미판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
+  // 영문판 10장 부스터팩 — public/sets에 레어도를 채워 둔다. scripts/fill-rarity.mjs
   // 이름은 정식 한글명이 따로 없어(한국판은 일본판 이름 체계) 영어명 음역을 쓴다.
   NA('me01', '메가 에볼루션', NA_MEGA),
   NA('sv10', '데스틴드 라이벌즈', NA_REGULAR_NO_ACE), // ACE 수록 없음(세트 데이터 확인)
@@ -284,18 +284,18 @@ export const PACK_SETS: PackSet[] = [
   NA('sv06', '트와일라잇 마스커레이드'),
   NA('sv03.5', '151', NA_151, 6500, { godRate: 1 / 1000, boxPacks: 0 }), // 특별세트, 갓팩 존재
   NA('sv03', '옵시디언 플레임즈', NA_REGULAR_NO_ACE), // ACE 부활 이전 세트
-  // 북미판 메가 시리즈 — me01과 등급 구성이 같아 같은 표(사용자 확인, 2026-08-02).
+  // 영문판 메가 시리즈 — me01과 등급 구성이 같아 같은 표(사용자 확인, 2026-08-02).
   // 최상위가 원본에 'Secret Rare'로 적혀 있어 me01의 MHR 자리로 바꿔 준다(세트당 1장).
   NA('me05', '피치 블랙', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
   NA('me04', '카오스 라이징', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
   NA('me03', '퍼펙트 오더', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
   NA('me02', '팬타스말 플레임즈', NA_MEGA, 6500, { rarityAlias: { 'Secret Rare': 'Mega Hyper Rare' } }),
-  // 북미판 블랙볼트·화이트플레어 — 일본판(SV11B·SV11W)의 북미 발매판. ACE 수록 없음.
+  // 영문판 블랙볼트·화이트플레어 — 일본판(SV11B·SV11W)의 북미 발매판. ACE 수록 없음.
   // 최상위(일본판 금색 UR 자리)가 세트당 2장이고, 원본이 자매편끼리도 이름을 다르게
   // 적어 뒀다. 확률은 그대로 두고 풀에 2장이 있으니 둘이 그 확률을 나눠 갖는다.
   NA('sv10.5b', '블랙 볼트', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Black White Rare': 'Hyper rare' } }),
   NA('sv10.5w', '화이트 플레어', NA_REGULAR_NO_ACE, 6500, { rarityAlias: { 'Secret Rare': 'Hyper rare' } }),
-  // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 북미판 Paldean Fates)는
+  // 샤이니 특별세트(일본판 샤이니트레저 ex·테라스탈 페스타, 영문판 Paldean Fates)는
   // 카드 대부분이 '샤이니' 등급이라 위 확률 프로필이 안 맞는다. 전용 프로필을 만든 뒤에 넣는다.
 ];
 
@@ -334,7 +334,7 @@ export const PPT_SET_NAMES: Record<string, string> = {
   'ja-SV1a': 'SV1a: Triplet Beat',
   'ja-SV1V': 'SV1V: Violet ex',
   'ja-SV1S': 'SV1S: Scarlet ex',
-  // 북미판
+  // 영문판
   'en-me01': 'ME01: Mega Evolution',
   'en-sv10': 'SV10: Destined Rivals',
   'en-sv09': 'SV09: Journey Together',
@@ -353,7 +353,7 @@ export const PPT_SET_NAMES: Record<string, string> = {
 };
 
 // ── 오늘의 진열대 ─────────────────────────────────────────────────────────
-// 매일 일본판 3팩 + 북미판 3팩을 랜덤으로 진열한다. 날짜(한국시간)를 시드로 쓰는
+// 매일 일본판 3팩 + 영문판 3팩을 랜덤으로 진열한다. 날짜(한국시간)를 시드로 쓰는
 // 결정적 셔플이라 서버와 화면이 따로 맞출 필요 없이 같은 답을 얻고, 자정에 바뀐다.
 // 22팩 전부 시세를 미리 받아두므로(PPT_SET_NAMES) 어떤 팩이 떠도 시세는 바로 뜬다.
 // 규칙은 src/lib/kstDay.ts 한 벌뿐이다. 여기서는 이어서 내보내기만 한다.
@@ -395,7 +395,7 @@ export const packBySlug = new Map(PACK_SETS.map((p) => [p.slug, p]));
 export const isLive = (slug: string) => livePacks().some((p) => p.slug === slug);
 
 // ── GP(그레포인트·출석 보상) 규칙 ────────────────────────────────────────────────────────
-// GP는 pokegre 안에서만 쓰는 포인트(1GP=정가 1원 기준 숫자). 하루치로 일본판 18팩 / 북미판 4팩쯤
+// GP는 pokegre 안에서만 쓰는 포인트(1GP=정가 1원 기준 숫자). 하루치로 일본판 18팩 / 영문판 4팩쯤
 // 살 수 있게 잡았다 — "뭘 살지" 고민이 생기는 선. 더 적으면 선택이 없고, 더 많으면
 // 아무거나 다 살 수 있어서 역시 선택이 사라진다.
 export const DAILY_BUDGET = 30000;
@@ -403,7 +403,7 @@ export const FIRST_BONUS = 50000; // 처음 출석하면 바로 여러 팩을 �
 export const STREAK_DAYS = 7; // 연속 출석 보너스 주기
 export const STREAK_BONUS = 30000;
 // 안 들어온 날짜만큼 무한정 쌓이면 어느 날 한 번에 털고 다시 안 온다. 상한을 두면
-// "모았으니 이제 쓰자"가 되고, 그래도 북미판 부스터 46개를 한 번에 지를 수 있다.
+// "모았으니 이제 쓰자"가 되고, 그래도 영문판 부스터 46개를 한 번에 지를 수 있다.
 export const MAX_BALANCE = 300000;
 
 // 커뮤니티에 뽑기 자랑글을 올리면 주는 보상(하루 1번). 자랑 → 보상 → 팩 하나 더 →

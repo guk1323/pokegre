@@ -1,5 +1,5 @@
 // 세트(발매 패키지)별 수록 카드 목록을 TCGdex에서 긁어 public/sets/에 저장한다.
-// 일본판(ja)·북미판(en) 둘 다. 카드 이름은 원어(일본어/영어)로 저장하고, 화면에서
+// 일본판(ja)·영문판(en) 둘 다. 카드 이름은 원어(일본어/영어)로 저장하고, 화면에서
 // 우리 변환기로 한글화한다. 이미지는 {image}/low.webp를 붙여 쓴다.
 // 결과: public/sets/index.json(세트 목록) + public/sets/<ed>-<id>.json(카드 목록)
 import { mkdir, writeFile } from 'node:fs/promises'

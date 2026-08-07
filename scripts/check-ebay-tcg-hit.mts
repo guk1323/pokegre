@@ -54,9 +54,9 @@ const 고르기 = (ed: 'ja' | 'en', n: number): 뽑[] => {
 
 const 조합 = [
   { 이름: '이베이(일본판)', ed: 'ja' as const, language: 'japanese', have: '' },
-  { 이름: '이베이(북미판)', ed: 'en' as const, language: 'english', have: '' },
+  { 이름: '이베이(영문판)', ed: 'en' as const, language: 'english', have: '' },
   { 이름: 'TCGplayer(일본판)', ed: 'ja' as const, language: 'japanese', have: 'tcgplayer' },
-  { 이름: 'TCGplayer(북미판)', ed: 'en' as const, language: 'english', have: 'tcgplayer' },
+  { 이름: 'TCGplayer(영문판)', ed: 'en' as const, language: 'english', have: 'tcgplayer' },
 ]
 
 let 쓴크레딧 = 0

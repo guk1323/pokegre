@@ -6,7 +6,7 @@ export interface CardScanResult {
   cardNumber?: string | null;
   // 세트 코드(M4 등). 언어와 무관해서 SNKRDUNK 검색의 확실한 열쇠다(번호와 함께).
   setCode?: string | null;
-  // 'japanese' = 일본어/한국어 카드(SNKRDUNK·이베이 일본판), 'english' = 북미판(이베이).
+  // 'japanese' = 일본어/한국어 카드(SNKRDUNK·이베이 일본판), 'english' = 영문판(이베이).
   edition?: 'japanese' | 'english';
   // ── 번호를 못 읽었을 때 카드를 알아볼 단서들 ──────────────────────────
   // 일러스트레이터 이름은 모든 카드에 인쇄돼 있고, 우리가 가진 작가별 카드 목록

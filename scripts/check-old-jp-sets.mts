@@ -2,11 +2,11 @@
 //
 // 왜: ja-neo4 38번은 우리 화면에 "다크 오무스타"(사진 파일명도 Dark-Omastar.NEO4.38)인데,
 // 스니커덩크에 "neo4 038"로 물으면 "상냥한 식스테일"이 나온다. 옛 세트는 일본판이 원조라
-// 북미판과 번호 매김이 다른데, 우리 데이터가 세트에 따라 북미판 번호를 담고 있어서다
+// 영문판과 번호 매김이 다른데, 우리 데이터가 세트에 따라 영문판 번호를 담고 있어서다
 // (2026-08-07 점검 중 발견). 값이 안 나오는 것보다, 남의 카드 값을 그 카드인 양
 // 보여 주는 쪽이 훨씬 나쁘다.
 //
-// 무엇을 세나: 사진을 북미판 소스(pokellector 등)에서 가져온 일본판 세트의 카드를 전부
+// 무엇을 세나: 사진을 영문판 소스(pokellector 등)에서 가져온 일본판 세트의 카드를 전부
 // 스니커덩크에 물어, ① 아예 없는 것 ② 있고 이름도 맞는 것 ③ **있는데 이름이 다른 것**.
 // ③이 실제 위험이고, 그 수가 손볼 방식을 정한다.
 //
@@ -41,7 +41,7 @@ const 이름열쇠 = (s: string) =>
     .replace(/\b(?:pr|promo|sr|sar|ar|ur|hr|rr+|csr|chr|旧裏)\b/gi, '')
     .toLowerCase()
 
-// 사진을 북미판 소스에서 가져온 일본판 세트만 본다.
+// 사진을 영문판 소스에서 가져온 일본판 세트만 본다.
 const 대상: { s: SetMeta; cards: { n: string; name: string; img: string }[] }[] = []
 for (const s of index) {
   if (s.ed !== 'ja' || (s.serie ?? '').includes('Pocket')) continue
@@ -56,7 +56,7 @@ for (const s of index) {
 }
 
 const 총장수 = 대상.reduce((a, b) => a + b.cards.length, 0)
-console.log(`\n  북미판 사진을 쓰는 일본판 세트 ${대상.length}개 · 카드 ${총장수.toLocaleString()}장`)
+console.log(`\n  영문판 사진을 쓰는 일본판 세트 ${대상.length}개 · 카드 ${총장수.toLocaleString()}장`)
 console.log(`  스니커덩크에 하나씩 물어본다(무료, 0.6초 간격 — ${Math.ceil(Math.min(총장수, 상한) * 0.7 / 60)}분쯤)\n`)
 
 let 봄 = 0
