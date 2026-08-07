@@ -61,6 +61,13 @@ const initSide = (): SideState => ({ imgUrl: null, outer: DEFAULT_OUTER, inner: 
 const SIDE_LABEL: Record<SideKey, string> = { front: '앞면', back: '뒷면' };
 
 export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: File) => void | Promise<void> }) {
+  // ⚠️ **화면을 연 횟수를 따로 센다.** 아래 'centering'은 **사진이 들어온 횟수**라,
+  //    0이어도 "아무도 안 들어왔다"인지 "들어왔는데 안 올렸다"인지 구분이 안 된다.
+  //    실제로 8/3부터 6일 내리 0이었는데 어느 쪽인지 알 수가 없었다(2026-08-08).
+  //    둘을 같이 보면 "찾아오긴 하는데 사진 올리기가 번거롭다"를 가려낼 수 있다.
+  useEffect(() => {
+    trackEvent('centering_open');
+  }, []);
   const [sides, setSides] = useState<Record<SideKey, SideState>>({ front: initSide(), back: initSide() });
   const [cameraOn, setCameraOn] = useState(false);
   const [howto, setHowto] = useState(false); // 사용법 펼침 여부

@@ -128,7 +128,9 @@ export type TrackedEvent =
   | 'home_hit_card'
   | 'home_hit_set'
   // 포켓몬별 카드(2026-08-06). 어느 포켓몬을 열었는지도 라벨로 센다.
-  | 'pokedex';
+  | 'pokedex'
+  // 센터링 화면을 연 횟수(사진을 올린 횟수는 'centering').
+  | 'centering_open';
 // label은 '작가별 조회'에서 어떤 작가를 봤는지 같은 세부 항목을 남길 때만 쓴다.
 export function trackEvent(event: TrackedEvent, label?: string): void {
   if (trackingOff()) return;

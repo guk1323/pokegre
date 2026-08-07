@@ -1817,6 +1817,9 @@ const ALLOWED_EVENTS = new Set([
   // 카드 화면에 감정 수량이 실제로 보인 횟수(2026-08-07). 통째로 받아 둔 것이라
   // 크레딧을 안 쓰지만, 얼마나 자주 쓸모가 있는지는 세어 봐야 안다.
   'population', 'population_search', 'population_detail',
+  // 센터링 화면을 연 횟수(2026-08-08). 'centering'은 사진이 들어온 횟수라 둘이 다르다 —
+  // 같이 봐야 "안 들어온 것"과 "들어왔는데 안 쓴 것"이 갈린다.
+  'centering_open',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60

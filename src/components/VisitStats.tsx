@@ -42,6 +42,7 @@ const EVENT_ROWS: { key: string; label: string; hint: string; group?: true }[] =
   { key: 'home_hit_card', label: '홈 신팩 힛카드 클릭', hint: '홈의 신팩 힛카드에서 카드를 눌러 시세로 감' },
   { key: 'home_hit_set', label: '└ 전체 보기', hint: '그 줄의 "전체 보기"를 눌러 세트 화면으로 감' },
   { key: 'pokedex', label: '포켓몬·트레이너별 카드', hint: '이름 하나를 열어 그 카드를 발매 순으로 볼 때(무엇을 열었는지도 아래 순위에 집계)' },
+  { key: 'centering_open', label: '센터링 — 화면 열기', hint: '센터링 화면에 들어온 횟수. 아래 "센터링 측정"은 사진을 실제로 올린 횟수라, 둘 차이가 크면 사진 올리기가 번거로운 것입니다' },
   { key: 'card_found', label: '카드 한 장 시세 찾음', hint: '도감·세트·작가에서 카드를 눌러 값을 찾았을 때. 어느 마켓에서 찾았는지가 아래 순위에 집계' },
   { key: 'card_miss', label: '카드 한 장 시세 못 찾음', hint: '어느 마켓에도 값이 없던 카드. 여기 자주 오르는 카드는 손볼 곳이 있다는 뜻' },
   { key: 'population_search', label: '팝수 조회 — 카드 찾기', hint: '팝수 조회 화면에서 카드를 찾은 횟수' },
