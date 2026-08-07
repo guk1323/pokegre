@@ -1942,12 +1942,21 @@ function App() {
                     묶는 기준: **찾아보기**는 카드를 어떤 기준으로 찾아 들어가는 길,
                     **도구**는 카드를 재고 따져 보는 것. 오늘의 상점은 게임이라 여기
                     두지 않고 홈 배너를 입구로 쓴다. */}
+                {/* ⚠️ **드롭다운은 핸드폰에서 왼쪽으로 열린다.** 예전엔 right-0에 폭이 w-40으로
+                    고정이라, 375px 화면에서 단추 오른쪽 끝이 140px이면 패널 왼쪽이 **-20px**로
+                    나가 글자가 잘렸다(2026-08-07 실측). 글자 길이와 상관없는 자리 문제였다.
+                    이제 좁은 화면에서는 왼쪽 기준으로 열고, 폭은 내용에 맞추되 화면을
+                    넘지 않게 묶는다. 넓은 화면(sm~)은 예전처럼 오른쪽 기준이다. */}
                 {([
                   {
                     key: 'find' as const,
                     label: '찾아보기',
                     items: [
-                      { v: 'pokedex', label: '포켓몬·트레이너', beta: true },
+                      // ⚠️ 세 줄을 **같은 꼴("…별 목록")로 맞춘다.** "포켓몬·트레이너"만
+                      //    혼자 달라서 무엇을 주는 자리인지 안 읽혔다 — 같은 메뉴 안의
+                      //    세트별이 하루 55회 열릴 때 이건 **이틀 내내 0회**였다
+                      //    (2026-08-07 운영 기록 확인. 집계는 정상이었다).
+                      { v: 'pokedex', label: '포켓몬·트레이너별 목록', beta: true },
                       { v: 'sets', label: '세트별 목록', beta: true },
                       { v: 'artists', label: '작가별 목록' },
                     ],
@@ -1956,7 +1965,10 @@ function App() {
                     key: 'tools' as const,
                     label: '도구',
                     items: [
-                      { v: 'population', label: '팝수 조회', beta: true },
+                      // ⚠️ "팝수"는 수집가끼리 쓰는 말이라 처음 온 사람은 못 알아본다.
+                      //    쉬운 말을 앞에 두고 아는 말을 괄호에 넣는다 — 화면 제목도
+                      //    이미 "감정 수량(팝수) 조회"다.
+                      { v: 'population', label: '감정 수량(팝수)', beta: true },
                       { v: 'centering', label: '센터링 측정', beta: true },
                     ],
                   },
@@ -1975,7 +1987,7 @@ function App() {
                         {그룹.label} <span className="text-[10px]">▾</span>
                       </button>
                       {openMenu === 그룹.key && (
-                        <div className="absolute right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
+                        <div className="absolute left-0 z-50 mt-1 w-max min-w-40 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg sm:left-auto sm:right-0">
                           {그룹.items.map((it) => (
                             <button
                               key={it.v}
