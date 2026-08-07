@@ -22,8 +22,24 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
   const chartable = useMemo(() => grades.filter((g) => g.history.length >= 2), [grades]);
   const [grade, setGrade] = useState<string | null>(null);
 
-  // 기본 등급: 낙찰 건수가 가장 많은(=grades가 이미 그 순으로 정렬됨) 그릴 수 있는 등급.
-  const active = chartable.find((g) => g.grade === grade) ?? chartable[0];
+  // 기본 등급: **가장 많이 팔린** 그릴 수 있는 등급. 거래가 많을수록 선이 믿을 만하다.
+  //
+  // ⚠️ 예전엔 그냥 chartable[0]을 썼다. "grades가 이미 낙찰 많은 순으로 정렬돼 있다"는
+  //    전제였는데, 2026-08-07에 등급 목록을 **등급 순**(미감정 → PSA 10 → 9 …)으로
+  //    바꾸면서 그 전제가 깨졌다. 그대로 뒀으면 낙찰 한두 건짜리 등급이 기본으로
+  //    잡혀 선이 들쭉날쭉했을 것이다. 순서에 기대지 말고 여기서 직접 고른다.
+  // ⚠️ (b.count - a.count || …)로 쓰면 안 된다. 뺄셈이 **음수여도 참**이라 적게 팔린
+  //    쪽이 뽑힌다. 크다/작다를 그대로 적는다.
+  const 기본 = useMemo(
+    () =>
+      chartable.length
+        ? chartable.reduce((a, b) =>
+            b.count > a.count || (b.count === a.count && b.history.length > a.history.length) ? b : a,
+          )
+        : undefined,
+    [chartable],
+  );
+  const active = chartable.find((g) => g.grade === grade) ?? 기본;
 
   const geom = useMemo(() => {
     if (!active) return null;
