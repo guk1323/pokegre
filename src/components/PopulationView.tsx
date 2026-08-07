@@ -60,6 +60,43 @@ const 기관순서 = ['PSA', 'BGS', 'CGC', 'SGC'];
 // 또 적으므로 **같은 번호가 두 번** 나온다(2026-08-07 화면 확인).
 // koName이 번호 꼬리를 떼고 한글로 바꿔 준다 — 사이트 전체가 쓰는 그 한 벌이다.
 const 보일이름 = (판: 'japanese' | 'english', name: string) => koName(판 === 'japanese' ? 'ja' : 'en', name);
+// ── 뒤에 붙은 레어도로 좁히기 ──────────────────────────────────────────────
+// 저쪽(PPT)의 `search`는 **카드 이름만** 본다. 그래서 "리자몽 MUR"을 그대로 보내면
+// 0장이 온다. 하지만 저쪽이 주는 카드마다 레어도가 이미 붙어 있고(화면에도 이미
+// "Mega Ultra Rare"라고 찍고 있었다), 사람들이 치는 코드와 그대로 대응한다.
+// → **이름으로 받아서 레어도는 우리가 거른다.**
+// ⚠️ 덤으로 크레딧이 안 든다 — "리자몽"·"리자몽 SAR"·"리자몽 MUR"이 모두 같은
+//    "Charizard" 한 번으로 처리되어 6시간 담아 둔 것을 다시 쓴다.
+// ⚠️ ex·V·VMAX·GX는 **여기 넣으면 안 된다.** 그건 레어도가 아니라 카드 이름의
+//    일부이고 저쪽이 알아듣는다.
+const 레어도표 = new Map<string, string[]>([
+  ['SAR', ['Special Art Rare']],
+  ['AR', ['Art Rare']],
+  ['MUR', ['Mega Ultra Rare']],
+  ['MAR', ['Mega Attack Rare']],
+  ['CSR', ['Character Super Rare']],
+  ['CHR', ['Character Rare']],
+  ['SSR', ['Shiny Secret Rare']],
+  ['SR', ['Super Rare']],
+  ['RRR', ['Triple Rare']],
+  ['RR', ['Double Rare']],
+  ['UR', ['Ultra Rare']],
+  ['HR', ['Hyper Rare']],
+  ['S', ['Shiny Rare']],
+  ['프로모', ['Promo']],
+  ['PROMO', ['Promo']],
+  ['찬란한', ['Kagayaku']],
+]);
+/** "리자몽 MUR" → { 이름: "리자몽", 코드: "MUR" }. 뒤에 레어도가 없으면 코드는 빈 값. */
+const 레어도떼기 = (말: string): { 이름: string; 코드: string } => {
+  const 조각 = 말.trim().split(/\s+/);
+  if (조각.length < 2) return { 이름: 말.trim(), 코드: '' };
+  const 끝 = 조각[조각.length - 1];
+  const 코드 = 레어도표.has(끝.toUpperCase()) ? 끝.toUpperCase() : 레어도표.has(끝) ? 끝 : '';
+  if (!코드) return { 이름: 말.trim(), 코드: '' };
+  return { 이름: 조각.slice(0, -1).join(' '), 코드 };
+};
+
 export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; lang?: string } | null }) {
   const [말, set말] = useState('');
   const [판, set판] = useState<'japanese' | 'english'>('japanese');
@@ -67,6 +104,10 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   const [결과, set결과] = useState<찾은카드[] | null>(null);
   // 저쪽이 주는 최대치에 걸려 잘렸나(잘리면 값이 낮은 카드가 안 온다).
   const [잘림, set잘림] = useState(false);
+  // 뒤에 붙은 레어도로 좁혔을 때 그 코드(화면에 알려 준다).
+  const [좁힌레어도, set좁힌레어도] = useState('');
+  // 뒤에 레어도를 쳤는데 받아 온 목록에 하나도 없을 때 그 코드(왜 전체가 나오는지 알린다).
+  const [못찾은레어도, set못찾은레어도] = useState('');
   // 저쪽 세트 이름 → 우리 한글 이름. 결과가 오면 그때 한 번 만든다(공용 대조표).
   const [세트한글, set세트한글] = useState<Map<string, string>>(new Map());
   const [고른것, set고른것] = useState<찾은카드 | null>(null);
@@ -109,13 +150,15 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   // ⚠️ **찾을 말과 판(일본/북미)을 인자로 받는다.** 상태를 읽어 쓰면, 판을 눌러 바꾼
   //    바로 그 순간에는 아직 옛 판이 들어 있어 한 박자 늦은 결과가 나온다.
   const 찾기실행 = async (친것0: string, 그판: 'japanese' | 'english') => {
-    const 친것 = 친것0.trim();
+    const { 이름: 친것, 코드: 레어도 } = 레어도떼기(친것0);
     if (친것.length < 2) return;
     set추천열림(false);
     set찾는중(true);
     set오류(null);
     set결과(null);
     set잘림(false);
+    set좁힌레어도('');
+    set못찾은레어도('');
     set고른것(null);
     set자료(null);
     // ⚠️ 저쪽(PPT)은 **영문 이름만 알아듣는다**. 한글로 치면 0건이 된다
@@ -146,10 +189,19 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         return r.json();
       })
       .then((j: { cards: 찾은카드[]; capped?: boolean }) => {
-        set결과(j.cards ?? []);
-        set잘림(Boolean(j.capped));
+        const 전부 = j.cards ?? [];
+        // ⚠️ 레어도로 걸러 **0장이 되면 거르지 않은 목록을 보여 준다.** 빈 화면을 주면
+        //    그 카드를 우리가 아예 안 다루는 줄 안다. 대신 왜 안 걸러졌는지 적는다.
+        const 걸러진 = 레어도
+          ? 전부.filter((c) => (레어도표.get(레어도) ?? []).some((r) => r.toLowerCase() === c.rarity.trim().toLowerCase()))
+          : 전부;
+        const 쓸것 = 레어도 && 걸러진.length === 0 ? 전부 : 걸러진;
+        set좁힌레어도(레어도 && 걸러진.length > 0 ? 레어도 : '');
+        set못찾은레어도(레어도 && 걸러진.length === 0 ? 레어도 : '');
+        set결과(쓸것);
+        set잘림(Boolean(j.capped) && 쓸것 === 전부);
         // 세트 이름은 **공용 대조표** 한 벌로 바꾼다(api/ebayPrices.ts와 같은 것).
-        void pptSetKoMany((j.cards ?? []).map((c) => c.setName)).then(set세트한글).catch(() => undefined);
+        void pptSetKoMany(쓸것.map((c) => c.setName)).then(set세트한글).catch(() => undefined);
         set찾는중(false);
         trackEvent('population_search');
       })
@@ -297,9 +349,13 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                 적으면 그게 전종인 줄 알게 된다(2026-08-07 점검에서 확인 — 피카츄가
                 딱 100장으로 잘려 있었다). */}
             <p className="mb-1.5 text-xs text-neutral-500">
-              {잘림
-                ? `이름에 맞는 카드가 많아 값이 높은 ${결과.length}장만 보여 드립니다. 이름을 더 자세히 치면 좁혀집니다.`
-                : `카드 ${결과.length}장을 찾았습니다. 누르면 등급표를 봅니다.`}
+              {좁힌레어도
+                ? `${좁힌레어도} 카드 ${결과.length}장입니다. 누르면 등급표를 봅니다.`
+                : 못찾은레어도
+                  ? `'${못찾은레어도}' 카드가 없어 전체 ${결과.length}장을 보여 드립니다${잘림 ? ' (값이 높은 순)' : ''}.`
+                  : 잘림
+                    ? `이름에 맞는 카드가 많아 값이 높은 ${결과.length}장만 보여 드립니다. 이름을 더 자세히 치면 좁혀집니다.`
+                    : `카드 ${결과.length}장을 찾았습니다. 누르면 등급표를 봅니다.`}
             </p>
             <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200">
               {결과.map((c) => (
