@@ -134,6 +134,44 @@ function rankByNameMatch<T extends { nameEn?: string; name: string }>(cards: T[]
   return cards.map((c, i) => ({ c, i, s: score(c) })).sort((a, b) => a.s - b.s || a.i - b.i).map((x) => x.c);
 }
 
+/**
+ * 카드 번호(tcgPlayerId)로 그 한 장의 **이름**을 알아낸다.
+ *
+ * 왜: 이베이·TCGplayer 공유 링크는 /e/<번호>·/t/<번호> 꼴인데(주소가 길어져 이름을 뺐다),
+ * 받는 쪽은 ?n=이름이 있어야만 카드를 열 수 있었다. 그래서 그 링크로 들어오면 아무것도
+ * 안 열리고 홈이 됐다(2026-08-07 운영자 제보). 코드에는 'PPT가 tcgPlayerId 단건 조회를
+ * 안 받는다'고 적혀 있었는데 **받는다** — 직접 불러 확인했다.
+ *
+ * ⚠️ **이름만으로는 부족하다.** "Pikachu"로 찾으면 값 높은 다른 피카츄가 먼저 와서
+ * 우리 카드가 12장 안에 아예 없다(실측). PPT의 search는 번호도 읽으므로
+ * "Pikachu XY95"처럼 번호를 붙여 보낸다 — 그러면 정확히 한 장만 온다(실측).
+ * 판(일본/북미)은 링크에 없으므로 북미로 먼저 찾고 없으면 일본으로 한 번 더 본다.
+ */
+export async function fetchCardNameById(
+  tcgPlayerId: string,
+): Promise<{ query: string; edition: CardEdition } | null> {
+  for (const language of ['english', 'japanese'] as const) {
+    try {
+      const p = new URLSearchParams({ language, tcgPlayerId, includeEbay: 'false', limit: '1' });
+      const res = await fetch(`/api/local/card-prices?${p.toString()}`);
+      if (!res.ok) continue;
+      const json = (await res.json()) as { cards?: { nameEn?: string; name?: string; cardNumber?: string | null }[] };
+      const c = json.cards?.[0];
+      // 검색에는 원문 영문 이름을 쓴다(한글로 바꾼 이름은 PPT가 못 찾는다).
+      const name = c?.nameEn || c?.name;
+      if (!name) continue;
+      // 번호에서 "XY95" 같은 앞부분만 쓴다("104/110"이면 104).
+      const num = String(c?.cardNumber ?? '').split('/')[0].trim();
+      // ⚠️ 어느 판에서 찾았는지도 알려야 한다. 화면이 다른 판으로 검색하면 0건이 된다
+      //    (북미판 카드를 일본판 탭에서 찾은 꼴 — 2026-08-07에 그렇게 안 나왔다).
+      return { query: num ? `${name} ${num}` : name, edition: language };
+    } catch {
+      /* 다음 판으로 넘어간다 */
+    }
+  }
+  return null;
+}
+
 export async function searchEbayCards(
   query: string,
   edition: CardEdition = 'japanese',

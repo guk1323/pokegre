@@ -3746,9 +3746,11 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       upstreamParams.set('includeHistory', 'true')
       // 이베이 날짜별 낙찰 히스토리는 includeEbay를 켜야 온다(등급별 그래프의 재료).
       upstreamParams.set('includeEbay', 'true')
-      upstreamParams.set('days', '180')
-      // 히스토리 점 수 상한 — 응답 크기와 그래프 해상도의 균형(180일에 60점 = 3일 간격).
-      upstreamParams.set('maxDataPoints', '60')
+      // ⚠️ Pro일 때는 이력이 6개월까지만 왔다. Business는 무제한이라 더 길게 받을 수 있고,
+      //    **크레딧은 그대로다**(2026-08-07 실측: 180/60도 1095/365도 카드당 3크레딧).
+      //    maxDataPoints는 365까지 공짜다 — 넘으면 카드당 +1이 붙는다.
+      upstreamParams.set('days', '1095')
+      upstreamParams.set('maxDataPoints', '365')
       const upstream = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${upstreamParams.toString()}`, {
         signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
         headers: {

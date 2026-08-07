@@ -5,7 +5,15 @@ import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
 import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
-import { searchEbayCards, EBAY_RATE_LIMITED, EBAY_DAILY_LIMIT, EBAY_PAGE_SIZE, type CardEdition, type EbayCard } from './api/ebayPrices';
+import {
+  searchEbayCards,
+  fetchCardNameById,
+  EBAY_RATE_LIMITED,
+  EBAY_DAILY_LIMIT,
+  EBAY_PAGE_SIZE,
+  type CardEdition,
+  type EbayCard,
+} from './api/ebayPrices';
 import {
   도감검색어,
   도감검색어들,
@@ -885,12 +893,25 @@ function App() {
     // 결과에서 번호가 같은 카드를 골라 연다.
     setSource(kind === 'e' ? 'ebay' : 'tcgplayer');
     const shared = new URLSearchParams(window.location.search).get('n');
-    if (!shared) {
-      setRestoringShare(false);
+    setPendingCardId(id);
+    if (shared) {
+      setQuery(shared);
       return;
     }
-    setPendingCardId(id);
-    setQuery(shared);
+    // ⚠️ 이름이 안 실린 링크(요즘 만드는 꼴)에서는 예전에 아무것도 안 하고 끝나서
+    //    홈 화면이 됐다(2026-08-07 운영자 제보). 위 주석에 'PPT가 tcgPlayerId 단건
+    //    조회를 안 받는다'고 적혀 있었는데 **받는다** — 그걸로 이름을 알아내
+    //    예전 길(이름으로 검색 → 번호가 같은 카드를 고름)을 그대로 태운다.
+    void fetchCardNameById(id)
+      .then((찾음) => {
+        if (!찾음) {
+          setRestoringShare(false);
+          return;
+        }
+        setEdition(찾음.edition);
+        setQuery(찾음.query);
+      })
+      .catch(() => setRestoringShare(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
