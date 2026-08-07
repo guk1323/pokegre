@@ -2456,6 +2456,9 @@ interface ShapedEbayCard {
     printing: string | null
     // 이 값이 잡힌 매물의 상태("Near Mint"·"Moderately Played"…). 모르면 null.
     condition: string | null
+    // 아래 history가 **어느 상태의** 추이인지. 큰 숫자와 다를 수 있어(그 상태 추이가
+    // 없는 카드가 있다) 화면에서 밝히려고 같이 넘긴다.
+    historyCondition: string | null
     lastUpdated: string | null
     url: string
     // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
@@ -2614,15 +2617,47 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
     )
     .map((card) => {
       const history = card.ebay?.priceHistory ?? {}
-      // TCGplayer 날짜별 추이: 컨디션별로 오는데 화면 시세가 미감정(Near Mint) 기준이라
-      // Near Mint를 우선하고, 없으면 점이 제일 많은 컨디션을 쓴다.
+      // TCGplayer 날짜별 추이는 상태(Near Mint·Lightly Played…)별로 나뉘어 온다.
+      //
+      // ⚠️ **큰 숫자와 같은 상태를 그려야 한다.** 예전엔 무조건 Near Mint를 우선했는데,
+      //    마켓가는 Near Mint가 아닌 매물로 잡히는 일이 흔하다(옛 일본판은 60%).
+      //    그러면 큰 숫자와 그래프가 서로 다른 상태를 말하게 된다 — 추이가 있는 카드
+      //    83장 중 12장(14%)이 그랬다(2026-08-07 실측).
+      //        뮤츠 118/128  큰 숫자 $109.99(많이 사용된)  ↔  그래프는 민트 $159
+      //    같은 화면에서 값이 안 맞으니 어느 쪽을 믿어야 할지 알 수 없다.
+      //    conditionUsed("Moderately Played 1st Edition - Japanese")에서 상태 부분만
+      //    떼어 그 상태의 추이를 고른다. 없으면 예전처럼 Near Mint → 점 많은 순.
       const conditions = card.priceHistory?.conditions ?? {}
+      // ⚠️ 큰 숫자에 붙이는 상태(아래 condition)와 **똑같은 것**을 골라야 한다. 다르게
+      //    고르면 방금 맞춰 놓은 것이 다시 어긋난다. 그래서 한 변수로 둔다.
+      const 쓴상태 =
+        (card.prices?.primaryPrinting ? card.variants?.[card.prices.primaryPrinting]?.conditionUsed : null) ??
+        Object.values(card.variants ?? {})[0]?.conditionUsed ??
+        null
+      // 좋은 상태부터 나쁜 상태 순. "가장 가까운 상태"를 고를 때 이 순서로 잰다.
+      const 상태순서 = ['Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']
+      const 상태이름 = 상태순서.find((c) => (쓴상태 ?? '').includes(c))
+      // ⚠️ 딱 그 상태의 추이가 **없는 카드가 있다.** 뮤츠 118/128은 큰 숫자가 "많이
+      //    사용된" $109.99인데 추이는 민트·조금·손상만 있다. 그때 예전처럼 민트로
+      //    넘어가면 $159를 그려 큰 숫자와 50달러가 벌어진다. 순서상 **가장 가까운
+      //    상태**를 고른다 — 여기서는 손상($95)이 민트($159)보다 훨씬 가깝다.
+      const 있는것 = Object.keys(conditions).filter((k) => (conditions[k].history?.length ?? 0) > 0)
       const conditionKey =
-        'Near Mint' in conditions
+        (상태이름 && 있는것.includes(상태이름) ? 상태이름 : null) ??
+        (상태이름
+          ? 있는것
+              .filter((k) => 상태순서.includes(k))
+              .sort(
+                (a, b) =>
+                  Math.abs(상태순서.indexOf(a) - 상태순서.indexOf(상태이름)) -
+                  Math.abs(상태순서.indexOf(b) - 상태순서.indexOf(상태이름)),
+              )[0]
+          : null) ??
+        (있는것.includes('Near Mint')
           ? 'Near Mint'
-          : Object.keys(conditions).sort(
+          : 있는것.sort(
               (a, b) => (conditions[b].history?.length ?? 0) - (conditions[a].history?.length ?? 0),
-            )[0]
+            )[0])
       const tcgHistory = (conditionKey ? conditions[conditionKey]?.history ?? [] : [])
         .map((h) => ({ date: h.date ?? '', price: h.market ?? 0 }))
         .filter((h) => h.date && h.price > 0)
@@ -2636,11 +2671,9 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
               low: p.low ?? 0,
               sellers: p.sellers ?? 0,
               printing: p.primaryPrinting ?? null,
-              // 대표 인쇄의 것을 쓴다. 없으면 아무거나 하나(대개 하나뿐이다).
-              condition:
-                (p.primaryPrinting ? card.variants?.[p.primaryPrinting]?.conditionUsed : null) ??
-                Object.values(card.variants ?? {})[0]?.conditionUsed ??
-                null,
+              // 위에서 고른 것을 그대로 쓴다(추이 그래프와 같은 상태여야 한다).
+              condition: 쓴상태,
+              historyCondition: conditionKey ?? null,
               lastUpdated: p.lastUpdated ?? null,
               url: card.tcgPlayerUrl ?? '',
               history: tcgHistory,

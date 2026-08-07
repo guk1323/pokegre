@@ -57,6 +57,8 @@ export interface TcgPlayerPrice {
   printing: string | null;
   // 이 값이 잡힌 매물의 상태("Near Mint"·"Moderately Played"…). 모르면 null.
   condition: string | null;
+  // 추이 그래프가 어느 상태의 것인지. 위 condition과 다를 수 있다.
+  historyCondition?: string | null;
   lastUpdated: string | null;
   url: string;
   // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열(옛 캐시 응답 대비 옵션).

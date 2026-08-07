@@ -56,6 +56,16 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
           },
         ]
       : [];
+  // ⚠️ 추이가 큰 숫자와 **다른 상태**일 수 있다. 그 상태의 추이가 아예 없는 카드가
+  //    있어서다(뮤츠 118/128은 큰 숫자가 "많이 사용된"인데 추이는 민트·조금·손상만
+  //    있다). 그럴 땐 제목에 밝힌다 — 안 밝히면 큰 숫자와 그래프가 50달러씩 벌어져도
+  //    왜인지 알 수 없다. 둘이 같은 상태면 굳이 안 적는다.
+  const 큰숫자상태 = 상태글(t?.condition ?? null);
+  const 추이상태 = 상태글(t?.historyCondition ?? null);
+  const 추이제목 =
+    (t?.historyCondition ?? null) === (t?.condition ?? null) || 추이상태 === 큰숫자상태
+      ? '마켓 시세 추이'
+      : `마켓 시세 추이 · ${추이상태 ?? '민트'} 기준`;
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
@@ -127,7 +137,7 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
 
       {chartGrades.length > 0 && (
         <div className="mt-3">
-          <EbayPriceChart grades={chartGrades} title="마켓 시세 추이" />
+          <EbayPriceChart grades={chartGrades} title={추이제목} />
         </div>
       )}
 
