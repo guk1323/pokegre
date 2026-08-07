@@ -240,7 +240,7 @@ function App() {
   const [view, setView] = useState<MainView>(
     () => viewFromPath(window.location.pathname) ?? savedNav().view ?? 'cards',
   );
-  // 상단 드롭다운(더보기·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
+  // 상단 드롭다운(도감·도구·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
   const [openMenu, setOpenMenu] = useState<'find' | 'tools' | 'admin' | null>(null);
   const [source, setSource] = useState<PriceSource>(() => savedNav().source ?? 'snkrdunk');
   const [query, setQuery] = useState(() => savedNav().query ?? '');
@@ -829,6 +829,15 @@ function App() {
       '',
     );
   }, [view, query, source, edition, scannedResult]);
+
+  // ⚠️ **화면이 바뀌면 열려 있던 드롭다운을 닫는다.**
+  //    드롭다운을 펼친 채로 홈·커뮤니티를 누르면 이동은 되는데 목록이 그대로 떠
+  //    있었다(2026-08-08 확인 — /community에서 홈을 누르니 주소는 "/"로 바뀌었는데
+  //    "포켓몬 세트 작가"가 계속 보였다). 뒤로가기로 화면이 바뀔 때도 마찬가지다.
+  //    드롭다운 항목을 눌러 온 경우엔 이미 닫혀 있으므로 이 줄이 하는 일이 없다.
+  useEffect(() => {
+    setOpenMenu(null);
+  }, [view]);
 
   async function handleLogout() {
     await logout();
