@@ -4,6 +4,7 @@ import { trackEvent } from '../api/localStats';
 import { loadNameDict, warmNameDict } from '../lib/nameDict';
 import { koName } from '../lib/koCardName';
 import { pptSetKoMany } from '../lib/pptSetKo';
+import { SearchSuggestions } from './SearchSuggestions';
 
 // 팝수(감정 수량) 조회.
 //
@@ -72,6 +73,10 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   const [자료, set자료] = useState<상세 | null>(null);
   const [자료받는중, set자료받는중] = useState(false);
   const [오류, set오류] = useState<string | null>(null);
+  // 자동완성(우리 파일에서 뽑는 이름 목록). 홈 검색창과 같은 부품·같은 목록을 쓴다.
+  const [추천, set추천] = useState<string[]>([]);
+  const [추천열림, set추천열림] = useState(false);
+  const [추천고른줄, set추천고른줄] = useState(-1);
   const 마지막요청 = useRef(0);
 
   const 등급표받기 = useCallback((id: string, lang?: string) => {
@@ -101,10 +106,12 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     등급표받기(처음카드.id, 처음카드.lang);
   }, [처음카드, 등급표받기]);
 
-  const 찾기 = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const 친것 = 말.trim();
+  // ⚠️ **찾을 말과 판(일본/북미)을 인자로 받는다.** 상태를 읽어 쓰면, 판을 눌러 바꾼
+  //    바로 그 순간에는 아직 옛 판이 들어 있어 한 박자 늦은 결과가 나온다.
+  const 찾기실행 = async (친것0: string, 그판: 'japanese' | 'english') => {
+    const 친것 = 친것0.trim();
     if (친것.length < 2) return;
+    set추천열림(false);
     set찾는중(true);
     set오류(null);
     set결과(null);
@@ -118,7 +125,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     let q = 친것;
     if (/[가-힣]/.test(친것)) {
       try {
-        q = (await loadNameDict()).translateSearchQueryToEnglish(친것, 판);
+        q = (await loadNameDict()).translateSearchQueryToEnglish(친것, 그판);
       } catch {
         set찾는중(false);
         set오류('이름 사전을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
@@ -133,7 +140,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         return;
       }
     }
-    fetch(`/api/local/card-find?search=${encodeURIComponent(q)}&lang=${판}`)
+    fetch(`/api/local/card-find?search=${encodeURIComponent(q)}&lang=${그판}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(r.status === 429 ? '오늘 조회량을 다 썼습니다.' : '찾지 못했습니다.');
         return r.json();
@@ -150,6 +157,44 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         set찾는중(false);
         set오류(err.message);
       });
+  };
+
+  const 찾기 = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    void 찾기실행(말, 판);
+  };
+
+  // ⚠️ **판을 바꾸면 다시 찾는다.** 예전엔 일본판/북미판을 눌러도 화면에 그대로 옛
+  //    결과가 남아 있어서, 판을 바꾼 줄 알고 보다가 반대쪽 카드를 보게 됐다.
+  //    찾은 게 없으면(처음 들어왔거나 카드 상세에서 넘어온 경우) 토글만 바꾼다.
+  const 판바꾸기 = (p: 'japanese' | 'english') => {
+    if (p === 판) return;
+    set판(p);
+    if (말.trim().length >= 2) void 찾기실행(말, p);
+  };
+
+  // 자동완성. **우리 파일 안에서 찾는 거라 공짜다** — 밖으로 안 나간다.
+  // 진짜 조회(200크레딧)는 고르거나 엔터했을 때만 나간다.
+  useEffect(() => {
+    const 친것 = 말.trim();
+    if (!친것) {
+      set추천([]);
+      return;
+    }
+    set추천고른줄(-1);
+    let 취소 = false;
+    void import('../lib/localSuggestions').then((m) => {
+      if (!취소) set추천(m.getLocalSuggestions(친것, 8));
+    });
+    return () => {
+      취소 = true;
+    };
+  }, [말]);
+
+  const 추천고르기 = (term: string) => {
+    set말(term);
+    set추천열림(false);
+    void 찾기실행(term, 판);
   };
 
   const 카드고르기 = (c: 찾은카드) => {
@@ -179,7 +224,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
             <button
               key={p}
               type="button"
-              onClick={() => set판(p)}
+              onClick={() => 판바꾸기(p)}
               className={`px-3 py-2 text-sm font-semibold ${
                 판 === p ? 'bg-black text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'
               }`}
@@ -188,14 +233,48 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
             </button>
           ))}
         </div>
-        <input
-          value={말}
-          onChange={(e) => set말(e.target.value)}
-          onFocus={() => warmNameDict()}
-          placeholder="카드 이름. 예: 리자몽, Charizard"
-          aria-label="카드 이름으로 찾기"
-          className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-        />
+        {/* 자동완성 목록이 입력칸 바로 아래에 겹쳐 떠야 해서 감싼다. */}
+        <div className="relative min-w-0 flex-1">
+          <input
+            value={말}
+            onChange={(e) => {
+              set말(e.target.value);
+              set추천열림(true);
+            }}
+            onFocus={() => {
+              warmNameDict();
+              set추천열림(true);
+            }}
+            // 목록의 버튼은 onMouseDown을 막아 두어 이 blur보다 클릭이 먼저 처리된다.
+            onBlur={() => set추천열림(false)}
+            onKeyDown={(e) => {
+              if (!추천열림 || 추천.length === 0) return;
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                set추천고른줄((i) => (i + 1) % 추천.length);
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                set추천고른줄((i) => (i <= 0 ? 추천.length - 1 : i - 1));
+              } else if (e.key === 'Escape') {
+                set추천열림(false);
+              } else if (e.key === 'Enter' && 추천고른줄 >= 0) {
+                // 방향키로 고른 줄이 있으면 그걸로 찾는다(폼 제출은 막는다).
+                e.preventDefault();
+                추천고르기(추천[추천고른줄]);
+              }
+            }}
+            placeholder="카드 이름. 예: 리자몽, Charizard"
+            aria-label="카드 이름으로 찾기"
+            role="combobox"
+            aria-expanded={추천열림 && 추천.length > 0}
+            aria-controls="search-suggestions"
+            autoComplete="off"
+            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+          />
+          {추천열림 && (
+            <SearchSuggestions items={추천} active={추천고른줄} onSelect={추천고르기} />
+          )}
+        </div>
         <button
           type="submit"
           disabled={찾는중 || 말.trim().length < 2}
