@@ -8,6 +8,7 @@ import { loadSetIndex, type SetIndexEntry } from '../lib/cardCatalog';
 import { useSubScreen } from '../lib/useSubScreen';
 // 표지 주소가 죽은 작가가 있어 카드 뒷면으로 대체한다(세트 화면과 같은 그림).
 import { CARD_BACK } from '../lib/cardCatalog';
+import { cardImg } from '../lib/cardImg';
 
 // 작가별 카드 모음. 스니커덩크엔 일러스트레이터 정보가 없어서, 작가 정보가 있는 해외
 // 카드 DB(pokemontcg.io)에서 미리 긁어 public/artists/에 저장해둔 데이터를 읽는다.
@@ -49,7 +50,12 @@ const PAGE = 60;
 // 카드 ~14KB), 서버가 캐시해 유럽 CDN 지연도 없앤다. w는 표시 크기의 약 2배(레티나 대비).
 function thumb(url: string, w: number): string {
   if (!url) return url;
-  return `/api/img?u=${encodeURIComponent(url)}&w=${w}`;
+  // ⚠️ **cardImg를 꼭 거친다.** 작가 카드 그림은 원래 pokemontcg.io의 ".png"라 그냥
+  //    써도 됐는데, TCGdex에서 채운 카드는 주소 뒤에 크기가 없다
+  //    ("assets.tcgdex.net/en/sv/sv08/045" → 404). cardImg가 "/high.webp"를 붙여 준다.
+  //    이미 확장자가 있는 주소는 손대지 않으므로 옛 그림에는 아무 영향이 없다
+  //    (2026-08-08: 안 거쳤더니 새로 채운 카드 그림이 깨졌다).
+  return `/api/img?u=${encodeURIComponent(cardImg(url))}&w=${w}`;
 }
 
 // "이 포켓몬을 그린 작가"를 찾는다.
