@@ -31,6 +31,7 @@ import {
 import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
 import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
 import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
+import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -4169,7 +4170,7 @@ const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 //    대조할 때 카드 이름만 보고 넣으면 이런 걸 놓친다 — 매물 제목까지 생각할 것.
 // sticker는 진짜 카드가 딱 하나(Energy Sticker)라, 그것만 빼고 잡는다.
 const NOT_A_CARD =
-  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|playing\s?mat|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|festa|goods|merch)\b/i
+  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|playing\s?mat|transportation|transit\s?card|t-?money|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|festa|goods|merch)\b/i
 // 세트 이름에 흔히 붙는 말. 찾는 이름 뒤에 이게 오면 카드 이름이 아니라 세트 이름이다.
 const 세트를뜻하는말 = 'Heroes|Edition|Collection|Box|Set|Deck|Promo|Series|Pack|Starter'
 /**
@@ -4181,6 +4182,18 @@ const 세트를뜻하는말 = 'Heroes|Edition|Collection|Box|Set|Deck|Promo|Seri
  * ⚠️ 영문이 아닌 검색어는 그냥 통과시킨다 — 화면이 이미 영문으로 바꿔 보내지만,
  *    사전에 없어 한글이 그대로 올라오면 여기서 다 걸러 버리면 안 된다.
  */
+// 카드 이름 뒤에 붙는 표시(V·VMAX·ex·GX…). "리피아 VMAX"처럼 **이름+표시**가 붙어
+// 있으면 그게 그 매물의 카드다.
+const 카드표시 = 'v|vmax|vstar|ex|gx|break|prime'
+// 포켓몬 영문 이름 1,025개를 통째로 쓴다(세 글자 미만은 다른 낱말에 끼어들어 뺀다).
+// 긴 이름부터 맞춰야 "Mew"가 "Mewtwo"를 가로채지 않는다.
+const 포켓몬이름표 = (pokemonNames as Array<{ en?: string }>)
+  .map((p) => String(p.en ?? '').trim())
+  .filter((n) => n.length >= 3)
+  .sort((a, b) => b.length - a.length)
+  .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+const 이름더하기표시 = new RegExp(`\\b(${포켓몬이름표.join('|')})\\s+(?:${카드표시})\\b`, 'ig')
+
 const 그카드가맞나 = (title: string, q: string): boolean => {
   const 첫낱말 = (q.trim().split(/\s+/)[0] ?? '').replace(/[^A-Za-z'-]/g, '')
   if (첫낱말.length < 3) return true
@@ -4188,7 +4201,18 @@ const 그카드가맞나 = (title: string, q: string): boolean => {
   //    그 세트를 보려는 것이라, 여기서 걸러 버리면 24건이 2건이 된다(2026-08-07 확인).
   if (new RegExp(`^${첫낱말}\\s+(?:${세트를뜻하는말})\\b`, 'i').test(q.trim())) return true
   const 지움 = title.replace(new RegExp(`\\b${첫낱말}\\s+(?:${세트를뜻하는말})\\b`, 'ig'), ' ')
-  return new RegExp(`\\b${첫낱말}\\b`, 'i').test(지움)
+  if (!new RegExp(`\\b${첫낱말}\\b`, 'i').test(지움)) return false
+  // ⚠️ **다른 포켓몬 이름이 우리 이름보다 앞에 나오면 그건 그 포켓몬 카드다.**
+  //    "Leafeon VMAX Eevee Holo Triple Rare 3/69"가 이브이로 잡혀 최저가 $1.12가
+  //    리피아 값이었다(2026-08-07). 이름만 들어 있으면 통과시키던 탓이다.
+  //    단, **이름 뒤에 V·ex 같은 표시가 붙은 것만** 그 카드로 본다 —
+  //    "Mewtwo & Mew GX"처럼 둘이 같이 나오는 카드는 걸러내면 안 되기 때문이다.
+  const 우리위치 = 지움.search(new RegExp(`\\b${첫낱말}\\b`, 'i'))
+  for (const m of 지움.matchAll(이름더하기표시)) {
+    if (m[1].toLowerCase() === 첫낱말.toLowerCase()) continue
+    if ((m.index ?? 0) < 우리위치) return false
+  }
+  return true
 }
 
 const EBAY_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6시간(호가는 자주 안 변함 + 무료 콜 아낌)
@@ -4256,7 +4280,11 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
         //    판매자가 "게임" 칸을 안 채운 매물이 빠지는 것이다. 여기 값은 최저가를
         //    뽑는 데 쓰므로 **진짜 매물을 잃는 쪽이 더 나쁘다**. 남의 게임이 섞이는
         //    건 카드 이름으로 찾을 때는 안 생긴다(이름이 알아서 거른다).
-        limit: '24',
+        // ⚠️ 24개만 받던 것을 100개로 늘렸다. 싼 것부터 받아 **거른 뒤** 보여주는데,
+        //    세트 이름·굿즈를 거르기 시작하면서 남는 게 너무 적어졌다
+        //    (이브이 24개를 받아 22개가 걸리고 2건만 남았다 · 2026-08-07).
+        //    이베이 Browse는 한 번에 200까지 주고 **요청 수는 그대로 1번**이라 공짜다.
+        limit: '100',
         filter: 'buyingOptions:{FIXED_PRICE}',
         sort: 'price',
       })
@@ -4298,6 +4326,11 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
         .filter((x) => x.price != null && x.price > 0)
         .filter((x) => !NOT_A_CARD.test(x.title))
         .filter((x) => 그카드가맞나(x.title, q))
+        // ⚠️ **우리가 값 순서로 다시 세운다.** 이베이의 price 정렬은 배송비를 더한
+        //    값 기준이라, 화면에는 "최저 $1" 이라 적혀 있는데 목록 첫 줄이 $7.99인
+        //    일이 생겼다(2026-08-07). 우리가 보여주는 값은 물건값이므로 그 값으로
+        //    세워야 머리글과 목록이 말이 맞는다.
+        .sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
       // ⚠️ total도 거른 뒤의 개수로 보낸다. 이베이가 준 total을 그대로 쓰면
       //    "매물 34건"이라 적어 놓고 30건만 보여주게 된다.
       const body = JSON.stringify({ total: items.length, items })
