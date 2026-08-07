@@ -2410,6 +2410,9 @@ interface RawPriceTrackerCard {
   name?: string
   setName?: string
   cardNumber?: string | null
+  // 레어도("Special Art Rare"·"Mega Ultra Rare"…). 화면에서 "리자몽 SAR"처럼
+  // 뒤에 붙은 코드로 좁힐 때 쓴다.
+  rarity?: string
   imageCdnUrl400?: string
   imageCdnUrl200?: string
   tcgPlayerUrl?: string
@@ -2458,6 +2461,7 @@ interface ShapedEbayCard {
   name: string
   setName: string
   cardNumber: string | null
+  rarity: string
   imageUrl: string
   totalSales: number
   // 최근 한 달 낙찰 건수. 모르면 null(화면에서 자동으로 숨김).
@@ -2698,6 +2702,11 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
         name: card.name ?? '',
         setName: card.setName ?? '',
         cardNumber: card.cardNumber ?? null,
+        // ⚠️ **레어도를 같이 내보낸다.** 저쪽의 search는 카드 이름만 보므로
+        //    "리자몽 MUR"을 그대로 보내면 0장이 오고, "리자몽 SAR"은 **SAR가 아닌 카드
+        //    7장**이 온다(2026-08-08 실측 — 저쪽이 모르는 낱말을 흘려버린다).
+        //    이 값이 있어야 화면에서 진짜 그 레어도만 걸러낼 수 있다(팝수 화면과 같은 방식).
+        rarity: card.rarity ?? '',
         imageUrl: card.imageCdnUrl400 ?? card.imageCdnUrl200 ?? '',
         totalSales: card.ebay?.totalSales ?? 0,
         monthlySales:

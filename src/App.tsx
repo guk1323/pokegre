@@ -477,6 +477,8 @@ function App() {
   // 지금 받은 게 아니라 지난번 값일 때 그 시각. 크레딧을 다 썼거나 통신이 실패하면
   // 서버가 지난 시세를 대신 준다 — 화면에 언제 기준인지 밝혀야 오해가 없다.
   const [ebayAsOf, setEbayAsOf] = useState<string | null>(null);
+  // 뒤에 붙은 레어도로 좁혔을 때 그 코드. 못 찾았으면 rarityMissing에 담긴다.
+  const [ebayRarity, setEbayRarity] = useState<{ 좁힘?: string; 없음?: string }>({});
   // 이베이에 실제로 보낸 영문 검색어. 결과가 없을 때 "직접 찾아보기" 링크에 쓴다.
   const [ebayQueryEn, setEbayQueryEn] = useState('');
   const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
@@ -1169,7 +1171,7 @@ function App() {
             ? await searchEbayCards(trimmed, edition, 0, market, pptSetName(도감))
             : r,
         )
-        .then(({ cards, hasMore, translated, asOf }) => {
+        .then(({ cards, hasMore, translated, asOf, rarity, rarityMissing }) => {
           setEbayQueryEn(translated ?? '');
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
           const fb = scanFallbackRef.current;
@@ -1317,6 +1319,7 @@ function App() {
           }
           setEbayItems(정렬됨);
           setEbayAsOf(asOf ?? null);
+          setEbayRarity({ 좁힘: rarity, 없음: rarityMissing });
           searchResultRef.current = { query: trimmed, count: 정렬됨.length, source };
           setResultTick((n) => n + 1);
           setEbayOffset(EBAY_PAGE_SIZE);
@@ -1832,6 +1835,17 @@ function App() {
       {!ebayError && !ebayLoading && ebayAsOf && (
         <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
           오늘 볼 수 있는 시세 조회량을 다 써서 {asOfLabel(ebayAsOf)} 받아 둔 시세를 보여드립니다. 오전 9시에 다시 열립니다.
+        </p>
+      )}
+
+      {/* ⚠️ 뒤에 붙은 레어도로 좁혔으면 그렇다고 밝힌다. 안 밝히면 "왜 몇 장뿐이지"가 된다.
+          못 찾았을 때는 **전체를 보여 주고 까닭을 적는다** — 빈 화면을 주면 우리가 그 카드를
+          아예 안 다루는 줄 안다(2026-08-08). 조사(가/이)가 코드마다 달라져 따옴표로 묶었다. */}
+      {!ebayError && !ebayLoading && (ebayRarity.좁힘 || ebayRarity.없음) && (
+        <p className="mb-3 text-xs text-neutral-500">
+          {ebayRarity.좁힘
+            ? `${ebayRarity.좁힘} 카드만 보고 있습니다.`
+            : `'${ebayRarity.없음}' 카드가 없어 전체를 보여 드립니다.`}
         </p>
       )}
 

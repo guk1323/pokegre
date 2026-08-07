@@ -1,5 +1,6 @@
 import { loadNameDict } from '../lib/nameDict';
 import { pptSetKo } from '../lib/pptSetKo';
+import { 레어도떼기, 레어도맞나 } from '../lib/rarityCode';
 
 // PPT가 쓰는 세트 이름 → 우리 한글 세트 이름.
 //
@@ -60,6 +61,8 @@ export interface EbayCard {
   /** 원본(영문) 세트 이름. 화면에는 안 쓰고, "정말 그 세트인가"를 견줄 때만 쓴다. */
   setNameEn: string;
   cardNumber: string | null;
+  /** 저쪽이 준 레어도. 뒤에 붙은 코드로 좁힐 때 쓴다. */
+  rarity: string;
   imageUrl: string;
   totalSales: number;
   // 최근 한 달 낙찰 건수. 없으면 null(옛 캐시 응답 대비 옵션).
@@ -74,6 +77,8 @@ export interface EbayCard {
 // (그리드가 2·3·4열이라 12가 어느 열 수에서도 딱 떨어진다.) 서버가 같은 요청을 24시간
 // 캐싱하고, PokemonPriceTracker는 page 대신 offset 방식만 지원한다.
 export const EBAY_PAGE_SIZE = 12;
+// 레어도로 좁힐 때 한 번에 받는 장수(우리가 걸러야 하므로 재료가 더 필요하다).
+const EBAY_RARITY_PAGE_SIZE = 48;
 
 // 카드 발매판. PokemonPriceTracker는 일본판/영문판을 각각 별도 DB로 들고 있어서
 // language 파라미터로 고른다. SNKRDUNK는 일본 마켓이라 북미판 카탈로그가 없고,
@@ -89,6 +94,10 @@ export const EBAY_DAILY_LIMIT = 'ebay_daily_limit';
 
 export interface EbaySearchResult {
   cards: EbayCard[];
+  /** 뒤에 붙은 레어도로 실제로 좁혔을 때 그 코드("SAR"). 화면에 알려 준다. */
+  rarity?: string;
+  /** 레어도를 쳤는데 받아 온 것 중에 하나도 없을 때 그 코드(전체를 보여 준 까닭). */
+  rarityMissing?: string;
   // 더 받을 게 남았는지. 원본 페이지가 꽉 찼으면(=요청한 만큼 왔으면) 뒤에 더 있다고 본다.
   hasMore: boolean;
   /** 실제로 보낸 영문 검색어. 결과가 없을 때 "이베이에서 직접 찾아보기" 링크에 쓴다. */
@@ -189,7 +198,12 @@ export async function searchEbayCards(
   // ⚠️ 검색어에 세트 이름을 **붙이면 0건**이다(실측). 별도 파라미터라야 걸러진다.
   setName?: string,
 ): Promise<EbaySearchResult> {
-  const trimmed = query.trim();
+  // ⚠️ **뒤에 붙은 레어도는 떼어서 우리가 거른다.** 저쪽의 search는 카드 이름만 보므로
+  //    그대로 보내면 "리자몽 MUR"은 0장이고, "리자몽 SAR"은 더 나쁘다 — 저쪽이 모르는
+  //    낱말을 흘려버려 **SAR가 아닌 카드 7장**을 준다(2026-08-08 실측). 엉뚱한 카드를
+  //    그 레어도인 것처럼 보여 주는 셈이다. 팝수 화면과 같은 방식으로 고친다.
+  const { 이름: 이름부분, 코드: 레어도 } = 레어도떼기(query);
+  const trimmed = 이름부분.trim();
   if (!trimmed) return { cards: [], hasMore: false };
 
   // PokemonPriceTracker의 search는 일본판 DB도 영문 카드명으로 색인돼 있어서,
@@ -200,7 +214,10 @@ export async function searchEbayCards(
     language: edition,
     search: translated,
     includeEbay: 'true',
-    limit: String(EBAY_PAGE_SIZE),
+    // ⚠️ 레어도로 거를 때는 **한 번에 더 받는다.** 12장만 받아 거르면 한 페이지에
+    //    한두 장만 남아 "없는 카드"처럼 보인다. 값이 높은 순이라 앞쪽에 몰려 있지도 않다.
+    //    크레딧은 장당 3배라 48장이면 144크레딧이다(하루 200,000 중).
+    limit: String(레어도 ? EBAY_RARITY_PAGE_SIZE : EBAY_PAGE_SIZE),
     offset: String(offset),
     // ⚠️ PPT의 search는 카드 이름만 보는 게 아니라 세트 이름까지 뒤진다.
     //    "Bulbasaur"로 찾으면 「Intro Pack (Bulbasaur)」 세트가 걸려서 그 세트의
@@ -246,7 +263,19 @@ export async function searchEbayCards(
   // 정렬만으로는 다 안 밀린다. 이름이 실제로 맞는 카드를 앞으로 올린다(빼지는 않는다 —
   // 세트 이름으로 찾는 사람도 있고, 우리가 못 알아본 표기일 수도 있다).
   const ranked = rankByNameMatch(cards, translated);
-  return { cards: ranked, hasMore: (json.rawCount ?? cards.length) >= EBAY_PAGE_SIZE, translated, asOf: json.asOf };
+  // ⚠️ 뒤에 붙은 레어도로 **여기서** 좁힌다. 걸러서 한 장도 안 남으면 거르지 않은
+  //    목록을 그대로 준다 — 빈 화면을 주면 그 카드를 우리가 아예 안 다루는 줄 안다.
+  //    부르는 쪽이 알 수 있도록 실제로 좁혔는지를 같이 돌려준다.
+  const 걸러진 = 레어도 ? ranked.filter((c) => 레어도맞나(레어도, c.rarity)) : ranked;
+  const 쓸것 = 레어도 && 걸러진.length === 0 ? ranked : 걸러진;
+  return {
+    cards: 쓸것,
+    hasMore: (json.rawCount ?? cards.length) >= (레어도 ? EBAY_RARITY_PAGE_SIZE : EBAY_PAGE_SIZE),
+    translated,
+    asOf: json.asOf,
+    rarity: 레어도 && 걸러진.length > 0 ? 레어도 : undefined,
+    rarityMissing: 레어도 && 걸러진.length === 0 ? 레어도 : undefined,
+  };
 }
 
 // 신뢰도 표기. PPT의 high/medium/low를 한글로. 그 외 값은 그대로 둔다.
