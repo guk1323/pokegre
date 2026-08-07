@@ -218,9 +218,21 @@ function setMeta(html: string, key: string, value: string): string {
 // 이름을 따로 뒀다.
 // 미리보기 제목에만 쓰므로 군더더기를 뗀다. 스니커덩크 이름에는 세트·번호가 대괄호로,
 // 팩 이름이 괄호로 붙어 있다("리자드 AR[SV2a 169/165](확장팩「…」)").
+// ⚠️ **괄호를 다 떼면 안 된다.** 뗄 것과 남길 것이 섞여 있다.
+//    뗄 것  — 스니커덩크가 붙이는 **팩 이름**: "리자드 AR[SV2a 169/165](확장팩「…」)"
+//    남길 것 — **카드를 가르는 말**: "아보 (Delta Species)" · "이브이 (Master Ball Pattern)"
+//               "움브레온 VMAX (Alternate Art Secret)" · "뮤츠 (Mirror Holofoil)"
+//    다 떼고 있어서 "아보 (Delta Species)"가 그냥 "아보"가 됐다 — 전혀 다른 카드인데
+//    제목과 공유 미리보기에서 구별이 안 된다. 저쪽 카드 58,215장 중 **6,499장**이
+//    이런 이름이다(2026-08-07 실측).
+//    ⚠️ 이 함수는 App.tsx의 shareTitle과 **글자까지 같아야 한다** — 다르면 새로고침
+//       전후로 탭 이름이 바뀐다.
+const 뜻있는괄호 =
+  /holo|reverse|mirror|delta|cosmos|master ball|pok[ée]? ?ball|shadowless|stamp|1st|full art|secret|prism|rainbow|pattern|jumbo|error|misprint|알?터네이트|델타|미러|리버스|마스터볼|몬스터볼/i
+const 꼬리괄호떼기 = (s: string) =>
+  s.replace(/\s*\(([^()]*)\)\s*$/, (전체, 안) => (뜻있는괄호.test(안) ? 전체 : ''))
 function shareName(title: string): string {
-  return title
-    .replace(/\s*\([^()]*\)\s*$/, '')
+  return 꼬리괄호떼기(title)
     .replace(/\s*\[[^\]]*\]\s*$/, '')
     .trim()
     .slice(0, 40)
