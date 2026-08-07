@@ -2233,7 +2233,15 @@ export async function loadPptState() {
       pptDailyLeft = s.left
       pptDailyLeftDay = s.day
     }
-    if (typeof s.blockedUntil === 'number') pptBlockedUntil = s.blockedUntil
+    // ⚠️ 하루치를 다 쓴 게 아닌데(dailyOut=false) 몇 시간씩 막혀 있을 이유가 없다
+    //    — 분당 한도는 1분이면 풀린다. 그런 값이 파일에 남아 있으면 버린다.
+    //    CSV 전용 429의 Retry-After(하루치)를 전체 차단으로 잘못 적어 둔 적이 있다
+    //    (2026-08-07). 그대로 이어받으면 배포해도 막힌 채로 뜬다.
+    if (typeof s.blockedUntil === 'number') {
+      const 말도안됨 = !s.dailyOut && s.blockedUntil > Date.now() + 2 * 60 * 60 * 1000
+      if (말도안됨) console.log('[pokegre] 앞뒤가 안 맞는 차단 시각을 버렸습니다(하루치는 남았는데 오래 막혀 있음)')
+      else pptBlockedUntil = s.blockedUntil
+    }
     pptDailyOut = !!s.dailyOut
     if (typeof s.fillSpent === 'number' && s.fillSpent >= 0) {
       fillSpent = s.fillSpent
@@ -4574,9 +4582,15 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
       headers: { authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(3 * 60_000),
     })
-    notePpt(r.status, r.headers)
+    // ⚠️ **CSV의 429를 notePpt에 넘기면 안 된다.** 이건 "CSV 하루 2회" 전용 한도이고
+    //    Retry-After가 하루치로 온다. 그걸 전체 크레딧 소진으로 읽으면 크레딧이
+    //    15만 남았는데도 방문자 시세가 통째로 막힌다 — 2026-08-07에 실제로 그랬다.
+    //    429가 아닌 응답만 전체 상태에 반영한다.
+    if (r.status !== 429) notePpt(r.status, r.headers)
     if (!r.ok) {
-      console.log(`[pokegre] 시세 통째 받기 실패: ${r.status}`)
+      console.log(`[pokegre] 시세 통째 받기 실패: ${r.status}${r.status === 429 ? ' (오늘 몫을 다 썼습니다 — 내일 다시)' : ''}`)
+      // 429든 다른 실패든 오늘은 더 두드리지 않는다. 429를 되풀이하면 키가 정지된다.
+      csvLoadedDay = today
       return 0
     }
     buf = Buffer.from(await r.arrayBuffer())
