@@ -1818,6 +1818,9 @@ const EVENT_KEEP_DAYS = 60
 const EVENT_LEGACY_KEY = 'legacy'
 // 방문 통계는 날짜별 숫자만 400일치 남긴다. IP·기기 정보는 저장하지 않는다.
 const VISIT_KEEP_DAYS = 400
+// 400일보다 오래된 날들의 합을 담는 칸(날짜가 아니다). 기능 사용 통계와 같은 방식이다 —
+// 날짜별 그래프는 최근 것만 보여주되 **누적 합계는 잃지 않는다.**
+const VISIT_LEGACY_KEY = 'legacy'
 const MAX_TRACKED_TERMS = 500
 // 카드명·팩명 검색어라 이보다 길 일이 없다. 넘으면 집계하지 않고 조용히 무시한다
 // (검색 자체는 클라이언트가 알아서 하므로 사용자에게 보이는 변화는 없다).
@@ -2770,12 +2773,20 @@ function mountVisitStats(app: Mountable) {
     await writeJsonFile(VISIT_STATS_FILE, visits)
   }
 
+  // 오래된 날짜 칸은 **지우지 않고 legacy로 접는다.** 예전엔 지웠는데, 그러면 화면의
+  // "전체 누적"이 400일째부터 조용히 줄어든다 — 누적이라 적어 놓고 줄어드는 숫자다.
+  // 기능 사용(event-stats)은 이미 이렇게 접고 있었다. 방문만 달랐다(2026-08-07 발견).
   function prune() {
     if (!visits) return
     const keep = new Set<string>()
     const now = Date.now()
     for (let i = 0; i < VISIT_KEEP_DAYS; i++) keep.add(kstDayKey(now - i * DAY_MS))
-    for (const day of Object.keys(visits)) if (!keep.has(day)) delete visits[day]
+    for (const day of Object.keys(visits)) {
+      // ⚠️ legacy 자신은 날짜가 아니므로 keep에 없다. 빼지 않으면 스스로를 지운다.
+      if (day === VISIT_LEGACY_KEY || keep.has(day)) continue
+      visits[VISIT_LEGACY_KEY] = (visits[VISIT_LEGACY_KEY] ?? 0) + (visits[day] ?? 0)
+      delete visits[day]
+    }
   }
 
   app.use('/api/local/track-visit', async (req, res) => {
@@ -2814,7 +2825,10 @@ function mountVisitStats(app: Mountable) {
       return
     }
     const all = await load()
+    // legacy는 날짜가 아니므로 그래프에 넣지 않는다. 대신 누적 합계에는 더한다.
+    const legacy = all[VISIT_LEGACY_KEY] ?? 0
     const items = Object.entries(all)
+      .filter(([date]) => date !== VISIT_LEGACY_KEY)
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date))
     // 가입 회원 수(개수만). 회원번호 등 내용은 절대 안 내보낸다.
@@ -2838,7 +2852,7 @@ function mountVisitStats(app: Mountable) {
     }
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ items, total: items.reduce((s, i) => s + i.count, 0), memberCount, credits }))
+    res.end(JSON.stringify({ items, total: legacy + items.reduce((s, i) => s + i.count, 0), memberCount, credits }))
   })
 }
 
