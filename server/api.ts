@@ -4164,13 +4164,20 @@ const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 //    ⚠️ 여기에 낱말을 더할 때는 반드시 위와 같이 카드 이름 전체를 세어 보고 넣을 것.
 //    낱말 경계(\b)로 맞춰 capture 안의 cap 같은 오검출을 막는다.
 //    복수형(stickers·tickets)은 카드 이름에 안 나오고 굿즈 제목에는 흔해서 남긴다.
+//    ⚠️ **festa는 뺐다.** 부산 지하철 티켓("Mega Festa 2026 Busan Subway QR Ticket")을
+//       잡으려고 넣었는데, **SV8a 세트 이름이 「테라스탈 페스타(Terastal Festa)」다.**
+//       그 세트 카드가 통째로 굿즈로 몰려 사라졌다
+//       ("Jolteon ex SV8a Terastal Festa Korean Version" $61 · 2026-08-07 발견).
+//       지하철 티켓 쪽은 subway·qr ticket이 이미 잡으므로 잃는 게 없다.
+//    ⚠️ **여기에 낱말을 더할 땐 세트 이름과 겹치는지 먼저 볼 것.** 세트 이름은 해마다
+//       늘고, 겹치면 그 세트가 통째로 화면에서 사라지는데 아무 표시도 안 난다.
 //    plate(Mystery Plate)·pouch(Energy Pouch)도 같은 이유로 뺐다.
 // ⚠️ "anniversary"·"limited edition"·"sealed"는 카드 **이름**에는 없지만 진짜 카드
 //    **매물 제목**에는 흔하다(예: "Celebrations 25th Anniversary Charizard").
 //    대조할 때 카드 이름만 보고 넣으면 이런 걸 놓친다 — 매물 제목까지 생각할 것.
 // sticker는 진짜 카드가 딱 하나(Energy Sticker)라, 그것만 빼고 잡는다.
 const NOT_A_CARD =
-  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|playing\s?mat|transportation|transit\s?card|t-?money|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|festa|goods|merch)\b/i
+  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|playing\s?mat|transportation|transit\s?card|t-?money|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|goods|merch)\b/i
 // 세트 이름에 흔히 붙는 말. 찾는 이름 뒤에 이게 오면 카드 이름이 아니라 세트 이름이다.
 const 세트를뜻하는말 = 'Heroes|Edition|Collection|Box|Set|Deck|Promo|Series|Pack|Starter'
 /**
