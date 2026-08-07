@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
+import { gunzipSync } from 'node:zlib'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 // ⚠️ 카드 이름을 **서버에서** 한글로 바꾸려고 가져온다. 화면에서 바꾸면 이름 사전
@@ -4529,6 +4530,119 @@ const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 const packPriceFresh = (hit: PackPriceEntry) =>
   !hit.partial && !!hit.names && Date.now() - hit.at < PACK_PRICE_TTL_MS
 
+// ── 하루 한 번, 시세를 통째로 받아 창고를 채운다 (2026-08-07 Business) ──────
+//
+// 왜: 예전엔 세트를 하나씩 불러 채웠다. 세트당 200~600크레딧이라 371개를 다 채우려면
+// 7만~22만이 들고, 하루 예산 안에서 조금씩 나눠 며칠에 걸쳐야 했다. Business에는
+// /export가 있어 **전체 카드 시세를 한 파일로** 준다 — 1.5MB(gzip), 58,000장,
+// 영문·일본판 양쪽. 한 번 받으면 우리 세트 371개 중 331개가 그 자리에서 찬다.
+//
+// ⚠️ 하루 2회 제한이 있다. 그래서 하루 한 번만 부르고, 실패해도 예전 방식이 그대로 돈다.
+// ⚠️ 값 고르는 규칙은 세트별로 받을 때와 **똑같이** 맞춘다(기본판 우선, 변형판은 별도 키).
+//    다르면 같은 카드가 받는 길에 따라 다른 값을 갖게 된다.
+const CSV_EXPORT_URL = `${PRICE_TRACKER_ORIGIN}/export`
+let csvLoadedDay = ''
+
+/** CSV 한 줄을 따옴표까지 지켜 자른다. 카드 이름에 쉼표가 들어 있다("Team Rocket's Mewtwo, ex"). */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  let q = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (q) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++ }
+      else if (ch === '"') q = false
+      else cur += ch
+    } else if (ch === '"') q = true
+    else if (ch === ',') { out.push(cur); cur = '' }
+    else cur += ch
+  }
+  out.push(cur)
+  return out
+}
+
+async function loadPricesFromCsv(apiKey: string): Promise<number> {
+  if (!apiKey) return 0
+  const today = utcDay()
+  if (csvLoadedDay === today) return 0 // 하루 한 번(하루 2회 제한이 있다)
+  const gate = pptGate()
+  if (!gate.ok) return 0
+  let buf: Buffer
+  try {
+    const r = await fetch(CSV_EXPORT_URL, {
+      headers: { authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(3 * 60_000),
+    })
+    notePpt(r.status, r.headers)
+    if (!r.ok) {
+      console.log(`[pokegre] 시세 통째 받기 실패: ${r.status}`)
+      return 0
+    }
+    buf = Buffer.from(await r.arrayBuffer())
+  } catch (e) {
+    console.log(`[pokegre] 시세 통째 받기 실패: ${String(e).slice(0, 80)}`)
+    return 0
+  }
+  csvLoadedDay = today
+
+  let text: string
+  try { text = gunzipSync(buf).toString('utf8') } catch { text = buf.toString('utf8') }
+  const lines = text.split('\n')
+  const head = splitCsvLine(lines[0] ?? '')
+  const I = Object.fromEntries(head.map((k, i) => [k.trim(), i])) as Record<string, number>
+  if (I.setName === undefined || I.cardNumber === undefined || I.marketPrice === undefined) {
+    console.log('[pokegre] 시세 통째 받기: 열 이름이 예상과 다릅니다')
+    return 0
+  }
+
+  // PPT 세트 이름 → 우리 slug. 대응표를 뒤집어 쓴다(이미 331개를 전수 검증해 뒀다).
+  const slug별: Map<string, string> = new Map()
+  for (const [slug, ppt] of Object.entries(pptSetNames as Record<string, string>)) {
+    if (!slug별.has(ppt)) slug별.set(ppt, slug)
+  }
+
+  // 세트별로 모은다. 값 고르는 규칙은 세트별 받기와 같다.
+  const 모음 = new Map<string, { prices: Record<string, number>; names: Record<string, string>; base: Set<string> }>()
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]
+    if (!line.trim()) continue
+    const c = splitCsvLine(line)
+    const slug = slug별.get(c[I.setName])
+    if (!slug) continue
+    const num = stripZeros(String(c[I.cardNumber] ?? '').split('/')[0].trim())
+    const market = Number(c[I.marketPrice])
+    if (!num || !(market > 0)) continue
+    const nm = String(c[I.name] ?? '')
+    const 것 = 모음.get(slug) ?? { prices: {}, names: {}, base: new Set<string>() }
+    const isBase = !nm.includes('(')
+    if (nm && (isBase || !것.names[num])) 것.names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
+    if (isBase) {
+      것.prices[num] = 것.base.has(num) ? Math.min(것.prices[num], market) : market
+      것.base.add(num)
+    } else {
+      const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
+      if (vk) 것.prices[num + vk] = Math.min(것.prices[num + vk] ?? Infinity, market)
+      else if (!것.base.has(num)) 것.prices[num] = Math.min(것.prices[num] ?? Infinity, market)
+    }
+    모음.set(slug, 것)
+  }
+
+  const now = Date.now()
+  let 채움 = 0
+  for (const [slug, 것] of 모음) {
+    if (!Object.keys(것.prices).length) continue
+    packPriceCache.set(slug, { at: now, prices: 것.prices, names: 것.names, triedAt: now })
+    채움++
+  }
+  if (채움) {
+    await savePackPriceFile()
+    const 장수 = [...모음.values()].reduce((a, b) => a + Object.keys(b.prices).length, 0)
+    console.log(`[pokegre] 시세를 통째로 받아 세트 ${채움}개 · 카드 ${장수.toLocaleString()}장을 채웠습니다.`)
+  }
+  return 채움
+}
+
 // 한 번 실패한 세트를 얼마나 두었다 다시 받아 볼지.
 //
 // ⚠️ 예전엔 실패하면 캐시에 아무것도 안 남겼다. 그래서 "아직 못 받은 세트"로 계속 잡혀
@@ -5246,8 +5360,16 @@ function mountAuth(
   //    배포마다 이 구멍으로 크레딧이 샜다(2026-08-02).
   void Promise.all([loadPptState(), loadPackPriceFile(), loadLastPrices()]).then(() => {
     if (process.env.NODE_ENV === 'production') {
-      setTimeout(() => void warmPackPrices(pptApiKey), 5_000)
+      // ⚠️ **CSV를 먼저 받는다.** 전체 시세를 한 파일로 주므로, 이걸로 채우고 나면
+      //    세트별로 부를 일이 거의 없다(우리 세트 371개 중 331개가 여기서 찬다).
+      //    순서를 바꾸면 세트별 호출이 먼저 크레딧을 쓰고 CSV가 그걸 덮어쓰는 낭비가 된다.
+      setTimeout(() => {
+        void loadPricesFromCsv(pptApiKey).finally(() => void warmPackPrices(pptApiKey))
+      }, 5_000)
       setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, 받을 차례가 된 것만
+      // 하루가 바뀌면(UTC 0시 = 한국시간 오전 9시) 다시 통째로 받는다. 함수 안에서
+      // "오늘 이미 받았으면 건너뛴다"를 보므로 자주 불러도 한 번만 실제로 받는다.
+      setInterval(() => void loadPricesFromCsv(pptApiKey), 60 * 60 * 1000)
     }
   })
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
