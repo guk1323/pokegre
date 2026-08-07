@@ -99,7 +99,7 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
           )}
         </a>
       ) : (
-        <p className="text-sm text-neutral-400 py-8 text-center">TCGplayer 시세가 없습니다.</p>
+        <p className="text-sm text-neutral-400 py-8 text-center">시세 데이터가 없습니다.</p>
       )}
 
       <GradedPopulation tcgPlayerId={card.tcgPlayerId} edition={edition} />

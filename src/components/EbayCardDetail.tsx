@@ -76,6 +76,13 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
             없는 등급은 중앙값으로 대체한다. 아래 작은 줄에 중앙값을 참고로 곁들이고, 신뢰도가
             낮으면(거래가 적으면) 눈에 띄게 알린다. 행을 누르면 이베이의 그 등급 "낙찰 완료"
             목록으로 가, PPT엔 없는 개별 낙찰 건(날짜·가격·상품 링크)을 직접 볼 수 있다. */}
+        {/* ⚠️ 비면 테두리만 있는 빈 네모가 떴다. 카드는 찾았는데 아무도 안 판 것이라
+            "값이 없다"가 아니라 "거래 내역이 없다"가 맞다(2026-08-07 지적). */}
+        {card.grades.length === 0 ? (
+          <p className="rounded-lg border border-neutral-200 py-4 text-center text-xs text-neutral-400">
+            거래 내역이 없습니다.
+          </p>
+        ) : (
         <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
           {card.grades.map((g) => {
             const sold = shortDate(g.lastSaleDate);
@@ -109,6 +116,7 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
             );
           })}
         </ul>
+        )}
         <KrwRateNote />
       </div>
     </div>

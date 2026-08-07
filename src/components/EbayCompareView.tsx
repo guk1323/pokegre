@@ -104,7 +104,7 @@ export function EbayCompareView({
             </tr>
             {grades.length === 0 ? (
               <tr>
-                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-400">등급별 낙찰 데이터가 없습니다.</td>
+                <td colSpan={cards.length + 1} className="py-3 text-center text-xs text-neutral-400">거래 내역이 없습니다.</td>
               </tr>
             ) : (
               grades.map((grade) => {
