@@ -13,7 +13,9 @@
 //    (Skarmory·Abra·Bagon…). 세트만 걸면 그 세트에서 제일 비싼 카드가 오므로
 //    "이름이 통하는가"만 깨끗하게 가려진다(2026-08-07).
 //
-// ⚠️ 크레딧은 limit에 매겨진다. limit=3이면 세트당 3크레딧이라 331개 전수가 1,000 안쪽이다.
+// ⚠️ **크레딧은 limit의 3배다.** 서버가 includeHistory·includeEbay를 늘 함께 켜기 때문이다.
+//    limit=3이면 세트당 9크레딧이라 331개 전수가 약 3,000이다(2026-08-07에 1배로
+//    잘못 세어 하루치를 태웠다).
 //
 // 쓰는 법: npx tsx scripts/check-ppt-set-map.mts [개수]
 import { readFileSync } from 'node:fs'
@@ -23,6 +25,7 @@ import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
 const ROOT = path.resolve(import.meta.dirname, '..')
 const BASE = process.env.PG_BASE ?? 'http://localhost:8787'
 const 볼개수 = Number(process.argv[2] ?? 400)
+let 쓴크레딧 = 0
 const PAGE = Number(process.env.PAGE ?? 3)
 // 한도에 걸려 끊기면 이미 본 것을 또 보지 않게 시작 자리를 준다.
 const 시작 = Number(process.argv[3] ?? 0)
@@ -48,6 +51,7 @@ for (let i = 0; i < 뽑음.length; i++) {
     const r = await fetch(`${BASE}/api/local/card-prices?${p}`, { signal: AbortSignal.timeout(30000) })
     if (r.status === 429) { 막힘++; if (막힘 >= 3) break; await new Promise((x) => setTimeout(x, 70000)); i--; continue }
     막힘 = 0
+    쓴크레딧 += PAGE * 3 // 기본 + 히스토리 + 이베이
     if (!r.ok) { 실패++; continue }
     const j = (await r.json()) as any
     const cs = j.cards ?? []
@@ -77,4 +81,4 @@ if (영건목록.length) {
   console.log('\n  [0건 — 고쳐야 할 것]')
   영건목록.forEach((l) => console.log(`      ${l}`))
 }
-console.log('')
+console.log(`  쓴 크레딧 약 ${쓴크레딧.toLocaleString()}\n`)
