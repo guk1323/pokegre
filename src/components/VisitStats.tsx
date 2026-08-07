@@ -219,12 +219,18 @@ export function VisitStats() {
             세트 시세 채우기에 오늘 {cr.fillSpent.toLocaleString()} / {cr.fillBudget.toLocaleString()} 썼습니다 ·
             방문자 몫 {cr.keepForVisitors.toLocaleString()}은 채우기가 건드리지 않습니다
           </p>
-          {crLeft !== null && crLeft <= 0 && (
+          {/* ⚠️ 남은 숫자만 믿으면 안 된다. 그 값은 우리 서버가 마지막으로 PPT를 부른
+              때의 것이라, 밖에서 크레딧을 쓰면 남았다고 적힌 채로 조회가 막힌다
+              (2026-08-07에 실제로 그랬다). "다 썼다"는 429를 받아 본 dailyOut이 정확하다. */}
+          {(cr.dailyOut || (crLeft !== null && crLeft <= 0)) && (
             <p className="mt-2 text-xs text-rose-600">
               다 썼습니다. 방문자에게는 사흘 안에 받아 둔 시세를 대신 보여줍니다.
+              {cr.dailyOut && crLeft !== null && crLeft > 0 && (
+                <> 위 숫자({crLeft.toLocaleString()})는 마지막으로 확인한 값이라 실제와 다릅니다.</>
+              )}
             </p>
           )}
-          {cr.blocked && crLeft !== null && crLeft > 0 && (
+          {cr.blocked && !cr.dailyOut && crLeft !== null && crLeft > 0 && (
             <p className="mt-2 text-xs text-amber-600">지금 잠시 쉬는 중입니다(분당 한도).</p>
           )}
         </div>

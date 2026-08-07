@@ -2635,6 +2635,11 @@ function mountVisitStats(app: Mountable) {
       keepForVisitors: PPT_KEEP_FOR_VISITORS,
       resetAt: new Date(nextUtcMidnight()).toISOString(), // 한국시간 오전 9시
       blocked: Date.now() < pptBlockedUntil,
+      // ⚠️ left는 **우리 서버가 마지막으로 PPT를 부른 때**의 값이다. 밖에서(스크립트 등)
+      //    크레딧을 쓰면 우리는 모르므로, 남았다고 적혀 있는데 조회는 429가 될 수 있다.
+      //    실제로 그런 일이 났다 — 화면엔 12,000이 남았는데 검색이 안 됐다(2026-08-07).
+      //    "하루치를 다 썼다"는 판단은 429를 받아 본 이 값이 정확하므로 같이 내보낸다.
+      dailyOut: pptDailyOut,
     }
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')

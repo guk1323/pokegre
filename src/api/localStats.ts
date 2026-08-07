@@ -176,6 +176,9 @@ export interface VisitStatsResponse {
     keepForVisitors: number; // 채우기가 넘지 않는 선
     resetAt: string; // 다시 차는 시각(한국시간 오전 9시)
     blocked: boolean; // 지금 한도에 걸려 쉬는 중인지
+    // ⚠️ left는 우리 서버가 마지막으로 PPT를 부른 때의 값이라 낡을 수 있다. "하루치를
+    //    다 썼다"는 실제로 429를 받아 본 이 값이 정확하다(2026-08-07).
+    dailyOut?: boolean;
   };
 }
 
