@@ -546,7 +546,7 @@ export function SetsView({
                   onClick={() => setShown((n) => n + PAGE)}
                   className="rounded-full bg-black px-6 py-2.5 text-sm font-semibold text-white hover:opacity-85"
                 >
-                  더 보기 ({(cards?.length ?? 0) - shown}장 남음)
+                  더 보기 ({(cards?.length ?? 0) - shown}종 남음)
                 </button>
               </div>
             )}
@@ -596,7 +596,9 @@ export function SetsView({
     <div className="mx-auto max-w-6xl">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-black">세트별 목록</h2>
+          {/* ⚠️ 도감 세 화면(포켓몬·세트·작가)은 제목을 **"…별 카드"로 맞춘다.**
+              예전엔 "세트별 목록"만 꼴이 달랐다(2026-08-08). */}
+          <h2 className="text-lg font-bold text-black">세트별 카드</h2>
           <p className="mt-1 text-xs text-neutral-400">발매 팩별로 수록 카드를 볼 수 있습니다. 일부 세트는 이미지·이름을 다듬는 중입니다.</p>
         </div>
         {index && index.length > 0 && (

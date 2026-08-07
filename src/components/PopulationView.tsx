@@ -72,6 +72,8 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   const [좁힌레어도, set좁힌레어도] = useState('');
   // 뒤에 레어도를 쳤는데 받아 온 목록에 하나도 없을 때 그 코드(왜 전체가 나오는지 알린다).
   const [못찾은레어도, set못찾은레어도] = useState('');
+  // 처음 들어왔을 때 보여 줄 "많이 찾는 이름". 홈이 쓰는 인기 검색어를 그대로 쓴다.
+  const [많이찾는것, set많이찾는것] = useState<string[]>([]);
   // 저쪽 세트 이름 → 우리 한글 이름. 결과가 오면 그때 한 번 만든다(공용 대조표).
   const [세트한글, set세트한글] = useState<Map<string, string>>(new Map());
   const [고른것, set고른것] = useState<찾은카드 | null>(null);
@@ -214,6 +216,29 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     };
   }, [말]);
 
+  // ⚠️ **처음 화면이 비어 있으면 뭘 하는 자리인지 모른다.** 도감 화면들은 들어가자마자
+  //    목록이 보이는데 여기만 검색칸 하나뿐이라 본문이 174px밖에 안 됐다(2026-08-08).
+  //    홈이 쓰는 인기 검색어를 그대로 눌러 볼 수 있게 둔다 — 새로 받는 게 아니라
+  //    이미 있는 것이고, 눌러야 조회가 나가므로 크레딧도 안 든다.
+  //    ⚠️ 번호가 섞인 검색어("Charizard 136")는 뺀다 — 팝수는 이름으로 찾는 자리다.
+  useEffect(() => {
+    let 취소 = false;
+    void fetch('/api/local/popular-searches')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { items?: { term: string }[] } | null) => {
+        if (취소 || !j) return;
+        const 이름만 = (j.items ?? [])
+          .map((x) => x.term)
+          .filter((t) => t && !/\d/.test(t))
+          .slice(0, 8);
+        set많이찾는것(이름만);
+      })
+      .catch(() => undefined);
+    return () => {
+      취소 = true;
+    };
+  }, []);
+
   const 추천고르기 = (term: string) => {
     set말(term);
     set추천열림(false);
@@ -241,21 +266,11 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         감정 기관이 이 카드에 매긴 등급이 각각 몇 장인지 전부 보여 드립니다. 10등급이 적을수록 구하기 어려운 카드입니다.
       </p>
 
-      <form onSubmit={찾기} className="mt-4 flex flex-wrap gap-2">
-        <div className="flex overflow-hidden rounded-lg border border-neutral-300">
-          {(['japanese', 'english'] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => 판바꾸기(p)}
-              className={`px-3 py-2 text-sm font-semibold ${
-                판 === p ? 'bg-black text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              {p === 'japanese' ? '일본판' : '북미판'}
-            </button>
-          ))}
-        </div>
+      {/* ⚠️ **도감 화면들과 같은 뼈대로 맞춘다.** 예전엔 [판][검색칸][찾기]가 한 줄이라
+          핸드폰에서 입력칸이 146px밖에 안 되어 안내문이 잘렸다(2026-08-08 실측).
+          세트 화면처럼 **검색칸을 전체 폭으로 쓰고 판 고르기는 그 아래**에 둔다. */}
+      <form onSubmit={찾기} className="mt-4">
+        <div className="flex gap-2">
         {/* 자동완성 목록이 입력칸 바로 아래에 겹쳐 떠야 해서 감싼다. */}
         <div className="relative min-w-0 flex-1">
           <input
@@ -298,16 +313,54 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
             <SearchSuggestions items={추천} active={추천고른줄} onSelect={추천고르기} />
           )}
         </div>
-        <button
-          type="submit"
-          disabled={찾는중 || 말.trim().length < 2}
-          className="rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
-        >
-          {찾는중 ? '찾는 중…' : '찾기'}
-        </button>
+          <button
+            type="submit"
+            disabled={찾는중 || 말.trim().length < 2}
+            className="flex-shrink-0 rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+          >
+            {찾는중 ? '찾는 중…' : '찾기'}
+          </button>
+        </div>
+
+        {/* 판 고르기는 검색칸 **아래**에 둔다(세트 화면과 같은 자리). */}
+        <div className="mt-2 flex w-fit overflow-hidden rounded-lg border border-neutral-300">
+          {(['japanese', 'english'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => 판바꾸기(p)}
+              className={`px-3 py-1.5 text-sm font-semibold ${
+                판 === p ? 'bg-black text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'
+              }`}
+            >
+              {p === 'japanese' ? '일본판' : '북미판'}
+            </button>
+          ))}
+        </div>
       </form>
 
       {오류 && <p className="mt-3 text-sm text-amber-600">{오류}</p>}
+
+      {!결과 && !고른것 && !찾는중 && 많이찾는것.length > 0 && (
+        <div className="mt-6">
+          <p className="mb-2 text-xs font-semibold text-neutral-500">많이 찾는 카드</p>
+          <div className="flex flex-wrap gap-2">
+            {많이찾는것.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  set말(t);
+                  void 찾기실행(t, 판);
+                }}
+                className="rounded-full border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {결과 && !고른것 && (
         <div className="mt-4">

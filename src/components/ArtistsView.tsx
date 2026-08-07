@@ -398,7 +398,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
                   onClick={() => setShown((n) => n + PAGE)}
                   className="rounded-full border border-neutral-300 px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
                 >
-                  더 보기 ({filtered.length - shown}장)
+                  더 보기 ({filtered.length - shown}종)
                 </button>
               </div>
             )}
@@ -536,8 +536,12 @@ function ArtistList({
                 className="h-[64px] w-[46px] flex-shrink-0 rounded object-cover sm:h-[84px] sm:w-[60px]"
               />
               <div className="min-w-0 flex-1">
-                <p className="line-clamp-1 text-xs font-bold text-black sm:text-sm">{a.en}</p>
-                {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-[11px] text-neutral-500 sm:text-xs">{a.ko}</p>}
+                {/* ⚠️ **한글을 크게, 영문을 작게.** 포켓몬 화면이 그렇게 하고 있는데
+                    작가만 반대라 같은 성격의 화면인데 눈이 가는 곳이 달랐다(2026-08-08).
+                    ⚠️ 작가 388명 중 68명은 한글 이름이 없다(회사·활동명). 그때는 영문을
+                       큰 자리에 그대로 두어 빈 줄이 생기지 않게 한다. */}
+                <p className="line-clamp-1 text-xs font-bold text-black sm:text-sm">{a.ko || a.en}</p>
+                {a.ko && a.ko !== a.en && <p className="line-clamp-1 text-[11px] text-neutral-500 sm:text-xs">{a.en}</p>}
                 {/* 종수는 폰에서 자기 줄로 내린다 — 옆에 두면 이름 자리를 40px 먹는다. */}
                 <p className="mt-0.5 text-[11px] font-semibold text-neutral-400 sm:hidden">
                   {a.count.toLocaleString()}종

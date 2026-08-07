@@ -201,7 +201,7 @@ export function PokedexView({
         </button>
         <h2 className="text-lg font-bold text-black">{picked.ko}</h2>
         <p className="mt-1 text-xs text-neutral-400">
-          {[picked.t === 't' ? '트레이너·에너지' : picked.en, `카드 ${picked.c}장`, '발매 순']
+          {[picked.t === 't' ? '트레이너·에너지' : picked.en, `카드 ${picked.c}종`, '발매 순']
             .filter(Boolean)
             .join(' · ')}
         </p>
@@ -308,7 +308,9 @@ export function PokedexView({
                     {p.t === 't' ? (p.en ? `트레이너·에너지 · ${p.en}` : '트레이너·에너지') : p.en}
                   </span>
                 </span>
-                <span className="ml-2 shrink-0 text-xs font-semibold text-neutral-400">{p.c}장</span>
+                {/* ⚠️ 세는 말은 **"종"으로 맞춘다**. 셋 다 "서로 다른 카드가 몇 개인가"인데
+                    포켓몬만 "장"이라 세트·작가와 어긋났다(2026-08-08). */}
+                <span className="ml-2 shrink-0 text-xs font-semibold text-neutral-400">{p.c}종</span>
               </button>
             ))}
           </div>
