@@ -8,6 +8,18 @@ import { ShareButton } from './ShareButton';
 import { GradedPopulation } from './GradedPopulation';
 
 
+// 마켓가가 잡힌 매물의 상태를 한글로. **민트면 null**(굳이 알릴 게 없다).
+// 저쪽 값은 "Moderately Played 1st Edition - Japanese"처럼 인쇄·판까지 붙어서 온다.
+function 상태글(cond: string | null): string | null {
+  if (!cond) return null;
+  if (/Near Mint/i.test(cond)) return null;
+  if (/Lightly Played/i.test(cond)) return '조금 사용된';
+  if (/Moderately Played/i.test(cond)) return '보통 사용된';
+  if (/Heavily Played/i.test(cond)) return '많이 사용된';
+  if (/Damaged/i.test(cond)) return '손상된';
+  return null; // 모르는 표기는 조용히 넘긴다 — 틀리게 말하느니 안 하는 게 낫다
+}
+
 function shortDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -84,6 +96,15 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
             <div className="min-w-0">
               <p className="text-sm font-semibold text-neutral-700">마켓 시세{t.printing ? ` · ${t.printing}` : ''}</p>
               <p className="text-[11px] text-neutral-400">미감정(로우) 기준 · 눌러서 TCGplayer ↗</p>
+              {상태글(t.condition) && (
+                // ⚠️ 민트가 아닌 매물로 값이 잡힌 카드가 생각보다 많다 — 옛 일본판
+                //    121장 중 72장(60%)이 그랬고, "손상됨" $0.25짜리도 있었다
+                //    (2026-08-07 실측). 그냥 "시세"로 보여 주면 상태 좋은 카드를 가진
+                //    사람이 자기 카드 값을 그만큼으로 오해한다. 민트일 때는 안 띄운다.
+                <p className="mt-0.5 text-[11px] font-semibold text-amber-600">
+                  {상태글(t.condition)} 매물 기준입니다. 상태가 좋으면 값이 더 높습니다.
+                </p>
+              )}
             </div>
             <div className="flex-shrink-0 text-right">
               <Price amount={t.market} currency="usd" className="text-lg font-bold text-black leading-tight" />

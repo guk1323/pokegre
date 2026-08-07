@@ -2401,6 +2401,13 @@ interface RawPriceTrackerCard {
     primaryPrinting?: string
     lastUpdated?: string
   }
+  // ⚠️ 마켓가가 **어떤 상태의 매물을 기준으로 잡힌 값인지**가 여기 들어 있다
+  //    (conditionUsed: "Moderately Played 1st Edition - Japanese").
+  //    옛 일본판은 매물이 귀해서 민트가 아닌 매물로 값이 잡히는 일이 흔하다 —
+  //    2026-08-07 실측: 옛 일본판 121장 중 72장(60%)이 민트 기준이 아니었고,
+  //    "Damaged"(손상됨) $0.25짜리도 있었다. 그걸 그냥 "시세"라고 보여 주면
+  //    민트 카드를 가진 사람이 자기 카드 값을 그만큼으로 오해한다.
+  variants?: Record<string, { printing?: string; conditionUsed?: string }>
   ebay?: {
     salesByGrade?: Record<string, RawEbayGrade>
     totalSales?: number
@@ -2427,6 +2434,8 @@ interface ShapedEbayCard {
     low: number
     sellers: number
     printing: string | null
+    // 이 값이 잡힌 매물의 상태("Near Mint"·"Moderately Played"…). 모르면 null.
+    condition: string | null
     lastUpdated: string | null
     url: string
     // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
@@ -2599,6 +2608,11 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
               low: p.low ?? 0,
               sellers: p.sellers ?? 0,
               printing: p.primaryPrinting ?? null,
+              // 대표 인쇄의 것을 쓴다. 없으면 아무거나 하나(대개 하나뿐이다).
+              condition:
+                (p.primaryPrinting ? card.variants?.[p.primaryPrinting]?.conditionUsed : null) ??
+                Object.values(card.variants ?? {})[0]?.conditionUsed ??
+                null,
               lastUpdated: p.lastUpdated ?? null,
               url: card.tcgPlayerUrl ?? '',
               history: tcgHistory,

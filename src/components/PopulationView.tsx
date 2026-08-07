@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImg } from './CardImg';
 import { trackEvent } from '../api/localStats';
+import { loadNameDict, warmNameDict } from '../lib/nameDict';
 
 // 팝수(감정 수량) 조회.
 //
@@ -89,15 +90,27 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     등급표받기(처음카드.id, 처음카드.lang);
   }, [처음카드, 등급표받기]);
 
-  const 찾기 = (e?: React.FormEvent) => {
+  const 찾기 = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const q = 말.trim();
-    if (q.length < 2) return;
+    const 친것 = 말.trim();
+    if (친것.length < 2) return;
     set찾는중(true);
     set오류(null);
     set결과(null);
     set고른것(null);
     set자료(null);
+    // ⚠️ 저쪽(PPT)은 **영문 이름만 알아듣는다**. 한글로 치면 0건이 된다
+    //    (2026-08-07 사장님이 발견). 검색창과 똑같이 사전으로 영문으로 바꿔 보낸다.
+    //    한글이 없으면 손대지 않는다 — "Charizard 4/102"처럼 이미 영문인 것을
+    //    번역기에 넣으면 오히려 망가진다.
+    let q = 친것;
+    if (/[가-힣]/.test(친것)) {
+      try {
+        q = (await loadNameDict()).translateSearchQueryToEnglish(친것, 판);
+      } catch {
+        /* 사전을 못 받으면 친 그대로 보낸다 */
+      }
+    }
     fetch(`/api/local/card-find?search=${encodeURIComponent(q)}&lang=${판}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(r.status === 429 ? '오늘 조회량을 다 썼습니다.' : '찾지 못했습니다.');
@@ -153,7 +166,8 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         <input
           value={말}
           onChange={(e) => set말(e.target.value)}
-          placeholder="카드 이름 (영문). 예: Charizard"
+          onFocus={() => warmNameDict()}
+          placeholder="카드 이름. 예: 리자몽, Charizard"
           aria-label="카드 이름으로 찾기"
           className="min-w-0 flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm"
         />

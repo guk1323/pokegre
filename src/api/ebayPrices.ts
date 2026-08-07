@@ -52,6 +52,8 @@ export interface TcgPlayerPrice {
   low: number;
   sellers: number;
   printing: string | null;
+  // 이 값이 잡힌 매물의 상태("Near Mint"·"Moderately Played"…). 모르면 null.
+  condition: string | null;
   lastUpdated: string | null;
   url: string;
   // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열(옛 캐시 응답 대비 옵션).
