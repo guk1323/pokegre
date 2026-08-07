@@ -14,6 +14,7 @@ import cardNameKoEn from '../data/cardNameKoEn.json';
 // 북미판 세트의 "한글 이름 → 원래 영어 이름". scripts/gen-set-names.mts가 만든다.
 // 세트가 늘거나 한글 이름 규칙이 바뀌면 그 스크립트를 다시 돌린다.
 import setNameKoEn from '../data/setNameKoEn.json';
+import { 전각부호펴기 } from './punct';
 
 // 한글 카드명 → 영문 카드명. scripts/gen-ko-en-cards.mts가 자동으로 만든다(우리 일본어
 // 카드명을 화면에 나오는 한글로 바꾼 뒤, 같은 카드의 영문명을 PPT 자료에서 번호로 찾아
@@ -409,13 +410,7 @@ export function translateSearchQueryToEnglish(
   //    복사해 붙여 넣는다. 그런데 사전은 보통 부호로 적혀 있어 **한 글자 때문에
   //    통째로 번역이 실패**했다 — "초련＆담죽"은 그대로 남고 "초련&담죽"만
   //    "Sabrina & Brycen"이 됐다(2026-08-07 확인).
-  trimmed = trimmed
-    .replace(/＆/g, '&')
-    .replace(/！/g, '!')
-    .replace(/？/g, '?')
-    .replace(/：/g, ':')
-    .replace(/（/g, '(')
-    .replace(/）/g, ')');
+  trimmed = 전각부호펴기(trimmed);
   // 사람들이 치는 표기를 공식 표기로 먼저 고친다. 아래 "이름이 통째로 일치하나" 검사보다
   // 앞이어야 한다 — "이슬이"를 고쳐 놔야 "이슬"로 통째 일치가 잡힌다.
   for (const [typed, official] of KO_SEARCH_ALIASES) {

@@ -14,6 +14,7 @@
 import { koreanizeTitle } from './koreanizeTitle.ts';
 import { koreanizeEnglishCardName } from './koreanizeEnglishTitle.ts';
 import { koSetName } from './setNameKo.ts';
+import { 전각부호펴기 } from './punct.ts';
 
 const hasJapanese = (s: string) => /[ぁ-んァ-ヶ一-龯]/.test(s);
 
@@ -28,15 +29,7 @@ const 번호꼬리떼기 = (s: string) => s.replace(/\s*-\s*\d+\/\d+\s*$/, '').t
 //    표기가 맞다.
 const 부호다듬기 = (s: string) => {
   if (!/[가-힣]/.test(s)) return s;
-  return s
-    .replace(/！/g, '!')
-    .replace(/？/g, '?')
-    .replace(/＆/g, '&')
-    .replace(/：/g, ':')
-    .replace(/（/g, '(')
-    .replace(/）/g, ')')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return 전각부호펴기(s).replace(/\s+/g, ' ').trim();
 };
 
 export const koName = (ed: 'ja' | 'en', name: string): string => {

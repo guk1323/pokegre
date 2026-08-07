@@ -5,6 +5,7 @@ import setNameKoJa from '../data/setNameKoJa.json';
 import cardNameKoJa from '../data/cardNameKoJa.json';
 import { MANUAL_PACK_OVERRIDES } from './manualPackOverrides';
 import { koreanizeTitle, STRUCTURAL_TERMS, COMPOUND_TERMS, EXACT_TRAINER_NAMES, EXACT_TITLES } from './koreanizeTitle';
+import { 전각부호펴기 } from './punct';
 
 interface PokemonName {
   id: number;
@@ -293,9 +294,20 @@ for (const [ja, ko] of EXACT_TITLES) {
 // "인기 검색어" 집계가 갈라진다. 검색어를 일본어로 번역했다가 다시 카드명
 // 한글화 파이프라인을 태워서, 입력 방식과 무관하게 항상 같은 표기로 모은다.
 export function canonicalizeSearchTerm(query: string): string {
-  const trimmed = query.trim();
+  // ⚠️ **전각 부호를 먼저 편다.** 안 그러면 "초련＆담죽"과 "초련&담죽"이 다른 말로
+  //    세어져 **한 카드의 표가 두 줄로 갈린다**(2026-08-07 확인). 화면에 보이는
+  //    이름을 복사해 붙여 넣는 사람과 직접 치는 사람이 갈리기 때문이다.
+  const trimmed = 전각부호펴기(query.trim());
   if (!trimmed) return trimmed;
-  return tidySearchTerm(koreanizeTitle(translateSearchQuery(trimmed)));
+  const 바꾼것 = tidySearchTerm(koreanizeTitle(translateSearchQuery(trimmed)));
+  // ⚠️ **한글이 안 남으면 원문을 쓴다.** translateSearchQuery는 마켓에 보낼 일본어를
+  //    만드는 함수라 띄어쓰기를 없앤다("リザードンex"가 맞는 표기다). 한글 검색어는
+  //    koreanizeTitle이 "리자몽 ex"로 되돌려 주지만, **영어로 친 검색어는 되돌릴 곳이
+  //    없어 "Charizardex"인 채로 인기 검색어에 오른다.** 운영 자료에 실제로
+  //    Jolteonex·landorusex·Gardevoirex가 올라 있었다(2026-08-07 확인).
+  //    여기 값은 사람이 읽을 순위표 이름이므로, 번역이 안 됐으면 친 그대로가 낫다.
+  if (/[가-힣]/.test(바꾼것)) return 바꾼것;
+  return tidySearchTerm(trimmed) || 바꾼것;
 }
 
 // 인기 검색어에 올릴 만한 꼴로 다듬는다.
