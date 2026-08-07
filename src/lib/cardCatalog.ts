@@ -70,7 +70,7 @@ export interface SetFile {
 // 이미지 주소 규칙은 cardImg.ts로 옮겼다 — 사전을 안 쓰는 것들이라, 첫 화면에 늘 있는
 // CardTile이 thumb() 하나 때문에 이름 사전 109KB를 같이 받던 것을 끊기 위해서다.
 // 쓰는 쪽이 안 바뀌도록 여기서 그대로 다시 내보낸다.
-export { cardImg, thumb, CARD_BACK, usable } from './cardImg';
+export { cardImg, thumb, CARD_BACK, usable, 기준일글 } from './cardImg';
 
 // 일본판은 일본어 변환 후, TCGdex에 영어로 섞여 오는 이름(옛 세트의 Koffing 등)까지
 // 영어 변환기로 한 번 더 잡는다. 북미판은 영어 변환만.

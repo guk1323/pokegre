@@ -7356,7 +7356,13 @@ function mountSetHitCards(app: Mountable) {
     // 스니커덩크는 같은 카드가 상태별로 갈려 거래되고 값이 두 배까지 벌어진다.
     // 어느 등급 값인지 화면이 그대로 적어야 방문자가 오해하지 않는다.
     const grade = sd ? (saved.grade === 'psa10' ? 'psa10' : 'a') : undefined
-    sendJson(res, 200, { slug, priced: true, src, grade, at: packPriceCache.get(slug)?.at ?? 0, cards })
+    // ⚠️ **값이 어디서 왔는지에 맞는 시각**을 보내야 한다. 스니커덩크로 받아 둔 파일이
+    //    이기는데(topPricedCards 참고) 앨범 캐시 시각을 보내면 엉뚱한 날짜가 나간다.
+    //    이 값은 미리 받아 둔 것이라 며칠 묵는다(2026-08-07 실측: 61세트 중간값 5.4일).
+    //    화면이 "언제 기준"을 못 적으면, 홈에서 188만원을 보고 눌렀더니 상세가
+    //    124만원일 때 왜 다른지 알 길이 없다.
+    const at = sd ? (saved?.at ?? 0) : (packPriceCache.get(slug)?.at ?? 0)
+    sendJson(res, 200, { slug, priced: true, src, grade, at, cards })
   })
 
   // 홈에 띄울 "신팩 힛카드". 제일 최근에 나온 세트 중 시세가 있는 것을 고른다.
@@ -7413,6 +7419,11 @@ function mountSetHitCards(app: Mountable) {
       releaseDate: 고른것.releaseDate ?? '',
       src: sd ? 'snkrdunk' : 'tcgplayer',
       grade: sd ? (saved.grade === 'psa10' ? 'psa10' : 'a') : undefined,
+      // ⚠️ **언제 받아 둔 값인지 같이 내보낸다.** 이 값은 미리 받아 둔 것이라 며칠
+      //    묵는다(2026-08-07 실측: 최신 세트가 2.2일, 61세트 중간값이 5.4일 전).
+      //    그런데 화면엔 날짜가 없어서, 홈에서 188만원을 보고 눌렀더니 상세가
+      //    124만원이면 왜 다른지 알 길이 없다. 날짜를 적으면 "그때 값이구나"가 된다.
+      pricedAt: sd ? saved.at : undefined,
       // ko는 화면에 그대로 적을 한글 이름이다(규칙은 server/index.ts의 koName과 같다).
       cards: cards.map((c) => ({
         ...c,

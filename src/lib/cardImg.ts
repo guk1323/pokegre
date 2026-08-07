@@ -43,3 +43,18 @@ export const CARD_BACK = '/card-back.svg';
 const 스니덩크쓸만함 = /cdn\.snkrdunk\.com\/upload_bg_removed\//i;
 export const usable = (url?: string) =>
   !!url && (!url.includes('snkrdunk') || 스니덩크쓸만함.test(url));
+
+// 미리 받아 둔 시세가 **언제 것인지** 한 줄로. 홈·세트 두 화면이 같이 쓴다.
+//
+// ⚠️ 이 값은 실시간이 아니다. 스크립트가 미리 받아 둔 것이라 며칠 묵는다
+//    (2026-08-07 실측: 최신 세트 2.2일, 61세트 중간값 5.4일 전).
+//    날짜를 안 적으면 홈에서 188만원을 보고 눌렀는데 상세가 124만원일 때
+//    방문자가 왜 다른지 알 길이 없다 — 상세는 지금 값이라 다른 게 맞다.
+// ⚠️ 두 화면이 **같은 함수**를 써야 한다. 한쪽만 고치면 같은 값을 두 화면이
+//    다르게 설명하게 된다(NewSetHitCards의 basisLabel 주석과 같은 이유).
+export const 기준일글 = (at?: number): string => {
+  if (!at || !Number.isFinite(at)) return '';
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return '';
+  return ` · ${d.getMonth() + 1}.${d.getDate()} 기준`;
+};

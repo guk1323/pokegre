@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { 기준일글 } from '../lib/cardImg';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
 // ⚠️ cardCatalog가 아니라 cardImg에서 가져온다 — cardCatalog는 이름 사전을 통째로
@@ -32,6 +33,8 @@ interface Latest {
   releaseDate: string;
   src: 'snkrdunk' | 'tcgplayer';
   grade?: 'psa10' | 'a';
+  // 이 값을 **언제 받아 뒀는지**. 실시간이 아니라 미리 받아 둔 것이라 며칠 묵는다.
+  pricedAt?: number;
   cards: HitCard[];
 }
 
@@ -123,6 +126,7 @@ export function NewSetHitCards({
           세트 화면과 같은 문구다. */}
       <p className="mb-3 text-xs text-neutral-400">
         {releasedOn(data.releaseDate)} · {basisLabel(data.src, data.grade)}
+        {기준일글(data.pricedAt)}
       </p>
       {/* ⚠️ 폰은 4장, 큰 화면은 8장. 폰에서 8장을 넣으면 한 칸이 80px이라 카드가
           뭔지 알아볼 수 없다(세트 화면에서 겪은 것과 같은 문제). */}
