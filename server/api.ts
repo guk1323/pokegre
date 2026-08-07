@@ -3893,6 +3893,9 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
   // 팝수 조회 화면의 카드 찾기. **시세 검색과 달리 값을 안 받아서 1/3 값이다**
   // (시세 검색은 includeHistory·includeEbay 때문에 장당 3크레딧, 여기는 1크레딧).
   // 팝수만 볼 건데 시세까지 받아 올 이유가 없다.
+  // 한 번에 받을 카드 수. 이름 하나에 카드가 수십 장인 포켓몬이 많아(개굴닌자 71장)
+  // 넉넉히 받는다. 장당 1크레딧이고 캐시에 6시간 담긴다.
+  const CARD_FIND_LIMIT = 100
   const 찾기캐시 = new TtlCache<string>(6 * 60 * 60 * 1000, 500)
   app.use('/api/local/card-find', async (req, res) => {
     const q = new URL(req.url ?? '', 'http://x').searchParams
@@ -3902,6 +3905,15 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
     if (말.length < 2) {
       res.statusCode = 400
       res.end(JSON.stringify({ error: 'search required' }))
+      return
+    }
+    // ⚠️ 저쪽은 **영문 이름만 알아듣는다.** 한글이 그대로 오면 0장이 온다(실측).
+    //    화면이 사전으로 바꿔 보내지만, 사전을 아직 못 받았거나 실패하면 한글이
+    //    그대로 올라온다 — 그때 "그런 카드 없음"으로 보이면 사람은 우리가 그 카드를
+    //    안 다루는 줄 안다. 여기서 한 번 더 막는다.
+    if (/[가-힣]/.test(말)) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'needs_english', message: '영문 이름으로 다시 시도해 주세요.' }))
       return
     }
     const 열쇠 = `${판}:${말.toLowerCase()}`
@@ -3920,7 +3932,13 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       const u = new URL(`${PRICE_TRACKER_ORIGIN}/cards`)
       u.searchParams.set('search', 말)
       u.searchParams.set('language', 판)
-      u.searchParams.set('limit', '12')
+      // ⚠️ 12장만 받고 있었다. 팝수 조회는 **그 이름의 카드를 다 훑어보는 화면**이라
+      //    12장은 턱없이 적다 — "개굴닌자"는 일본판 53장·북미판 71장이 있는데 12장만
+      //    나왔다(2026-08-07 사장님 지적). 시세 검색(12장 + 더 보기)과 목적이 다르다.
+      //    장당 1크레딧이라 60장이어도 60크레딧이고, 6시간 캐시에 담긴다.
+      u.searchParams.set('limit', String(CARD_FIND_LIMIT))
+      u.searchParams.set('sortBy', 'price')
+      u.searchParams.set('sortOrder', 'desc')
       const r = await fetch(u, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(20_000) })
       notePpt(r.status, r.headers)
       if (!r.ok) {

@@ -108,7 +108,17 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
       try {
         q = (await loadNameDict()).translateSearchQueryToEnglish(친것, 판);
       } catch {
-        /* 사전을 못 받으면 친 그대로 보낸다 */
+        set찾는중(false);
+        set오류('이름 사전을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+        return;
+      }
+      // ⚠️ 사전에 없는 한글은 **그대로 남는다**. 그걸 보내면 저쪽이 0장을 주고,
+      //    화면엔 "찾은 카드가 없습니다"가 떠서 우리가 그 카드를 안 다루는 것처럼
+      //    보인다. 무엇이 문제인지 밝혀 준다.
+      if (/[가-힣]/.test(q)) {
+        set찾는중(false);
+        set오류(`'${친것}'의 영문 이름을 몰라 찾지 못했습니다. 영문으로 쳐 보시겠어요?`);
+        return;
       }
     }
     fetch(`/api/local/card-find?search=${encodeURIComponent(q)}&lang=${판}`)
@@ -187,6 +197,8 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
           {결과.length === 0 ? (
             <p className="py-10 text-center text-sm text-neutral-400">'{말.trim()}'로 찾은 카드가 없습니다.</p>
           ) : (
+            <>
+            <p className="mb-1.5 text-xs text-neutral-500">카드 {결과.length}장을 찾았습니다. 누르면 등급표를 봅니다.</p>
             <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200">
               {결과.map((c) => (
                 <li key={c.tcgPlayerId}>
@@ -210,6 +222,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
       )}
