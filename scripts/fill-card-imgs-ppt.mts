@@ -34,15 +34,26 @@ async function imageAlive(url: string): Promise<boolean> {
 
 // 우리 세트 → PPT 세트 이름. PPT /sets 목록에서 확인한 정확한 이름이다(2026-08-03).
 const PAIRS: [string, string][] = [
-  // 2026-07-31 발매. 시크릿 레어 37장이 무료 소스 세 곳 모두에 아직 없다(2026-08-04).
-  ['ja-M6', 'M6: Storm Emeralda'],
-  ['en-2023sv', "McDonald's Promos 2023"],
-  ['en-2024sv', "McDonald's Promos 2024"],
-  ['en-tk-sm-l', 'SM Trainer Kit: Lycanroc & Alolan Raichu'],
-  ['en-tk-sm-r', 'SM Trainer Kit: Alolan Sandslash & Alolan Ninetales'],
-  ['en-mfb', 'My First Battle'],
-  ['en-tk-xy-p', 'XY Trainer Kit: Pikachu Libre & Suicune'],
-  ['en-tk-xy-su', 'XY Trainer Kit: Pikachu Libre & Suicune'],
+  // ⚠️ 이 표는 **빈칸이 있는 세트 전부**여야 한다. 예전엔 여덟 개만 적혀 있어서
+  //    나머지 세트는 아무리 돌려도 그대로였다(2026-08-07). 아래로 다시 뽑으려면:
+  //    public/sets/*.json에서 img가 빈 카드가 있고 pptSetNames.json에 짝이 있는 세트.
+  ["en-exu", "EX Unseen Forces"],  // 빈칸 28장
+  ["en-2018sm", "McDonald's Promos 2018"],  // 빈칸 12장
+  ["en-2017sm", "McDonald's Promos 2017"],  // 빈칸 12장
+  ["en-2015xy", "McDonald's Promos 2015"],  // 빈칸 12장
+  ["en-2014xy", "McDonald's Promos 2014"],  // 빈칸 12장
+  ["en-ecard2", "Aquapolis"],  // 빈칸 8장
+  ["en-mfb", "My First Battle"],  // 빈칸 6장
+  ["en-svp", "SV: Scarlet & Violet Promo Cards"],  // 빈칸 4장
+  ["ja-VS1", "Pokemon VS"],  // 빈칸 3장
+  ["ja-M1L", "m1L: Mega Brave"],  // 빈칸 1장
+  ["en-swshp", "SWSH: Sword & Shield Promo Cards"],  // 빈칸 1장
+  ["ja-SM11b", "SM11b: Dream League"],  // 빈칸 1장
+  ["ja-SM10b", "SM10b: Sky Legend"],  // 빈칸 1장
+  ["en-hgssp", "HGSS Promos"],  // 빈칸 1장
+  ["ja-neo4", "Darkness, and to Light..."],  // 빈칸 1장
+  ["ja-neo2", "Neo Premium File 2"],  // 빈칸 1장
+  ["ja-PMCG6", "Challenge from the Darkness"],  // 빈칸 1장
 ]
 
 const argOf = (name: string, fallback: number) => {
@@ -92,11 +103,40 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 const normKo = (s: string) => s.toLowerCase().replace(/[^a-z0-9가-힣]/g, '')
 // 일본판은 우리 이름이 일본어, PPT 이름이 영어다. 둘 다 화면에 나오는 한글로 옮겨
 // 견줘야 짝이 맞는다. 그냥 글자로 비교하면 하나도 안 맞아 전부 건너뛴다.
-const sameCard = (ours: string, theirs: string) =>
-  norm(ours) === norm(theirs) ||
-  (NAME_PAIRS[ours.trim()] !== undefined && norm(NAME_PAIRS[ours.trim()]) === norm(theirs)) ||
-  normKo(koreanizeEnglishCardName(koreanizeTitle(ours))) === normKo(koreanizeEnglishCardName(theirs))
+const sameCard = (ours: string, theirsRaw: string) => {
+  const theirs = stripDeckTag(theirsRaw)
+  return (
+    norm(ours) === norm(theirs) ||
+    (NAME_PAIRS[ours.trim()] !== undefined && norm(NAME_PAIRS[ours.trim()]) === norm(theirs)) ||
+    normKo(koreanizeEnglishCardName(koreanizeTitle(ours))) === normKo(koreanizeEnglishCardName(theirs))
+  )
+}
 const stripNo = (s: string) => s.replace(/\s*-\s*[\dA-Za-z]+\/[\dA-Za-z]+\s*$/, '').trim()
+// ⚠️ PPT는 **테마덱 카드에 꼬리표**를 붙인다. 이름이 아니라 "어느 덱의 몇 번"을 적은 것이다.
+//     Tierno      ↔ Tierno (20 - Pikachu Libre Deck)
+//     Great Ball  ↔ Great Ball (#21, Alolan Ninetales Half-Deck)
+//     Lycanroc    ↔ 루가루암 (#30 Holofoil)
+//    이걸 안 떼서 en-tk-* 테마덱이 통째로 "이름이 달라 건너뜀"이 됐다(2026-08-07).
+//    ⚠️ 떼고도 이름이 다르면 **진짜 다른 카드다** — 그런 건 그대로 건너뛴다
+//       (16 Lycanroc ≠ Grubbin: 테마덱은 번호 체계가 우리와 달라 실제로 어긋난다).
+//    ⚠️ 꼬리표가 **둘씩 붙는 것**도 있다: "Hau (#19) (Lycanroc Half-Deck)".
+//       한 번만 떼면 "Hau (#19)"가 남아 여전히 안 맞는다. 더 안 떨어질 때까지 돈다.
+const stripDeckTag = (s: string) => {
+  let out = s.trim()
+  for (;;) {
+    const 다음 = out
+      .replace(/\s*\((?:#\s*)?\d+[^)]*\)\s*$/, '')
+      .replace(/\s*\([^)]*(?:Deck|Half-Deck)\)\s*$/i, '')
+      // "Pikachu - 225 (World Championship 2025) [Winner]"처럼 대괄호·대회 이름도 붙는다.
+      .replace(/\s*\[[^\]]*\]\s*$/, '')
+      .replace(/\s*\((?:Illustration Contest|World Championship|Winner|Finalist)[^)]*\)\s*$/i, '')
+      // "Pikachu - 214" 처럼 번호만 꼬리에 붙는 것도 뗀다(번호는 이미 따로 맞춘다).
+      .replace(/\s*-\s*\d+\s*$/, '')
+      .trim()
+    if (다음 === out) return out
+    out = 다음
+  }
+}
 
 type Row = { cardNumber?: string; name?: string; imageCdnUrl?: unknown }
 
@@ -165,6 +205,11 @@ for (const [slug, setName] of PAIRS) {
   }
 
   const src = new Map<string, { name: string; img: string }>()
+  // ⚠️ 테마덱(en-tk-*)은 **번호 체계가 우리와 아예 다르다** — 우리 16번이 루가루암인데
+  //    저쪽 16번은 턱지충이다. 번호로만 찾으면 전부 "이름이 달라 건너뜀"이 된다.
+  //    그래서 이름으로도 찾을 표를 같이 만든다(옛 일본판에 쓴 것과 같은 방식).
+  //    **양쪽 모두 그 이름이 딱 한 장일 때만** 쓴다 — 여럿이면 어느 것인지 못 가린다.
+  const 이름별 = new Map<string, { name: string; img: string }[]>()
   for (let p = 0; p < 3; p++) {
     if (spent + PAGE > BUDGET) break
     const list = await fetchPage(setName, p * PAGE, slug.startsWith('ja-') ? 'japanese' : 'english')
@@ -173,7 +218,10 @@ for (const [slug, setName] of PAIRS) {
       const num = String(c.cardNumber ?? '').split('/')[0].replace(/^0+/, '') || '0'
       const img = pickImg(c.imageCdnUrl)
       if (!num || !img) continue
-      if (!src.has(num)) src.set(num, { name: stripNo(String(c.name ?? '')), img })
+      const 것 = { name: stripNo(String(c.name ?? '')), img }
+      if (!src.has(num)) src.set(num, 것)
+      const 열쇠 = normKo(koreanizeEnglishCardName(stripDeckTag(것.name)))
+      if (열쇠) 이름별.set(열쇠, [...(이름별.get(열쇠) ?? []), 것])
     }
     if (list.length < PAGE) break
     await sleep(5000)
@@ -182,8 +230,20 @@ for (const [slug, setName] of PAIRS) {
   let filled = 0
   let dead = 0
   const skipped: string[] = []
+  // 우리 쪽에서도 같은 이름이 여럿이면 이름으로 못 가린다. 미리 세어 둔다.
+  const 우리이름수 = new Map<string, number>()
+  for (const c of d.cards ?? []) {
+    const k = normKo(koreanizeEnglishCardName(koreanizeTitle(c.name)))
+    if (k) 우리이름수.set(k, (우리이름수.get(k) ?? 0) + 1)
+  }
   for (const c of blanks) {
-    const hit = src.get(String(Number(c.n)))
+    let hit = src.get(String(Number(c.n)))
+    // 번호로 찾은 게 다른 카드면, 이름으로 다시 찾아본다(테마덱용).
+    if (!hit || !sameCard(c.name, hit.name)) {
+      const k = normKo(koreanizeEnglishCardName(koreanizeTitle(c.name)))
+      const 후보 = k ? 이름별.get(k) : undefined
+      if (k && 후보?.length === 1 && 우리이름수.get(k) === 1) hit = 후보[0]
+    }
     if (!hit) continue
     if (!sameCard(c.name, hit.name)) {
       if (skipped.length < 40) skipped.push(`\n        ${c.n} ${c.name} ≠ ${hit.name}  (우리:${koreanizeEnglishCardName(koreanizeTitle(c.name))} / PPT:${koreanizeEnglishCardName(hit.name)})`)
