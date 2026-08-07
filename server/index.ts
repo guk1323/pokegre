@@ -7,6 +7,7 @@ import {
   backupDataFiles,
   isAdminRequest,
   lookupCardName,
+  fetchCardNameForShare,
   maintenanceOn,
   mountApi,
   startCardNameStore,
@@ -254,15 +255,21 @@ function buildCardHtml(
   return html
 }
 
+// 공유 미리보기에서 카드 이름을 물어볼 때만 쓴다. 값은 어디에도 찍지 않는다.
+const pptKeyForShare = process.env.POKEMON_PRICE_TRACKER_API_KEY ?? ''
+
 // 이베이·TCGplayer 공유 링크. 카드 시세(PPT)는 호출 한도가 빡빡해서 그림과 가격은
 // 미리보기에 넣지 않는다 — 크롤러가 링크를 두드릴 때마다 크레딧이 나간다.
 // 다만 카드 이름은 링크(?n=)에 이미 들어 있으므로 제목에는 넣는다. 안 넣으면 카톡에
 // "pokegre — 포켓몬 카드의 모든 것"만 떠서 무슨 카드를 보낸 건지 알 수 없다.
-app.get(['/e/:id', '/t/:id'], (req, res) => {
-  // 시세를 볼 때 주워 둔 이름이 있으면 그걸 쓴다(주소가 짧아진다). 없으면 링크에 실려 온
-  // ?n=으로 넘어간다 — 서버가 다시 뜬 직후나 아무도 안 본 카드가 여기 해당한다.
+app.get(['/e/:id', '/t/:id'], async (req, res) => {
+  // 시세를 볼 때 주워 둔 이름이 있으면 그걸 쓴다(크레딧이 안 든다).
+  // ⚠️ 없으면 예전엔 링크의 ?n=에 기댔고, 그것도 없으면 미리보기 없이 넘어갔다 —
+  //    아무도 안 본 카드를 공유하면 카톡에 'pokegre — 포켓몬 카드의 모든 것'만 떴다.
+  //    이제 번호로 그 한 장을 물어볼 수 있으므로(2026-08-07 확인) 받아 온다.
+  //    크롤러가 두드릴 것을 생각해 하루 상한을 걸어 뒀고, 한 번 받은 이름은 남는다.
   const id = String(req.params.id ?? '')
-  const known = lookupCardName(id)
+  const known = lookupCardName(id) ?? (await fetchCardNameForShare(pptKeyForShare, id))
   const name = known
     ? shareName(koreanizeEnglishCardName(known))
     : typeof req.query.n === 'string'

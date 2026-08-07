@@ -2471,6 +2471,52 @@ export function lookupCardName(id: string): string | null {
   return cardNameById.get(id) ?? null
 }
 
+// ── 공유 링크 미리보기용 이름 받아오기 (2026-08-07) ─────────────────────────
+//
+// 왜: 지금까지는 "시세를 볼 때 지나가는 응답에서 이름을 주워 두는" 것만 했다. 아무도
+// 안 본 카드를 공유하면 카톡에 "pokegre — 포켓몬 카드의 모든 것"만 떠서 무슨 카드를
+// 보낸 건지 알 수 없었다. 위 주석에 'PPT는 번호로 카드 한 장을 찾는 기능이 없다'고
+// 적혀 있었는데 **있다** — tcgPlayerId로 부르면 그 한 장을 준다(직접 확인).
+//
+// ⚠️ 크롤러가 링크를 두드릴 때마다 크레딧이 나가므로 하루 상한을 둔다. 한 번 받은
+//    이름은 창고에 남아 다음부터는 공짜다.
+const SHARE_NAME_FETCH_DAILY_MAX = 500
+let shareNameFetchDay = ''
+let shareNameFetchCount = 0
+
+export async function fetchCardNameForShare(apiKey: string, id: string): Promise<string | null> {
+  if (!apiKey || !/^\d+$/.test(id)) return null
+  const 이미 = cardNameById.get(id)
+  if (이미) return 이미
+  const today = utcDay()
+  if (shareNameFetchDay !== today) { shareNameFetchDay = today; shareNameFetchCount = 0 }
+  if (shareNameFetchCount >= SHARE_NAME_FETCH_DAILY_MAX) return null
+  const gate = pptGate()
+  if (!gate.ok) return null
+  shareNameFetchCount++
+  // 이름만 필요하므로 히스토리·이베이는 끈다(카드당 1크레딧).
+  for (const language of ['english', 'japanese'] as const) {
+    try {
+      const p = new URLSearchParams({ language, tcgPlayerId: id, limit: '1' })
+      const r = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${p.toString()}`, {
+        headers: { authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
+      })
+      notePpt(r.status, r.headers)
+      if (!r.ok) continue
+      const j = (await r.json()) as { data?: { name?: string } | { name?: string }[] }
+      const d = Array.isArray(j.data) ? j.data[0] : j.data
+      const name = String(d?.name ?? '').trim()
+      if (!name) continue
+      rememberCardName(id, name)
+      return name
+    } catch {
+      /* 다음 판으로 */
+    }
+  }
+  return null
+}
+
 // 5분마다 바뀐 게 있을 때만 저장한다. 시세를 볼 때마다 파일을 쓰면 볼륨이 고생한다.
 export function startCardNameStore(): void {
   void loadCardNames()
