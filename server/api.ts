@@ -3768,7 +3768,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
 
   // 감정 수량 · 등급별 낙찰. 통째로 받아 둔 것이라 **크레딧을 쓰지 않는다**.
   // 카드 화면이 이미 아는 tcgPlayerId로 바로 찾는다.
-  app.use('/api/local/card-extra', (req, res) => {
+  app.use('/api/local/card-extra', async (req, res) => {
     const id = new URL(req.url ?? '', 'http://x').searchParams.get('id')?.trim() ?? ''
     res.setHeader('content-type', 'application/json')
     if (!id) {
@@ -3776,7 +3776,12 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       res.end(JSON.stringify({ error: 'id required' }))
       return
     }
-    const pop = populationCache.get(id) ?? null
+    // 덤프에 있으면 그걸 쓴다(크레딧 0). 없을 때만 한 장 받아 온다 —
+    // 통째 받기는 이레에 한 번이라 그 사이 빈칸이 생기고, 그 한 장이 방문자가
+    // 지금 보고 있는 카드다. 예산·재시도 제한은 fetchPopulationLive 안에 있다.
+    const 판 = new URL(req.url ?? '', 'http://x').searchParams.get('lang')?.trim() || undefined
+    let pop = populationCache.get(id) ?? null
+    if (!pop) pop = await fetchPopulationLive(apiKey, id, 판)
     const grades = ebayGradeCache.get(id) ?? null
     res.statusCode = 200
     // 하루 한 번 갱신되는 값이라 오래 물고 있어도 된다.
@@ -4906,6 +4911,84 @@ async function loadEbayGradesFromCsv(apiKey: string): Promise<number> {
   await saveJsonMap(EBAY_GRADE_FILE, ebayGradeCache)
   console.log(`[pokegre] 등급별 낙찰을 통째로 받아 카드 ${ebayGradeCache.size.toLocaleString()}장을 채웠습니다.`)
   return ebayGradeCache.size
+}
+
+// ── 덤프에 없는 카드는 그때그때 한 장씩 받는다 ──────────────────────────────
+//
+// 통째 받기는 하루 2회가 전부라 감정 수량을 이레에 한 번밖에 못 받는다. 그 사이에
+// 새로 감정된 카드나, 덤프를 받은 뒤에 우리가 추가한 카드는 빈칸으로 남는다.
+// 다행히 **한 장씩 받는 길은 하루 2회와 무관하다**(카드당 2크레딧, 한 번에 50장까지).
+// 방문자가 실제로 연 카드만 채우므로 낭비가 거의 없다.
+//
+// ⚠️ 없는 카드를 되풀이해 묻지 않는다. 감정 기록이 아예 없는 카드가 많은데
+//    (사장님 카드 614026이 그렇다), 그때마다 2크레딧을 태우면 티끌이 모인다.
+//    한 번 없다고 나오면 이레는 다시 묻지 않는다.
+const POP_LIVE_DAILY_MAX = 4_000 // 크레딧. 하루 2,000장까지.
+const POP_MISS_AGAIN_MS = 7 * 24 * 60 * 60 * 1000
+const populationMissAt = new Map<string, number>()
+let popLiveSpent = 0
+let popLiveDay = ''
+const popLiveSpentToday = () => (popLiveDay === utcDay() ? popLiveSpent : 0)
+
+/** 한 판(일본판/북미판)만 물어본다. 2크레딧. */
+async function 감정수량한판(apiKey: string, id: string, 판: 'japanese' | 'english'): Promise<PopEntry | null> {
+  const r = await fetch(
+    `${PRICE_TRACKER_ORIGIN}/population?tcgPlayerId=${encodeURIComponent(id)}&language=${판}`,
+    { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15_000) },
+  )
+  notePpt(r.status, r.headers)
+  popLiveDay = utcDay()
+  popLiveSpent = popLiveSpentToday() + 2
+  if (!r.ok) return null
+  const j = (await r.json()) as { data?: unknown }
+  const d = (Array.isArray(j.data) ? j.data[0] : j.data) as Record<string, unknown> | null | undefined
+  const 전체 = Number(d?.totalPopulation) || 0
+  if (!d || !(전체 > 0)) return null
+  // ⚠️ 감정기관별 칸 이름은 `populationByGrader`다. `graders`로 읽으면 값이 조용히
+  //    비어서, 화면엔 "전체 7장"만 뜨고 정작 중요한 "PSA 10 2장"이 사라진다
+  //    (2026-08-07에 실제로 그렇게 나왔다). gradersTracked는 기관 이름 목록일 뿐이다.
+  const psa = ((d.populationByGrader as Record<string, Record<string, number>> | undefined)?.PSA ?? {}) as Record<string, number>
+  const 것: PopEntry = { all: 전체 }
+  const g10 = (Number(psa.g10) || 0) + (Number(psa.pristine) || 0) + (Number(psa.perfect) || 0)
+  if (g10 > 0) 것.psa10 = g10
+  if (Number(psa.g9) > 0) 것.psa9 = Number(psa.g9)
+  if (Number(psa.totalPopulation) > 0) 것.psaAll = Number(psa.totalPopulation)
+  const 젬 = Number(psa.gemRate ?? d.combinedGemRate)
+  if (Number.isFinite(젬) && 젬 > 0) 것.gem = Math.round(젬 * 10) / 10
+  return 것
+}
+
+/**
+ * ⚠️ **판을 반드시 붙여 물어야 한다.** 안 붙이면 저쪽이 북미판으로 찾아서, 일본판
+ *    카드는 감정 기록이 멀쩡히 있는데도 전부 "없음"으로 온다(2026-08-07에 이걸로
+ *    18,726장짜리 카드가 빈손으로 나왔다). 화면이 판을 알려주면 그것만 묻고,
+ *    모르면 둘 다 물어본다(4크레딧).
+ */
+async function fetchPopulationLive(apiKey: string, id: string, 판?: string): Promise<PopEntry | null> {
+  if (!apiKey || !id) return null
+  const 지난번없음 = populationMissAt.get(id)
+  if (지난번없음 && Date.now() - 지난번없음 < POP_MISS_AGAIN_MS) return null
+  const 물을것: ('japanese' | 'english')[] =
+    판 === 'japanese' ? ['japanese'] : 판 === 'english' ? ['english'] : ['japanese', 'english']
+  if (popLiveSpentToday() + 2 * 물을것.length > POP_LIVE_DAILY_MAX) return null
+  // 방문자 몫은 건드리지 않는다.
+  const 남음 = pptLeftNow()
+  if (Number.isFinite(남음) && 남음 - 2 * 물을것.length < PPT_KEEP_FOR_VISITORS) return null
+  if (!pptGate().ok) return null
+  try {
+    for (const p of 물을것) {
+      const 것 = await 감정수량한판(apiKey, id, p)
+      if (것) {
+        populationCache.set(id, 것)
+        void saveJsonMap(POPULATION_FILE, populationCache as Map<string, unknown>)
+        return 것
+      }
+    }
+    populationMissAt.set(id, Date.now())
+    return null
+  } catch {
+    return null
+  }
 }
 
 async function saveJsonMap(file: string, m: Map<string, unknown>) {

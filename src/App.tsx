@@ -2385,9 +2385,9 @@ function App() {
                   detail={
                     ebaySelectedCard ? (
                       source === 'tcgplayer' ? (
-                        <TcgPlayerCardDetail card={ebaySelectedCard} />
+                        <TcgPlayerCardDetail card={ebaySelectedCard} edition={edition} />
                       ) : (
-                        <EbayCardDetail card={ebaySelectedCard} />
+                        <EbayCardDetail card={ebaySelectedCard} edition={edition} />
                       )
                     ) : null
                   }

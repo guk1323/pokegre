@@ -17,7 +17,7 @@ function shortDate(iso: string | null): string | null {
 
 // TCGplayer(미국 마켓) 시세 상세. 이베이가 "등급별 낙찰가"라면 이쪽은 미감정 카드의
 // 시장가(마켓가)와 현재 최저가를 보여준다. 데이터는 이베이와 같은 PPT 응답에서 온다.
-export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
+export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition?: string }) {
   const t = card.tcgplayer;
   const updated = shortDate(t?.lastUpdated ?? null);
   // 카드 이름 한글화가 이상하면 사용자가 알려준다(스니덩크 상세와 같은 방식).
@@ -102,7 +102,7 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
         <p className="text-sm text-neutral-400 py-8 text-center">TCGplayer 시세가 없습니다.</p>
       )}
 
-      <GradedPopulation tcgPlayerId={card.tcgPlayerId} />
+      <GradedPopulation tcgPlayerId={card.tcgPlayerId} edition={edition} />
 
       {chartGrades.length > 0 && (
         <div className="mt-3">

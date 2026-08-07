@@ -15,7 +15,7 @@ function shortDate(iso: string | null): string | null {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-export function EbayCardDetail({ card }: { card: EbayCard }) {
+export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: string }) {
   // 중앙값도 원화로 적는다(가격 표시를 원화로 통일).
   const krw = useKrw();
   // 카드 이름 한글화가 이상하면 사용자가 알려준다(스니덩크 상세와 같은 방식).
@@ -60,7 +60,7 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
       <EbayPriceChart grades={card.grades} />
 
       {/* 낙찰 기록이 없는 카드에도 붙는다 — 감정된 게 몇 장인지는 거래와 무관하게 안다. */}
-      <GradedPopulation tcgPlayerId={card.tcgPlayerId} />
+      <GradedPopulation tcgPlayerId={card.tcgPlayerId} edition={edition} />
 
       <div>
         <div className="flex items-baseline justify-between">

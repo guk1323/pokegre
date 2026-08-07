@@ -31,14 +31,17 @@ interface Extra {
 // 믿으면 안 된다 — 감정품이 몇 장 없으니 값이 훨씬 높게 잡히는 일이 잦다.
 const 적음 = 50;
 
-export function GradedPopulation({ tcgPlayerId }: { tcgPlayerId: string }) {
+// ⚠️ 판(edition)을 꼭 넘겨야 한다. 저쪽은 판을 안 주면 **북미판으로 찾아서**
+//    일본판 카드가 전부 "감정 기록 없음"이 된다(2026-08-07에 이걸로 빈손이 났다).
+export function GradedPopulation({ tcgPlayerId, edition }: { tcgPlayerId: string; edition?: string }) {
   const [것, set것] = useState<Extra | null>(null);
 
   useEffect(() => {
     if (!tcgPlayerId) return;
     let 살아있음 = true;
     set것(null);
-    fetch(`/api/local/card-extra?id=${encodeURIComponent(tcgPlayerId)}`)
+    const lang = edition === 'japanese' || edition === 'english' ? `&lang=${edition}` : '';
+    fetch(`/api/local/card-extra?id=${encodeURIComponent(tcgPlayerId)}${lang}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j: Extra | null) => {
         if (!살아있음 || !j?.population) return;
@@ -49,7 +52,7 @@ export function GradedPopulation({ tcgPlayerId }: { tcgPlayerId: string }) {
     return () => {
       살아있음 = false;
     };
-  }, [tcgPlayerId]);
+  }, [tcgPlayerId, edition]);
 
   const p = 것?.population;
   if (!p || !(p.all > 0)) return null;
