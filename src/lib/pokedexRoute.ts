@@ -119,17 +119,31 @@ export function 도감검색어들(c: 도감카드정보): string[] {
  *    en-ex10에는 언노운이 한 장도 없어 서로 섞이지 않는다(2026-08-07 전수 확인).
  *    같은 이름을 더 넣을 일이 생기면 **번호가 겹치는지부터 세어 볼 것.**
  */
-// 저쪽(PPT) 번호를 **우리 번호로** 되돌린다. 세트마다 번호 체계가 다를 수 있어서다.
-// 표는 src/data/setCardNumberAlias.json (우리 번호 → 저쪽 번호).
-// 셀레브레이션즈 클래식 컬렉션이 그렇다 — 우리 CC002가 저쪽에선 4/102다.
-const 되돌림표: Record<string, Record<string, string>> = {};
+// 저쪽(PPT) 카드를 **우리 번호로** 되돌린다. 표는 src/data/setCardNumberAlias.json.
+// 두 가지 어긋남을 함께 다룬다.
+//   ① 번호 체계가 다른 세트 — 우리 CC002가 저쪽에선 4/102다(셀레브레이션즈).
+//   ② 저쪽에 번호가 아예 없는 세트 — 옛 일본판(PMCG·neo)은 시세는 있는데 번호 칸이
+//      비어 있다. 그때는 **이름**을 열쇠로 쓴다(표에 "NAME:Oddish" 꼴로 적혀 있다).
+const 번호되돌림: Record<string, Record<string, string>> = {};
+const 이름되돌림: Record<string, Record<string, string>> = {};
+const 이름열쇠 = (s: string) => String(s).trim().toLowerCase();
 for (const [slug, t] of Object.entries(setCardNumberAlias as Record<string, Record<string, string>>)) {
-  const m: Record<string, string> = {};
-  for (const [우리, 저쪽] of Object.entries(t)) m[저쪽.toUpperCase()] = 우리;
-  되돌림표[slug] = m;
+  const byNum: Record<string, string> = {};
+  const byName: Record<string, string> = {};
+  for (const [우리, 저쪽] of Object.entries(t)) {
+    if (저쪽.startsWith('NAME:')) byName[이름열쇠(저쪽.slice(5))] = 우리;
+    else byNum[저쪽.toUpperCase()] = 우리;
+  }
+  번호되돌림[slug] = byNum;
+  이름되돌림[slug] = byName;
 }
-export const 저쪽번호를우리번호로 = (slug: string, 저쪽번호: string): string =>
-  되돌림표[slug]?.[String(저쪽번호).trim().toUpperCase()] ?? 저쪽번호;
+/** 저쪽 카드(번호·이름)를 우리 번호로. 번호가 없으면 이름으로 찾는다. */
+export const 저쪽번호를우리번호로 = (slug: string, 저쪽번호: string, 저쪽이름?: string): string => {
+  const n = String(저쪽번호 ?? '').trim();
+  if (n) return 번호되돌림[slug]?.[n.toUpperCase()] ?? n;
+  if (저쪽이름) return 이름되돌림[slug]?.[이름열쇠(저쪽이름)] ?? '';
+  return n;
+};
 
 export const pptSetName = (c: 도감카드정보): string => {
   const 아는이름 = (pptSetNames as Record<string, string>)[c.slug];

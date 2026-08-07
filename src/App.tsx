@@ -1176,8 +1176,8 @@ function App() {
           //    컬렉션은 우리가 CC001~CC025로 두는데 저쪽은 원본 카드 번호(4/102)다.
           //    그대로 견주면 그 25장은 영원히 '그 카드가 아니다'가 되어 시세가 안 뜬다
           //    (2026-08-07 덤프 대조로 찾았다). 견주기 전에 우리 번호로 되돌린다.
-          const 번호열쇠 = (s: string) => {
-            const 되돌린 = 도감 ? 저쪽번호를우리번호로(도감.slug, String(s)) : String(s);
+          const 번호열쇠 = (s: string, 이름?: string) => {
+            const 되돌린 = 도감 ? 저쪽번호를우리번호로(도감.slug, String(s), 이름) : String(s);
             return 되돌린.split('/')[0].trim().toUpperCase().replace(/^0+(?=[0-9])/, '');
           };
           // ⚠️ 이름 비교에서 괄호를 지우면 안 된다. "히스이 미끄네일"과 "히스이 미끄네일
@@ -1217,7 +1217,9 @@ function App() {
             !보낸세트 || 세트열쇠(c.setNameEn ?? '') === 세트열쇠(보낸세트);
           const 번호맞음 = 도감
             ? cards.filter(
-                (c) => c.cardNumber && 번호열쇠(c.cardNumber) === 번호열쇠(도감.num) && 세트맞음(c),
+                // ⚠️ cardNumber가 비어도 버리면 안 된다. 옛 일본판은 저쪽에 번호가 없어
+                //    이름으로만 짝지을 수 있다(표의 NAME: 항목).
+                (c) => 번호열쇠(c.cardNumber ?? '', c.nameEn ?? c.name) === 번호열쇠(도감.num) && 세트맞음(c),
               )
             : [];
           const 이름까지맞음 = 번호맞음.find((c) => 다듬(c.name) === 다듬(도감!.ko));

@@ -4676,7 +4676,7 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
     // ⚠️ 세트에 따라 저쪽이 **다른 번호 체계**를 쓴다. 셀레브레이션즈 클래식 컬렉션은
     //    우리가 CC001~CC025로 두는데 저쪽은 원본 카드 번호(4/102)를 쓴다. 그대로 두면
     //    그 25장은 시세가 통째로 안 붙는다(2026-08-07 덤프 대조로 확인).
-    const 되돌림 = 번호되돌리기(slug, String(c[I.cardNumber] ?? ''))
+    const 되돌림 = 번호되돌리기(slug, String(c[I.cardNumber] ?? ''), String(c[I.name] ?? ''))
     const num = stripZeros(되돌림.split('/')[0].trim())
     const market = Number(c[I.marketPrice])
     if (!num || !(market > 0)) continue
@@ -4724,15 +4724,28 @@ const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
 
 // 저쪽(PPT) 번호를 **우리 번호로** 되돌린다. 세트마다 번호 체계가 다를 수 있어서다.
 // 표는 src/data/setCardNumberAlias.json에 둔다(우리 번호 → 저쪽 번호).
+// 두 가지 어긋남을 함께 다룬다.
+//   ① 번호 체계가 다른 세트(우리 CC002 ↔ 저쪽 4/102)
+//   ② 저쪽에 번호가 없는 세트(옛 일본판) — 그때는 **이름**을 열쇠로 쓴다("NAME:Oddish").
 const 번호별칭 = setCardNumberAlias as Record<string, Record<string, string>>
-const 되돌림표 = new Map<string, Map<string, string>>()
+const 번호되돌림 = new Map<string, Map<string, string>>()
+const 이름되돌림 = new Map<string, Map<string, string>>()
 for (const [slug, t] of Object.entries(번호별칭)) {
-  const m = new Map<string, string>()
-  for (const [우리, 저쪽] of Object.entries(t)) m.set(저쪽.toUpperCase(), 우리)
-  되돌림표.set(slug, m)
+  const byNum = new Map<string, string>()
+  const byName = new Map<string, string>()
+  for (const [우리, 저쪽] of Object.entries(t)) {
+    if (저쪽.startsWith('NAME:')) byName.set(저쪽.slice(5).trim().toLowerCase(), 우리)
+    else byNum.set(저쪽.toUpperCase(), 우리)
+  }
+  번호되돌림.set(slug, byNum)
+  이름되돌림.set(slug, byName)
 }
-export const 번호되돌리기 = (slug: string, 저쪽번호: string): string =>
-  되돌림표.get(slug)?.get(String(저쪽번호).trim().toUpperCase()) ?? 저쪽번호
+export const 번호되돌리기 = (slug: string, 저쪽번호: string, 저쪽이름?: string): string => {
+  const n = String(저쪽번호 ?? '').trim()
+  if (n) return 번호되돌림.get(slug)?.get(n.toUpperCase()) ?? n
+  if (저쪽이름) return 이름되돌림.get(slug)?.get(String(저쪽이름).trim().toLowerCase()) ?? ''
+  return n
+}
 
 // 앨범을 열 때 받아오면 세트당 1분씩 걸려 못 쓴다(PPT 분당 한도). 대신
 // ① 캐시를 파일로 남겨 재배포 직후에도 어제 시세가 바로 뜨고
