@@ -5022,6 +5022,18 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
       void savePptState()
       return null
     }
+    // ⚠️ **몸통을 읽기 전에 길이부터 본다.** 아래 검사들은 이미 메모리에 올린 뒤라
+    //    정작 위험한 순간(올리는 중)을 못 막는다. 머리글에 길이가 있으면 여기서 끊는다.
+    const 알린길이 = Number(r.headers.get('content-length') ?? '')
+    if (Number.isFinite(알린길이) && 알린길이 > EXPORT_MAX_BYTES) {
+      console.log(
+        `[pokegre] 통째 받기(${종류})가 너무 큽니다(받기 전 확인): ` +
+          `${(알린길이 / 1024 / 1024).toFixed(1)}MB > 한계 ${(EXPORT_MAX_BYTES / 1024 / 1024).toFixed(0)}MB — 건너뜁니다.`,
+      )
+      exportDoneDay[종류] = today
+      void savePptState()
+      return null
+    }
     const buf = Buffer.from(await r.arrayBuffer())
     exportDoneDay[종류] = today
     void savePptState()
@@ -5030,8 +5042,26 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
     //    Map을 만들고 다시 JSON 문자열로 저장하므로 **한때 세 벌이 같이 떠 있다.**
     //    기계는 512MB이고 실측 여유가 220MB뿐이다(2026-08-07). 너무 크면 받아 놓고
     //    쓰지 않는다 — 사이트가 죽는 것보다 그 날 갱신을 거르는 게 낫다.
+    // gzip 파일인지는 **앞 두 바이트(1f 8b)**로 안다. 예전엔 그냥 풀어 보고 실패하면
+    // 원본으로 썼는데, 그러면 "너무 커서 못 푼 것"과 "원래 압축이 아닌 것"이 구분되지
+    // 않는다 — 너무 큰 파일을 압축 아닌 것으로 착각해 그대로 파싱하게 된다.
+    const gzip인가 = buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b
     let 푼것: Buffer
-    try { 푼것 = gunzipSync(buf) } catch { 푼것 = buf }
+    if (gzip인가) {
+      try {
+        // ⚠️ maxOutputLength가 없으면 **푸는 도중에** 메모리를 다 쓴다. 여기서 끊어야
+        //    한다 — 아래 길이 검사는 이미 다 풀고 난 뒤라 늦다.
+        푼것 = gunzipSync(buf, { maxOutputLength: EXPORT_MAX_BYTES })
+      } catch (e) {
+        console.log(
+          `[pokegre] 통째 받기(${종류})를 풀지 못했습니다(한계 ` +
+            `${(EXPORT_MAX_BYTES / 1024 / 1024).toFixed(0)}MB를 넘었거나 깨진 파일): ${String(e).slice(0, 60)}`,
+        )
+        return null
+      }
+    } else {
+      푼것 = buf
+    }
     if (푼것.length > EXPORT_MAX_BYTES) {
       console.log(
         `[pokegre] 통째 받기(${종류})가 너무 큽니다: ${(푼것.length / 1024 / 1024).toFixed(1)}MB ` +
@@ -5041,8 +5071,12 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
       return null
     }
     const text: string = 푼것.toString('utf8')
+    // ⚠️ **받은 크기와 푼 크기를 둘 다 적는다.** 한계를 얼마로 잡아야 하는지는 이
+    //    줄로만 알 수 있다(실제 덤프를 아직 아무도 못 봤다). 줄 수도 같이 적는다.
     console.log(
-      `[pokegre] 통째 받기(${종류}) 성공: ${(buf.length / 1024 / 1024).toFixed(1)}MB` +
+      `[pokegre] 통째 받기(${종류}) 성공: 받은 것 ${(buf.length / 1024 / 1024).toFixed(1)}MB` +
+        (gzip인가 ? ` → 푼 것 ${(푼것.length / 1024 / 1024).toFixed(1)}MB` : ' (압축 아님)') +
+        ` · 약 ${text.split('\n').length.toLocaleString()}줄` +
         (남음 != null ? ` · 오늘 남은 몫 ${남음}회` : ''),
     )
     return text
@@ -5224,6 +5258,14 @@ async function loadPopulationFromCsv(apiKey: string): Promise<number> {
     모음.set(id, 것)
   })
   if (!ok) return 0
+  // ⚠️ **빈 것으로 덮어쓰지 않는다.** forEachCsvRow는 열 이름만 맞으면 줄이 하나도
+  //    없어도 성공을 돌려준다. 저쪽이 머리글만 있는 파일을 주는 날(장애·형식 바뀜)
+  //    있던 자료가 통째로 지워지고 화면에서 값이 사라진다. 다음 받는 날까지 며칠이
+  //    걸린다 — 옛 자료가 조금 낡은 게 아예 없는 것보다 낫다.
+  if (모음.size === 0) {
+    console.log(`[pokegre] 통째 받기(population): 쓸 줄이 하나도 없어 그대로 둡니다(있던 것 ${populationCache.size.toLocaleString()}개 유지).`)
+    return 0
+  }
   populationCache.clear()
   for (const [id, v] of 모음) populationCache.set(id, v)
   await saveJsonMap(POPULATION_FILE, populationCache)
@@ -5253,6 +5295,14 @@ async function loadEbayGradesFromCsv(apiKey: string): Promise<number> {
     모음.set(id, 것)
   })
   if (!ok) return 0
+  // ⚠️ **빈 것으로 덮어쓰지 않는다.** forEachCsvRow는 열 이름만 맞으면 줄이 하나도
+  //    없어도 성공을 돌려준다. 저쪽이 머리글만 있는 파일을 주는 날(장애·형식 바뀜)
+  //    있던 자료가 통째로 지워지고 화면에서 값이 사라진다. 다음 받는 날까지 며칠이
+  //    걸린다 — 옛 자료가 조금 낡은 게 아예 없는 것보다 낫다.
+  if (모음.size === 0) {
+    console.log(`[pokegre] 통째 받기(ebay): 쓸 줄이 하나도 없어 그대로 둡니다(있던 것 ${ebayGradeCache.size.toLocaleString()}개 유지).`)
+    return 0
+  }
   ebayGradeCache.clear()
   for (const [id, v] of 모음) ebayGradeCache.set(id, v)
   await saveJsonMap(EBAY_GRADE_FILE, ebayGradeCache)
