@@ -16,7 +16,6 @@ import {
   topPricedBasis,
 } from './api.ts'
 import { 공유이름 } from '../src/lib/cardImg.ts'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 import { serieSlug } from '../src/lib/setNameKo.ts'
 import { koName, koSet } from '../src/lib/koCardName.ts'
 import { livePacks } from '../src/lib/packSets.ts'
@@ -330,11 +329,18 @@ app.get('/set/:slug', async (req, res) => {
     .map((r) => ({ n: r.n, usd: r.usd, name: koName(ed, r.card!.name) }))
 
   const title = rows.length ? `${setName} 힛카드 시세 | pokegre` : `${setName} 카드 목록 | pokegre`
+  // ⚠️ **이름이 겹치는 것을 빼고 고른다.** 힛카드는 값 높은 순이라 같은 카드의 다른
+  //    인쇄가 연달아 온다. 그대로 적으면 검색 결과에 나가는 글이
+  //    "메가리자몽 X ex · 메가리자몽 X ex · 메가리자몽 X ex"가 된다
+  //    (ja-M2 · 2026-08-07 확인). 고장 난 글로 보인다.
+  //    값 높은 순서는 그대로 두고 처음 나온 것만 남긴다.
+  const 보일이름: string[] = []
+  for (const r of rows) {
+    if (보일이름.length >= 3) break
+    if (!보일이름.includes(r.name)) 보일이름.push(r.name)
+  }
   const desc = rows.length
-    ? `${setName}에서 값이 높은 카드 ${rows.length}장 — ${rows
-        .slice(0, 3)
-        .map((r) => r.name)
-        .join(' · ')} 등. ${basis} 기준.`
+    ? `${setName}에서 값이 높은 카드 ${rows.length}장 — ${보일이름.join(' · ')} 등. ${basis} 기준.`
     : `${setName} 수록 카드 ${cards.length}장을 한국어 이름으로 봅니다.`
   const url = `https://pokegre.com/set/${slug}`
 
@@ -383,7 +389,11 @@ app.get('/artist/:slug', async (req, res) => {
     res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
-  const shown = (a.cards ?? []).slice(0, 12).map((c) => koreanizeEnglishCardName(c.name))
+  // ⚠️ **이름이 겹치는 것을 뺀다.** 한 작가가 같은 포켓몬을 여러 세트에 그리므로
+  //    "메가다크라이 ex · 모르페코 ex · 메가다크라이 ex"처럼 검색 결과에 같은 이름이
+  //    두 번 나갔다(5ban-graphics · 2026-08-07 확인). 세트 페이지에서 고친 것과 같은
+  //    문제다. 순서는 그대로 두고 처음 나온 것만 남긴다.
+  const shown = [...new Set((a.cards ?? []).map((c) => koName('en', c.name)))].slice(0, 12)
   const title = `${name} 일러스트 카드 | pokegre`
   const desc = `${name}${subjectParticle(name)} 그린 포켓몬 카드 ${a.count ?? shown.length}장${
     a.note ? ` — ${a.note}` : ''
