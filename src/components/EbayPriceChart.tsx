@@ -46,6 +46,22 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
     return { coords, line, area, pMin, pMax, changePct, points };
   }, [active]);
 
+  // 그래프에 실제로 담긴 기간. 예전엔 '최근 6개월'이라고 글자로 박혀 있었는데,
+  // 2026-08-07에 이력을 6개월 → 1년 6개월로 늘리면서 사실과 어긋나게 됐다.
+  // 카드마다 낙찰 기록이 있는 기간이 달라서(뜸한 등급은 몇 달뿐) 실제 점으로 센다.
+  const 기간글 = useMemo(() => {
+    const pts = geom?.points ?? [];
+    if (pts.length < 2) return '';
+    const 첫 = new Date(pts[0].date).getTime();
+    const 끝 = new Date(pts[pts.length - 1].date).getTime();
+    const 달 = Math.round((끝 - 첫) / (30 * 24 * 60 * 60 * 1000));
+    if (달 < 1) return '최근 한 달 안';
+    if (달 < 12) return `최근 ${달}개월`;
+    const 년 = Math.floor(달 / 12);
+    const 남은달 = 달 % 12;
+    return 남은달 ? `최근 ${년}년 ${남은달}개월` : `최근 ${년}년`;
+  }, [geom]);
+
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
 
@@ -65,7 +81,7 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
       <div className="flex items-baseline justify-between mb-2">
         <p className="text-xs font-semibold text-neutral-500">{title}</p>
         <span className="text-xs font-semibold text-neutral-400">
-          <span className="mr-1 font-normal">최근 6개월</span>
+          {기간글 && <span className="mr-1 font-normal">{기간글}</span>}
           <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>
             <span aria-hidden>{geom.changePct >= 0 ? '▲' : '▼'}</span> {Math.abs(geom.changePct).toFixed(1)}%
           </span>
