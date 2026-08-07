@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { CardImg } from './CardImg';
-import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
+import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, 대표등급, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
 import { KrwHint } from './KrwHint';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -83,7 +83,7 @@ export function EbayCompareView({
                   <p className="mt-2 line-clamp-2 text-xs font-semibold text-black">{c.name}</p>
                   <p className="line-clamp-1 text-[11px] text-neutral-400">{c.setName}</p>
                   <a
-                    href={ebaySoldUrl(c.nameEn, c.cardNumber, c.grades[0]?.grade ?? '')}
+                    href={ebaySoldUrl(c.nameEn, c.cardNumber, 대표등급(c.grades)?.grade ?? '')}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-1 inline-block text-[11px] font-semibold text-[#2a78d6] hover:underline"

@@ -1,4 +1,4 @@
-import { formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
+import { formatGradeLabel, 대표등급, mainPrice, type EbayCard } from '../api/ebayPrices';
 import { Price } from './KrwHint';
 import { CardImg } from './CardImg';
 
@@ -21,7 +21,7 @@ export function EbayCardTile({
   variant?: 'ebay' | 'tcgplayer';
 }) {
   // 목록 대표가도 상세와 같은 기준(현재 적정가, 없으면 중앙값)으로 맞춘다.
-  const topGrade = card.grades[0];
+  const topGrade = 대표등급(card.grades);
   const top = topGrade ? mainPrice(topGrade) : null;
   const tcg = card.tcgplayer;
 

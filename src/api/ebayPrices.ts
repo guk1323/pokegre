@@ -254,6 +254,19 @@ export const CONFIDENCE_LABEL: Record<string, string> = {
 };
 
 // 메인에 쓸 대표가. 스마트 적정가가 있으면 그걸, 없으면 중앙값으로 대체한다.
+/**
+ * 목록·비교표에서 **대표로 보여 줄 등급**. 가장 많이 팔린 등급을 고른다.
+ *
+ * ⚠️ **배열 순서에 기대면 안 된다.** 등급 목록은 사람이 찾기 쉽도록 등급 순
+ *    (미감정 → PSA 10 → 9 …)으로 세우기 때문에, 맨 앞이 "가장 많이 팔린 등급"이
+ *    아니다. 예전에 grades[0]을 쓰던 곳이 셋 있었고(타일·비교표·추이 그래프),
+ *    2026-08-07에 순서를 바꾸면서 셋 다 조용히 다른 등급을 가리키게 됐다.
+ */
+export function 대표등급(grades: EbayGradeStat[]): EbayGradeStat | undefined {
+  if (!grades.length) return undefined;
+  return grades.reduce((a, b) => (b.count > a.count ? b : a));
+}
+
 export function mainPrice(g: EbayGradeStat): { price: number; isSmart: boolean } {
   return g.smartPrice != null ? { price: g.smartPrice, isSmart: true } : { price: g.medianPrice, isSmart: false };
 }
