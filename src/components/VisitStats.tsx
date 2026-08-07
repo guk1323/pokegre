@@ -7,6 +7,7 @@ import {
   type EventDayBuckets,
   type VisitStat,
 } from '../api/localStats';
+import { kstDateStr } from '../lib/kstDay';
 
 // 화면에 보여줄 최근 일수. 그보다 오래된 날은 합계에만 들어간다.
 const RECENT_DAYS = 30;
@@ -20,8 +21,7 @@ function formatDay(iso: string): string {
 // 서버가 한국시간(KST) 기준으로 날짜 칸을 만들므로 여기도 똑같이 맞춘다. UTC로 하면
 // 아침 9시 전에는 "오늘"이 서버의 어제를 가리켜 숫자가 어긋난다.
 function dayKey(offset: number): string {
-  const d = new Date(Date.now() + 9 * 60 * 60 * 1000 - offset * 24 * 60 * 60 * 1000);
-  return d.toISOString().slice(0, 10);
+  return kstDateStr(Date.now() - offset * 24 * 60 * 60 * 1000);
 }
 
 // 기능 사용 표에 보여줄 항목과 순서.

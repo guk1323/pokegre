@@ -29,6 +29,7 @@ import {
   SHARE_BONUS,
   type PackSet,
 } from '../lib/packSets';
+import { kstDateStr } from '../lib/kstDay';
 
 // 카드 개봉. 출석으로 받은 GP(그레포인트)로 팩·박스를 사서 열고, 나온 카드를
 // 앨범에 모은다. 개봉·GP 계산은 전부 서버가 한다(화면에서 하면 얼마든지 조작 가능).
@@ -222,7 +223,7 @@ function buildGroups(live: PackSet[]): RateGroup[] {
 }
 
 // 지금이 며칠인지(한국시간). 이 값이 바뀌면 진열도 바뀐다.
-const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+const todayKst = kstDateStr;
 
 // "시세 보기"가 넘기는 목표. 앨범에 보여주는 값이 TCGplayer 마켓가이므로 눌렀을 때도
 // TCGplayer 화면으로 간다(보여준 숫자와 다른 시장으로 보내면 헷갈린다). 검색어는

@@ -356,9 +356,9 @@ export const PPT_SET_NAMES: Record<string, string> = {
 // 매일 일본판 3팩 + 북미판 3팩을 랜덤으로 진열한다. 날짜(한국시간)를 시드로 쓰는
 // 결정적 셔플이라 서버와 화면이 따로 맞출 필요 없이 같은 답을 얻고, 자정에 바뀐다.
 // 22팩 전부 시세를 미리 받아두므로(PPT_SET_NAMES) 어떤 팩이 떠도 시세는 바로 뜬다.
-export function kstDateStr(now = Date.now()): string {
-  return new Date(now + 9 * 3600_000).toISOString().slice(0, 10);
-}
+// 규칙은 src/lib/kstDay.ts 한 벌뿐이다. 여기서는 이어서 내보내기만 한다.
+export { kstDateStr } from './kstDay.ts';
+import { kstDateStr } from './kstDay.ts';
 
 // mulberry32 — 시드 하나로 같은 순서를 재현하는 가벼운 난수.
 function seededRng(seed: number): () => number {

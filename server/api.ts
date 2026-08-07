@@ -32,6 +32,7 @@ import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type Pack
 import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
 import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
+import { kstDateStr, kstHourStr, kstDayNo } from '../src/lib/kstDay.ts'
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -1884,17 +1885,13 @@ interface Snapshot {
 // 한국 오전 9시에 날짜가 바뀐다).
 type DayBuckets = Record<string, Record<string, number>>
 
-function kstDayKey(ts: number): string {
-  return new Date(ts + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
-}
+const kstDayKey = kstDateStr
 
 // 검색은 시간 단위 칸에 담는다: '2026-07-20T14'. 날짜 단위로 담으면 자정에 하루치가
 // 통째로 사라져서 순위가 갑자기 뒤집히고, 그 사이엔 거의 안 움직인다. 시간 단위로
 // 담아 "최근 24시간"만 합치면 한 시간마다 가장 오래된 한 시간이 빠지고 새 한 시간이
 // 들어와, 순위가 하루 종일 조금씩 흐른다.
-function kstHourKey(ts: number): string {
-  return new Date(ts + 9 * 60 * 60 * 1000).toISOString().slice(0, 13)
-}
+const kstHourKey = kstHourStr
 
 // 칸 키에서 날짜 부분만. 시간 칸('2026-07-20T14')과 옛 날짜 칸('2026-07-20') 둘 다
 // 앞 10글자가 날짜라 그대로 쓸 수 있다.
@@ -4855,9 +4852,7 @@ async function getPacksim(id: string): Promise<PackSimStore> {
 
 // 출석은 "하루 한 번"이라 기준 시각이 필요하다. 이용자가 전부 한국이므로 한국시간
 // 자정으로 끊는다(서버는 UTC로 돌 수도 있어서 UTC+9로 옮겨 날짜만 본다).
-function todayKst(): string {
-  return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
-}
+const todayKst = kstDateStr
 function dayDiff(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400_000)
 }
@@ -5551,7 +5546,7 @@ const WARM_CYCLE_DAYS = 7
 // 하루치를 많이 썼기 때문에, 그날은 더 받지 않고 다음 날부터 시작한다.
 // 지난 날짜라 아무 영향이 없어졌으면 이 줄과 아래 검사를 지우면 된다.
 const WARM_SKIP_UNTIL_KST = '2026-08-03'
-const kstDay = (ms = Date.now()) => new Date(ms + 9 * 3600_000).toISOString().slice(0, 10)
+const kstDay = kstDateStr
 
 function warmTargets(): string[] {
   // ⚠️ 여기는 일부러 좁게 잡는다(이름을 아는 330개가 아니라 카드 뽑기 42개).
@@ -5575,7 +5570,7 @@ function warmTargets(): string[] {
   if (never.length) return never.slice(0, Math.ceil(all.length / WARM_CYCLE_DAYS))
 
   // 오늘이 한 바퀴 중 몇 번째 날인지. 한국시간 기준으로 끊는다(진열도 한국시간 자정에 바뀐다).
-  const dayNo = Math.floor((Date.now() + 9 * 3600_000) / 86400_000)
+  const dayNo = kstDayNo()
   const slot = dayNo % WARM_CYCLE_DAYS
   const per = Math.floor(all.length / WARM_CYCLE_DAYS)
   const extra = all.length % WARM_CYCLE_DAYS
@@ -5608,7 +5603,7 @@ function slowTargets(): string[] {
   const packs = new Set(PACK_SETS.map((p) => p.slug))
   const rest = Object.keys(SET_NAMES).filter((s) => !packs.has(s)).sort()
   if (!rest.length || rest.some((s) => !hasPrices(s))) return []
-  const dayNo = Math.floor((Date.now() + 9 * 3600_000) / 86400_000)
+  const dayNo = kstDayNo()
   const slot = dayNo % WARM_SLOW_CYCLE_DAYS
   const per = Math.floor(rest.length / WARM_SLOW_CYCLE_DAYS)
   const extra = rest.length % WARM_SLOW_CYCLE_DAYS
