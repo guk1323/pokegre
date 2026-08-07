@@ -7,9 +7,8 @@ import path from 'node:path'
 // ⚠️ 카드 이름을 **서버에서** 한글로 바꾸려고 가져온다. 화면에서 바꾸면 이름 사전
 //    109KB를 홈에서 통째로 받아야 한다 — 홈은 제일 많이 열리는 화면이라 그 무게를
 //    지우면 안 된다(cardImg.ts 첫머리·PackShelfPromo 설명 참고). 서버에서는 공짜다.
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { 등급순서값 } from '../src/lib/gradeOrder.ts'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koName } from '../src/lib/koCardName.ts'
 // 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
 // 믿으면 예산을 속일 수 있어서, 서버도 같은 표로 차감하고 뽑기도 서버가 한다).
 import {
@@ -7444,16 +7443,9 @@ function setCards(slug: string): Map<string, { name: string; img: string }> {
   setCardCache.set(slug, out)
   return out
 }
-// 카드 이름을 한글로. server/index.ts의 koName과 같은 규칙이다 — 한쪽만 고치면
-// 홈에 뜨는 이름과 세트 페이지에 뜨는 이름이 갈린다.
-const koCardName = (ed: 'ja' | 'en', name: string): string => {
-  if (!name) return ''
-  if (ed !== 'ja') return koreanizeEnglishCardName(name)
-  if (/[ぁ-んァ-ヶ一-龯]/.test(name)) return koreanizeEnglishCardName(koreanizeTitle(name))
-  const en = koreanizeEnglishCardName(name)
-  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return en
-  return koreanizeEnglishCardName(koreanizeTitle(name))
-}
+// ⚠️ 카드 이름을 한글로 바꾸는 규칙은 **src/lib/koCardName.ts 한 벌뿐이다.**
+//    여기 똑같은 걸 베껴 두고 "같은 규칙"이라 적어 놨었는데, 그 사이 원본에만
+//    번호 꼬리 떼기·부호 다듬기가 들어가 **갈렸다**(2026-08-07 확인).
 
 const setCardNames = (slug: string) => {
   const m = new Map<string, string>()
@@ -7587,7 +7579,7 @@ function mountSetHitCards(app: Mountable) {
       // ko는 화면에 그대로 적을 한글 이름이다(규칙은 server/index.ts의 koName과 같다).
       cards: cards.map((c) => ({
         ...c,
-        ko: koCardName(고른것.ed ?? 'ja', c.name),
+        ko: koName(고른것.ed ?? 'ja', c.name),
         img: byNum.get(String(Number(c.n)))?.img ?? '',
       })),
     }

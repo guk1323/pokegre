@@ -15,7 +15,6 @@ import {
   topPricedCards,
   topPricedBasis,
 } from './api.ts'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { 공유이름 } from '../src/lib/cardImg.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 import { serieSlug } from '../src/lib/setNameKo.ts'
@@ -180,7 +179,8 @@ async function fetchShareCard(id: string): Promise<ShareCard | null> {
         // 스니커덩크 이름은 일본어라 화면과 같은 방식으로 한글로 바꾼다. 예전엔 이걸 서버에서
         // 못 해서 링크에 ?n=<한글 이름>을 붙여 보냈는데, 한글이 %EB%A6%AC…로 늘어나
         // 주소가 세 배로 길어졌다(91자 → 28자).
-        const name = j.name ? shareName(koreanizeEnglishCardName(koreanizeTitle(j.name))) : ''
+        // ⚠️ **koName 한 벌만 쓴다.** 여기서 직접 조합하면 번호 꼬리를 떼는 규칙이 빠진다.
+        const name = j.name ? shareName(koName('ja', j.name)) : ''
         if (image) data = { image, price, name }
       }
     }
@@ -257,7 +257,10 @@ app.get(['/e/:id', '/t/:id'], async (req, res) => {
   const id = String(req.params.id ?? '')
   const known = lookupCardName(id) ?? (await fetchCardNameForShare(pptKeyForShare, id))
   const name = known
-    ? shareName(koreanizeEnglishCardName(known))
+    // ⚠️ **koName 한 벌만 쓴다.** 예전엔 koreanizeEnglishCardName만 써서 저쪽 이름의
+    //    번호 꼬리가 남았다 — 화면은 "M 리자몽 EX"인데 카톡 미리보기는
+    //    "M 리자몽 EX - 091/087"이었다(2026-08-07 확인). 리자몽 200장 중 28%가 그렇다.
+    ? shareName(koName('en', known))
     : typeof req.query.n === 'string'
       ? req.query.n.slice(0, 120)
       : null
