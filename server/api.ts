@@ -1805,6 +1805,9 @@ const ALLOWED_EVENTS = new Set([
   // 도감·세트·작가에서 카드를 눌렀을 때(2026-08-06). card_found=값을 찾은 마켓,
   // card_miss=어느 마켓에도 값이 없던 카드. 어떤 카드가 계속 빈손인지 보려는 것.
   'card_found', 'card_miss',
+  // 카드 화면에 감정 수량이 실제로 보인 횟수(2026-08-07). 통째로 받아 둔 것이라
+  // 크레딧을 안 쓰지만, 얼마나 자주 쓸모가 있는지는 세어 봐야 안다.
+  'population',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -2192,8 +2195,18 @@ interface PptState {
   //    때마다 0으로 돌아가 하루 예산이 배포 횟수만큼 늘어난다. 2026-08-03에 이걸로
   //    그때 하루치 20,000이 통째로 나갔다 — 위 left와 똑같은 실수를 한 번 더 한 것이다.
   fillSpent?: number
+  // ⚠️ 통째 받기(=/export)를 종류별로 **어느 날 받았는지**. 이것도 메모리에만 두면
+  //    배포할 때마다 "오늘 아직 안 받았다"가 되어 다시 받는다. 통째 받기는 하루 2회가
+  //    전부라, 하루에 두 번만 배포해도 그날 몫이 사라진다. 2026-08-07에 실제로 그랬다
+  //    — 그날 네 번 배포해서 시세 덤프가 아예 안 들어왔다(left·fillSpent와 같은 실수를
+  //    세 번째로 반복한 것이다). 날짜가 바뀌면 통째로 버린다.
+  exportDays?: Record<string, string>
 }
 const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
+
+// 통째 받기(/export)를 종류별로 마지막에 받은 날(UTC). 파일로 남겨 배포해도 이어진다.
+// 종류: cards(시세) · population(감정 수량) · ebay(등급별 낙찰)
+const exportDoneDay: Record<string, string> = {}
 
 // 지금 기준으로 쓸 수 있는 "남은 크레딧".
 //
@@ -2219,6 +2232,7 @@ async function savePptState() {
       blockedUntil: pptBlockedUntil,
       dailyOut: pptDailyOut,
       fillSpent: fillSpentToday(),
+      exportDays: exportDoneDay,
     } satisfies PptState)
   } catch {
     /* 못 적어도 서비스는 돌아간다 */
@@ -2248,9 +2262,19 @@ export async function loadPptState() {
       fillSpent = s.fillSpent
       fillSpentDay = s.day
     }
+    // 통째 받기 기록도 오늘 것만 이어받는다(위 day 검사에서 이미 어제 것은 걸러졌다).
+    if (s.exportDays && typeof s.exportDays === 'object') {
+      for (const [종류, 날] of Object.entries(s.exportDays)) {
+        if (typeof 날 === 'string') exportDoneDay[종류] = 날
+      }
+    }
+    const 오늘받은것 = Object.entries(exportDoneDay)
+      .filter(([, 날]) => 날 === utcDay())
+      .map(([종류]) => 종류)
     console.log(
       `[pokegre] PPT 상태를 이어받았습니다: 남은 크레딧 ${Number.isFinite(pptLeftNow()) ? pptLeftNow() : '모름'}` +
         ` · 오늘 채우기에 쓴 것 ${fillSpentToday().toLocaleString()}/${WARM_FILL_BUDGET.toLocaleString()}` +
+        (오늘받은것.length ? ` · 오늘 통째로 받아 둔 것 [${오늘받은것.join(', ')}]` : '') +
         (pptBlockedUntil > Date.now() ? ` · ${new Date(pptBlockedUntil).toISOString()}까지 쉽니다` : ''),
     )
   } catch {
@@ -3742,6 +3766,24 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
   const cache = new TtlCache<string>(PRICE_TRACKER_CACHE_TTL_MS, PRICE_TRACKER_MAX_ENTRIES)
   const allow = rateLimiter(PRICE_TRACKER_RATE_LIMIT, PRICE_TRACKER_RATE_WINDOW_MS)
 
+  // 감정 수량 · 등급별 낙찰. 통째로 받아 둔 것이라 **크레딧을 쓰지 않는다**.
+  // 카드 화면이 이미 아는 tcgPlayerId로 바로 찾는다.
+  app.use('/api/local/card-extra', (req, res) => {
+    const id = new URL(req.url ?? '', 'http://x').searchParams.get('id')?.trim() ?? ''
+    res.setHeader('content-type', 'application/json')
+    if (!id) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'id required' }))
+      return
+    }
+    const pop = populationCache.get(id) ?? null
+    const grades = ebayGradeCache.get(id) ?? null
+    res.statusCode = 200
+    // 하루 한 번 갱신되는 값이라 오래 물고 있어도 된다.
+    res.setHeader('cache-control', 'public, max-age=3600')
+    res.end(JSON.stringify({ population: pop, grades, 받은날: exportDoneDay.population ?? null }))
+  })
+
   app.use('/api/local/card-prices', async (req, res) => {
     if (!apiKey) {
       res.statusCode = 501
@@ -4598,7 +4640,65 @@ const packPriceFresh = (hit: PackPriceEntry) =>
 // ⚠️ 값 고르는 규칙은 세트별로 받을 때와 **똑같이** 맞춘다(기본판 우선, 변형판은 별도 키).
 //    다르면 같은 카드가 받는 길에 따라 다른 값을 갖게 된다.
 const CSV_EXPORT_URL = `${PRICE_TRACKER_ORIGIN}/export`
-let csvLoadedDay = ''
+
+// 통째 받기는 **하루 2회가 전부**다(종류를 나눠 세지 않는다 — 2026-08-07 확인:
+// type=ebay·population 모두 같은 x-export-downloads-remaining을 보고 429가 났다).
+// 그래서 종류마다 "얼마나 자주 받아야 하는지"를 정해 두고 급한 것부터 쓴다.
+//   cards      매일  — 시세는 매일 바뀐다
+//   ebay       사흘  — 등급별 낙찰은 천천히 쌓인다
+//   population 이레  — 감정 수량은 더 천천히 바뀐다
+const EXPORT_EVERY_DAYS: Record<string, number> = { cards: 1, ebay: 3, population: 7 }
+const EXPORT_DAILY_MAX = 2
+
+/** 그 종류를 오늘 받아야 하는가(마지막에 받은 날로부터 정해 둔 날수가 지났는가). */
+function exportDue(종류: string): boolean {
+  const 마지막 = exportDoneDay[종류]
+  if (!마지막) return true
+  const 지난날 = Math.floor((Date.parse(utcDay() + 'T00:00:00Z') - Date.parse(마지막 + 'T00:00:00Z')) / 86_400_000)
+  return 지난날 >= (EXPORT_EVERY_DAYS[종류] ?? 1)
+}
+
+/**
+ * 통째 받기 한 종류를 내려받아 본문을 돌려준다. 실패하면 null.
+ *
+ * ⚠️ 성공이든 실패든 **오늘 받은 것으로 적는다.** 429를 되풀이하면 키가 정지된다.
+ * ⚠️ 429는 notePpt에 넘기지 않는다 — 이건 통째 받기 전용 한도라 Retry-After가
+ *    하루치로 오고, 그걸 전체 크레딧 소진으로 읽으면 크레딧이 15만 남았는데도
+ *    방문자 시세가 통째로 막힌다(2026-08-07에 실제로 그랬다).
+ */
+async function fetchExport(apiKey: string, 종류: string): Promise<string | null> {
+  const today = utcDay()
+  try {
+    const r = await fetch(`${CSV_EXPORT_URL}?type=${encodeURIComponent(종류)}`, {
+      headers: { authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(5 * 60_000),
+    })
+    if (r.status !== 429) notePpt(r.status, r.headers)
+    const 남음 = r.headers.get('x-export-downloads-remaining')
+    if (!r.ok) {
+      console.log(
+        `[pokegre] 통째 받기(${종류}) 실패: ${r.status}` +
+          (r.status === 429 ? ' (오늘 몫을 다 썼습니다 — 내일 오전 9시에 다시)' : ''),
+      )
+      exportDoneDay[종류] = today
+      void savePptState()
+      return null
+    }
+    const buf = Buffer.from(await r.arrayBuffer())
+    exportDoneDay[종류] = today
+    void savePptState()
+    let text: string
+    try { text = gunzipSync(buf).toString('utf8') } catch { text = buf.toString('utf8') }
+    console.log(
+      `[pokegre] 통째 받기(${종류}) 성공: ${(buf.length / 1024 / 1024).toFixed(1)}MB` +
+        (남음 != null ? ` · 오늘 남은 몫 ${남음}회` : ''),
+    )
+    return text
+  } catch (e) {
+    console.log(`[pokegre] 통째 받기(${종류}) 실패: ${String(e).slice(0, 80)}`)
+    return null
+  }
+}
 
 /** CSV 한 줄을 따옴표까지 지켜 자른다. 카드 이름에 쉼표가 들어 있다("Team Rocket's Mewtwo, ex"). */
 function splitCsvLine(line: string): string[] {
@@ -4621,36 +4721,12 @@ function splitCsvLine(line: string): string[] {
 
 async function loadPricesFromCsv(apiKey: string): Promise<number> {
   if (!apiKey) return 0
-  const today = utcDay()
-  if (csvLoadedDay === today) return 0 // 하루 한 번(하루 2회 제한이 있다)
+  if (!exportDue('cards')) return 0
   const gate = pptGate()
   if (!gate.ok) return 0
-  let buf: Buffer
-  try {
-    const r = await fetch(CSV_EXPORT_URL, {
-      headers: { authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(3 * 60_000),
-    })
-    // ⚠️ **CSV의 429를 notePpt에 넘기면 안 된다.** 이건 "CSV 하루 2회" 전용 한도이고
-    //    Retry-After가 하루치로 온다. 그걸 전체 크레딧 소진으로 읽으면 크레딧이
-    //    15만 남았는데도 방문자 시세가 통째로 막힌다 — 2026-08-07에 실제로 그랬다.
-    //    429가 아닌 응답만 전체 상태에 반영한다.
-    if (r.status !== 429) notePpt(r.status, r.headers)
-    if (!r.ok) {
-      console.log(`[pokegre] 시세 통째 받기 실패: ${r.status}${r.status === 429 ? ' (오늘 몫을 다 썼습니다 — 내일 다시)' : ''}`)
-      // 429든 다른 실패든 오늘은 더 두드리지 않는다. 429를 되풀이하면 키가 정지된다.
-      csvLoadedDay = today
-      return 0
-    }
-    buf = Buffer.from(await r.arrayBuffer())
-  } catch (e) {
-    console.log(`[pokegre] 시세 통째 받기 실패: ${String(e).slice(0, 80)}`)
-    return 0
-  }
-  csvLoadedDay = today
+  const text = await fetchExport(apiKey, 'cards')
+  if (text == null) return 0
 
-  let text: string
-  try { text = gunzipSync(buf).toString('utf8') } catch { text = buf.toString('utf8') }
   const lines = text.split('\n')
   const head = splitCsvLine(lines[0] ?? '')
   const I = Object.fromEntries(head.map((k, i) => [k.trim(), i])) as Record<string, number>
@@ -4708,6 +4784,179 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
     console.log(`[pokegre] 시세를 통째로 받아 세트 ${채움}개 · 카드 ${장수.toLocaleString()}장을 채웠습니다.`)
   }
   return 채움
+}
+
+// ── 감정 수량(population)과 등급별 낙찰(ebay) ────────────────────────────────
+//
+// 왜 넣나: 옛 일본판은 **감정 안 된 값이 아무 뜻이 없다**. 미감정 $2인 카드가 PSA 10에선
+// $103에 팔린다(2003 ジュブトル 004/019, 2026-04-03 이베이). 표본 1,836장을 재 보니
+// "미감정 $5 이하인데 PSA 10은 $50 이상"이 128장(7%)이었고, 최악은 미감정 $0인데
+// PSA 10이 $8,252였다(일본판 e카드 팬텀 044). 시세만 보여 주면 이런 카드를 싸구려로
+// 오해하게 된다.
+//
+// 감정 수량이 그 이유를 설명해 준다 — ジュブトル 005는 **전 세계에 감정된 게 7장뿐**이고
+// 그중 PSA 10은 2장이다. 이건 값이 아니라 희소성이라, 낙찰 기록이 없어도 보여 줄 수 있다.
+//
+// ⚠️ 둘 다 **tcgPlayerId를 열쇠로** 둔다. 카드 화면은 이미 그 번호를 알고 있어서
+//    세트·번호 대응표를 거칠 필요가 없다(대응표를 거치면 옛 일본판에서 또 새어 나간다).
+interface PopEntry {
+  psa10?: number
+  psa9?: number
+  psaAll?: number
+  all: number
+  gem?: number // 젬률(%) — 전체 기관 합산
+}
+interface GradeSale {
+  n: number // 낙찰 건수
+  avg: number
+  med?: number
+  smart?: number // PPT가 계산한 "지금 시세"
+}
+const populationCache = new Map<string, PopEntry>()
+const ebayGradeCache = new Map<string, Record<string, GradeSale>>()
+const POPULATION_FILE = dataFile('population.json')
+const EBAY_GRADE_FILE = dataFile('ebay-grades.json')
+
+const 숫자 = (s: string | undefined) => {
+  const n = Number(String(s ?? '').trim())
+  return Number.isFinite(n) ? n : 0
+}
+
+/** 통째 받은 CSV를 줄 단위로 훑는다. 열 이름이 기대와 다르면 false. */
+function forEachCsvRow(
+  text: string,
+   필수: string[],
+   한줄: (c: string[], I: Record<string, number>) => void,
+): boolean {
+  const lines = text.split('\n')
+  const head = splitCsvLine(lines[0] ?? '')
+  const I = Object.fromEntries(head.map((k, i) => [k.trim(), i])) as Record<string, number>
+  // ⚠️ 열 이름을 한 줄 남긴다. 문서에 적힌 이름과 실제가 다르면 값이 조용히 0이 되는데,
+  //    그러면 화면엔 아무 일도 없는 것처럼 보인다. 처음 받는 종류라 로그가 유일한 단서다.
+  console.log(`[pokegre] 통째 받기 열 이름: ${head.map((k) => k.trim()).join(', ')}`)
+  for (const k of 필수) {
+    if (I[k] === undefined) {
+      console.log(`[pokegre] 통째 받기: 열 "${k}"가 없습니다`)
+      return false
+    }
+  }
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue
+    한줄(splitCsvLine(lines[i]), I)
+  }
+  return true
+}
+
+async function loadPopulationFromCsv(apiKey: string): Promise<number> {
+  const text = await fetchExport(apiKey, 'population')
+  if (text == null) return 0
+  // 한 줄이 (카드 × 감정기관) 하나다. PSA를 따로 챙기고 나머지는 합계에만 더한다.
+  const 모음 = new Map<string, PopEntry>()
+  const ok = forEachCsvRow(text, ['tcgPlayerId', 'grader', 'totalPopulation'], (c, I) => {
+    const id = String(c[I.tcgPlayerId] ?? '').trim()
+    if (!id) return
+    const 기관 = String(c[I.grader] ?? '').trim().toUpperCase()
+    const 합 = 숫자(c[I.totalPopulation])
+    if (!(합 > 0)) return
+    const 것 = 모음.get(id) ?? { all: 0 }
+    것.all += 합
+    if (기관 === 'PSA') {
+      것.psaAll = 합
+      const g10 = 숫자(c[I.g10]) + (I.pristine !== undefined ? 숫자(c[I.pristine]) : 0) + (I.perfect !== undefined ? 숫자(c[I.perfect]) : 0)
+      if (g10 > 0) 것.psa10 = g10
+      const g9 = 숫자(c[I.g9])
+      if (g9 > 0) 것.psa9 = g9
+    }
+    const 젬 = I.gemRate !== undefined ? 숫자(c[I.gemRate]) : 0
+    if (기관 === 'PSA' && 젬 > 0) 것.gem = Math.round(젬 * 10) / 10
+    모음.set(id, 것)
+  })
+  if (!ok) return 0
+  populationCache.clear()
+  for (const [id, v] of 모음) populationCache.set(id, v)
+  await saveJsonMap(POPULATION_FILE, populationCache)
+  console.log(`[pokegre] 감정 수량을 통째로 받아 카드 ${populationCache.size.toLocaleString()}장을 채웠습니다.`)
+  return populationCache.size
+}
+
+async function loadEbayGradesFromCsv(apiKey: string): Promise<number> {
+  const text = await fetchExport(apiKey, 'ebay')
+  if (text == null) return 0
+  const 모음 = new Map<string, Record<string, GradeSale>>()
+  const ok = forEachCsvRow(text, ['tcgPlayerId', 'grade', 'salesCount'], (c, I) => {
+    const id = String(c[I.tcgPlayerId] ?? '').trim()
+    const 등급 = String(c[I.grade] ?? '').trim()
+    if (!id || !등급) return
+    const n = 숫자(c[I.salesCount])
+    const avg = I.averagePrice !== undefined ? 숫자(c[I.averagePrice]) : 0
+    const smart = I.smartMarketPrice !== undefined ? 숫자(c[I.smartMarketPrice]) : 0
+    if (!(n > 0) && !(smart > 0)) return
+    const 것 = 모음.get(id) ?? {}
+    것[등급] = {
+      n,
+      avg: Math.round(avg * 100) / 100,
+      ...(I.medianPrice !== undefined && 숫자(c[I.medianPrice]) > 0 ? { med: Math.round(숫자(c[I.medianPrice]) * 100) / 100 } : {}),
+      ...(smart > 0 ? { smart: Math.round(smart * 100) / 100 } : {}),
+    }
+    모음.set(id, 것)
+  })
+  if (!ok) return 0
+  ebayGradeCache.clear()
+  for (const [id, v] of 모음) ebayGradeCache.set(id, v)
+  await saveJsonMap(EBAY_GRADE_FILE, ebayGradeCache)
+  console.log(`[pokegre] 등급별 낙찰을 통째로 받아 카드 ${ebayGradeCache.size.toLocaleString()}장을 채웠습니다.`)
+  return ebayGradeCache.size
+}
+
+async function saveJsonMap(file: string, m: Map<string, unknown>) {
+  try {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeJsonFile(file, Object.fromEntries(m))
+  } catch (e) {
+    console.log(`[pokegre] ${path.basename(file)} 저장 실패: ${String(e).slice(0, 60)}`)
+  }
+}
+
+async function loadJsonMap(file: string, m: Map<string, unknown>, 이름: string) {
+  try {
+    const o = JSON.parse(await readFile(file, 'utf-8')) as Record<string, unknown>
+    for (const [k, v] of Object.entries(o)) m.set(k, v)
+    if (m.size) console.log(`[pokegre] ${이름} ${m.size.toLocaleString()}장을 이어받았습니다`)
+  } catch {
+    /* 처음 뜨는 것 */
+  }
+}
+
+/**
+ * 오늘 통째로 받을 것을 골라 순서대로 받는다.
+ *
+ * ⚠️ 하루 2회가 전부다. 시세(cards)를 먼저 받고, 남는 한 칸은 **가장 오래된 것**에 준다.
+ *    셋을 매일 받으려 들면 시세가 밀려 어제 값이 그대로 남는다.
+ */
+async function runDailyExports(apiKey: string) {
+  if (!apiKey) return
+  let 쓴칸 = Object.values(exportDoneDay).filter((날) => 날 === utcDay()).length
+  if (쓴칸 >= EXPORT_DAILY_MAX) {
+    console.log('[pokegre] 오늘 통째 받기 몫을 이미 다 썼습니다(한국시간 오전 9시에 초기화).')
+    return
+  }
+  if (exportDue('cards')) {
+    await loadPricesFromCsv(apiKey)
+    쓴칸++
+  }
+  if (쓴칸 >= EXPORT_DAILY_MAX) return
+  // 남는 칸은 더 오래 묵은 쪽에 준다.
+  // ⚠️ 순서가 [population, ebay]인 게 중요하다. 둘 다 **한 번도 안 받았을 때**는 묵은
+  //    날이 같아서(빈칸) 앞에 적힌 쪽이 먼저 간다. 감정 수량이 먼저여야 한다 — 등급별
+  //    낙찰은 검색할 때마다 이미 실시간으로 받고 있어서 새로 생기는 게 없지만, 감정
+  //    수량은 지금 화면에 아예 없는 정보다.
+  const 밀린것 = (['population', 'ebay'] as const)
+    .filter((t) => exportDue(t))
+    .sort((a, b) => (exportDoneDay[a] ?? '').localeCompare(exportDoneDay[b] ?? ''))
+  const 고른것 = 밀린것[0]
+  if (!고른것) return
+  if (고른것 === 'ebay') await loadEbayGradesFromCsv(apiKey)
+  else await loadPopulationFromCsv(apiKey)
 }
 
 // 한 번 실패한 세트를 얼마나 두었다 다시 받아 볼지.
@@ -5456,18 +5705,24 @@ function mountAuth(
   // ⚠️ PPT 상태(남은 크레딧·차단 시각)를 먼저 읽어야 한다. 안 읽고 데우러 나가면
   //    "남은 크레딧을 모른다(=무한대)" 상태라 방문자 몫을 지키는 검사가 통과된다.
   //    배포마다 이 구멍으로 크레딧이 샜다(2026-08-02).
-  void Promise.all([loadPptState(), loadPackPriceFile(), loadLastPrices()]).then(() => {
+  void Promise.all([
+    loadPptState(),
+    loadPackPriceFile(),
+    loadLastPrices(),
+    loadJsonMap(POPULATION_FILE, populationCache as Map<string, unknown>, '감정 수량'),
+    loadJsonMap(EBAY_GRADE_FILE, ebayGradeCache as Map<string, unknown>, '등급별 낙찰'),
+  ]).then(() => {
     if (process.env.NODE_ENV === 'production') {
-      // ⚠️ **CSV를 먼저 받는다.** 전체 시세를 한 파일로 주므로, 이걸로 채우고 나면
+      // ⚠️ **통째 받기를 먼저 한다.** 전체 시세를 한 파일로 주므로, 이걸로 채우고 나면
       //    세트별로 부를 일이 거의 없다(우리 세트 371개 중 331개가 여기서 찬다).
-      //    순서를 바꾸면 세트별 호출이 먼저 크레딧을 쓰고 CSV가 그걸 덮어쓰는 낭비가 된다.
+      //    순서를 바꾸면 세트별 호출이 먼저 크레딧을 쓰고 덤프가 그걸 덮어쓰는 낭비가 된다.
       setTimeout(() => {
-        void loadPricesFromCsv(pptApiKey).finally(() => void warmPackPrices(pptApiKey))
+        void runDailyExports(pptApiKey).finally(() => void warmPackPrices(pptApiKey))
       }, 5_000)
       setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, 받을 차례가 된 것만
-      // 하루가 바뀌면(UTC 0시 = 한국시간 오전 9시) 다시 통째로 받는다. 함수 안에서
+      // 하루가 바뀌면(UTC 0시 = 한국시간 오전 9시) 다시 받을 차례가 온다. 함수 안에서
       // "오늘 이미 받았으면 건너뛴다"를 보므로 자주 불러도 한 번만 실제로 받는다.
-      setInterval(() => void loadPricesFromCsv(pptApiKey), 60 * 60 * 1000)
+      setInterval(() => void runDailyExports(pptApiKey), 60 * 60 * 1000)
     }
   })
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면

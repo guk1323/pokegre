@@ -5,6 +5,7 @@ import { Price, KrwRateNote } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
+import { GradedPopulation } from './GradedPopulation';
 
 
 function shortDate(iso: string | null): string | null {
@@ -100,6 +101,8 @@ export function TcgPlayerCardDetail({ card }: { card: EbayCard }) {
       ) : (
         <p className="text-sm text-neutral-400 py-8 text-center">TCGplayer 시세가 없습니다.</p>
       )}
+
+      <GradedPopulation tcgPlayerId={card.tcgPlayerId} />
 
       {chartGrades.length > 0 && (
         <div className="mt-3">

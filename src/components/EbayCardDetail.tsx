@@ -5,6 +5,7 @@ import { Price, KrwRateNote, useKrw } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
+import { GradedPopulation } from './GradedPopulation';
 
 
 function shortDate(iso: string | null): string | null {
@@ -57,6 +58,9 @@ export function EbayCardDetail({ card }: { card: EbayCard }) {
       {/* 낙찰 기록이 충분한 등급이 있으면 추이 그래프를 먼저 보여준다. 없으면 스스로
           아무것도 안 그린다. */}
       <EbayPriceChart grades={card.grades} />
+
+      {/* 낙찰 기록이 없는 카드에도 붙는다 — 감정된 게 몇 장인지는 거래와 무관하게 안다. */}
+      <GradedPopulation tcgPlayerId={card.tcgPlayerId} />
 
       <div>
         <div className="flex items-baseline justify-between">

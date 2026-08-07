@@ -79,6 +79,8 @@ export type TrackedEvent =
   // card_found의 라벨은 값을 찾은 마켓, card_miss의 라벨은 그 카드(세트+번호)다.
   | 'card_found'
   | 'card_miss'
+  // 카드 화면에서 감정 수량이 실제로 보인 횟수(2026-08-07 추가).
+  | 'population'
   | 'share'
   | 'snkrdunk_search'
   | 'ebay_search'
