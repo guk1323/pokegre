@@ -6,6 +6,15 @@ const SOURCE_LABEL: Record<SearchSource, string> = {
   ebay: 'eBay',
   tcgplayer: 'TCGplayer',
 };
+// 마켓마다 칩 색을 달리한다. 색이 바뀌는 것만으로도 "여기가 바뀌는 자리"임이 읽힌다
+// (2026-08-07 운영자 지시). 사이트가 흑백 기조라 원색은 피하고, 각 마켓이 실제로 쓰는
+// 색을 낮은 채도로 가져왔다 — 스니커덩크는 검정 그대로, 이베이는 파랑, TCGplayer는 주황.
+// ⚠️ 흰 글자가 얹히므로 너무 밝은 색은 안 된다(대비).
+const SOURCE_CHIP: Record<SearchSource, string> = {
+  snkrdunk: 'bg-neutral-900',
+  ebay: 'bg-blue-700',
+  tcgplayer: 'bg-orange-600',
+};
 
 export function SearchBar({
   value,
@@ -63,10 +72,28 @@ export function SearchBar({
             aria-label={`검색할 마켓: ${SOURCE_LABEL[source]}`}
             // ⚠️ 폰에서 누를 자리를 44px로 넓힌다(28px이었다). 보이는 알약은 그대로 두고
             //    before로 투명한 여백만 두른다 — 검은 알약을 키우면 검색창을 덮는다.
-            className="relative flex items-center gap-1 rounded-lg bg-neutral-900 py-1.5 pl-2.5 pr-2 text-xs font-bold text-white before:absolute before:-inset-y-2 before:-inset-x-1.5 before:content-['']"
+            className={`relative flex items-center gap-1 rounded-lg ${SOURCE_CHIP[source]} py-1.5 pl-2.5 pr-2 text-xs font-bold text-white before:absolute before:-inset-y-2 before:-inset-x-1.5 before:content-['']`}
           >
             {SOURCE_LABEL[source]}
-            <span className="text-[10px] opacity-60">▾</span>
+            {/* ⚠️ 예전엔 작은 '▾' 하나였다. 그것만으로는 "여기서 마켓을 바꿀 수 있다"가
+                안 읽혀, 방문 기록이 스니커덩크 2,016회에 이베이 156·TCGplayer 85로
+                쏠려 있었다(2026-08-07 운영자 지적). 좌우 화살표는 '바꾸기'로 바로 읽히고,
+                자리는 그대로다 — 줄을 새로 만들면 예전에 싫다고 하신 배치로 돌아간다. */}
+            <svg
+              className="h-3 w-3 opacity-90"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M7 4L3 8l4 4" />
+              <path d="M3 8h13" />
+              <path d="M17 20l4-4-4-4" />
+              <path d="M21 16H8" />
+            </svg>
           </button>
           {open && (
             <div className="absolute left-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
@@ -79,10 +106,12 @@ export function SearchBar({
                     onSourceChange(s);
                     setOpen(false);
                   }}
-                  className={`block w-full px-3 py-2 text-left text-xs font-semibold ${
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold ${
                     s === source ? 'bg-neutral-100 text-black' : 'text-neutral-600 hover:bg-neutral-50'
                   }`}
                 >
+                  {/* 칩과 같은 색 점. 목록에서 고르기 전에 어느 색인지 이어진다. */}
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${SOURCE_CHIP[s]}`} aria-hidden />
                   {SOURCE_LABEL[s]}
                 </button>
               ))}
