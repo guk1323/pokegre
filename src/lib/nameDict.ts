@@ -15,6 +15,8 @@
 type Dict = {
   koreanizeTitle: (title: string) => string;
   koreanizeEnglishCardName: (name: string) => string;
+  // 화면에 그대로 적을 이름. 번호 꼬리('- 174/086')를 떼고 부호를 다듬는다.
+  koName: (ed: 'ja' | 'en', name: string) => string;
   koreanizeEnglishSetName: (name: string) => string;
   translateSearchQuery: (q: string) => string;
   canonicalizeSearchTerm: (q: string) => string;
@@ -34,10 +36,12 @@ export function loadNameDict(): Promise<Dict> {
       import('./translateQueryToEnglish'),
       // 자동완성이 쓰는 이름 목록도 같은 무리다. 같이 받아 둔다.
       import('./localSuggestions'),
-    ]).then(([ja, en, q, qe]) => {
+      import('./koCardName'),
+    ]).then(([ja, en, q, qe, , ko]) => {
       cached = {
         koreanizeTitle: ja.koreanizeTitle,
         koreanizeEnglishCardName: en.koreanizeEnglishCardName,
+        koName: ko.koName,
         koreanizeEnglishSetName: en.koreanizeEnglishSetName,
         translateSearchQuery: q.translateSearchQuery,
         canonicalizeSearchTerm: q.canonicalizeSearchTerm,

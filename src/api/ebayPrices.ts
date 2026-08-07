@@ -1,5 +1,5 @@
 import { loadNameDict } from '../lib/nameDict';
-import pptSetNames from '../data/pptSetNames.json';
+import { pptSetKo } from '../lib/pptSetKo';
 
 // PPT가 쓰는 세트 이름 → 우리 한글 세트 이름.
 //
@@ -8,21 +8,6 @@ import pptSetNames from '../data/pptSetNames.json';
 // 화면에 나갔다 — 목록에서는 "스타트 덱 100 배틀컬렉션"으로 보다가 상세에서
 // 영문을 보게 된다(점검 중 발견 2026-08-06).
 // 우리는 이미 slug↔PPT 이름 대응표를 갖고 있으니 거꾸로 찾으면 된다.
-let pptSetKoMap: Map<string, string> | null = null;
-async function pptSetKo(name: string): Promise<string> {
-  if (!pptSetKoMap) {
-    const { loadSetIndex, koSet } = await import('../lib/cardCatalog');
-    const idx = await loadSetIndex().catch(() => []);
-    const bySlug = new Map(idx.map((s) => [s.slug, s]));
-    pptSetKoMap = new Map();
-    for (const [slug, ppt] of Object.entries(pptSetNames as Record<string, string>)) {
-      const s = bySlug.get(slug);
-      if (s) pptSetKoMap.set(ppt.toLowerCase(), koSet(s.ed, s.name));
-    }
-  }
-  return pptSetKoMap.get(String(name).toLowerCase()) ?? '';
-}
-
 export interface EbayGradePoint {
   date: string;
   price: number;
@@ -245,7 +230,11 @@ export async function searchEbayCards(
       ...card,
       // 원본 영문 이름은 이베이 검색 링크용으로 남겨두고, 표시용 이름만 한글로 바꾼다.
       nameEn: card.name,
-      name: dict.koreanizeEnglishCardName(card.name),
+      // ⚠️ **koName을 쓴다.** 예전엔 koreanizeEnglishCardName만 써서 저쪽 이름에
+      //    붙어 오는 번호 꼬리가 그대로 남았다 — "제크로무 ex - 174/086"으로 뜨는데
+      //    바로 아랫줄에 번호를 또 적어 **같은 번호가 두 번** 나왔다(2026-08-07 확인).
+      //    다른 화면들은 koName을 써서 "제크로무 ex"로 나온다. 한 벌로 맞춘다.
+      name: dict.koName('en', card.name),
       // ⚠️ 원본 세트 이름을 남긴다. PPT의 세트 조건은 부분 일치라("Team Rocket"을
       //    걸면 "EX Team Rocket Returns"도 온다) 부르는 쪽이 "정말 그 세트인가"를
       //    확인해야 하는데, 한글로 바꾼 이름으로는 견줄 수 없다(2026-08-07).
