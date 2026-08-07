@@ -54,6 +54,36 @@ const PAIRS: [string, string][] = [
   ["ja-neo4", "Darkness, and to Light..."],  // 빈칸 1장
   ["ja-neo2", "Neo Premium File 2"],  // 빈칸 1장
   ["ja-PMCG6", "Challenge from the Darkness"],  // 빈칸 1장
+  // ⚠️ **저쪽은 트레이너 킷 두 덱을 한 세트로 묶는다.** 우리는 덱마다 따로 둔다
+  //    (en-tk-xy-latio / en-tk-xy-latia ↔ "XY Trainer Kit: Latias & Latios" 하나).
+  //    그래서 우리 두 slug가 같은 저쪽 이름을 가리킨다 — 정상이다.
+  //    번호 체계도 달라서 이름으로 짝지어야 한다(위 이름 짝짓기 참고).
+  ["en-tk-xy-latio", "XY Trainer Kit: Latias & Latios"],  // 2026-08-07 추가
+  ["en-tk-xy-latia", "XY Trainer Kit: Latias & Latios"],  // 2026-08-07 추가
+  ["en-tk-xy-b", "XY Trainer Kit: Bisharp & Wigglytuff"],  // 2026-08-07 추가
+  ["en-tk-xy-w", "XY Trainer Kit: Bisharp & Wigglytuff"],  // 2026-08-07 추가
+  ["en-tk-xy-sy", "XY Trainer Kit: Sylveon & Noivern"],  // 2026-08-07 추가
+  ["en-tk-xy-n", "XY Trainer Kit: Sylveon & Noivern"],  // 2026-08-07 추가
+  ["en-tk-dp-m", "DP Trainer Kit: Manaphy & Lucario"],  // 2026-08-07 추가
+  ["en-tk-dp-l", "DP Trainer Kit: Manaphy & Lucario"],  // 2026-08-07 추가
+  ["en-tk-hs-g", "HGSS Trainer Kit: Gyarados & Raichu"],  // 2026-08-07 추가
+  ["en-tk-hs-r", "HGSS Trainer Kit: Gyarados & Raichu"],  // 2026-08-07 추가
+  ["en-miscp", "Miscellaneous Cards & Products"],  // 2026-08-07 추가
+  // 2026-08-07 추가. **저쪽은 트레이너 킷 두 덱을 한 세트로 묶는다** —
+  //   우리 en-tk-xy-latio / en-tk-xy-latia  ↔  저쪽 "XY Trainer Kit: Latias & Latios" 하나.
+  //   그래서 우리 두 slug가 같은 저쪽 이름을 가리킨다(정상이다).
+  //   번호 체계도 우리와 달라서 아래 '이름으로 짝짓기'가 있어야 채워진다.
+  ["en-tk-xy-latio", "XY Trainer Kit: Latias & Latios"],
+  ["en-tk-xy-latia", "XY Trainer Kit: Latias & Latios"],
+  ["en-tk-xy-b", "XY Trainer Kit: Bisharp & Wigglytuff"],
+  ["en-tk-xy-w", "XY Trainer Kit: Bisharp & Wigglytuff"],
+  ["en-tk-xy-sy", "XY Trainer Kit: Sylveon & Noivern"],
+  ["en-tk-xy-n", "XY Trainer Kit: Sylveon & Noivern"],
+  ["en-tk-dp-m", "DP Trainer Kit: Manaphy & Lucario"],
+  ["en-tk-dp-l", "DP Trainer Kit: Manaphy & Lucario"],
+  ["en-tk-hs-g", "HGSS Trainer Kit: Gyarados & Raichu"],
+  ["en-tk-hs-r", "HGSS Trainer Kit: Gyarados & Raichu"],
+  ["en-miscp", "Miscellaneous Cards & Products"],
 ]
 
 const argOf = (name: string, fallback: number) => {
@@ -132,6 +162,16 @@ const stripDeckTag = (s: string) => {
       .replace(/\s*\((?:Illustration Contest|World Championship|Winner|Finalist)[^)]*\)\s*$/i, '')
       // "Pikachu - 214" 처럼 번호만 꼬리에 붙는 것도 뗀다(번호는 이미 따로 맞춘다).
       .replace(/\s*-\s*\d+\s*$/, '')
+      // 트레이너 킷은 "Energy Search (Manaphy)"처럼 **어느 덱인지**를 괄호에 적는다.
+      // ⚠️ 괄호를 다 떼면 안 된다 — "(Delta Species)"·"(Mirror Holofoil)"·"(Master Ball
+      //    Pattern)"은 **진짜 다른 카드**다. 그런 말이 들어간 괄호는 남긴다.
+      .replace(
+        /\s*\(([^)]*)\)\s*$/,
+        (전체: string, 안: string) =>
+          /holo|reverse|mirror|delta|cosmos|master ball|poke ball|pok\u00e9 ball|shadowless|stamp|promo|1st|unlimited|full art|secret|prism|rainbow/i.test(안)
+            ? 전체
+            : '',
+      )
       .trim()
     if (다음 === out) return out
     out = 다음
