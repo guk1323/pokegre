@@ -393,7 +393,14 @@ app.get('/artist/:slug', async (req, res) => {
   //    "메가다크라이 ex · 모르페코 ex · 메가다크라이 ex"처럼 검색 결과에 같은 이름이
   //    두 번 나갔다(5ban-graphics · 2026-08-07 확인). 세트 페이지에서 고친 것과 같은
   //    문제다. 순서는 그대로 두고 처음 나온 것만 남긴다.
-  const shown = [...new Set((a.cards ?? []).map((c) => koName('en', c.name)))].slice(0, 12)
+  //    12개만 쓰므로 **12개를 채우면 멈춘다.** 전부 변환하면 5ban Graphics(1,636장)
+  //    같은 작가에서 필요 없는 일을 1,600번 한다.
+  const shown: string[] = []
+  for (const c of a.cards ?? []) {
+    if (shown.length >= 12) break
+    const n = koName('en', c.name)
+    if (n && !shown.includes(n)) shown.push(n)
+  }
   const title = `${name} 일러스트 카드 | pokegre`
   const desc = `${name}${subjectParticle(name)} 그린 포켓몬 카드 ${a.count ?? shown.length}장${
     a.note ? ` — ${a.note}` : ''
