@@ -51,7 +51,12 @@ for (let i = 0; i < 뽑음.length; i++) {
     if (!r.ok) { 실패++; continue }
     const j = (await r.json()) as any
     const cs = j.cards ?? []
-    if (!cs.length) { 영건++; 영건목록.push(`${s.slug.padEnd(14)} ${String(s.count).padStart(4)}장  "${setName}"`); continue }
+    // ⚠️ **cards가 아니라 rawCount를 봐야 한다.** 우리 서버는 이베이 낙찰 기록이 있는
+    //    카드만 남기므로(shapeEbayCards), 세트는 멀쩡한데 cards가 0이 될 수 있다.
+    //    limit=3으로 재다가 S2a·PCG9 같은 멀쩡한 세트를 "이름이 틀렸다"고 셌다
+    //    (2026-08-07). rawCount는 거르기 전 개수라 "PPT가 이 세트를 아는가"를 곧장 말해 준다.
+    if (!(j.rawCount ?? 0)) { 영건++; 영건목록.push(`${s.slug.padEnd(14)} ${String(s.count).padStart(4)}장  "${setName}"`); continue }
+    if (!cs.length) { 통함++; continue }
     // 돌려준 카드의 setName이 우리가 보낸 것과 같은가.
     // ⚠️ **앞부분만 같아도 통하는 것으로 본다.** PPT는 부분 일치라 하위 세트를 함께 주고
     //    (Crown Zenith → Crown Zenith: Galarian Gallery), 값 높은 순이라 하위 쪽이 위에

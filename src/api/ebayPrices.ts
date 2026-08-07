@@ -65,6 +65,8 @@ export interface EbayCard {
   name: string;
   nameEn: string;
   setName: string;
+  /** 원본(영문) 세트 이름. 화면에는 안 쓰고, "정말 그 세트인가"를 견줄 때만 쓴다. */
+  setNameEn: string;
   cardNumber: string | null;
   imageUrl: string;
   totalSales: number;
@@ -183,6 +185,10 @@ export async function searchEbayCards(
       // 원본 영문 이름은 이베이 검색 링크용으로 남겨두고, 표시용 이름만 한글로 바꾼다.
       nameEn: card.name,
       name: dict.koreanizeEnglishCardName(card.name),
+      // ⚠️ 원본 세트 이름을 남긴다. PPT의 세트 조건은 부분 일치라("Team Rocket"을
+      //    걸면 "EX Team Rocket Returns"도 온다) 부르는 쪽이 "정말 그 세트인가"를
+      //    확인해야 하는데, 한글로 바꾼 이름으로는 견줄 수 없다(2026-08-07).
+      setNameEn: card.setName,
       // 대응표로 먼저 찾고, 없으면 예전처럼 영문 세트명 사전에 맡긴다.
       setName: (await pptSetKo(card.setName)) || dict.koreanizeEnglishSetName(card.setName),
     })),

@@ -1172,8 +1172,24 @@ function App() {
           // 같은 번호에 인쇄 변형이 여럿 있다(054/071이 일반 · Mirror Holofoil 두 장).
           // 그냥 첫 장을 고르면 값이 높은 쪽이 걸려, 054를 눌렀는데 미러가 열린다
           // (점검 중 발견 2026-08-06). 이름이 정확히 같은 것을 먼저 본다.
+          // ⚠️ **번호만 봐서는 안 된다.** PPT의 세트 조건은 부분 일치라, "Team Rocket"을
+          //    걸면 "EX Team Rocket Returns"가 함께 오고 두 세트는 번호가 83개나 겹친다
+          //    ("Expansion Pack"↔"CP6: Expansion Pack 20th Anniversary"는 102개).
+          //    그러면 남의 카드 값을 그 카드인 양 보여 주게 된다(2026-08-07 전수 확인).
+          //    보낸 세트 이름이 있으면 **돌아온 세트도 그것이어야** 그 카드로 인정한다.
+          //    ⚠️ 대응표에 없어 세트를 안 보낸 경우(빈 값)에는 이 검사를 건너뛴다 —
+          //       걸지도 않은 조건으로 걸러내면 값이 있는 카드까지 놓친다.
+          const 보낸세트 = 도감 ? pptSetName(도감) : '';
+          const 세트열쇠 = (s: string) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          // ⚠️ setName은 화면용으로 한글화된 값이다("팀 로켓"). 견줄 때는 반드시
+          //    원본 영문(setNameEn)을 쓴다 — 한글과 영문을 견주면 늘 어긋나서
+          //    모든 카드가 "그 카드가 아님"이 된다(2026-08-07에 한 번 그렇게 깨뜨렸다).
+          const 세트맞음 = (c: { setNameEn?: string }) =>
+            !보낸세트 || 세트열쇠(c.setNameEn ?? '') === 세트열쇠(보낸세트);
           const 번호맞음 = 도감
-            ? cards.filter((c) => c.cardNumber && 번호열쇠(c.cardNumber) === 번호열쇠(도감.num))
+            ? cards.filter(
+                (c) => c.cardNumber && 번호열쇠(c.cardNumber) === 번호열쇠(도감.num) && 세트맞음(c),
+              )
             : [];
           const 이름까지맞음 = 번호맞음.find((c) => 다듬(c.name) === 다듬(도감!.ko));
           const 그카드 = 번호맞음.length ? (이름까지맞음 ?? 번호맞음[0]) : undefined;
