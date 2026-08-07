@@ -111,6 +111,12 @@ export function 도감검색어들(c: 도감카드정보): string[] {
  * PPT에 보낼 세트 이름. 우리 세트 이름과 PPT 것이 달라서 대응표를 쓴다
  * (ja-PMCG1 → "Expansion Pack", en-sv03 → "SV03: Obsidian Flames").
  * 대응표에 없으면 우리 이름을 그대로 써 본다 — 맞을 때도 있다.
+ *
+ * ⚠️ 두 세트가 같은 PPT 이름을 쓰는 경우가 하나 있다(en-ex10 · en-exu → "EX Unseen
+ *    Forces"). PPT가 언노운 컬렉션을 상위 세트 이름 아래 두기 때문이다. 번호 체계가
+ *    완전히 달라(en-ex10은 1~117, en-exu는 !·?·A~Z) 겹치는 번호가 0장이고,
+ *    en-ex10에는 언노운이 한 장도 없어 서로 섞이지 않는다(2026-08-07 전수 확인).
+ *    같은 이름을 더 넣을 일이 생기면 **번호가 겹치는지부터 세어 볼 것.**
  */
 export const pptSetName = (c: 도감카드정보): string => {
   const 아는이름 = (pptSetNames as Record<string, string>)[c.slug];
