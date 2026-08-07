@@ -4169,7 +4169,7 @@ const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
 //    대조할 때 카드 이름만 보고 넣으면 이런 걸 놓친다 — 매물 제목까지 생각할 것.
 // sticker는 진짜 카드가 딱 하나(Energy Sticker)라, 그것만 빼고 잡는다.
 const NOT_A_CARD =
-  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|festa|goods|merch)\b/i
+  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|playing\s?mat|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|festa|goods|merch)\b/i
 // 세트 이름에 흔히 붙는 말. 찾는 이름 뒤에 이게 오면 카드 이름이 아니라 세트 이름이다.
 const 세트를뜻하는말 = 'Heroes|Edition|Collection|Box|Set|Deck|Promo|Series|Pack|Starter'
 /**
@@ -4184,6 +4184,9 @@ const 세트를뜻하는말 = 'Heroes|Edition|Collection|Box|Set|Deck|Promo|Seri
 const 그카드가맞나 = (title: string, q: string): boolean => {
   const 첫낱말 = (q.trim().split(/\s+/)[0] ?? '').replace(/[^A-Za-z'-]/g, '')
   if (첫낱말.length < 3) return true
+  // ⚠️ **찾는 말 자체가 세트 이름이면 거르지 않는다.** "Eevee Heroes"라고 친 사람은
+  //    그 세트를 보려는 것이라, 여기서 걸러 버리면 24건이 2건이 된다(2026-08-07 확인).
+  if (new RegExp(`^${첫낱말}\\s+(?:${세트를뜻하는말})\\b`, 'i').test(q.trim())) return true
   const 지움 = title.replace(new RegExp(`\\b${첫낱말}\\s+(?:${세트를뜻하는말})\\b`, 'ig'), ' ')
   return new RegExp(`\\b${첫낱말}\\b`, 'i').test(지움)
 }
@@ -4243,6 +4246,16 @@ function mountEbayKorean(app: Mountable, appId: string, certId: string) {
       const params = new URLSearchParams({
         q: `${q} Korean Version`,
         category_ids: '183454',
+        // ⚠️ 183454(CCG 낱장)에는 **포켓몬만 있는 게 아니다** — 원피스·유희왕도 같은
+        //    칸이다. "Starter Deck"으로 찾았더니 원피스 카드가 나왔다(2026-08-07).
+        //    포켓몬 이름으로 찾을 때는 이름이 알아서 걸러 주지만, 이름이 아닌 말로
+        //    찾으면 남의 게임이 섞인다. 이베이가 게임별로 거를 수 있으니 지정한다.
+        // ⚠️ **게임별 거르기(aspect_filter Game:Pokémon TCG)는 안 쓴다.** 넣어 보니
+        //    원피스 카드는 사라지는데 **진짜 포켓몬 매물도 1~2건씩 떨어졌다**
+        //    (Charizard ex 14→13, Pokemon 151 16→15 · 2026-08-07 실측).
+        //    판매자가 "게임" 칸을 안 채운 매물이 빠지는 것이다. 여기 값은 최저가를
+        //    뽑는 데 쓰므로 **진짜 매물을 잃는 쪽이 더 나쁘다**. 남의 게임이 섞이는
+        //    건 카드 이름으로 찾을 때는 안 생긴다(이름이 알아서 거른다).
         limit: '24',
         filter: 'buyingOptions:{FIXED_PRICE}',
         sort: 'price',
