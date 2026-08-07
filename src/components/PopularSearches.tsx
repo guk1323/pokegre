@@ -77,24 +77,33 @@ export function PopularSearches({
   return (
     <div>
       <div className="flex items-baseline justify-between mb-3">
-        <p className="text-base font-bold text-neutral-900">인기 검색어</p>
+        {/* ⚠️ **구역마다 무게를 다르게 준다.** 예전엔 다섯 구역 제목이 전부 16px 굵게라
+            무엇이 중요하고 무엇이 곁다리인지 화면이 말해 주지 않았다 — 스크롤해도 계속
+            같은 것이 나오는 느낌이었다(2026-08-08 지적).
+            기준은 **실제 쓰임**이다: 시세 검색 2,885회(79%) ↔ 뽑기 424회(12%).
+            시세 쪽(인기 검색어·힛카드)을 크게, 나머지(상점·TOP 5·뉴스)를 작게 둔다. */}
+        <p className="text-lg font-extrabold tracking-tight text-black">인기 검색어</p>
         {asOf && <p className="text-xs text-neutral-400">{formatAsOf(asOf)}</p>}
       </div>
       {/* ⚠️ 폰에서도 두 줄(5+5)로 세운다. 한 줄로 쌓으면 10칸이 516px이라 첫 화면을
           통째로 먹었다(실측 2026-08-04). 두 줄이면 272px이다.
           줄 안쪽 여백을 같이 줄여야 "리자몽 VSTAR" 같은 긴 이름이 안 잘린다 —
           여백을 그대로 두면 열 개 중 네 개가 잘렸다. */}
-      {/* ⚠️ **넓은 화면에서는 5열 두 줄이다.** 2열로 두면 한 줄이 555px인데 글자는 왼쪽
-          끝에만 있어 400px 넘게 비었다 — 순위표가 아니라 빈칸이 늘어선 것처럼 보였다
-          (2026-08-08 실측).
-          ⚠️ 좁은 화면의 **읽는 차례(1~5 왼쪽 · 6~10 오른쪽)는 그대로 지킨다.**
-             한 덩이로 펴면서 칸 채우는 방향을 바꿔 그 차례를 맞춘다 —
-             좁은 화면은 세로로 먼저 채우고(5줄 × 2열), 넓은 화면은 가로로 채운다(5열 × 2줄).
-             처음엔 바깥 격자에 열만 늘렸다가 **좌우 두 덩이가 5열에 눌려** 깨졌다. */}
-      <div className="grid grid-flow-col grid-cols-2 grid-rows-5 gap-1.5 sm:gap-2 lg:grid-flow-row lg:grid-cols-5 lg:grid-rows-2">
-        {[...left, ...right].map((item) => (
-          <Row key={item.term} item={item} onSelect={onSelect} />
-        ))}
+      {/* ⚠️ 폰에서도 두 줄(5+5)로 세운다. 한 줄로 쌓으면 10칸이 516px이라 첫 화면을
+          통째로 먹었다(실측 2026-08-04). 두 줄이면 272px이다.
+          ⚠️ 넓은 화면에서 5열로 펴 봤다가 **되돌렸다** — 자리는 줄지만 두 열로 세운
+             지금이 더 낫다는 판단(2026-08-08 운영자). 바꾸지 말 것. */}
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+        <div className="space-y-1">
+          {left.map((item) => (
+            <Row key={item.term} item={item} onSelect={onSelect} />
+          ))}
+        </div>
+        <div className="space-y-1">
+          {right.map((item) => (
+            <Row key={item.term} item={item} onSelect={onSelect} />
+          ))}
+        </div>
       </div>
     </div>
   );

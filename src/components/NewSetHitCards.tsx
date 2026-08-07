@@ -110,7 +110,7 @@ export function NewSetHitCards({
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold text-neutral-900">{이름} 힛카드 목록</h2>
+        <h2 className="text-lg font-extrabold tracking-tight text-black">{이름} 힛카드 목록</h2>
         <button
           type="button"
           onClick={() => {

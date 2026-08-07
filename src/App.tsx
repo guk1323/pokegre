@@ -1701,8 +1701,14 @@ function App() {
           navigate({ view: 'sets' });
         }}
       />
-      <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
-      <PokemonNews items={news} loading={newsLoading} />
+      {/* ⚠️ **곁다리 구역은 한 덩이로 묶는다.** 제목 크기만 낮춰서는 다섯 구역이 여전히
+          같은 간격으로 늘어서 보인다 — 위(시세)와 아래(그 밖)를 눈이 가르지 못한다.
+          엷은 바탕과 위쪽 선으로 묶어 "여기부터는 곁다리"를 한눈에 알린다.
+          기준은 실제 쓰임이다: 시세 검색 2,885회(79%) ↔ 뽑기 424회(12%). */}
+      <div className="mt-8 space-y-6 border-t border-neutral-200 pt-6">
+        <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
+        <PokemonNews items={news} loading={newsLoading} />
+      </div>
     </div>
   );
 
