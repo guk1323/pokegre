@@ -137,11 +137,18 @@ for (const [slug, t] of Object.entries(setCardNumberAlias as Record<string, Reco
   번호되돌림[slug] = byNum;
   이름되돌림[slug] = byName;
 }
-/** 저쪽 카드(번호·이름)를 우리 번호로. 번호가 없으면 이름으로 찾는다. */
+/**
+ * 저쪽 카드(번호·이름)를 우리 번호로.
+ *
+ * ⚠️ **이름표를 번호보다 먼저 본다.** 번호가 있어도 우리와 다를 수 있어서다
+ *    (en-svp: 저쪽 "SVP 175" ↔ 우리 "175", ja-MC: 저쪽 "052/742" ↔ 우리 "051").
+ *    번호가 있으면 번호만 보던 때는 이런 카드가 이름표를 넣어 두고도 안 붙었다.
+ */
 export const 저쪽번호를우리번호로 = (slug: string, 저쪽번호: string, 저쪽이름?: string): string => {
+  const 이름 = 저쪽이름 ? 이름되돌림[slug]?.[이름열쇠(저쪽이름)] : undefined;
+  if (이름) return 이름;
   const n = String(저쪽번호 ?? '').trim();
   if (n) return 번호되돌림[slug]?.[n.toUpperCase()] ?? n;
-  if (저쪽이름) return 이름되돌림[slug]?.[이름열쇠(저쪽이름)] ?? '';
   return n;
 };
 

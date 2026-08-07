@@ -4740,10 +4740,16 @@ for (const [slug, t] of Object.entries(번호별칭)) {
   번호되돌림.set(slug, byNum)
   이름되돌림.set(slug, byName)
 }
+// ⚠️ **이름표를 번호보다 먼저 본다.** 번호가 있어도 그 번호가 우리와 다를 수 있어서다
+//    (en-svp: 저쪽 "SVP 175" ↔ 우리 "175", ja-MC: 저쪽 "052/742" ↔ 우리 "051").
+//    번호가 있으니 번호만 보던 때는 이런 카드 11장이 이름표를 넣어 두고도
+//    시세가 안 붙었다(2026-08-07 확인). 이름표는 사람이 한 장씩 확인한 것이라
+//    자동으로 맞춘 번호보다 믿을 만하고, 세트 안에서 겹치지 않음도 확인해 두었다.
 export const 번호되돌리기 = (slug: string, 저쪽번호: string, 저쪽이름?: string): string => {
+  const 이름 = 저쪽이름 ? 이름되돌림.get(slug)?.get(String(저쪽이름).trim().toLowerCase()) : undefined
+  if (이름) return 이름
   const n = String(저쪽번호 ?? '').trim()
   if (n) return 번호되돌림.get(slug)?.get(n.toUpperCase()) ?? n
-  if (저쪽이름) return 이름되돌림.get(slug)?.get(String(저쪽이름).trim().toLowerCase()) ?? ''
   return n
 }
 
