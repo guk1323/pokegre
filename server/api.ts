@@ -8,6 +8,7 @@ import path from 'node:path'
 //    109KB를 홈에서 통째로 받아야 한다 — 홈은 제일 많이 열리는 화면이라 그 무게를
 //    지우면 안 된다(cardImg.ts 첫머리·PackShelfPromo 설명 참고). 서버에서는 공짜다.
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
+import { 등급순서값 } from '../src/lib/gradeOrder.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 // 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
 // 믿으면 예산을 속일 수 있어서, 서버도 같은 표로 차감하고 뽑기도 서버가 한다).
@@ -2377,24 +2378,8 @@ const PRICE_TRACKER_MAX_ENTRIES = 300
 const PRICE_TRACKER_RATE_LIMIT = 1000
 const PRICE_TRACKER_RATE_WINDOW_MS = 60 * 60 * 1000
 
-// 등급 목록을 화면에 세울 순서.
-//
-// ⚠️ 예전엔 **낙찰이 많은 순**이었다. 그러면 블레인의 리자몽에서 PSA 5(14건)가
-//    PSA 10(10건)보다 위에 오고, PSA 사이사이에 CGC·BGS가 섞여 나온다. 사람이
-//    카드를 열어 보는 이유는 대개 "PSA 10이 얼마인가"인데 일곱 줄을 훑어야 했다
-//    (2026-08-07 화면에서 확인). 감정 기관끼리 묶고, 높은 등급부터 세운다.
-//    같은 자리면 낙찰이 많은 쪽을 위로 둔다.
-const 기관우선 = ['psa', 'bgs', 'cgc', 'sgc', 'tag']
-function 등급순서값(grade: string): number {
-  const g = String(grade).toLowerCase()
-  if (g === 'ungraded' || g === 'raw') return -1 // 미감정을 맨 위에
-  const m = g.match(/^([a-z]+)(\d+(?:[._]\d+)?)$/)
-  if (!m) return 9_000 // 모르는 표기는 맨 아래
-  const 기관 = 기관우선.indexOf(m[1])
-  const 등급 = Number(m[2].replace('_', '.')) || 0
-  // 기관마다 100칸을 주고, 그 안에서 높은 등급이 앞으로 오게 (10 → 0)
-  return (기관 < 0 ? 기관우선.length : 기관) * 100 + (100 - 등급 * 10)
-}
+// 등급 목록을 세우는 순서는 **화면과 같은 한 벌**을 쓴다(src/lib/gradeOrder.ts).
+// 두 벌로 두면 같은 자료를 화면마다 다르게 세우게 된다 — 오늘 그 사고를 여러 번 냈다.
 
 interface RawEbayGrade {
   count?: number
