@@ -208,7 +208,11 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
       >
         {/* 좁은 화면에서는 6칸을 3열로 쪼개면 그림이 너무 작아진다. 2열로 줄여
             한 칸을 넓게 쓰고 그림 높이도 키운다. */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-2 lg:grid-cols-6">
+        {/* ⚠️ **핸드폰에서 3열이다.** 2열로 크게 깔았더니 진열대만 624px이 되어,
+            "오늘의 상점"이 홈의 절반(2,202px 중 1,107px)을 차지했다(2026-08-08 실측).
+            홈은 시세를 보러 오는 자리인데 상점이 반이면 아래가 안 보인다. 3열로 줄이면
+            여섯 팩이 그대로 보이면서 높이가 준다. 넓은 화면은 예전 그대로다. */}
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-2 lg:grid-cols-6">
           {packs.map((p) => {
             const img = art[p.slug]?.boxImg || art[p.slug]?.logo;
             return (
@@ -223,7 +227,11 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
                     />
                   )}
                 </div>
-                <p className="mt-2 line-clamp-1 text-sm font-semibold text-neutral-700 sm:text-xs">
+                {/* ⚠️ **두 줄까지 보여 준다.** 3열로 줄이면서 한 줄로 자르니 "프리즈매틱…",
+                    "옵시디언…"처럼 무슨 팩인지 알 수 없게 됐다(2026-08-08). 자리를 아끼려고
+                    이름을 못 읽게 만들면 아낀 뜻이 없다. 두 줄 높이를 미리 잡아 두어
+                    이름 길이가 달라도 아래 GP 줄이 들쭉날쭉하지 않게 한다. */}
+                <p className="mt-2 line-clamp-2 min-h-[2.5rem] text-[13px] font-semibold leading-tight text-neutral-700 sm:min-h-0 sm:text-xs">
                   {p.label.replace(/^\[.+?\]\s*/, '')}
                 </p>
                 <p className="mt-1">
