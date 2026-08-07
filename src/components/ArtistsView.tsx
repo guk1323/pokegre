@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
 import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 import { koSetName } from '../lib/setNameKo';
@@ -339,7 +340,10 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
                 // 카드명은 해외 DB라 영문이다. 사이트 다른 곳(이베이·TCGplayer)과 같은
                 // 변환기로 한글화한다. 포켓몬 이름은 한글로, 변환기에 없는 인물·트레이너
                 // 카드는 영문 그대로 남는다.
-                const koName = koreanizeEnglishCardName(c.name);
+                // ⚠️ 예전엔 koreanizeEnglishCardName만 썼다. 화면·서버가 쓰는 정식
+                //    규칙과 달라(번호 꼬리·전각 부호를 안 다듬는다) 같은 카드가 여기서만
+                //    다르게 보였다. 작가 데이터는 전부 북미판이라 'en'으로 부른다.
+                const koName = koCardName('en', c.name);
                 // 작가 데이터는 전부 북미판이다(pokemontcg.io 기준). 세트 슬러그가 있으면
                 // 세트·번호까지 넘겨 그 한 장으로 좁힌다. 없으면(22장) 이름만 넘긴다.
                 const meta = c.s ? setBySlug?.get(c.s) : undefined;

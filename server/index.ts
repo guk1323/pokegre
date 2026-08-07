@@ -18,25 +18,14 @@ import {
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
 import { 공유이름 } from '../src/lib/cardImg.ts'
 import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
-import { koSetName, serieSlug } from '../src/lib/setNameKo.ts'
+import { serieSlug } from '../src/lib/setNameKo.ts'
+import { koName, koSet } from '../src/lib/koCardName.ts'
 import { livePacks } from '../src/lib/packSets.ts'
 
-// 화면(cardCatalog)과 같은 규칙으로 이름을 한글로 만든다. 그 파일은 브라우저 전용이라
-// 여기서 가져다 쓰지 않고 같은 내용만 옮겨 둔다.
-// 일본판인데 이름이 영어인 세트가 있다(「Pokémon GO」). 한글이 하나도 안 남으면
-// 영어 세트명 사전으로 한 번 더 시도한다. 규칙은 src/lib/cardCatalog.ts의 koSet과 같다.
-const koSet = (ed: 'ja' | 'en', name: string) => {
-  if (ed !== 'ja') return koSetName(name)
-  const ko = koreanizeTitle(name)
-  return /[가-힣]/.test(ko) ? ko : koSetName(ko)
-}
-const koName = (ed: 'ja' | 'en', name: string) => {
-  if (ed !== 'ja') return koreanizeEnglishCardName(name)
-  if (/[ぁ-んァ-ヶ一-龯]/.test(name)) return koreanizeEnglishCardName(koreanizeTitle(name))
-  const en = koreanizeEnglishCardName(name)
-  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return en
-  return koreanizeEnglishCardName(koreanizeTitle(name))
-}
+// 카드·세트 이름 한글화는 **화면과 같은 한 벌**을 쓴다(src/lib/koCardName.ts).
+// 예전엔 여기에 규칙을 베껴 뒀는데, 화면 쪽만 고쳐져 어긋났다 —
+// 서버가 만드는 세트 페이지 설명문이 "제크로무 ex - 174/086"으로 나가는 동안
+// 화면은 "제크로무 ex"였다(2026-08-07).
 
 // 한글 이름 끝에 받침이 있는지 보고 조사를 고른다. 작가 388명 중 305명이 받침 없는
 // 이름이라("미츠히로 아리타") "이(가)"를 그대로 쓰면 대부분 어색하게 읽힌다.

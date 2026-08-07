@@ -1,6 +1,3 @@
-import { koreanizeTitle } from './koreanizeTitle';
-import { koreanizeEnglishCardName } from './koreanizeEnglishTitle';
-import { koSetName } from './setNameKo';
 
 // 카드 카탈로그(세트별 수록 카드). public/sets/에 미리 긁어 둔 JSON을 읽는다.
 // 세트별 목록 화면(SetsView)과 플리마켓 카드 목록이 같이 쓴다.
@@ -79,51 +76,15 @@ export { cardImg, thumb, CARD_BACK, usable, 기준일글 } from './cardImg';
 // 그런 이름에 일본어 변환기를 먼저 돌리면 오히려 망가진다 — 일본어 사전에는 옛 세트를
 // 고치려고 넣은 조각들이 있어서("Rocket"→"로켓단", "Jasmine"→"규리"), 멀쩡한 영어
 // 이름이 "Team 로켓단의 Wobbuffet"처럼 반쪽이 된다. 영어면 영어 변환기만 태운다.
-const hasJapanese = (s: string) => /[ぁ-んァ-ヶ一-龯]/.test(s);
 
 // 옛 세트 원본에는 이름 뒤에 번호가 붙어 오는 것이 있다("MUK -004/092"). 그대로 두면
 // 화면에 "질뻐기 -004/092"로 뜬다 — 번호는 옆 칸에 따로 적히므로 이름에 있을 이유가
 // 없다. 도감을 만드는 쪽은 이미 떼고 있었는데 화면만 남아 있었다(점검 중 발견
 // 2026-08-06 — 같은 규칙을 쓰는 두 곳이 어긋난 경우다).
-const 번호꼬리떼기 = (s: string) => s.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim();
-
-// 한글 이름에 남는 **전각 문장부호**를 보통 부호로 바꾼다. 일본어 원문의 부호가 그대로
-// 따라와 "포로！핸드 익스텐션", "초련＆담죽"처럼 나온다 — 한글 사이에 끼면 어색하고,
-// 마켓에 보낼 때도 번역기가 못 읽어 검색을 방해한다(2026-08-07 점검 중 발견, 5장).
-// ⚠️ 한글이 하나도 없는 이름(번역이 안 된 일본어 원문)은 그대로 둔다 — 그쪽은 원문
-//    표기가 맞다.
-const 부호다듬기 = (s: string) => {
-  if (!/[가-힣]/.test(s)) return s;
-  return s
-    .replace(/！/g, '!')
-    .replace(/？/g, '?')
-    .replace(/＆/g, '&')
-    .replace(/：/g, ':')
-    .replace(/（/g, '(')
-    .replace(/）/g, ')')
-    .replace(/\s+/g, ' ')
-    .trim();
-};
-
-export const koName = (ed: 'ja' | 'en', name: string) => {
-  if (ed !== 'ja') return 부호다듬기(번호꼬리떼기(koreanizeEnglishCardName(name)));
-  if (hasJapanese(name)) return 부호다듬기(번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name))));
-  // 영어 이름이다. 영어 사전이 통째로 아는 이름이면 그대로 쓴다.
-  const en = 번호꼬리떼기(koreanizeEnglishCardName(name));
-  if (/[가-힣]/.test(en) && !/[A-Za-z]{3,}/.test(en)) return 부호다듬기(en);
-  // 영어 사전이 못 잡은 것만 일본어 사전에 맡긴다. 옛 세트에는 원본이 깨져 영어로 들어온
-  // 이름이 있는데("Bugsy's Pinsir", "Mime Ex"), 그건 일본어 쪽에 고치는 규칙을 넣어 뒀다.
-  return 부호다듬기(번호꼬리떼기(koreanizeEnglishCardName(koreanizeTitle(name))));
-};
-
-// 일본판 세트인데 이름이 영어로 붙은 것들이 있다(「Pokémon GO」, 「25th Anniversary」).
-// 일본어 사전은 이런 이름을 손대지 못해 영어 그대로 나갔다. 한글이 하나도 안 남으면
-// 영어 세트명 사전으로 한 번 더 시도한다.
-export const koSet = (ed: 'ja' | 'en', name: string) => {
-  if (ed !== 'ja') return koSetName(name);
-  const ko = koreanizeTitle(name);
-  return /[가-힣]/.test(ko) ? ko : koSetName(ko);
-};
+// 카드·세트 이름 한글화는 lib/koCardName.ts 한 벌만 쓴다(**서버도 같은 파일**을 쓴다).
+// 여기 있던 사본을 옮겼다 — 서버가 베껴 두고 있었고, 화면만 고쳐져 어긋났었다.
+// 쓰는 쪽 편하라고 여기서 다시 내보낸다.
+export { koName, koSet } from './koCardName.ts';
 
 // 한 번 받은 건 다시 안 받는다. 세트 파일이 284개라 오가며 고를 때 체감이 크다.
 let indexCache: SetIndexEntry[] | null = null;

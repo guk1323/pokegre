@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox, type ExchangeRates } from '../api/exchangeRate';
-import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
-import { koreanizeTitle } from '../lib/koreanizeTitle';
 import { rankOf, type MirrorFlag, type PackCard } from '../lib/packDraw';
 
 // 화면에서 다루는 카드: 서버 응답 순서(i)를 기억한다 — 앨범 골라담기가 인덱스 기준이라
@@ -793,8 +792,10 @@ export function PackSim({
     const map = value?.prices[a.s];
     return (vk ? map?.[base + vk] : undefined) ?? map?.[base] ?? 0;
   };
-  const koName = (jp: boolean, name: string) =>
-    !name ? '' : jp ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
+  // ⚠️ 여기 간소한 사본이 있었다. 정식 규칙(lib/koCardName.ts)과 31장이 달랐다 —
+  //    "Team Rocket's Houndoom"이 "Team 로켓단의 헬가"로 영어가 남았다(2026-08-07 실측).
+  //    화면·서버가 다 쓰는 그 함수를 그대로 쓴다.
+  const koName = (jp: boolean, name: string) => (!name ? '' : koCardName(jp ? 'ja' : 'en', name));
   // 홈 배너에 오른 카드의 한글 이름을 서버에 알려 준다.
   // 서버엔 번역기가 없고 홈은 사전을 안 받는다(사전이 내려받는 양의 절반이라 첫 화면을
   // 무겁게 한다). 이 화면은 이미 사전을 들고 있으니 여기서 한 장만 보낸다.
