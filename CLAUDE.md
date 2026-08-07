@@ -16,7 +16,7 @@
 
 | 키 | 용도 | 결제 | 코드 사용 | 주의점 |
 |---|---|---|---|---|
-| `POKEMON_PRICE_TRACKER_API_KEY` | **PPT** (pokemonpricetracker.com/api/v2). eBay·TCGplayer 시세, 등급별 히스토리 | **유료(Pro $10)** | server/api.ts (Bearer) | `/cards` 응답에 **카드 이미지도 포함**(`imageCdnUrl` 200/400/800, tcgplayer-cdn). `setName`으로 조회 가능. **rate limit 매우 빡빡 — 2~3연속 호출이면 429**. `page` 파라미터 없음(`limit`만, 최대 250). |
+| `POKEMON_PRICE_TRACKER_API_KEY` | **PPT** (pokemonpricetracker.com/api/v2). eBay·TCGplayer 시세, 등급별 히스토리, **팝수** | **유료(Business $99)** | server/api.ts (Bearer) | `/cards` 응답에 **카드 이미지도 포함**(`imageCdnUrl` 200/400/800, tcgplayer-cdn). `setName`으로 조회 가능. **2026-08-07에 Pro($10)에서 올렸다 — 하루 200,000크레딧·분당 500요청**(헤더로 직접 확인). `page` 파라미터 없음(`limit`만, 최대 250). |
 | `POKEMONTCG_API_KEY` | **pokemontcg.io** 카드 이미지·데이터 | 무료 | **코드 미사용(데이터 작업용)** | 이미지 채우기 등 스크립트에서 `X-Api-Key` 헤더로. 키 없이 부르면 rate limit 걸림 → **반드시 이 키 사용**. 데이터 API가 가끔 500 뜸. |
 | `EBAY_APP_ID` / `EBAY_CERT_ID` | **이베이 Browse API** — 한글판(Korean Version) **현재 매물가(호가)**. server/api.ts `mountEbayKorean` → `/api/local/ebay-korean?q=` | 무료(Browse) | server/api.ts (OAuth client_credentials) | 이베이는 **매물 제목이 영어**라 `"카드명 Korean Version"`로 검색. **호가만**(체결가=Marketplace Insights는 별도 승인 필요, 403). 화면은 이베이 판 토글의 "한글판"(edition='korean' → KoreanEbayView). Fly엔 `fly secrets set`으로. |
 | `ANTHROPIC_API_KEY` | 카드 사진 스캔(이미지→카드 인식) | 종량제 | server/api.ts | **로그인은 안 건다**(시세 조회를 비로그인도 되게 한 것과 같은 뜻). 대신 횟수로 막는다 — 1인당 시간당 10번(`SCAN_RATE_LIMIT`) + 하루 전체 300번(`SCAN_DAILY_LIMIT`). 두 검사 모두 Anthropic을 부르기 **전에** 걸린다. 모델 `claude-sonnet-5`(홀로 카드 작은 글씨 판독). 받는 형식은 jpeg·png·webp·gif만(HEIC를 그냥 넘기면 요금만 쓰고 실패). |
@@ -29,9 +29,9 @@
 문서: https://www.pokemonpricetracker.com/docs (브라우저 preview로 열어야 읽힘). **아래는 추측 아니라 문서/API로 확인한 것:**
 - **시세 마켓**: TCGplayer(미국) + eBay 등급 낙찰 + **Cardmarket(EUR, Pro/Business)**.
 - **등급 시세(PSA·CGC·BGS·SGC)**: 모든 유료 티어(우리 $10 포함). eBay 낙찰 기반.
-- **팝수(Population)**: **GemRate 기반 → PSA·CGC·BGS·SGC 등 여러 회사** (PSA 전용 아님!). **Business($99) 전용**, `/population` 엔드포인트(파라미터 `tcgPlayerId`), 카드당 2크레딧. 우리 $10 키는 403.
+- **팝수(Population)**: **GemRate 기반 → PSA·CGC·BGS·SGC 등 여러 회사** (PSA 전용 아님!). **Business 전용**, `/population` 엔드포인트(파라미터 `tcgPlayerId`), 카드당 2크레딧. **2026-08-07에 Business로 올려 이제 쓸 수 있다**(그전엔 403이었다). 화면에는 아직 안 붙였다.
 - **요금제**: Free 100/일 · **API $10 = 20,000/일** · Business $99 = 200,000/일 · Enterprise $300 = 100만/일.
-- **한도는 응답 헤더로 확인할 것**(추측 금지): `x-ratelimit-daily-limit/remaining/reset`, `x-ratelimit-minute-limit/remaining`. **분당은 "요청 60번"이지 크레딧이 아니다**(예전에 '분당 크레딧 500'이라 적어둔 건 오류). 일일은 크레딧이며 `limit=200` 한 번이 200크레딧. **초기화는 매일 UTC 0시 = 한국시간 오전 9시.**
+- **한도는 응답 헤더로 확인할 것**(추측 금지): `x-ratelimit-daily-limit/remaining/reset`, `x-ratelimit-minute-limit/remaining`. **분당은 크레딧이 아니라 요청 수다** — Pro 때 60이었고 Business로 올린 뒤 **500**이다(2026-08-07 확인). 일일은 크레딧이며 `limit=200` 한 번이 200크레딧. **초기화는 매일 UTC 0시 = 한국시간 오전 9시.**
 - **⚠️ 429를 계속 내면 키가 정지된다** (2026-07-28 실제로 1시간 정지당함). **5분 안에 429 150번**(pro 기준)이 기준선이고, 반복하면 1시간 → 24시간 → 7일 → 영구. 정지 중에는 **429가 아니라 `403 {"error":"API key blocked for abuse"}` + `Retry-After`(초)** 로 온다. 하루치가 바닥나면 그 뒤 모든 응답이 429라, **"429를 받으면 그 시각까지 아예 안 부른다"** 가 유일한 안전장치다 — server/api.ts의 `pptGate`/`notePpt`가 그 역할을 하며, PPT를 부르는 코드는 반드시 이걸 거쳐야 한다. 새 스크립트도 429가 계속 나면 남은 세트를 두드리지 말고 통째로 멈출 것.
 - **⚠️ 우리 서버로 부르면 크레딧이 `limit`의 3배다.** `/api/local/card-prices`는 클라이언트가 뭘 보내든
   `includeHistory=true`·`includeEbay=true`를 늘 덧붙인다(등급별 시세 그래프의 재료라 필요하다).
@@ -63,13 +63,13 @@
 
 | 항목 | 요금제 | 비용 | 메모 |
 |---|---|---|---|
-| **PPT (PokemonPriceTracker)** | Pro | **월 $10** (매달 정기결제) | 시세 + 카드 이미지 소스 |
+| **PPT (PokemonPriceTracker)** | Business | **월 $99** (매달 정기결제) | 시세 + 카드 이미지 + 팝수. 2026-08-07에 Pro($10)에서 올림 |
 | **Fly.io** (서버) | 종량제(구독 아님) | **약 월 $3~4** + 트래픽 | shared-cpu-1x 512MB 1대 + 1GB 볼륨, 도쿄(nrt). 무료체험 2026-07-22 종료, 카드 등록됨. 실제 청구액은 Fly 대시보드. |
 | **pokegre.com 도메인** | 연 갱신 | **연 ₩24,000** | **가비아(Gabia)**. 2026-07-17 등록 → 2027-07-17 만기. (pokegre.kr도 이벤트로 보유) |
 | pokemontcg.io / 카카오 / 네이버 | 무료 | ₩0 | |
 | **Anthropic** (사진 스캔) | 선불 충전 | **$5 충전** (2026-07-23 잔액 $3.82) | platform.claude.com. 스캔할 때만 소량 차감. 잔액은 시점따라 변함. |
 
-**월 고정비 합계 ≈ $13~14 (약 ₩1.8~1.9만) + 도메인 연 약 ₩2만.**
+**월 고정비 합계 ≈ $102~103 (약 ₩14만) + 도메인 연 약 ₩2만.** (2026-08-07 PPT를 Business로 올린 뒤)
 ※ 정확한 청구액·잔액은 각 대시보드에서 사용자가 확인(에이전트는 결제 화면·잔액 접근 안 함).
 
 ## 🗺️ 이미 구현된 기능 · 데이터 흐름 (⚠️ "없다/안 쓴다" 단정 전에 여기부터 확인)
