@@ -276,6 +276,23 @@ export const CONFIDENCE_LABEL: Record<string, string> = {
  *    아니다. 예전에 grades[0]을 쓰던 곳이 셋 있었고(타일·비교표·추이 그래프),
  *    2026-08-07에 순서를 바꾸면서 셋 다 조용히 다른 등급을 가리키게 됐다.
  */
+// 등급을 세우는 순서. **서버(api.ts의 등급순서값)와 같은 규칙**이어야 한다.
+//
+// ⚠️ 비교표가 자기 규칙으로 세우고 있었다 — 첫 카드의 순서를 그대로 쓰고 뒤 카드에만
+//    있는 등급을 뒤에 붙였다. 그래서 같은 자료인데 화면마다 순서가 달랐다
+//    (2026-08-07 발견: 상세는 "미감정 → PSA 10 → 9 → 8.5", 비교표는
+//     "PSA 10 → 9 → 7 → 미감정 → 8.5"). 카드가 바뀌면 순서도 바뀌어 더 헷갈렸다.
+const 기관우선 = ['psa', 'bgs', 'cgc', 'sgc', 'tag'];
+export function 등급순서값(grade: string): number {
+  const g = String(grade).toLowerCase();
+  if (g === 'ungraded' || g === 'raw') return -1; // 미감정을 맨 위에
+  const m = g.match(/^([a-z]+)(\d+(?:[._]\d+)?)$/);
+  if (!m) return 9_000; // 모르는 표기는 맨 아래
+  const 기관 = 기관우선.indexOf(m[1]);
+  const 등급 = Number(m[2].replace('_', '.')) || 0;
+  return (기관 < 0 ? 기관우선.length : 기관) * 100 + (100 - 등급 * 10);
+}
+
 export function 대표등급(grades: EbayGradeStat[]): EbayGradeStat | undefined {
   if (!grades.length) return undefined;
   return grades.reduce((a, b) => (b.count > a.count ? b : a));

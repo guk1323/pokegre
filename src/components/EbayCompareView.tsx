@@ -1,17 +1,19 @@
 import type { ReactNode } from 'react';
 import { CardImg } from './CardImg';
-import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, 대표등급, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
+import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, 대표등급, 등급순서값, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
 import { KrwHint } from './KrwHint';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 // 두 카드에 등장하는 등급을 (카드 순서대로) 합쳐 정렬한다. 등급 배열은 이미 대표 등급이
 // 앞에 오도록 정렬돼 있다.
+// 두 카드에 있는 등급을 합쳐 **카드 상세와 같은 순서**로 세운다.
+// 예전엔 첫 카드의 순서를 그대로 쓰고 뒤 카드에만 있는 등급을 뒤에 붙였다 — 담은
+// 카드가 바뀌면 순서도 바뀌어, 같은 자료인데 화면마다 다르게 보였다.
 function gradeOrder(cards: EbayCard[]): string[] {
   const seen = new Set<string>();
-  const out: string[] = [];
-  for (const c of cards) for (const g of c.grades) if (!seen.has(g.grade)) { seen.add(g.grade); out.push(g.grade); }
-  return out;
+  for (const c of cards) for (const g of c.grades) seen.add(g.grade);
+  return [...seen].sort((a, b) => 등급순서값(a) - 등급순서값(b));
 }
 
 function statOf(card: EbayCard, grade: string): EbayGradeStat | null {
