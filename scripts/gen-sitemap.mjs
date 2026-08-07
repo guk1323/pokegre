@@ -10,22 +10,19 @@
 //   /set/<슬러그>        세트별 카드 목록·힛카드
 //   /artist/<슬러그>     일러스트레이터별 카드
 //
-// ⚠️ 시리즈 슬러그 규칙은 src/lib/setNameKo.ts의 serieSlug와 같아야 한다.
-//    한쪽만 고치면 사이트맵에 적힌 주소가 404가 된다.
+// ⚠️ 시리즈 슬러그 규칙은 **src/lib/setNameKo.ts에서 가져다 쓴다.** 예전엔 여기에
+//    같은 규칙을 베껴 두고 "같아야 한다"고 적어 뒀는데, 그렇게 두면 언젠가 한쪽만
+//    고쳐져 사이트맵의 주소가 404가 된다. 2026-08-07에 같은 꼴(규칙이 두 벌)로
+//    실제 사고가 여섯 건 나와서, 베끼지 않고 가져오도록 바꿨다.
 //
 // 실행: node scripts/gen-sitemap.mjs
 import { readFile, writeFile } from 'node:fs/promises'
+import { serieSlug } from '../src/lib/setNameKo.ts'
 
 const today = new Date().toISOString().slice(0, 10)
 const url = (loc, priority, changefreq = 'weekly') =>
   `  <url>\n    <loc>https://pokegre.com${loc}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`
 
-const serieSlug = (serie) =>
-  serie
-    .toLowerCase()
-    .replace(/[^\w가-힣ぁ-んァ-ヶー・一-鿿]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60) || 'etc'
 
 const idx = JSON.parse(await readFile('public/sets/index.json', 'utf8'))
 
