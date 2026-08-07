@@ -1,3 +1,4 @@
+import { kstDateStr } from '../lib/kstDay';
 export interface PopularSearch {
   term: string;
   count: number;
@@ -60,9 +61,15 @@ export async function fetchPopularSearches(): Promise<PopularSearchResponse> {
 
 // 같은 브라우저가 하루에 한 번만 방문으로 집계되게 한다. 새로고침·페이지 이동마다
 // 세면 숫자가 부풀려져 홍보 효과를 못 읽는다. 날짜가 바뀌면 다시 한 번 센다.
+//
+// ⚠️ **날짜는 반드시 한국시간으로 끊는다.** 예전엔 여기만 UTC였다(2026-08-07 발견).
+//    서버는 방문을 한국시간 칸에 담는데 화면은 UTC로 "오늘 이미 셌다"를 기억하니,
+//    UTC 날짜가 넘어가는 **한국시간 오전 9시**까지 두 쪽의 "오늘"이 달랐다.
+//    저녁에 왔던 사람이 **자정~오전 9시**에 다시 오면 서버에는 새 날인데 화면이
+//    안 보내서, 그 시간대 재방문이 통째로 빠졌다.
 export function trackVisit(): void {
   if (trackingOff()) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = kstDateStr();
   const key = 'pokegre_visit_marked';
   try {
     if (localStorage.getItem(key) === today) return;
