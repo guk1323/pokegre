@@ -2418,6 +2418,10 @@ interface RawPriceTrackerCard {
       string,
       { price?: number; soldDate?: string; url?: string; listingType?: string; bestOfferAccepted?: boolean }[]
     >
+    // 요즘 얼마나 자주 팔리는지. 값이 진짜인지, 팔고 싶을 때 팔 수 있는지를 가른다 —
+    // "낙찰 202건"은 다 합친 숫자라 1년 전에 몰려 팔린 카드와 지금도 잘 나가는 카드가
+    // 똑같아 보인다. 낙찰 있는 카드의 78%에 값이 있다(2026-08-07 실측).
+    salesVelocity?: { dailyAverage?: number; weeklyAverage?: number; monthlyTotal?: number }
     totalSales?: number
     // 등급별 × 날짜별 낙찰 평균가. { psa10: { "2026-05-05": { average: 99.99 } } }
     priceHistory?: Record<string, Record<string, { average?: number } | null>>
@@ -2436,6 +2440,8 @@ interface ShapedEbayCard {
   cardNumber: string | null
   imageUrl: string
   totalSales: number
+  // 최근 한 달 낙찰 건수. 모르면 null(화면에서 자동으로 숨김).
+  monthlySales: number | null
   // TCGplayer 미국 마켓 시세(미감정 카드). 없으면 null.
   tcgplayer: {
     market: number
@@ -2641,6 +2647,8 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
         cardNumber: card.cardNumber ?? null,
         imageUrl: card.imageCdnUrl400 ?? card.imageCdnUrl200 ?? '',
         totalSales: card.ebay?.totalSales ?? 0,
+        monthlySales:
+          (card.ebay?.salesVelocity?.monthlyTotal ?? 0) > 0 ? (card.ebay?.salesVelocity?.monthlyTotal ?? null) : null,
         tcgplayer,
         grades: Object.entries(card.ebay?.salesByGrade ?? {})
           .map(([grade, stat]) => ({

@@ -75,6 +75,8 @@ export interface EbayCard {
   cardNumber: string | null;
   imageUrl: string;
   totalSales: number;
+  // 최근 한 달 낙찰 건수. 없으면 null(옛 캐시 응답 대비 옵션).
+  monthlySales?: number | null;
   // 값이 있는 카드에만 붙는다(없으면 null → 화면에서 자동으로 숨김).
   tcgplayer: TcgPlayerPrice | null;
   grades: EbayGradeStat[];

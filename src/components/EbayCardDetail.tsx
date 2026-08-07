@@ -37,6 +37,10 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
       <p className="text-xs text-neutral-400 mb-1">
         {card.setName}
         {card.cardNumber ? ` · ${card.cardNumber}` : ''} · 낙찰 {card.totalSales.toLocaleString()}건
+        {/* ⚠️ 위 "낙찰 202건"은 다 합친 숫자다. 1년 전에 몰려 팔리고 지금은 안 나가는
+            카드와, 지금도 꾸준한 카드가 똑같아 보인다. 최근 한 달을 같이 적으면
+            "팔고 싶을 때 팔리는 카드인가"를 알 수 있다. 값이 없으면 안 띄운다. */}
+        {card.monthlySales ? ` · 최근 한 달 ${card.monthlySales.toLocaleString()}건` : ''}
       </p>
       {titleReported ? (
         <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사합니다. 이름을 고치겠습니다.</p>
