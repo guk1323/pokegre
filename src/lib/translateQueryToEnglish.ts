@@ -404,6 +404,18 @@ export function translateSearchQueryToEnglish(
 ): string {
   let trimmed = query.trim();
   if (!trimmed) return trimmed;
+  // ⚠️ **전각 부호를 보통 부호로 먼저 바꾼다.** 카드 이름에는 전각이 섞여 있고
+  //    ("ナツメ＆ハチク" → "초련＆담죽"), 사람들은 화면에 보이는 이름을 그대로
+  //    복사해 붙여 넣는다. 그런데 사전은 보통 부호로 적혀 있어 **한 글자 때문에
+  //    통째로 번역이 실패**했다 — "초련＆담죽"은 그대로 남고 "초련&담죽"만
+  //    "Sabrina & Brycen"이 됐다(2026-08-07 확인).
+  trimmed = trimmed
+    .replace(/＆/g, '&')
+    .replace(/！/g, '!')
+    .replace(/？/g, '?')
+    .replace(/：/g, ':')
+    .replace(/（/g, '(')
+    .replace(/）/g, ')');
   // 사람들이 치는 표기를 공식 표기로 먼저 고친다. 아래 "이름이 통째로 일치하나" 검사보다
   // 앞이어야 한다 — "이슬이"를 고쳐 놔야 "이슬"로 통째 일치가 잡힌다.
   for (const [typed, official] of KO_SEARCH_ALIASES) {
