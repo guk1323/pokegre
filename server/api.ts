@@ -3899,7 +3899,13 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
   // 팝수만 볼 건데 시세까지 받아 올 이유가 없다.
   // 한 번에 받을 카드 수. 이름 하나에 카드가 수십 장인 포켓몬이 많아(개굴닌자 71장)
   // 넉넉히 받는다. 장당 1크레딧이고 캐시에 6시간 담긴다.
-  const CARD_FIND_LIMIT = 100
+  // PPT는 limit을 아무리 크게 줘도 **한 번에 200행까지만** 준다. 그 최대치를 쓴다.
+  // 100이던 것을 올렸다 — "피카츄"가 딱 100장으로 잘려 화면에 "카드 100장을
+  // 찾았습니다"라고 적히고 있었다(2026-08-07 확인). 실제로는 더 많다.
+  // ⚠️ 200을 넘는 이름은 여전히 잘린다. 잘렸는지를 화면에 알려 줘야 한다(capped).
+  //    값이 높은 순으로 받으므로 잘리면 **싼 카드가 안 보인다** — "다 나온다"고
+  //    믿게 두면 안 된다.
+  const CARD_FIND_LIMIT = 200
   const 찾기캐시 = new TtlCache<string>(6 * 60 * 60 * 1000, 500)
   app.use('/api/local/card-find', async (req, res) => {
     const q = new URL(req.url ?? '', 'http://x').searchParams
@@ -3959,7 +3965,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
         rarity: String(c.rarity ?? ''),
         imageUrl: String(c.imageCdnUrl200 ?? c.imageUrl ?? ''),
       }))
-      const body = JSON.stringify({ cards, language: 판 })
+      const body = JSON.stringify({ cards, language: 판, capped: cards.length >= CARD_FIND_LIMIT })
       찾기캐시.set(열쇠, body)
       res.statusCode = 200
       res.end(body)

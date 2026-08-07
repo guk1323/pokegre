@@ -57,6 +57,8 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   const [판, set판] = useState<'japanese' | 'english'>('japanese');
   const [찾는중, set찾는중] = useState(false);
   const [결과, set결과] = useState<찾은카드[] | null>(null);
+  // 저쪽이 주는 최대치에 걸려 잘렸나(잘리면 값이 낮은 카드가 안 온다).
+  const [잘림, set잘림] = useState(false);
   const [고른것, set고른것] = useState<찾은카드 | null>(null);
   const [자료, set자료] = useState<상세 | null>(null);
   const [자료받는중, set자료받는중] = useState(false);
@@ -97,6 +99,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     set찾는중(true);
     set오류(null);
     set결과(null);
+    set잘림(false);
     set고른것(null);
     set자료(null);
     // ⚠️ 저쪽(PPT)은 **영문 이름만 알아듣는다**. 한글로 치면 0건이 된다
@@ -126,8 +129,9 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         if (!r.ok) throw new Error(r.status === 429 ? '오늘 조회량을 다 썼습니다.' : '찾지 못했습니다.');
         return r.json();
       })
-      .then((j: { cards: 찾은카드[] }) => {
+      .then((j: { cards: 찾은카드[]; capped?: boolean }) => {
         set결과(j.cards ?? []);
+        set잘림(Boolean(j.capped));
         set찾는중(false);
         trackEvent('population_search');
       })
@@ -198,7 +202,15 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
             <p className="py-10 text-center text-sm text-neutral-400">'{말.trim()}'로 찾은 카드가 없습니다.</p>
           ) : (
             <>
-            <p className="mb-1.5 text-xs text-neutral-500">카드 {결과.length}장을 찾았습니다. 누르면 등급표를 봅니다.</p>
+            {/* ⚠️ 저쪽이 한 번에 주는 최대치(200장)에 걸리면 **그게 전부가 아니다.**
+                값이 높은 순으로 받으므로 잘린 쪽은 싼 카드다. "N장을 찾았습니다"라고만
+                적으면 그게 전종인 줄 알게 된다(2026-08-07 점검에서 확인 — 피카츄가
+                딱 100장으로 잘려 있었다). */}
+            <p className="mb-1.5 text-xs text-neutral-500">
+              {잘림
+                ? `이름에 맞는 카드가 많아 값이 높은 ${결과.length}장만 보여 드립니다. 이름을 더 자세히 치면 좁혀집니다.`
+                : `카드 ${결과.length}장을 찾았습니다. 누르면 등급표를 봅니다.`}
+            </p>
             <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200">
               {결과.map((c) => (
                 <li key={c.tcgPlayerId}>
