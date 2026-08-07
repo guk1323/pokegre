@@ -921,7 +921,7 @@ function App() {
     //    홈 화면이 됐다(2026-08-07 운영자 제보). 위 주석에 'PPT가 tcgPlayerId 단건
     //    조회를 안 받는다'고 적혀 있었는데 **받는다** — 그걸로 이름을 알아내
     //    예전 길(이름으로 검색 → 번호가 같은 카드를 고름)을 그대로 태운다.
-    void fetchCardNameById(id)
+    void fetchCardNameById(id, kind === 'e' ? 'ebay' : 'tcgplayer')
       .then((찾음) => {
         if (!찾음) {
           setRestoringShare(false);

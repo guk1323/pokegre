@@ -158,6 +158,9 @@ function rankByNameMatch<T extends { nameEn?: string; name: string }>(cards: T[]
  */
 export async function fetchCardNameById(
   tcgPlayerId: string,
+  // 주소가 `/e/`면 'ebay', `/t/`면 'tcgplayer'. **이미 아는 정보라 먼저 물어본다** —
+  // 안 주면 네 번 다 두드리게 되어 헛걸음이 생긴다.
+  먼저?: 'ebay' | 'tcgplayer',
 ): Promise<{ query: string; edition: CardEdition } | null> {
   // ⚠️ **판(일본/북미) × 소스(이베이/TCGplayer) 네 가지를 다 물어봐야 한다.**
   //    서버는 `have`에 따라 카드를 거른다 — 기본값(이베이)은 **낙찰 기록이 있는 카드만**
@@ -166,12 +169,10 @@ export async function fetchCardNameById(
   //    (2026-08-07 발견: /t/611448 · /t/614026이 그랬다. 우리 표본에서 이베이 낙찰이
   //    없는 카드가 절반쯤이라, 공유 링크 상당수가 이렇게 열리지 않았다).
   //    여기서 필요한 건 **이름 한 줄뿐**이라 어느 쪽에서 찾든 상관없다.
-  const 물을것 = [
-    { language: 'english', have: 'ebay' },
-    { language: 'english', have: 'tcgplayer' },
-    { language: 'japanese', have: 'ebay' },
-    { language: 'japanese', have: 'tcgplayer' },
-  ] as const;
+  const 소스: ('ebay' | 'tcgplayer')[] =
+    먼저 === 'tcgplayer' ? ['tcgplayer', 'ebay'] : ['ebay', 'tcgplayer'];
+  const 물을것: { language: CardEdition; have: 'ebay' | 'tcgplayer' }[] = [];
+  for (const have of 소스) for (const language of ['english', 'japanese'] as const) 물을것.push({ language, have });
   for (const { language, have } of 물을것) {
     try {
       const p = new URLSearchParams({ language, tcgPlayerId, includeEbay: 'false', limit: '1', have });
