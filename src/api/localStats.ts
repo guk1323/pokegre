@@ -81,6 +81,9 @@ export type TrackedEvent =
   | 'card_miss'
   // 카드 화면에서 감정 수량이 실제로 보인 횟수(2026-08-07 추가).
   | 'population'
+  // 팝수 조회 화면(2026-08-07). search=카드를 찾은 횟수, detail=등급표를 실제로 본 횟수.
+  | 'population_search'
+  | 'population_detail'
   | 'share'
   | 'snkrdunk_search'
   | 'ebay_search'

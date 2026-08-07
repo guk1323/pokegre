@@ -62,8 +62,16 @@ export function GradedPopulation({ tcgPlayerId, edition }: { tcgPlayerId: string
   if (p.psa9 != null) 줄.push({ 이름: 'PSA 9', 값: `${p.psa9.toLocaleString()}장` });
   줄.push({ 이름: '전체', 값: `${p.all.toLocaleString()}장` });
 
+  // 여기 요약은 PSA 10·9·전체 셋뿐이다. 전체가 4,000장인데 10등급 2,000·9등급 1,000이면
+  // **나머지 1,000장이 어디 갔는지 알 수 없다**(사장님 지적 2026-08-07). 그래서 눌러서
+  // 전 등급표로 갈 수 있게 한다. 등급표는 볼 때 받아 오므로 여기서는 크레딧이 안 든다.
+  const 자세히 = `/population?id=${encodeURIComponent(tcgPlayerId)}${edition ? `&lang=${edition}` : ''}`;
+
   return (
-    <div className="mt-3 rounded-lg border border-neutral-200 px-4 py-3">
+    <a
+      href={자세히}
+      className="mt-3 block rounded-lg border border-neutral-200 px-4 py-3 hover:border-neutral-300 hover:bg-neutral-50"
+    >
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-semibold text-neutral-700">감정 수량</p>
         {p.gem != null && <p className="text-[11px] text-neutral-400">10등급 비율 {p.gem}%</p>}
@@ -81,6 +89,7 @@ export function GradedPopulation({ tcgPlayerId, edition }: { tcgPlayerId: string
           ? '감정된 카드가 매우 적습니다. 감정품 시세는 위 미감정 시세와 크게 다를 수 있습니다.'
           : '지금까지 감정 기관(PSA·BGS·CGC·SGC)이 매긴 등급의 장수입니다.'}
       </p>
-    </div>
+      <p className="mt-1.5 text-[11px] font-semibold text-neutral-600">눌러서 전체 등급 보기 →</p>
+    </a>
   );
 }

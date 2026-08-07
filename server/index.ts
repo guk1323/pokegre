@@ -488,6 +488,30 @@ app.get('/centering', (_req, res) => {
   res.set('Cache-Control', HTML_CACHE).send(html)
 })
 
+// ── 팝수 조회(/population) ────────────────────────────────────────────────
+//
+// 카드 상세의 "감정 수량"을 누르면 /population?id=… 로 온다. 주소를 그대로 복사해
+// 다시 들어와도 열려야 하므로 서버가 아는 주소여야 한다(App의 VIEW_PATH와 한 쌍).
+app.get('/population', (_req, res) => {
+  const title = '포켓몬 카드 감정 수량(팝수) 조회 | pokegre'
+  const desc =
+    'PSA·BGS·CGC·SGC가 이 카드에 매긴 등급이 각각 몇 장인지 전부 보여 드립니다. 10등급이 적을수록 구하기 어려운 카드입니다.'
+  const url = 'https://pokegre.com/population'
+  let html = TEMPLATE
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
+  html = setMeta(html, 'og:url', esc(url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+  const body =
+    '<div id="seo-fallback"><h1>포켓몬 카드 감정 수량(팝수) 조회</h1>' +
+    '<p>PSA·BGS·CGC·SGC가 지금까지 그 카드에 매긴 등급이 각각 몇 장인지 보여 드립니다. ' +
+    '반칸(9.5 등)까지 빠짐없이 나오고, 등급 없이 진품 확인만 받은 장수도 함께 나옵니다.</p>' +
+    '<p>미개봉 시세가 싸도 10등급이 몇 장 없는 카드는 값이 전혀 다릅니다. 감정을 맡기기 전에 가늠해 볼 수 있습니다.</p></div>'
+  html = html.replace('<body>', `<body>${body}`)
+  res.set('Cache-Control', HTML_CACHE).send(html)
+})
+
 // ── 카테고리 대문(/sets · /artists · /packsim · /community) ────────────────
 //
 // 왜 필요한가: 낱개 페이지(세트 371·작가 388)는 사이트맵에 다 들어 있는데, 그것들을

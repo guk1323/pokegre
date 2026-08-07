@@ -1807,7 +1807,7 @@ const ALLOWED_EVENTS = new Set([
   'card_found', 'card_miss',
   // 카드 화면에 감정 수량이 실제로 보인 횟수(2026-08-07). 통째로 받아 둔 것이라
   // 크레딧을 안 쓰지만, 얼마나 자주 쓸모가 있는지는 세어 봐야 안다.
-  'population',
+  'population', 'population_search', 'population_detail',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -3766,6 +3766,90 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
   const cache = new TtlCache<string>(PRICE_TRACKER_CACHE_TTL_MS, PRICE_TRACKER_MAX_ENTRIES)
   const allow = rateLimiter(PRICE_TRACKER_RATE_LIMIT, PRICE_TRACKER_RATE_WINDOW_MS)
 
+  // 팝수 조회 화면의 카드 찾기. **시세 검색과 달리 값을 안 받아서 1/3 값이다**
+  // (시세 검색은 includeHistory·includeEbay 때문에 장당 3크레딧, 여기는 1크레딧).
+  // 팝수만 볼 건데 시세까지 받아 올 이유가 없다.
+  const 찾기캐시 = new TtlCache<string>(6 * 60 * 60 * 1000, 500)
+  app.use('/api/local/card-find', async (req, res) => {
+    const q = new URL(req.url ?? '', 'http://x').searchParams
+    const 말 = q.get('search')?.trim() ?? ''
+    const 판 = q.get('lang') === 'english' ? 'english' : 'japanese'
+    res.setHeader('content-type', 'application/json')
+    if (말.length < 2) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'search required' }))
+      return
+    }
+    const 열쇠 = `${판}:${말.toLowerCase()}`
+    const 있음 = 찾기캐시.get(열쇠)
+    if (있음) {
+      res.statusCode = 200
+      res.end(있음)
+      return
+    }
+    if (!apiKey || !allow(req) || !pptGate().ok) {
+      res.statusCode = 503
+      res.end(JSON.stringify({ error: 'unavailable' }))
+      return
+    }
+    try {
+      const u = new URL(`${PRICE_TRACKER_ORIGIN}/cards`)
+      u.searchParams.set('search', 말)
+      u.searchParams.set('language', 판)
+      u.searchParams.set('limit', '12')
+      const r = await fetch(u, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(20_000) })
+      notePpt(r.status, r.headers)
+      if (!r.ok) {
+        res.statusCode = r.status === 429 ? 429 : 502
+        res.end(JSON.stringify({ error: 'upstream', status: r.status }))
+        return
+      }
+      const j = (await r.json()) as { data?: Record<string, unknown>[] }
+      const cards = (j.data ?? []).map((c) => ({
+        tcgPlayerId: String(c.tcgPlayerId ?? ''),
+        name: String(c.name ?? ''),
+        setName: String(c.setName ?? ''),
+        cardNumber: String(c.cardNumber ?? ''),
+        rarity: String(c.rarity ?? ''),
+        imageUrl: String(c.imageCdnUrl200 ?? c.imageUrl ?? ''),
+      }))
+      const body = JSON.stringify({ cards, language: 판 })
+      찾기캐시.set(열쇠, body)
+      res.statusCode = 200
+      res.end(body)
+    } catch {
+      res.statusCode = 502
+      res.end(JSON.stringify({ error: 'upstream' }))
+    }
+  })
+
+  // 등급표 전부. 요약은 통째로 받아 둔 것에 있지만 **등급 하나하나는 여기서 받는다**
+  // (메모리가 512MB뿐이라 전 카드 상세를 들고 있을 수 없다).
+  const 상세캐시 = new TtlCache<string>(POP_DETAIL_TTL_MS, POP_DETAIL_MAX)
+  app.use('/api/local/population-detail', async (req, res) => {
+    const q = new URL(req.url ?? '', 'http://x').searchParams
+    const id = q.get('id')?.trim() ?? ''
+    const 판 = q.get('lang')?.trim() || undefined
+    res.setHeader('content-type', 'application/json')
+    if (!id) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'id required' }))
+      return
+    }
+    const 열쇠 = `${id}:${판 ?? ''}`
+    const 있음 = 상세캐시.get(열쇠)
+    if (있음) {
+      res.statusCode = 200
+      res.end(있음)
+      return
+    }
+    const d = await fetchPopulationDetail(apiKey, id, 판)
+    const body = JSON.stringify({ detail: d })
+    if (d) 상세캐시.set(열쇠, body)
+    res.statusCode = 200
+    res.end(body)
+  })
+
   // 감정 수량 · 등급별 낙찰. 통째로 받아 둔 것이라 **크레딧을 쓰지 않는다**.
   // 카드 화면이 이미 아는 tcgPlayerId로 바로 찾는다.
   app.use('/api/local/card-extra', async (req, res) => {
@@ -4649,10 +4733,21 @@ const CSV_EXPORT_URL = `${PRICE_TRACKER_ORIGIN}/export`
 // 통째 받기는 **하루 2회가 전부**다(종류를 나눠 세지 않는다 — 2026-08-07 확인:
 // type=ebay·population 모두 같은 x-export-downloads-remaining을 보고 429가 났다).
 // 그래서 종류마다 "얼마나 자주 받아야 하는지"를 정해 두고 급한 것부터 쓴다.
-//   cards      매일  — 시세는 매일 바뀐다
-//   ebay       사흘  — 등급별 낙찰은 천천히 쌓인다
-//   population 이레  — 감정 수량은 더 천천히 바뀐다
-const EXPORT_EVERY_DAYS: Record<string, number> = { cards: 1, ebay: 3, population: 7 }
+//   cards      매일  — 시세는 매일 바뀐다. 이걸로 세트 331개가 한 번에 찬다
+//   population 사흘  — 감정 수량. 감정은 몇 주 걸려서 하루 이틀엔 안 바뀐다
+//   ebay       나흘  — 등급별 낙찰. 천천히 쌓인다
+//
+// 앞으로 넣을 것(2026-08-07 확정, 아직 읽어 들이는 코드가 없다):
+//   printings  매일  — **cards의 열을 전부 담고** 상태별(민트·플레이드…) 시세가 더 붙는다.
+//                      바꾸면 cards 자리가 통째로 뜬다. 다만 **한 카드가 인쇄별로 여러 줄**이라
+//                      지금 파서가 그대로면 값이 섞인다(같은 이름 두 줄을 다 기본판으로 보고
+//                      싼 쪽을 고른다). 실물 한 번 받아 보고 바꿀 것.
+//   sealed     이레  — 미개봉 팩·박스. 일본판도 있다(확인함).
+//
+// 시세가 매일 한 칸을 쓰고 **한 칸이 남는다**. 남는 칸을 팝수와 등급별 낙찰이
+// 번갈아 쓴다. 통째로 받으면 크레딧이 0이라, 그 칸을 놀리고 카드마다 2크레딧씩
+// 쓰는 건 손해다(2026-08-07 사장님 지적으로 되돌림).
+const EXPORT_EVERY_DAYS: Record<string, number> = { cards: 1, population: 3, ebay: 4 }
 const EXPORT_DAILY_MAX = 2
 
 /** 그 종류를 오늘 받아야 하는가(마지막에 받은 날로부터 정해 둔 날수가 지났는가). */
@@ -4930,6 +5025,26 @@ let popLiveSpent = 0
 let popLiveDay = ''
 const popLiveSpentToday = () => (popLiveDay === utcDay() ? popLiveSpent : 0)
 
+// ── 팝수 조회 화면이 쓰는 "자세히" ─────────────────────────────────────────
+//
+// ⚠️ **전 카드의 등급별 상세를 메모리에 들고 있으면 안 된다.** 기계가 512MB뿐인데
+//    카드 58,000장 × 감정기관 4곳 × 등급 20여 칸이라 수십 MB짜리 객체가 된다.
+//    그래서 요약(전체·PSA 10·PSA 9)만 통째로 들고, **자세한 등급표는 볼 때 받는다**.
+//    한 장에 2크레딧이고, 사람이 일부러 찾아본 카드에만 나가므로 낭비가 없다.
+const POP_DETAIL_TTL_MS = 12 * 60 * 60 * 1000
+const POP_DETAIL_MAX = 500
+interface PopGrader {
+  total: number
+  gem?: number
+  g: Record<string, number>
+}
+interface PopDetail {
+  all: number
+  gems?: number
+  byGrader: Record<string, PopGrader>
+  updatedAt?: string
+}
+
 /** 한 판(일본판/북미판)만 물어본다. 2크레딧. */
 async function 감정수량한판(apiKey: string, id: string, 판: 'japanese' | 'english'): Promise<PopEntry | null> {
   const r = await fetch(
@@ -4991,6 +5106,55 @@ async function fetchPopulationLive(apiKey: string, id: string, 판?: string): Pr
   }
 }
 
+/** 등급표 전부. 라이브로만 받는다(위 설명 참고). 못 받으면 null. */
+async function fetchPopulationDetail(apiKey: string, id: string, 판?: string): Promise<PopDetail | null> {
+  if (!apiKey || !id) return null
+  const 물을것: ('japanese' | 'english')[] =
+    판 === 'japanese' ? ['japanese'] : 판 === 'english' ? ['english'] : ['japanese', 'english']
+  const 남음 = pptLeftNow()
+  if (Number.isFinite(남음) && 남음 - 2 * 물을것.length < PPT_KEEP_FOR_VISITORS) return null
+  if (!pptGate().ok) return null
+  for (const p of 물을것) {
+    try {
+      const r = await fetch(
+        `${PRICE_TRACKER_ORIGIN}/population?tcgPlayerId=${encodeURIComponent(id)}&language=${p}`,
+        { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15_000) },
+      )
+      notePpt(r.status, r.headers)
+      if (!r.ok) continue
+      const j = (await r.json()) as { data?: unknown }
+      const d = (Array.isArray(j.data) ? j.data[0] : j.data) as Record<string, unknown> | null | undefined
+      const 전체 = Number(d?.totalPopulation) || 0
+      if (!d || !(전체 > 0)) continue
+      const byGrader: Record<string, PopGrader> = {}
+      const 원본 = (d.populationByGrader ?? {}) as Record<string, Record<string, number>>
+      for (const [기관, v] of Object.entries(원본)) {
+        // 0인 칸은 버린다 — 등급 20여 개 중 대부분이 0이라, 그대로 두면 표가
+        // 빈칸으로 뒤덮여 정작 값이 있는 등급이 안 보인다.
+        const g: Record<string, number> = {}
+        for (const [칸, n] of Object.entries(v)) {
+          if (칸 === 'totalPopulation' || 칸 === 'gemRate') continue
+          if (typeof n === 'number' && n > 0) g[칸] = n
+        }
+        byGrader[기관] = {
+          total: Number(v.totalPopulation) || 0,
+          ...(Number(v.gemRate) > 0 ? { gem: Math.round(Number(v.gemRate) * 10) / 10 } : {}),
+          g,
+        }
+      }
+      return {
+        all: 전체,
+        ...(Number(d.totalGems) > 0 ? { gems: Number(d.totalGems) } : {}),
+        byGrader,
+        ...(typeof d.updatedAt === 'string' ? { updatedAt: d.updatedAt } : {}),
+      }
+    } catch {
+      /* 다음 판으로 */
+    }
+  }
+  return null
+}
+
 async function saveJsonMap(file: string, m: Map<string, unknown>) {
   try {
     await mkdir(path.dirname(file), { recursive: true })
@@ -5029,17 +5193,17 @@ async function runDailyExports(apiKey: string) {
   }
   if (쓴칸 >= EXPORT_DAILY_MAX) return
   // 남는 칸은 더 오래 묵은 쪽에 준다.
-  // ⚠️ 순서가 [population, ebay]인 게 중요하다. 둘 다 **한 번도 안 받았을 때**는 묵은
-  //    날이 같아서(빈칸) 앞에 적힌 쪽이 먼저 간다. 감정 수량이 먼저여야 한다 — 등급별
-  //    낙찰은 검색할 때마다 이미 실시간으로 받고 있어서 새로 생기는 게 없지만, 감정
-  //    수량은 지금 화면에 아예 없는 정보다.
+  // ⚠️ 순서가 [population, ebay]인 게 중요하다. 둘 다 한 번도 안 받았으면 묵은 날이
+  //    같아서(빈칸) 앞에 적힌 쪽이 먼저 간다. 감정 수량이 먼저여야 한다 — 등급별
+  //    낙찰은 검색할 때 실시간으로도 받고 있지만, 감정 수량은 통째로 받아 두지 않으면
+  //    카드를 열 때마다 2크레딧씩 나간다.
   const 밀린것 = (['population', 'ebay'] as const)
     .filter((t) => exportDue(t))
     .sort((a, b) => (exportDoneDay[a] ?? '').localeCompare(exportDoneDay[b] ?? ''))
   const 고른것 = 밀린것[0]
   if (!고른것) return
-  if (고른것 === 'ebay') await loadEbayGradesFromCsv(apiKey)
-  else await loadPopulationFromCsv(apiKey)
+  if (고른것 === 'population') await loadPopulationFromCsv(apiKey)
+  else await loadEbayGradesFromCsv(apiKey)
 }
 
 // 한 번 실패한 세트를 얼마나 두었다 다시 받아 볼지.

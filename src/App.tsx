@@ -76,6 +76,7 @@ const PackSim = lazy(() => import('./components/PackSim').then((m) => ({ default
 const SetsView = lazy(() => import('./components/SetsView').then((m) => ({ default: m.SetsView })));
 const TitleFeedbackList = lazy(() => import('./components/TitleFeedbackList').then((m) => ({ default: m.TitleFeedbackList })));
 const CenteringTool = lazy(() => import('./components/CenteringTool').then((m) => ({ default: m.CenteringTool })));
+const PopulationView = lazy(() => import('./components/PopulationView').then((m) => ({ default: m.PopulationView })));
 const ArtistsView = lazy(() => import('./components/ArtistsView').then((m) => ({ default: m.ArtistsView })));
 const PokedexView = lazy(() => import('./components/PokedexView').then((m) => ({ default: m.PokedexView })));
 import { DetailSheet } from './components/DetailSheet';
@@ -92,7 +93,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'pokedex' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'pokedex' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea' | 'population';
 
 // 화면 → 주소. 카테고리를 누르면 주소창도 같이 바뀌게 한다(운영자 지적 2026-08-05 —
 // 카테고리를 옮겨 다녀도 주소가 pokegre.com 그대로라 링크를 복사해 줄 수가 없었다).
@@ -106,6 +107,7 @@ const VIEW_PATH: Partial<Record<MainView, string>> = {
   artists: '/artists',
   pokedex: '/pokedex',
   centering: '/centering',
+  population: '/population',
   packsim: '/packsim',
   community: '/community',
 };
@@ -129,6 +131,7 @@ const VIEW_TITLE: Partial<Record<MainView, string>> = {
   artists: '포켓몬 카드 일러스트레이터 | pokegre',
   pokedex: '포켓몬·트레이너별 카드 목록 | pokegre',
   centering: '포켓몬 카드 센터링 측정 | pokegre',
+  population: '포켓몬 카드 감정 수량(팝수) 조회 | pokegre',
   packsim: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
   community: '커뮤니티 | pokegre',
   mypage: '마이페이지 | pokegre',
@@ -158,6 +161,7 @@ function viewFromPath(p: string): MainView | null {
   if (/^\/(set|series)\//.test(p) || /^\/sets\/?$/.test(p)) return 'sets';
   if (/^\/pokedex\/?$/.test(p)) return 'pokedex';
   if (/^\/centering\/?$/.test(p)) return 'centering';
+  if (/^\/population\/?$/.test(p)) return 'population';
   if (/^\/packsim\/?$/.test(p)) return 'packsim';
   if (/^\/community\/?$/.test(p)) return 'community';
   return null;
@@ -242,7 +246,7 @@ function App() {
     () => viewFromPath(window.location.pathname) ?? savedNav().view ?? 'cards',
   );
   // 상단 드롭다운(더보기·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
-  const [openMenu, setOpenMenu] = useState<'more' | 'admin' | null>(null);
+  const [openMenu, setOpenMenu] = useState<'find' | 'tools' | 'admin' | null>(null);
   const [source, setSource] = useState<PriceSource>(() => savedNav().source ?? 'snkrdunk');
   const [query, setQuery] = useState(() => savedNav().query ?? '');
   // 방금 스캔한 결과. "이 카드가 아닙니다" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
@@ -1921,7 +1925,7 @@ function App() {
               )}
               {/* 좁은 화면에서 메뉴 글자가 단어 중간에 꺾이지 않게, 버튼 단위로만 줄바꿈한다.
                   relative z-50 으로 버튼이 백드롭 위에 오게 해 클릭이 통한다. */}
-              <nav className="relative z-50 flex flex-wrap items-center gap-2">
+              <nav className="relative z-50 flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {/* ⚠️ navigate만 부르면 **이미 시세 화면일 때 아무 일도 안 한다**. 공유
                     링크로 들어와 카드를 보다가 "홈"을 눌러도 그 카드에 갇혔다(점검 중
                     발견 2026-08-06). 검색 중에 눌러도 마찬가지였다. 로고(pokegre)와
@@ -1929,57 +1933,79 @@ function App() {
                 <button
                   type="button"
                   onClick={goHome}
-                  className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-3 py-2.5 text-sm font-semibold sm:px-4 ${
                     view === 'cards' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
                   홈
                 </button>
-                {/* 더보기: "카드를 다른 각도로 보는" 도구 묶음(작가별·세트별 목록, 센터링 측정).
-                    앞으로 도구가 늘어도 여기로만 쌓인다. */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setOpenMenu(openMenu === 'more' ? null : 'more')}
-                    className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
-                      view === 'artists' || view === 'sets' || view === 'centering' || view === 'packsim'
-                        ? 'bg-black text-white'
-                        : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
-                  >
-                    카드 도구 <span className="text-[10px]">▾</span>
-                  </button>
-                  {openMenu === 'more' && (
-                    <div className="absolute right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
-                      {([
-                        { v: 'pokedex', label: '포켓몬·트레이너', beta: true },
-                        { v: 'artists', label: '작가별 목록' },
-                        { v: 'sets', label: '세트별 목록', beta: true },
-                        { v: 'centering', label: '센터링 측정', beta: true },
-                        { v: 'packsim', label: '오늘의 상점' },
-                      ] as { v: MainView; label: string; beta?: boolean }[]).map((it) => (
-                        <button
-                          key={it.v}
-                          type="button"
-                          onClick={() => {
-                            navigate({ view: it.v });
-                            setOpenMenu(null);
-                          }}
-                          className={`block w-full px-4 py-2 text-left text-sm font-semibold ${
-                            view === it.v ? 'text-black' : 'text-neutral-600 hover:bg-neutral-50'
-                          }`}
-                        >
-                          {it.label}
-                          {it.beta && <span className="ml-1 text-[10px] text-amber-500">베타</span>}
-                        </button>
-                      ))}
+                {/* 상단은 최상위 5개다(홈·찾아보기·도구·커뮤니티·프로필 아이콘).
+                    ⚠️ 핸드폰(375px)에서 담는 곳이 334px뿐이라 **글자 메뉴 다섯 개는
+                       안 들어간다**(실측: 「마이페이지」를 글자로 두면 377px로 43px
+                       넘친다). 마이페이지를 아이콘으로 줄여 296~321px에 맞췄다.
+                       메뉴를 더 늘리려면 폭부터 재고 늘려야 한다.
+                    묶는 기준: **찾아보기**는 카드를 어떤 기준으로 찾아 들어가는 길,
+                    **도구**는 카드를 재고 따져 보는 것. 오늘의 상점은 게임이라 여기
+                    두지 않고 홈 배너를 입구로 쓴다. */}
+                {([
+                  {
+                    key: 'find' as const,
+                    label: '찾아보기',
+                    items: [
+                      { v: 'pokedex', label: '포켓몬·트레이너', beta: true },
+                      { v: 'sets', label: '세트별 목록', beta: true },
+                      { v: 'artists', label: '작가별 목록' },
+                    ],
+                  },
+                  {
+                    key: 'tools' as const,
+                    label: '도구',
+                    items: [
+                      { v: 'population', label: '팝수 조회', beta: true },
+                      { v: 'centering', label: '센터링 측정', beta: true },
+                    ],
+                  },
+                ] as { key: 'find' | 'tools'; label: string; items: { v: MainView; label: string; beta?: boolean }[] }[]).map(
+                  (그룹) => (
+                    <div className="relative" key={그룹.key}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenMenu(openMenu === 그룹.key ? null : 그룹.key)}
+                        className={`whitespace-nowrap rounded-full px-3 py-2.5 text-sm font-semibold sm:px-4 ${
+                          그룹.items.some((it) => it.v === view)
+                            ? 'bg-black text-white'
+                            : 'text-neutral-600 hover:bg-neutral-100'
+                        }`}
+                      >
+                        {그룹.label} <span className="text-[10px]">▾</span>
+                      </button>
+                      {openMenu === 그룹.key && (
+                        <div className="absolute right-0 z-50 mt-1 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
+                          {그룹.items.map((it) => (
+                            <button
+                              key={it.v}
+                              type="button"
+                              onClick={() => {
+                                navigate({ view: it.v });
+                                setOpenMenu(null);
+                              }}
+                              className={`block w-full px-4 py-2 text-left text-sm font-semibold ${
+                                view === it.v ? 'text-black' : 'text-neutral-600 hover:bg-neutral-50'
+                              }`}
+                            >
+                              {it.label}
+                              {it.beta && <span className="ml-1 text-[10px] text-amber-500">베타</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  ),
+                )}
                 <button
                   type="button"
                   onClick={() => navigate({ view: 'community' })}
-                  className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
+                  className={`whitespace-nowrap rounded-full px-3 py-2.5 text-sm font-semibold sm:px-4 ${
                     view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -1992,7 +2018,7 @@ function App() {
                     <button
                       type="button"
                       onClick={() => setOpenMenu(openMenu === 'admin' ? null : 'admin')}
-                      className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
+                      className={`whitespace-nowrap rounded-full px-3 py-2.5 text-sm font-semibold sm:px-4 ${
                         view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea'
                           ? 'bg-black text-white'
                           : 'text-neutral-600 hover:bg-neutral-100'
@@ -2028,14 +2054,36 @@ function App() {
                 )}
                 {/* 로그인 버튼을 헤더에 두면 공급자가 늘 때마다(네이버 등) 자리가 모자란다.
                     진입점을 마이페이지 한 곳으로 모으고, 헤더엔 상태만 드러낸다. */}
+                {/* ⚠️ 글자가 아니라 **아이콘**이다. 핸드폰(375px)에서 메뉴 담는 곳이
+                    334px뿐인데 「마이페이지」를 글자로 두면 다섯 개가 377px이 되어
+                    43px 넘친다(실측 2026-08-07). 아이콘이면 296~321px로 들어간다.
+                    닉네임을 글자로 보여 주던 것도 여기서 사라진다 — 대신 로그인하면
+                    닉네임 첫 글자를 동그라미에 넣어, 로그인했다는 것이 보이게 한다.
+                    ⚠️ 아이콘만 있으면 화면 읽기 프로그램에는 "버튼"으로만 읽힌다.
+                       aria-label·title을 꼭 남겨 둘 것. */}
                 <button
                   type="button"
                   onClick={() => navigate({ view: 'mypage' })}
-                  className={`whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold ${
+                  aria-label={loggedIn ? `마이페이지 (${nickname ?? '로그인됨'})` : '마이페이지'}
+                  title={loggedIn ? (nickname ?? '마이페이지') : '마이페이지'}
+                  className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-sm font-semibold ${
                     view === 'mypage' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
-                  {loggedIn ? (nickname ?? '마이페이지') : '마이페이지'}
+                  {loggedIn && nickname ? (
+                    <span
+                      className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${
+                        view === 'mypage' ? 'bg-white text-black' : 'bg-neutral-800 text-white'
+                      }`}
+                    >
+                      {[...nickname][0]}
+                    </span>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <circle cx="12" cy="8" r="3.5" />
+                      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" strokeLinecap="round" />
+                    </svg>
+                  )}
                 </button>
               </nav>
             </div>
@@ -2094,6 +2142,14 @@ function App() {
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (
             <CenteringTool onSearchByPhoto={searchByPhoto} />
+          ) : view === 'population' ? (
+            // 카드 상세의 "감정 수량"을 눌러 들어오면 ?id=…&lang=… 이 붙는다.
+            // 그때는 찾기 단계를 건너뛰고 그 카드 등급표를 바로 연다.
+            <PopulationView 처음카드={(() => {
+              const q = new URLSearchParams(window.location.search);
+              const id = q.get('id')?.trim();
+              return id ? { id, lang: q.get('lang') ?? undefined } : null;
+            })()} />
           ) : view === 'artists' ? (
             <ArtistsView onPickCard={카드로가기} />
             ) : view === 'pokedex' ? (
