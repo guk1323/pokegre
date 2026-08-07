@@ -42,6 +42,12 @@ const 사진영문 = (url: string) => {
   return m ? m[1].replace(/[_-]+/g, ' ').trim() : ''
 }
 
+// 사진 **파일 이름**이 틀린 것으로 확인된 카드. 그림 자체는 맞다.
+//  · ja-SM12a 181 — 파일 이름은 Deoxys-Espeon-GX인데, 내려받아 보면 그림에
+//    「ブラッキー&ダークライGX sm12a 181/173 SR」이 찍혀 있다. 스니커덩크도 같다.
+//    우리 이름이 맞으니 여기서 뺀다(2026-08-07 눈으로 확인).
+const 파일이름만틀림 = new Set(['ja-SM12a|181'])
+
 let 봄 = 0, 맞음 = 0
 const 어긋남: string[] = []
 for (const s of sidx) {
@@ -59,6 +65,7 @@ for (const s of sidx) {
     // 한쪽이라도 겹치면 같은 카드로 본다(태그팀은 한 마리만 적힌 표기도 있다).
     const 겹침 = [...이름몬].some((x) => 사진몬.has(x))
     if (겹침) { 맞음++; continue }
+    if (파일이름만틀림.has(`${s.slug}|${c.n}`)) { 맞음++; continue }
     어긋남.push(`${s.slug.padEnd(12)} ${String(c.n).padStart(4)}  이름 "${ko}"  ↔  사진 "${사진}"`)
   }
 }
