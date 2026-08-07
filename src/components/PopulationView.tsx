@@ -72,8 +72,8 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   const [좁힌레어도, set좁힌레어도] = useState('');
   // 뒤에 레어도를 쳤는데 받아 온 목록에 하나도 없을 때 그 코드(왜 전체가 나오는지 알린다).
   const [못찾은레어도, set못찾은레어도] = useState('');
-  // 처음 들어왔을 때 보여 줄 "많이 찾는 이름". 홈이 쓰는 인기 검색어를 그대로 쓴다.
-  const [많이찾는것, set많이찾는것] = useState<string[]>([]);
+  // 처음 들어왔을 때 보여 줄 **실제 카드**(홈의 신팩 힛카드를 그대로 쓴다).
+  const [맛보기, set맛보기] = useState<{ 세트: string; 카드: { n: string; 이름: string; img: string }[] }>({ 세트: '', 카드: [] });
   // 저쪽 세트 이름 → 우리 한글 이름. 결과가 오면 그때 한 번 만든다(공용 대조표).
   const [세트한글, set세트한글] = useState<Map<string, string>>(new Map());
   const [고른것, set고른것] = useState<찾은카드 | null>(null);
@@ -218,20 +218,23 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
   // ⚠️ **처음 화면이 비어 있으면 뭘 하는 자리인지 모른다.** 도감 화면들은 들어가자마자
   //    목록이 보이는데 여기만 검색칸 하나뿐이라 본문이 174px밖에 안 됐다(2026-08-08).
-  //    홈이 쓰는 인기 검색어를 그대로 눌러 볼 수 있게 둔다 — 새로 받는 게 아니라
-  //    이미 있는 것이고, 눌러야 조회가 나가므로 크레딧도 안 든다.
-  //    ⚠️ 번호가 섞인 검색어("Charizard 136")는 뺀다 — 팝수는 이름으로 찾는 자리다.
+  //    처음엔 글자 알약(인기 검색어)을 뒀는데 **아무 정보가 없어 밋밋했다** —
+  //    이름만 적힌 동그라미는 이 화면이 무엇을 해 주는지 하나도 안 알려 준다.
+  //    → **실제 카드 그림**을 보여 준다. 홈의 신팩 힛카드를 그대로 쓴다:
+  //      ① 이미 서버에 담겨 있어 **크레딧이 안 든다**
+  //      ② 값이 높은 카드라 **감정 수량이 실제로 궁금한 카드**들이다
+  //      ③ 홈과 같은 그림·같은 이름이라 사이트가 따로 놀지 않는다
   useEffect(() => {
     let 취소 = false;
-    void fetch('/api/local/popular-searches')
+    void fetch('/api/local/latest-hit-set')
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { items?: { term: string }[] } | null) => {
+      .then((j: { name?: string; cards?: { n: string; ko?: string; name?: string; img?: string }[] } | null) => {
         if (취소 || !j) return;
-        const 이름만 = (j.items ?? [])
-          .map((x) => x.term)
-          .filter((t) => t && !/\d/.test(t))
-          .slice(0, 8);
-        set많이찾는것(이름만);
+        const 카드 = (j.cards ?? [])
+          .filter((c) => c.img && (c.ko || c.name))
+          .map((c) => ({ n: String(c.n ?? ''), 이름: String(c.ko || c.name), img: String(c.img) }))
+          .slice(0, 6);
+        set맛보기({ 세트: String(j.name ?? ''), 카드 });
       })
       .catch(() => undefined);
     return () => {
@@ -341,21 +344,32 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
       {오류 && <p className="mt-3 text-sm text-amber-600">{오류}</p>}
 
-      {!결과 && !고른것 && !찾는중 && 많이찾는것.length > 0 && (
+      {!결과 && !고른것 && !찾는중 && 맛보기.카드.length > 0 && (
         <div className="mt-6">
-          <p className="mb-2 text-xs font-semibold text-neutral-500">많이 찾는 카드</p>
-          <div className="flex flex-wrap gap-2">
-            {많이찾는것.map((t) => (
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <p className="text-sm font-bold text-black">이런 카드의 팝수를 볼 수 있습니다</p>
+            {맛보기.세트 && <span className="shrink-0 text-[11px] text-neutral-400">{맛보기.세트}</span>}
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {맛보기.카드.map((c) => (
               <button
-                key={t}
+                key={`${c.n}-${c.이름}`}
                 type="button"
                 onClick={() => {
-                  set말(t);
-                  void 찾기실행(t, 판);
+                  set말(c.이름);
+                  void 찾기실행(c.이름, 판);
                 }}
-                className="rounded-full border border-neutral-200 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                className="group text-left"
               >
-                {t}
+                <div className="overflow-hidden rounded-lg bg-neutral-100">
+                  <CardImg
+                    src={c.img}
+                    alt={c.이름}
+                    className="aspect-[63/88] w-full object-contain transition group-hover:-translate-y-0.5"
+                  />
+                </div>
+                <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-tight text-neutral-800">{c.이름}</p>
+                <p className="text-[10px] text-neutral-400">{c.n}</p>
               </button>
             ))}
           </div>
