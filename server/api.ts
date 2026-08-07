@@ -5635,6 +5635,7 @@ async function warmPackPrices(apiKey: string) {
       if (!hasPrices(slug) && fillSpentToday() >= WARM_FILL_BUDGET) continue
       // 신선한 것과, 최근에 시도했다 실패한 것은 건너뛴다(위 packWarmDue 설명).
       if (!packWarmDue(packPriceCache.get(slug))) continue
+      // 통째로 받는다(fetchAllInSet). 안 되면 함수 안에서 알아서 나눠 받는다.
       await getSetPrices(slug, apiKey, { pages: 5, pauseMs: 5_000 })
       await savePackPriceFile()
       // 시세가 들어오면 그 세트의 힛카드가 통째로 바뀐다 — 레어도 순으로 보여주던 것이
@@ -5642,10 +5643,17 @@ async function warmPackPrices(apiKey: string) {
       // 받아 둔 적이 없어서 처음 여는 사람이 1.3초를 기다린다(2026-08-05 실측).
       // 시세를 받은 김에 바로 데운다. 여덟 장뿐이라 부담이 없다.
       await warmHitCardImgs?.(slug)
-      // ⚠️ 분당 한도는 크레딧이 아니라 **요청 수**다(응답 헤더 x-ratelimit-minute-limit).
-      //    Business로 올린 뒤 60 → 500이 됐다(2026-08-07 직접 확인). 1.5초면 분당 40번이라
-      //    한도의 10%도 안 쓰면서, 새 세트가 들어왔을 때 훨씬 빨리 채운다.
-      await new Promise((r) => setTimeout(r, 1_500))
+      // ⚠️ **분당 한도는 요청 수가 아니다.** 여기 "요청 수다"라고 적어 뒀던 게 틀렸다
+      //    (2026-08-07 실측으로 바로잡음). 받아 온 **장수 ÷ 10**만큼 나간다.
+      //        카드 1장짜리 요청      →  1
+      //        200장 페이지          → 20
+      //        484장 통째로(모아받기) → 30  (장수/10이지만 30에서 멈춘다)
+      //    한도는 분당 500이다. 1.5초로 두면 분당 40번인데, 세트 하나가 20~30이니
+      //    분당 800~1,200이 되어 **한도를 두 배 넘긴다**. "요청 수"로 잘못 알고
+      //    "한도의 10%"라고 적어 뒀던 것이다.
+      //    3초면 분당 20세트 × 25 ≈ 500 언저리라 여유가 있다. 통째로 받게 되면서
+      //    세트당 요청이 3번에서 1번으로 줄어, 실제로 채우는 속도는 더 빨라졌다.
+      await new Promise((r) => setTimeout(r, 3_000))
     }
   } finally {
     warming = false
@@ -5670,12 +5678,14 @@ async function warmPackPrices(apiKey: string) {
 // 처음엔 이걸 몰라서 세트의 앞번호 카드들이 통째로 잘렸다. 리자몽=6번이 그래서 빠졌다).
 const PPT_PAGE = 200
 
+type 저쪽카드 = { cardNumber?: string; name?: string; prices?: { market?: number } }
+
 async function fetchSetPage(
   setName: string,
   lang: string,
   apiKey: string,
   offset: number,
-): Promise<{ cardNumber?: string; name?: string; prices?: { market?: number } }[] | null> {
+): Promise<저쪽카드[] | null> {
   // 한도에 걸린 동안은 부르지 않는다. 뒤에서 도는 워밍이 5초마다 429를 쌓으면
   // 그것만으로 키가 정지된다.
   if (!pptGate().ok) return null
@@ -5688,12 +5698,79 @@ async function fetchSetPage(
   )
   notePpt(r.status, r.headers)
   if (!r.ok) return null
-  const j = (await r.json()) as { data?: { cardNumber?: string; name?: string; prices?: { market?: number } }[] }
+  const j = (await r.json()) as { data?: 저쪽카드[] }
   return Array.isArray(j.data) ? j.data : []
 }
 
+/**
+ * 세트 하나를 **한 번에** 받는다(fetchAllInSet).
+ *
+ * 왜 이게 나은가: 나눠 받으면 카드 한 장이 **분당 한도 1**을 먹어서, 484장짜리 세트
+ * 하나에 분당 484가 나간다(한도는 500). 그래서 페이지 사이에 1분씩 쉬어야 했다.
+ * 한 번에 받으면 **분당 30**만 먹는다 — 2026-08-07 실측:
+ *     새 분에 남은 한도 499 → SV4a(484장)를 통째로 받은 뒤 468 (30 씀)
+ * 문서의 "Math.ceil(장수/10), 최대 30"과 맞는다. **16배 아낀다.**
+ * 하루 크레딧은 그대로 장당 1이라 총량은 안 바뀐다 — 빨라지는 것뿐이다.
+ *
+ * ⚠️ 그래서 예산 계산(noteFillSpend)은 **장수 그대로** 세어야 한다. 분당 한도가
+ *    싸다고 하루 예산까지 싸진 게 아니다.
+ */
+async function fetchWholeSet(setName: string, lang: string, apiKey: string): Promise<저쪽카드[] | null> {
+  if (!pptGate().ok) return null
+  const r = await fetch(
+    `${PRICE_TRACKER_ORIGIN}/cards?language=${lang}&setName=${encodeURIComponent(setName)}&fetchAllInSet=true`,
+    {
+      // 세트 하나를 통째로 주므로 느릴 수 있다(878장짜리도 있다).
+      signal: AbortSignal.timeout(90_000),
+      headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` },
+    },
+  )
+  notePpt(r.status, r.headers)
+  if (!r.ok) return null
+  const j = (await r.json()) as { data?: 저쪽카드[] }
+  return Array.isArray(j.data) ? j.data : []
+}
+
+/**
+ * 받아 온 줄들을 번호별 시세로 담는다. 통째로 받든 나눠 받든 규칙이 같아야 한다 —
+ * 다르면 같은 카드가 받는 길에 따라 다른 값을 갖게 된다.
+ */
+function 담기(
+  list: 저쪽카드[],
+  prices: Record<string, number>,
+  names: Record<string, string>,
+  basePriced: Set<string>,
+): void {
+  for (const c of list) {
+    // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
+    const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
+    const num = stripZeros(rawNum.split('/')[0])
+    const market = c.prices?.market ?? 0
+    if (!num || market <= 0) continue
+    // 같은 번호가 "Machamp / Machamp (Poke Ball Pattern) / (Master Ball Pattern)"처럼
+    // 여러 줄로 온다. 팩에서 나오는 건 기본판이므로 괄호 없는 이름(기본판)을 우선하고,
+    // 기본판이 없을 때만 가장 싼 값을 쓴다. (덮어쓰기 순서에 맡겼더니 일반 괴력몬이
+    // 마스터볼 값 $18를 받았던 문제)
+    const nm = String(c.name ?? '')
+    const isBase = !nm.includes('(')
+    // 검색어로 쓸 영문 이름. PPT는 "Team Rocket's Mewtwo ex - 231/182"처럼 번호를
+    // 꼬리에 붙여 주므로 떼어 낸다. 기본판 이름을 우선한다.
+    if (nm && (isBase || !names[num])) names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
+    if (isBase) {
+      prices[num] = basePriced.has(num) ? Math.min(prices[num], market) : market
+      basePriced.add(num)
+    } else {
+      // 변형판은 별도 키로 저장(앨범의 미러/리버스 카드 시세용).
+      const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
+      if (vk) prices[num + vk] = Math.min(prices[num + vk] ?? Infinity, market)
+      else if (!basePriced.has(num)) prices[num] = Math.min(prices[num] ?? Infinity, market)
+    }
+  }
+}
+
 // pages: 최대 몇 페이지까지 받을지. pauseMs: 페이지 사이 쉬는 시간 — 분당 크레딧이
-// 500이고 페이지 하나가 200이라, 세 페이지째부터는 1분을 넘겨 받아야 한다(워밍 전용).
+// 500이고 페이지 하나가 200이라, 세 페이지째부터는 1분을 넘겨 받아야 한다.
+// ⚠️ 이제는 **먼저 통째로 받아 보고**(fetchWholeSet) 안 될 때만 이 길로 온다.
 async function getSetPrices(
   slug: string,
   apiKey: string,
@@ -5715,7 +5792,19 @@ async function getSetPrices(
     const names: Record<string, string> = {}
     const basePriced = new Set<string>() // 기본판 값을 이미 받은 번호
     let complete = false
-    for (let p = 0; p < pages; p++) {
+
+    // ① 먼저 **한 번에** 받아 본다(fetchAllInSet). 분당 한도를 16배 아낀다 — 위
+    //    fetchWholeSet 설명 참고. 되면 페이지를 나눌 이유가 없다.
+    //    ⚠️ 하루 예산은 여전히 장수만큼 나간다. 받아 온 장수를 그대로 센다.
+    const 통째 = await fetchWholeSet(setName, lang, apiKey)
+    if (통째 && 통째.length) {
+      noteFillSpend(통째.length)
+      담기(통째, prices, names, basePriced)
+      complete = true
+    }
+
+    // ② 통째로 못 받았을 때만 예전처럼 나눠 받는다(429거나 저쪽이 거절했을 때).
+    for (let p = 0; !complete && p < pages; p++) {
       // 방문자 몫은 페이지마다 다시 본다. 세트 단위로만 보면 검사를 통과한 뒤
       // 한 세트가 최대 5장(1,000크레딧)을 더 써서 그만큼 넘어선다.
       // ⚠️ 첫 장은 그냥 간다 — 여기서 멈추면 앞번호만 받고 만 partial이 되어
@@ -5740,31 +5829,7 @@ async function getSetPrices(
         }
         break
       }
-      for (const c of list) {
-        // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
-        const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
-        const num = stripZeros(rawNum.split('/')[0])
-        const market = c.prices?.market ?? 0
-        if (!num || market <= 0) continue
-        // 같은 번호가 "Machamp / Machamp (Poke Ball Pattern) / (Master Ball Pattern)"처럼
-        // 여러 줄로 온다. 팩에서 나오는 건 기본판이므로 괄호 없는 이름(기본판)을 우선하고,
-        // 기본판이 없을 때만 가장 싼 값을 쓴다. (덮어쓰기 순서에 맡겼더니 일반 괴력몬이
-        // 마스터볼 값 $18를 받았던 문제)
-        const nm = String(c.name ?? '')
-        const isBase = !nm.includes('(')
-        // 검색어로 쓸 영문 이름. PPT는 "Team Rocket's Mewtwo ex - 231/182"처럼 번호를
-        // 꼬리에 붙여 주므로 떼어 낸다. 기본판 이름을 우선한다.
-        if (nm && (isBase || !names[num])) names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
-        if (isBase) {
-          prices[num] = basePriced.has(num) ? Math.min(prices[num], market) : market
-          basePriced.add(num)
-        } else {
-          // 변형판은 별도 키로 저장(앨범의 미러/리버스 카드 시세용).
-          const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
-          if (vk) prices[num + vk] = Math.min(prices[num + vk] ?? Infinity, market)
-          else if (!basePriced.has(num)) prices[num] = Math.min(prices[num] ?? Infinity, market)
-        }
-      }
+      담기(list, prices, names, basePriced)
       if (list.length < PPT_PAGE) {
         complete = true // 덜 찬 페이지 = 마지막 페이지까지 다 받았다
         break
