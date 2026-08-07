@@ -2699,7 +2699,23 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
             maxPrice: stat.maxPrice ?? 0,
             marketTrend: stat.marketTrend ?? null,
             lastSaleDate: stat.lastSaleDate ?? null,
-            smartPrice: stat.smartMarketPrice?.price ?? null,
+            // ⚠️ **대표값이 실제 낙찰 범위를 벗어나면 안 쓴다.** 저쪽은 대표값에
+            //    15%를 깎는데(실측: 벗어난 값이 전부 정확히 최저가의 0.85배였다),
+            //    거래가 한두 건뿐인 등급에서는 그 결과가 **실제로 팔린 어떤 값보다도
+            //    낮아진다**. 등급칸 630개 중 85개(13%)가 그랬다(2026-08-07).
+            //        차리조드 V cgc10  대표 $23.8  ↔  실거래 $28~$289.99
+            //    "$23.8"을 보고 온 사람은 그 값에 살 수 있다고 믿는데 그런 매물이 없다.
+            //    낱개 낙찰을 화면에 붙이고 나서야 눈에 띈 문제다 — 전에는 숫자 하나뿐이라
+            //    틀린 줄도 몰랐다. 범위 밖이면 null을 주고, 화면은 중앙값으로 넘어간다
+            //    (중앙값은 실제 거래에서 뽑으므로 범위 안에 있는 것이 보장된다).
+            smartPrice: (() => {
+              const sp = stat.smartMarketPrice?.price ?? null
+              if (sp == null) return null
+              const lo = stat.minPrice ?? 0
+              const hi = stat.maxPrice ?? 0
+              if (lo > 0 && hi > 0 && (sp < lo || sp > hi)) return null
+              return sp
+            })(),
             confidence: stat.smartMarketPrice?.confidence ?? null,
             history: shapeGradeHistory(history[grade]),
             sales: (card.ebay?.soldListings?.[grade] ?? [])
