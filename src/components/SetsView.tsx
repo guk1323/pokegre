@@ -596,7 +596,7 @@ export function SetsView({
     <div className="mx-auto max-w-6xl">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-black">세트별 목록 <span className="align-middle text-[11px] font-semibold text-amber-500">베타</span></h2>
+          <h2 className="text-lg font-bold text-black">세트별 목록</h2>
           <p className="mt-1 text-xs text-neutral-400">발매 팩별로 수록 카드를 볼 수 있습니다. 일부 세트는 이미지·이름을 다듬는 중입니다.</p>
         </div>
         {index && index.length > 0 && (

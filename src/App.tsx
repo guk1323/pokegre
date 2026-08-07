@@ -1961,8 +1961,11 @@ function App() {
                     //       메뉴는 짧게, 들어가면 정확하게.
                     label: '도감',
                     items: [
-                      { v: 'pokedex', label: '포켓몬', beta: true },
-                      { v: 'sets', label: '세트', beta: true },
+                      // ⚠️ **베타 배지는 뗐다.** 넷 중 넷이 베타라 배지가 뜻을 잃었고,
+                      //    오히려 "아직 덜 됐나 보다" 싶어 안 누르게 만든다(2026-08-08).
+                      //    다시 붙일 일이 있으면 beta: true 한 줄이면 된다.
+                      { v: 'pokedex', label: '포켓몬' },
+                      { v: 'sets', label: '세트' },
                       { v: 'artists', label: '작가' },
                     ],
                   },
@@ -1970,11 +1973,11 @@ function App() {
                     key: 'tools' as const,
                     label: '도구',
                     items: [
-                      // ⚠️ "팝수"는 수집가끼리 쓰는 말이라 처음 온 사람은 못 알아본다.
-                      //    쉬운 말을 앞에 두고 아는 말을 괄호에 넣는다 — 화면 제목도
-                      //    이미 "감정 수량(팝수) 조회"다.
-                      { v: 'population', label: '감정 수량(팝수)', beta: true },
-                      { v: 'centering', label: '센터링 측정', beta: true },
+                      // ⚠️ 도감 쪽과 마찬가지로 **한 낱말**로 맞춘다. 무엇을 하는지는
+                      //    들어가면 바로 아래 한 줄로 설명한다 — 메뉴에 설명을 넣으면
+                      //    길어지기만 한다.
+                      { v: 'population', label: '팝수' },
+                      { v: 'centering', label: '센터링' },
                     ],
                   },
                 ] as { key: 'find' | 'tools'; label: string; items: { v: MainView; label: string; beta?: boolean }[] }[]).map(

@@ -213,7 +213,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-lg font-bold text-black">감정 수량(팝수) 조회</h1>
+      <h1 className="text-lg font-bold text-black">팝수 조회</h1>
       <p className="mt-1 text-sm text-neutral-500">
         감정 기관이 이 카드에 매긴 등급이 각각 몇 장인지 전부 보여 드립니다. 10등급이 적을수록 구하기 어려운 카드입니다.
       </p>
