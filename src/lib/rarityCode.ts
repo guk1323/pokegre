@@ -40,7 +40,13 @@ export const 레어도표 = new Map<string, string[]>([
 /** "리자몽 MUR" → { 이름: "리자몽", 코드: "MUR" }. 뒤에 레어도가 없으면 코드는 빈 값. */
 export const 레어도떼기 = (말: string): { 이름: string; 코드: string } => {
   const 조각 = 말.trim().split(/\s+/);
-  if (조각.length < 2) return { 이름: 말.trim(), 코드: '' };
+  // ⚠️ **레어도만 친 경우**("MUR"). 저쪽에는 레어도로 물어보는 방법이 없어서 그대로
+  //    보내면 이름에 그 글자가 든 카드가 잔뜩 온다("MUR" → Whismur·Murkrow 76장,
+  //    2026-08-08 확인). 이름을 빈 값으로 돌려주어 부르는 쪽이 안내하게 한다.
+  if (조각.length === 1) {
+    const 하나 = 레어도표.has(조각[0].toUpperCase()) ? 조각[0].toUpperCase() : 레어도표.has(조각[0]) ? 조각[0] : '';
+    return 하나 ? { 이름: '', 코드: 하나 } : { 이름: 말.trim(), 코드: '' };
+  }
   const 끝 = 조각[조각.length - 1];
   const 코드 = 레어도표.has(끝.toUpperCase()) ? 끝.toUpperCase() : 레어도표.has(끝) ? 끝 : '';
   if (!코드) return { 이름: 말.trim(), 코드: '' };

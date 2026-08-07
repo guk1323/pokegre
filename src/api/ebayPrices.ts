@@ -98,6 +98,8 @@ export interface EbaySearchResult {
   rarity?: string;
   /** 레어도를 쳤는데 받아 온 것 중에 하나도 없을 때 그 코드(전체를 보여 준 까닭). */
   rarityMissing?: string;
+  /** 레어도**만** 쳤을 때 그 코드. 이름 없이는 찾을 수 없다고 알려야 한다. */
+  rarityOnly?: string;
   // 더 받을 게 남았는지. 원본 페이지가 꽉 찼으면(=요청한 만큼 왔으면) 뒤에 더 있다고 본다.
   hasMore: boolean;
   /** 실제로 보낸 영문 검색어. 결과가 없을 때 "이베이에서 직접 찾아보기" 링크에 쓴다. */
@@ -204,6 +206,10 @@ export async function searchEbayCards(
   //    그 레어도인 것처럼 보여 주는 셈이다. 팝수 화면과 같은 방식으로 고친다.
   const { 이름: 이름부분, 코드: 레어도 } = 레어도떼기(query);
   const trimmed = 이름부분.trim();
+  // ⚠️ 레어도만 쳤을 때는 빈손으로 돌려주되 **그 까닭을 같이 준다.** 저쪽에는 레어도로
+  //    물어보는 방법이 없어서, 그냥 보내면 이름에 그 글자가 든 카드가 잔뜩 온다
+  //    ("MUR" → Whismur·Murkrow 76장, 2026-08-08 확인).
+  if (!trimmed && 레어도) return { cards: [], hasMore: false, rarityOnly: 레어도 };
   if (!trimmed) return { cards: [], hasMore: false };
 
   // PokemonPriceTracker의 search는 일본판 DB도 영문 카드명으로 색인돼 있어서,

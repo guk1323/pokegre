@@ -478,7 +478,7 @@ function App() {
   // 서버가 지난 시세를 대신 준다 — 화면에 언제 기준인지 밝혀야 오해가 없다.
   const [ebayAsOf, setEbayAsOf] = useState<string | null>(null);
   // 뒤에 붙은 레어도로 좁혔을 때 그 코드. 못 찾았으면 rarityMissing에 담긴다.
-  const [ebayRarity, setEbayRarity] = useState<{ 좁힘?: string; 없음?: string }>({});
+  const [ebayRarity, setEbayRarity] = useState<{ 좁힘?: string; 없음?: string; 이름없음?: string }>({});
   // 이베이에 실제로 보낸 영문 검색어. 결과가 없을 때 "직접 찾아보기" 링크에 쓴다.
   const [ebayQueryEn, setEbayQueryEn] = useState('');
   const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
@@ -1171,7 +1171,7 @@ function App() {
             ? await searchEbayCards(trimmed, edition, 0, market, pptSetName(도감))
             : r,
         )
-        .then(({ cards, hasMore, translated, asOf, rarity, rarityMissing }) => {
+        .then(({ cards, hasMore, translated, asOf, rarity, rarityMissing, rarityOnly }) => {
           setEbayQueryEn(translated ?? '');
           // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
           const fb = scanFallbackRef.current;
@@ -1319,7 +1319,7 @@ function App() {
           }
           setEbayItems(정렬됨);
           setEbayAsOf(asOf ?? null);
-          setEbayRarity({ 좁힘: rarity, 없음: rarityMissing });
+          setEbayRarity({ 좁힘: rarity, 없음: rarityMissing, 이름없음: rarityOnly });
           searchResultRef.current = { query: trimmed, count: 정렬됨.length, source };
           setResultTick((n) => n + 1);
           setEbayOffset(EBAY_PAGE_SIZE);
@@ -1841,11 +1841,13 @@ function App() {
       {/* ⚠️ 뒤에 붙은 레어도로 좁혔으면 그렇다고 밝힌다. 안 밝히면 "왜 몇 장뿐이지"가 된다.
           못 찾았을 때는 **전체를 보여 주고 까닭을 적는다** — 빈 화면을 주면 우리가 그 카드를
           아예 안 다루는 줄 안다(2026-08-08). 조사(가/이)가 코드마다 달라져 따옴표로 묶었다. */}
-      {!ebayError && !ebayLoading && (ebayRarity.좁힘 || ebayRarity.없음) && (
-        <p className="mb-3 text-xs text-neutral-500">
-          {ebayRarity.좁힘
-            ? `${ebayRarity.좁힘} 카드만 보고 있습니다.`
-            : `'${ebayRarity.없음}' 카드가 없어 전체를 보여 드립니다.`}
+      {!ebayError && !ebayLoading && (ebayRarity.좁힘 || ebayRarity.없음 || ebayRarity.이름없음) && (
+        <p className={`mb-3 text-xs ${ebayRarity.이름없음 ? 'text-amber-600' : 'text-neutral-500'}`}>
+          {ebayRarity.이름없음
+            ? `'${ebayRarity.이름없음}'만으로는 찾을 수 없습니다. 카드 이름을 같이 쳐 주세요 (예: 리자몽 ${ebayRarity.이름없음}).`
+            : ebayRarity.좁힘
+              ? `${ebayRarity.좁힘} 카드만 보고 있습니다.`
+              : `'${ebayRarity.없음}' 카드가 없어 전체를 보여 드립니다.`}
         </p>
       )}
 
