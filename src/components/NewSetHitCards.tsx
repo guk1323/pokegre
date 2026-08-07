@@ -95,7 +95,7 @@ export function NewSetHitCards({
     return (
       <div>
         <div className="mb-3 h-6 w-40 animate-pulse rounded bg-neutral-100" />
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
           {Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="aspect-[63/88] animate-pulse rounded-lg bg-neutral-100" />
           ))}
@@ -130,8 +130,11 @@ export function NewSetHitCards({
       </p>
       {/* ⚠️ 폰은 4장, 큰 화면은 8장. 폰에서 8장을 넣으면 한 칸이 80px이라 카드가
           뭔지 알아볼 수 없다(세트 화면에서 겪은 것과 같은 문제). */}
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-        {data.cards.slice(0, 8).map((c, i) => (
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+        {/* ⚠️ **넓은 화면은 6장 한 줄, 핸드폰은 4장 한 줄.** 8장을 6열에 넣었더니 두 줄이
+            되어 이 구역만 674px(홈의 34%)이 됐다. 8열로 하면 한 줄이지만 카드가 133px로
+            잘아 무슨 카드인지 안 보였다(2026-08-08). 6장·6열이면 한 줄이면서 180px다. */}
+        {data.cards.slice(0, 6).map((c, i) => (
           <button
             key={c.n}
             type="button"

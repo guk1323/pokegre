@@ -2224,7 +2224,10 @@ function App() {
               {/* ⚠️ 검색창을 가운데로 놓는다(2026-08-05 운영자 지시). 예전엔 max-w-xl만
                   걸어 왼쪽에 붙어 있었고, 넓은 화면에서는 오른쪽 절반이 통째로 비었다.
                   이 사이트에서 제일 많이 쓰는 것이 검색이라 눈이 가는 자리에 둔다. */}
-              <div className="mx-auto mb-4 max-w-3xl">
+              {/* ⚠️ 넓은 화면에서는 더 넓게 쓴다. 768px로 묶여 있어 1,150px 본문에서 검색칸이
+                  632px뿐이었다 — **제일 많이 쓰는 기능인데(시세 검색 2,885회) 제일 작았다**
+                  (2026-08-08 실측). 좁은 화면은 그대로다. */}
+              <div className="mx-auto mb-4 max-w-3xl lg:max-w-5xl">
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1">
                     <SearchBar

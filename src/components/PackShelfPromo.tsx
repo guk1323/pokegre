@@ -121,7 +121,11 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
               aria-label={`${h.name || '카드'} — 오늘의 상점 열기`}
               // 폰에서는 한 줄씩 눕히고(그림 왼쪽·글 오른쪽), 큰 화면에서는 세워서
               // 다섯 칸으로 편다. 어느 쪽이든 빈 자리가 안 생긴다.
-              className="flex items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 text-left sm:p-2 transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2"
+              // ⚠️ **핸드폰에서는 앞 3줄만 보인다.** 다섯 줄이 412px(홈의 20%)을 먹는데,
+              //    상점 진열대까지 합치면 뽑기가 홈의 절반이었다(2026-08-08 실측).
+              //    이름이 "TOP 5"라 개수는 그대로 두고 **넓은 화면에서만 다섯을 편다** —
+              //    핸드폰에서 4·5등을 보려면 상점에 들어가면 된다.
+              className={`${i >= 3 ? 'hidden sm:flex' : 'flex'} items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 text-left sm:p-2 transition hover:border-neutral-300 sm:flex-col sm:items-stretch sm:gap-2`}
             >
               {/* 메달은 카드 왼쪽 위 모서리에 살짝 걸치게 둔다(사용자 지시 2026-08-04 —
                   글자 쪽으로 뺐다가 되돌렸다). 모서리라 그림을 거의 안 가린다. */}
@@ -206,17 +210,18 @@ export function PackShelfPromo({ onEnter }: { onEnter: () => void }) {
         aria-label="오늘의 상점 열기"
         className="group block w-full rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition hover:border-neutral-300 hover:shadow"
       >
-        {/* 좁은 화면에서는 6칸을 3열로 쪼개면 그림이 너무 작아진다. 2열로 줄여
-            한 칸을 넓게 쓰고 그림 높이도 키운다. */}
-        {/* ⚠️ **핸드폰에서 3열이다.** 2열로 크게 깔았더니 진열대만 624px이 되어,
-            "오늘의 상점"이 홈의 절반(2,202px 중 1,107px)을 차지했다(2026-08-08 실측).
-            홈은 시세를 보러 오는 자리인데 상점이 반이면 아래가 안 보인다. 3열로 줄이면
-            여섯 팩이 그대로 보이면서 높이가 준다. 넓은 화면은 예전 그대로다. */}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 sm:gap-2 lg:grid-cols-6">
+        {/* ⚠️ **핸드폰은 가로로 밀어 보고, 넓은 화면은 그대로 편다.**
+            핸드폰은 세로로 쌓이니 같은 내용이 PC의 두 배로 길어진다 —
+            홈 2,026px 중 상점이 548px(27%)이었고, 뽑기 전체로는 47%였다.
+            PC는 한 줄에 6칸이 들어가 저절로 34%다(2026-08-08 실측. 서로 다른 문제다).
+            가로 밀기로 바꾸면 여섯 팩을 다 볼 수 있으면서 세로만 줄어든다.
+            ⚠️ 밀 수 있다는 걸 알려야 한다 — 오른쪽 끝을 일부러 조금 걸치게 둔다
+               (마지막 칸이 화면 밖으로 살짝 나가도록 폭을 잡았다). */}
+        <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-6">
           {packs.map((p) => {
             const img = art[p.slug]?.boxImg || art[p.slug]?.logo;
             return (
-              <div key={p.slug} className="px-1 text-center">
+              <div key={p.slug} className="w-[28%] shrink-0 snap-start px-1 text-center sm:w-auto">
                 <div className="flex h-36 items-end justify-center rounded-xl bg-gradient-to-b from-neutral-50 to-neutral-100 px-2 pb-2 pt-3 sm:h-32">
                   {img && (
                     <img
