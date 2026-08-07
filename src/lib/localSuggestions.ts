@@ -38,6 +38,14 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
   const q = query.trim();
   if (!q) return [];
 
+  // ⚠️ **앞이 같아도 두 갈래로 나눈다.**
+  //    ① 친 말 뒤가 끊기는 것: "잠만보 V" · "잠만보 ex"  ← 그 카드다
+  //    ② 친 말이 더 긴 낱말에 묻힌 것: "잠만보도루"      ← 다른 카드다
+  //    길이순으로만 세우면 ②가 먼저 와서, "잠만보"를 친 사람이 첫 줄에서
+  //    "잠만보도루"를 본다(2026-08-08 확인. "썬더"→"썬더라이", "고래왕"→"고래왕자"도
+  //    같았다). 목적은 **덜 알아도 우리가 가진 걸 보여주는 것**이지 엉뚱한 걸
+  //    먼저 보여주는 게 아니다.
+  const startsExact: string[] = [];
   const starts: string[] = [];
   const includes: string[] = [];
   // 부분 일치는 "단어 시작"에서만 본다. 아무 데나 걸리게 두면 "이브"에 "드닐레이브",
@@ -45,9 +53,12 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
   const wordStart = new RegExp(`(^|[\\s:·-])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
   for (const term of koTerms) {
     if (term === q) continue;
-    if (term.startsWith(q)) starts.push(term);
-    else if (wordStart.test(term)) includes.push(term);
+    if (term.startsWith(q)) {
+      // 뒤가 한글·영문·숫자로 이어지면 다른 낱말에 묻힌 것이다.
+      const 뒤 = term.slice(q.length);
+      (뒤 === '' || !/^[가-힣A-Za-z0-9]/.test(뒤) ? startsExact : starts).push(term);
+    } else if (wordStart.test(term)) includes.push(term);
   }
 
-  return [...new Set([...starts, ...includes])].slice(0, limit);
+  return [...new Set([...startsExact, ...starts, ...includes])].slice(0, limit);
 }
