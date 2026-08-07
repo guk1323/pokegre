@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImg } from './CardImg';
 import { trackEvent } from '../api/localStats';
 import { loadNameDict, warmNameDict } from '../lib/nameDict';
+import { koName, koSet } from '../lib/koCardName';
+import { loadSetIndex, type SetIndexEntry } from '../lib/cardCatalog';
+import pptSetNames from '../data/pptSetNames.json';
 
 // 팝수(감정 수량) 조회.
 //
@@ -52,6 +55,30 @@ const 등급이름 = (k: string): string => {
 // 감정기관 표시 순서. PSA가 가장 많이 쓰이니 먼저 둔다.
 const 기관순서 = ['PSA', 'BGS', 'CGC', 'SGC'];
 
+// 저쪽(PPT)이 주는 이름은 **영문에 번호 꼬리가 붙어** 온다("M Charizard EX - 091/087").
+// 그대로 쓰면 ① 사이트 다른 화면은 한글인데 여기만 영어이고 ② 바로 아래 줄에 번호를
+// 또 적으므로 **같은 번호가 두 번** 나온다(2026-08-07 화면 확인).
+// koName이 번호 꼬리를 떼고 한글로 바꿔 준다 — 사이트 전체가 쓰는 그 한 벌이다.
+const 보일이름 = (판: 'japanese' | 'english', name: string) => koName(판 === 'japanese' ? 'ja' : 'en', name);
+// 저쪽이 주는 세트 이름은 코드가 앞에 붙은 영문이다("CP6: Expansion Pack 20th Anniversary").
+// 우리 사전이 그대로는 못 알아듣는다. 다행히 **슬러그 ↔ 저쪽 이름 대조표**를 이미 갖고
+// 있으므로(pptSetNames.json), 저쪽 이름 → 우리 슬러그 → 우리 세트 이름으로 잇는다.
+// 그러면 사이트의 다른 화면과 똑같은 한글 세트명이 나온다.
+// ⚠️ 대조표에 없는 세트는 **영문 그대로 둔다** — 틀린 이름을 지어내는 것보다 낫다.
+const PPT이름을슬러그로 = (() => {
+  const m = new Map<string, string>();
+  for (const [슬러그, 이름] of Object.entries(pptSetNames as Record<string, string | string[]>)) {
+    for (const n of ([] as string[]).concat(이름)) m.set(String(n).toLowerCase(), 슬러그);
+  }
+  return m;
+})();
+const 보일세트 = (판: 'japanese' | 'english', name: string, 목록: SetIndexEntry[]): string => {
+  const 슬러그 = PPT이름을슬러그로.get(name.trim().toLowerCase());
+  const 것 = 슬러그 ? 목록.find((x) => x.slug === 슬러그) : undefined;
+  if (것) return koSet(것.ed, 것.name);
+  return koSet(판 === 'japanese' ? 'ja' : 'en', name);
+};
+
 export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; lang?: string } | null }) {
   const [말, set말] = useState('');
   const [판, set판] = useState<'japanese' | 'english'>('japanese');
@@ -59,6 +86,8 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   const [결과, set결과] = useState<찾은카드[] | null>(null);
   // 저쪽이 주는 최대치에 걸려 잘렸나(잘리면 값이 낮은 카드가 안 온다).
   const [잘림, set잘림] = useState(false);
+  // 세트 이름을 한글로 바꾸려면 세트 목록이 필요하다(이미 다른 화면이 쓰는 캐시).
+  const [세트목록, set세트목록] = useState<SetIndexEntry[]>([]);
   const [고른것, set고른것] = useState<찾은카드 | null>(null);
   const [자료, set자료] = useState<상세 | null>(null);
   const [자료받는중, set자료받는중] = useState(false);
@@ -91,6 +120,14 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     if (처음카드.lang === 'english' || 처음카드.lang === 'japanese') set판(처음카드.lang);
     등급표받기(처음카드.id, 처음카드.lang);
   }, [처음카드, 등급표받기]);
+
+  useEffect(() => {
+    let 취소 = false;
+    void loadSetIndex()
+      .then((v) => { if (!취소) set세트목록(v); })
+      .catch(() => undefined);
+    return () => { 취소 = true; };
+  }, []);
 
   const 찾기 = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -223,9 +260,9 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                       {c.imageUrl && <CardImg src={c.imageUrl} alt={c.name} className="h-full w-full object-contain" />}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-neutral-800">{c.name}</p>
+                      <p className="truncate text-sm font-semibold text-neutral-800">{보일이름(판, c.name)}</p>
                       <p className="truncate text-[11px] text-neutral-400">
-                        {c.setName}
+                        {보일세트(판, c.setName, 세트목록)}
                         {c.cardNumber ? ` · ${c.cardNumber}` : ''}
                         {c.rarity ? ` · ${c.rarity}` : ''}
                       </p>
@@ -262,9 +299,9 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                 )}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-base font-bold text-black">{고른것.name}</p>
+                <p className="truncate text-base font-bold text-black">{보일이름(판, 고른것.name)}</p>
                 <p className="truncate text-xs text-neutral-400">
-                  {고른것.setName}
+                  {보일세트(판, 고른것.setName, 세트목록)}
                   {고른것.cardNumber ? ` · ${고른것.cardNumber}` : ''}
                 </p>
               </div>
