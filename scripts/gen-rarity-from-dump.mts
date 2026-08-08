@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { koName } from '../src/lib/koCardName.ts'
+import { PPT레어도별코드 } from '../src/lib/rarityCode.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const 들어온곳 = process.argv[2]
@@ -48,31 +49,9 @@ function 줄자르기(line: string): string[] {
 }
 
 // 사람들이 실제로 치는 짧은 코드. 저쪽 표기 → 코드.
-// ⚠️ 여기에 없는 레어도는 안 만든다. "Common"·"Rare" 같은 건 좁히는 데 도움이 안 된다.
-const 코드 = new Map<string, string>([
-  ['Special Art Rare', 'SAR'],
-  ['Special Illustration Rare', 'SAR'],
-  ['Art Rare', 'AR'],
-  ['Illustration Rare', 'AR'],
-  ['Super Rare', 'SR'],
-  ['Secret Rare', 'SR'],
-  ['Double Rare', 'RR'],
-  ['Triple Rare', 'RRR'],
-  ['Ultra Rare', 'UR'],
-  ['Hyper Rare', 'HR'],
-  ['Shiny Rare', 'S'],
-  ['Shiny Secret Rare', 'SSR'],
-  ['Shiny Holo Rare', 'S'],
-  ['Character Rare', 'CHR'],
-  ['Character Super Rare', 'CSR'],
-  ['Mega Ultra Rare', 'MUR'],
-  ['Mega Hyper Rare', 'MHR'],
-  ['Mega Attack Rare', 'MAR'],
-  ['ACE SPEC Rare', 'ACE'],
-  ['Prism Rare', 'PR'],
-  ['Promo', '프로모'],
-  ['Radiant Rare', '찬란'],
-])
+// ⚠️ **표는 src/lib/rarityCode.ts 한 곳에만 둔다.** 여기에 베껴 두었더니 검색기와
+//    어긋나서, 자동완성이 권한 말을 눌러도 0장이 나왔다(2026-08-08).
+const 코드 = PPT레어도별코드
 
 // ⚠️ 짧은 이름은 다른 이름 속에 끼어든다("뮤"가 "뮤츠"에, "삐"가 "삐삐"에).
 //    그렇다고 두 글자를 통째로 빼면 **뮤츠·팬텀·후딘·핫삼·럭키·윈디가 통째로 빠진다.**

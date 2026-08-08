@@ -8,6 +8,7 @@ import path from 'node:path'
 //    109KB를 홈에서 통째로 받아야 한다 — 홈은 제일 많이 열리는 화면이라 그 무게를
 //    지우면 안 된다(cardImg.ts 첫머리·PackShelfPromo 설명 참고). 서버에서는 공짜다.
 import { 등급순서값 } from '../src/lib/gradeOrder.ts'
+import { PPT레어도별코드 } from '../src/lib/rarityCode.ts'
 import { koName } from '../src/lib/koCardName.ts'
 // 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
 // 믿으면 예산을 속일 수 있어서, 서버도 같은 표로 차감하고 뽑기도 서버가 한다).
@@ -5166,21 +5167,9 @@ const RARITY_TERMS_FILE = dataFile('rarity-terms.json')
 let 레어도낱말: string[] = []
 
 // 저쪽(PPT) 표기 → 사람들이 실제로 치는 짧은 코드.
-// ⚠️ 여기 없는 레어도는 안 만든다. "Common"·"Rare"는 좁히는 데 도움이 안 된다.
-// ⚠️ scripts/gen-rarity-from-dump.mts의 표와 **같아야 한다**. 한쪽만 고치면 손으로
-//    만든 목록과 서버가 만든 목록이 어긋난다.
-const RARITY_CODE = new Map<string, string>([
-  ['Special Art Rare', 'SAR'], ['Special Illustration Rare', 'SAR'],
-  ['Art Rare', 'AR'], ['Illustration Rare', 'AR'],
-  ['Super Rare', 'SR'], ['Secret Rare', 'SR'],
-  ['Double Rare', 'RR'], ['Triple Rare', 'RRR'],
-  ['Ultra Rare', 'UR'], ['Hyper Rare', 'HR'],
-  ['Shiny Rare', 'S'], ['Shiny Holo Rare', 'S'], ['Shiny Secret Rare', 'SSR'],
-  ['Character Rare', 'CHR'], ['Character Super Rare', 'CSR'],
-  ['Mega Ultra Rare', 'MUR'], ['Mega Hyper Rare', 'MHR'], ['Mega Attack Rare', 'MAR'],
-  ['ACE SPEC Rare', 'ACE'], ['Prism Rare', 'PR'],
-  ['Promo', '프로모'], ['Radiant Rare', '찬란'],
-])
+// ⚠️ **표는 src/lib/rarityCode.ts 한 곳에만 둔다.** 여기에 베껴 두었더니 검색기 쪽과
+//    어긋나서, 자동완성이 권한 말을 눌러도 0장이 나왔다(2026-08-08). 그 파일을 볼 것.
+const RARITY_CODE = PPT레어도별코드
 
 // ⚠️ 짧은 이름은 다른 이름 속에 끼어든다("뮤"가 "뮤츠"에, "삐"가 "삐삐"에).
 //    그렇다고 두 글자를 통째로 빼면 **뮤츠·팬텀·후딘·핫삼·럭키·윈디가 통째로 빠진다.**
