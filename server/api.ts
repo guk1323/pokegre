@@ -3013,8 +3013,11 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
    * 준다. 열쇠는 "617410~3-9"처럼 뒤에 번호를 붙인다(화면이 카드마다 다른 열쇠를 쓴다).
    *
    * ⚠️ 저쪽이 번호를 준 카드는 건드리지 않는다 — 이미 한 카드다.
-   * ⚠️ 한 번호가 2건 이상일 때만 카드로 만든다. 판매자 오타 한 건으로 카드를 만들면 안 된다.
-   * ⚠️ 갈래가 하나뿐이면 가르지 않는다(그건 그냥 그 카드다).
+   * ⚠️ **가를지 말지**는 조심해서 정한다 — 두 번호 이상이 각각 2건 넘게 있을 때만 가른다.
+   *    판매자 오타 한 건으로 멀쩡한 카드를 쪼개면 안 된다.
+   * ⚠️ 하지만 **가르기로 정한 뒤에는 번호가 적힌 것을 모두 제자리로** 보낸다. 문턱을
+   *    그대로 두면 1건짜리가 "번호 미상"에 남는데, 그건 우리가 아는 사실을 버리는 것이다
+   *    (캡틴피카츄 09/09 PSA 10 $700이 그렇게 남아 있었다 — 제목에 번호가 또렷하다).
    * ⚠️⚠️ **번호를 안 적은 매물을 큰 갈래에 몰아넣으면 그게 또 섞임이다.** 우리는 그게 어느
    *    카드인지 모른다. 번호 없는 것들만 모아 **번호를 안 적은 카드**로 따로 낸다(열쇠는
    *    원래 것 그대로). 버리지도, 없는 사실을 지어내지도 않는다.
@@ -3040,12 +3043,14 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
         결과.push(c)
         continue
       }
-      const 갈래이름 = new Set(갈래.map(([n]) => n))
-      const 담을곳 = (x: { title?: string }) => {
-        const n = 제목번호들(String(x.title ?? ''))[0] ?? ''
-        return n && 갈래이름.has(n) ? n : ''
+      // 가르기로 정했으니, 번호가 적힌 것은 1건짜리라도 제 번호로 보낸다.
+      const 모든번호 = new Set<string>()
+      for (const x of 낱개) {
+        const n = 제목번호들(String(x.title ?? ''))[0]
+        if (n) 모든번호.add(n)
       }
-      for (const 번호 of [...갈래.map(([n]) => n), '']) {
+      const 담을곳 = (x: { title?: string }) => 제목번호들(String(x.title ?? ''))[0] ?? ''
+      for (const 번호 of [...모든번호, '']) {
         const 새칸: Record<string, typeof 낱개> = {}
         for (const [k, l] of Object.entries(칸들))
           for (const x of l) if (담을곳(x) === 번호) (새칸[k] ??= []).push(x)
