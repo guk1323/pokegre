@@ -66,10 +66,19 @@ const 북미표 = cardFacts as Record<string, { c?: string }>
 const 옛표 = oldJpDex as Record<string, { c?: string }>
 const 카드종류 = (slug: string, setId: string, n: string): 'p' | 't' | 'e' | '' => {
   const 번호들 = [String(n), String(n).replace(/^0+/, ''), String(n).padStart(3, '0')]
+  // ⚠️ **같은 번호를 앞의 0만 다르게 두 번 적어 놓고 갈래가 다른 칸이 25개 있다.**
+  //    en-swsh1은 "64"=포켓몬 / "064"=트레이너인데, 64번은 Frosmoth(포켓몬)다.
+  //    한 세트 자리에 **딴 세트 자료가 겹쳐 들어온 것**이다(en-swsh1은 216장짜리인데
+  //    칸이 416개, en-sma는 94장에 400개). 지금은 우리 번호가 0 없는 꼴이라 맞는
+  //    쪽이 먼저 걸려서 탈이 안 나지만, 세트 자료의 번호 꼴이 바뀌면 그날로 뒤집힌다.
+  //    → **갈리면 모른다고 한다.** 모르면 아래 다른 표를 보고, 그것도 없으면 ''다.
+  //      ''는 안전하다 — 도감은 갈래가 t·e라고 **못 박은** 것만 뺀다.
+  const 본것 = new Set<string>()
   for (const k of 번호들) {
     const a = 종류표[slug]?.[k]
-    if (a) return a as 'p' | 't' | 'e'
+    if (a) 본것.add(a)
   }
+  if (본것.size === 1) return [...본것][0] as 'p' | 't' | 'e'
   const b = 옛표[`${setId}-${n}`]?.c
   if (b) return b as 'p' | 't' | 'e'
   for (const k of 번호들) {

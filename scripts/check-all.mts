@@ -30,6 +30,7 @@ const 우리것 = [
   ['사전끼리 어긋나나', 'check-name-conflicts.mts'],
   ['번호 별칭이 딴 카드를 가리키나', 'check-alias-better-match.mts'],
   ['힛카드', 'check-hit-cards.mts'],
+  ['카드 갈래표', 'check-card-categories.mts'],
 ]
 const 덤프것 = [
   ['세트 대조표', 'check-set-mapping.mts'],
