@@ -18,6 +18,7 @@ import { koName } from '../src/lib/koCardName.ts'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const 나온곳 = path.join(ROOT, 'src/data/cardNamesKo.json')
+const 영문나온곳 = path.join(ROOT, 'src/data/cardNamesEn.json')
 
 const idx = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf8')) as {
   slug: string
@@ -25,15 +26,25 @@ const idx = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), '
 }[]
 
 const 이름들 = new Set<string>()
+// ── 영문 이름 ────────────────────────────────────────────────────────────────
+// ⚠️ **영문으로 치는 사람에게 목록이 통째로 비어 있었다.** 아래 한글 걸러내기 때문에
+//    "Charizard"·"pikachu"·"Mega"를 치면 우리 사전에서 한 줄도 안 나왔고, 그 자리를
+//    스니커덩크가 메우고 있었다. 그런데 실제 인기 검색어 2~5위가 Pikachu XY95 ·
+//    Pikachu · Charizard 136 · Charizard다. 방문자가 친 말 952가지로 재 보니
+//    **치는 도중 16.1%가 영문**이었다(2026-08-08 실측).
+//    영문판 세트의 원래 이름을 그대로 담는다 — 4,651가지·69KB뿐이다.
+// ⚠️ 일본판 세트의 name은 일본어라 안 담는다(영문으로 치는 사람에게 쓸모가 없다).
+const 영문이름들 = new Set<string>()
 for (const s of idx) {
   const d = JSON.parse(readFileSync(path.join(ROOT, `public/sets/${s.slug}.json`), 'utf8')) as {
     cards?: { name: string }[]
   }
   for (const c of d.cards ?? []) {
     const n = koName(s.ed, c.name)
-    // 한글이 하나도 없는 이름(번역이 안 된 것)은 넣지 않는다 — 한글로 치는 사람에게
-    // 안 잡히고, 목록에 영문만 뜨면 우리 사전이 부실해 보인다.
+    // 한글이 하나도 없는 이름(번역이 안 된 것)은 **한글 목록에는** 넣지 않는다 —
+    // 한글로 치는 사람에게 안 잡히고, 한글 목록에 영문만 뜨면 어긋나 보인다.
     if (n && /[가-힣]/.test(n)) 이름들.add(n)
+    if (s.ed === 'en' && c.name && /[A-Za-z]/.test(c.name)) 영문이름들.add(c.name)
   }
 }
 
@@ -89,3 +100,9 @@ const 목록 = [
 writeFileSync(나온곳, JSON.stringify(목록))
 const KB = (Buffer.byteLength(JSON.stringify(목록)) / 1024).toFixed(0)
 console.log(`카드 이름 ${목록.length.toLocaleString()}가지를 ${path.relative(ROOT, 나온곳)}에 적었습니다 (${KB}KB).`)
+
+// 영문도 **짧은 것부터**. 이유는 위 한글과 같다(앞에서 잘라 보여 주므로 순서가 곧 목록이다).
+const 영문목록 = [...영문이름들].sort((a, b) => a.length - b.length || a.localeCompare(b, 'en'))
+writeFileSync(영문나온곳, JSON.stringify(영문목록))
+const 영문KB = (Buffer.byteLength(JSON.stringify(영문목록)) / 1024).toFixed(0)
+console.log(`영문 이름 ${영문목록.length.toLocaleString()}가지를 ${path.relative(ROOT, 영문나온곳)}에 적었습니다 (${영문KB}KB).`)

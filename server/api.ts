@@ -5216,6 +5216,29 @@ function 속포켓몬(ko: string): string | null {
   return null
 }
 
+/**
+ * 카드 이름 뒤에 붙은 **꼬리표를 뗀다.**
+ *   "리자몽 ex (Special Illustration Rare)" → "리자몽 ex"
+ *   "뮤츠 EX - XY125"                       → "뮤츠 EX"
+ *   "팬텀 - SWSH241 (Prerelease)"           → "팬텀"
+ *   "피카츄 - 227/S-P"                      → "피카츄"
+ * 자동완성에 이런 꼬리표째 뜨면 사람이 고를 수 없는 말이 된다.
+ *
+ * ⚠️ 꼬리표 모양이 제각각이라 **" - " 뒤는 통째로 자른다.** 번호만 노리는 규칙으로는
+ *    "227/S-P" 같은 것이 남았다(2026-08-08 실측). 카드 이름 자체에 " - "가 들어가는
+ *    경우는 없다.
+ */
+const 꼬리표떼기 = (s: string) =>
+  s
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .split(' - ')[0]
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .trim()
+
+/** 자동완성 목록에 넣어도 되는 이름인가. */
+const 쓸만한이름 = (s: string) =>
+  s.length >= 2 && s.length <= 40 && !/[([{|]/.test(s) && !/[-–—:,]$/.test(s)
+
 async function loadRarityTerms(): Promise<void> {
   try {
     const 것 = JSON.parse(await readFile(RARITY_TERMS_FILE, 'utf-8'))
@@ -5235,35 +5258,65 @@ async function loadRarityTerms(): Promise<void> {
  *    느리다) 그동안 통째로 멈추면 마침 들어온 방문자가 그만큼 기다린다. 2,000줄마다
  *    한 번씩 다른 일에 차례를 넘긴다.
  */
-async function 레어도뽑기(모은것: { ed: 'ja' | 'en'; name: string; code: string }[]): Promise<void> {
+async function 레어도뽑기(모은것: Map<string, Set<string>>): Promise<void> {
+  // ① 포켓몬 이름 + 레어도 — "리자몽 MUR"
   const 짝 = new Map<string, Set<string>>()
-  const 캐시 = new Map<string, string | null>() // 같은 이름을 두 번 번역하지 않는다
-  for (let i = 0; i < 모은것.length; i++) {
-    if (i % 2000 === 1999) await new Promise((r) => setImmediate(r))
-    const { ed, name, code } = 모은것[i]
-    const 열쇠 = `${ed}|${name}`
-    let 기본 = 캐시.get(열쇠)
-    if (기본 === undefined) {
-      기본 = 속포켓몬(koName(ed, name))
-      캐시.set(열쇠, 기본)
+  // ② **카드 이름 통째 + 레어도** — "제크로무 ex SR"
+  //    ⚠️ ①만으로는 뚫린다. "제크로무"를 치면 8줄이 나오는데 **"제크로무 ex"를 치면
+  //       0줄이었다** — 레어도가 포켓몬 이름에만 붙어 있어서다. 정작 방문자가 제일 많이
+  //       친 것 중 하나가 "제크로무 ex SR"이다(20회, 2026-08-08 검색 기록).
+  const 카드짝 = new Map<string, Set<string>>()
+  // ③ **카드 이름 그 자체** — 우리 세트 자료에 없는 카드를 메운다.
+  //    ⚠️ 우리 세트 자료(TCGdex)에 아예 없는 카드가 꽤 있다. 덤프에는 있는데 우리
+  //       사전에 없는 이름이 한글 3,593개·영문 2,098개였다(2026-08-08 실측).
+  const 이름들 = new Set<string>()
+  let 셋 = 0
+  for (const [열쇠, codes] of 모은것) {
+    // ⚠️ 중간에 서버를 놓아준다. 5만 줄을 통째로 돌면 그동안 방문자가 기다린다.
+    if (++셋 % 2000 === 0) await new Promise((r) => setImmediate(r))
+    const 칸 = 열쇠.indexOf('|')
+    const ed = 열쇠.slice(0, 칸) as 'ja' | 'en'
+    const raw = 열쇠.slice(칸 + 1)
+    const ko = 꼬리표떼기(koName(ed, raw))
+    const 한글인가 = /[가-힣]/.test(ko)
+    if (한글인가 && 쓸만한이름(ko)) 이름들.add(ko)
+    // 영문판은 원래 이름도 담는다 — 영문으로 치는 사람이 있다(인기 검색어 2~5위가 영문).
+    if (ed === 'en') {
+      const en = 꼬리표떼기(raw)
+      if (/[A-Za-z]/.test(en) && 쓸만한이름(en)) 이름들.add(en)
     }
-    if (!기본) continue
-    let s = 짝.get(기본)
-    if (!s) 짝.set(기본, (s = new Set()))
-    s.add(code)
+    if (!codes.size) continue
+    const 기본 = 한글인가 ? 속포켓몬(ko) : null
+    if (기본) {
+      let s = 짝.get(기본)
+      if (!s) 짝.set(기본, (s = new Set()))
+      for (const c of codes) s.add(c)
+    }
+    // 포켓몬 이름 그 자체인 카드는 ①과 겹치므로 넣지 않는다.
+    if (한글인가 && 쓸만한이름(ko) && ko !== 기본) {
+      let s = 카드짝.get(ko)
+      if (!s) 카드짝.set(ko, (s = new Set()))
+      for (const c of codes) s.add(c)
+    }
   }
-  const 낱말 = [...짝.entries()]
-    .flatMap(([이름, codes]) => [...codes].map((c) => `${이름} ${c}`))
-    // 짧은 것부터 — 자동완성은 앞에서 잘라 8개만 보여주므로 순서가 곧 "무엇을 보여줄지"다.
+  const 펴기 = (m: Map<string, Set<string>>) =>
+    [...m.entries()].flatMap(([이름, codes]) => [...codes].map((c) => `${이름} ${c}`))
+  // ⚠️ **이름을 먼저, 레어도를 뒤에.** 사람이 먼저 찾는 건 카드 이름이다.
+  const 낱말 = [...new Set([...이름들, ...펴기(짝), ...펴기(카드짝)])]
+    // 각 무리 안에서는 짧은 것부터 — 앞에서 잘라 8개만 보여주므로 순서가 곧 목록이다.
     .sort((a, b) => a.length - b.length || a.localeCompare(b, 'ko'))
   // ⚠️ 빈 결과로 덮지 않는다. 열 이름이 바뀌거나 덤프가 반토막이면 어제 것이 낫다.
   if (!낱말.length) {
-    console.log('[pokegre] 레어도 낱말을 하나도 못 뽑았습니다 — 어제 것을 그대로 둡니다.')
+    console.log('[pokegre] 자동완성 낱말을 하나도 못 뽑았습니다 — 어제 것을 그대로 둡니다.')
     return
   }
   레어도낱말 = 낱말
   await writeJsonFile(RARITY_TERMS_FILE, 낱말)
-  console.log(`[pokegre] 레어도 낱말 ${낱말.length.toLocaleString()}가지(포켓몬 ${짝.size.toLocaleString()}종)를 적었습니다.`)
+  console.log(
+    `[pokegre] 자동완성 낱말 ${낱말.length.toLocaleString()}가지를 적었습니다` +
+      ` (카드 이름 ${이름들.size.toLocaleString()} · 포켓몬+레어도 ${짝.size.toLocaleString()}종` +
+      ` · 카드+레어도 ${카드짝.size.toLocaleString()}가지).`,
+  )
 }
 
 async function loadPricesFromCsv(apiKey: string): Promise<number> {
@@ -5303,22 +5356,26 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
   //    카드도 레어도 재료로는 쓸모가 있다(검색은 세트와 상관없이 이름으로 찾는다).
   // ⚠️ 자른 줄(rows) 전체를 들고 있으면 안 된다 — 58,235줄 × 20칸이라 기계(여유 220MB)에
   //    부담이다. 레어도가 있는 13,295줄에서 **필요한 세 칸만** 남긴다.
-  const 레어도재료: { ed: 'ja' | 'en'; name: string; code: string }[] = []
+  // 자동완성 재료. 열쇠는 "판|원래이름", 값은 그 이름이 가진 레어도 코드들.
+  // ⚠️ **줄을 자르는 김에 같이 줍는다** — 이것 때문에 덤프를 한 번 더 받으면 하루
+  //    2칸뿐인 몫이 날아간다(2026-08-08).
+  // ⚠️ 자른 줄(rows)을 통째로 들고 있으면 안 된다(58,235줄 × 20칸, 여유 220MB).
+  //    이름만 **겹치는 것을 즉시 합쳐** 담는다.
+  const 자동완성재료 = new Map<string, Set<string>>()
   // 덤프에 실제로 나온 세트 이름. 아래에서 "저쪽에 값이 없는 세트"를 가려내는 데 쓴다.
   const 본이름 = new Set<string>()
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i]
     if (!line.trim()) continue
     const c = splitCsvLine(line)
-    if (I.rarity !== undefined) {
-      const code = RARITY_CODE.get(String(c[I.rarity] ?? '').trim())
-      if (code) {
-        레어도재료.push({
-          ed: String(c[I.language] ?? '').trim() === 'japanese' ? 'ja' : 'en',
-          name: String(c[I.name] ?? ''),
-          code,
-        })
-      }
+    const 원래이름 = String(c[I.name] ?? '')
+    if (원래이름) {
+      const 판 = String(c[I.language] ?? '').trim() === 'japanese' ? 'ja' : 'en'
+      const 열쇠 = `${판}|${원래이름}`
+      let codes = 자동완성재료.get(열쇠)
+      if (!codes) 자동완성재료.set(열쇠, (codes = new Set()))
+      const code = I.rarity === undefined ? null : RARITY_CODE.get(String(c[I.rarity] ?? '').trim())
+      if (code) codes.add(code)
     }
     const slugs = slug별.get(c[I.setName])
     if (!slugs) continue
@@ -5349,7 +5406,7 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
   }
 
   // 시세를 넣기 전에 레어도부터 적는다. 뒤에 두면 시세 저장에서 실패했을 때 같이 날아간다.
-  await 레어도뽑기(레어도재료)
+  await 레어도뽑기(자동완성재료)
 
   // ⚠️ **저쪽에 값이 없는 세트를 표시해 둔다.** 덤프에 세트 이름은 나왔는데 값이 하나도
   //    안 붙은 것들이다(ja-SM1+ 썬&문은 덤프에 줄 1개, 값 0). 이걸 안 적어 두면 세트별

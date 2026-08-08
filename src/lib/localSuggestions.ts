@@ -2,6 +2,7 @@ import pokemonNames from '../data/pokemonNames.json';
 import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
 import cardNamesKo from '../data/cardNamesKo.json';
+import cardNamesEn from '../data/cardNamesEn.json';
 import { CARD_NAME_KO_TO_EN, STRUCTURAL_EN_TO_KO } from './koreanizeEnglishTitle';
 
 // ⚠️ 예전엔 포켓몬 이름과 팩 이름만 재료로 썼다. 그래서 트레이너·굿즈 카드
@@ -38,6 +39,11 @@ const koTerms: string[] = [
 //    (크레딧 0 · 통째 받기 몫 0). 못 받으면 그냥 빌드 시점 목록으로 간다.
 // ⚠️ **맨 뒤에 붙인다.** 사람이 먼저 찾는 건 카드 이름이지 레어도가 아니다.
 //    이 파일은 검색창을 누를 때 처음 불러오므로, 그 순간이 받기 시작하기 좋은 때다.
+// 영문판 세트의 원래 카드 이름(4,651가지). 소문자로 미리 만들어 두고 견준다 —
+// 칠 때마다 4,651개를 소문자로 바꾸면 글자마다 그 일을 다시 하게 된다.
+const enTerms: string[] = (cardNamesEn as string[]).filter((s) => !!s && s === s.trim());
+const enLower: string[] = enTerms.map((s) => s.toLowerCase());
+
 let 레어도받는중 = false;
 function ensureRarityTerms(): void {
   if (레어도받는중) return;
@@ -71,16 +77,30 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
   const startsExact: string[] = [];
   const starts: string[] = [];
   const includes: string[] = [];
+  const 담기 = (term: string, 견줄것: string, 친것: string) => {
+    if (견줄것 === 친것) return;
+    if (견줄것.startsWith(친것)) {
+      // 뒤가 한글·영문·숫자로 이어지면 다른 낱말에 묻힌 것이다.
+      const 뒤 = 견줄것.slice(친것.length);
+      (뒤 === '' || !/^[가-힣A-Za-z0-9]/.test(뒤) ? startsExact : starts).push(term);
+    } else if (wordStart.test(견줄것)) includes.push(term);
+  };
   // 부분 일치는 "단어 시작"에서만 본다. 아무 데나 걸리게 두면 "이브"에 "드닐레이브",
   // "뮤"에 "줄뮤마"처럼 관계없는 이름이 올라와 목록이 미덥지 않아 보인다.
-  const wordStart = new RegExp(`(^|[\\s:·-])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
-  for (const term of koTerms) {
-    if (term === q) continue;
-    if (term.startsWith(q)) {
-      // 뒤가 한글·영문·숫자로 이어지면 다른 낱말에 묻힌 것이다.
-      const 뒤 = term.slice(q.length);
-      (뒤 === '' || !/^[가-힣A-Za-z0-9]/.test(뒤) ? startsExact : starts).push(term);
-    } else if (wordStart.test(term)) includes.push(term);
+  const wordStart = new RegExp(`(^|[\\s:·-])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+  for (const term of koTerms) 담기(term, term, q);
+
+  // ⚠️ **영문으로 치면 목록이 통째로 비어 있었다.** 위 한글 사전에는 영문 이름이
+  //    없어서다("Charizard"·"pikachu"·"Mega" → 0줄). 그 자리를 스니커덩크가 메우고
+  //    있었는데, 실제 인기 검색어 2~5위가 Pikachu XY95·Pikachu·Charizard 136·
+  //    Charizard다. 방문자가 친 말로 재 보니 **치는 도중 16.1%가 영문**이었다
+  //    (2026-08-08 실측).
+  // ⚠️ **대소문자를 가리지 않는다.** 사람들은 "pikachu"·"gym"처럼 소문자로 친다.
+  //    카드 이름은 "Pikachu"라서, 그대로 견주면 하나도 안 걸린다.
+  // ⚠️ 한글이 섞인 말에는 안 돌린다 — 걸릴 리가 없는데 4,651가지를 훑을 이유가 없다.
+  if (/[A-Za-z]/.test(q) && !/[가-힣]/.test(q)) {
+    const 소문자 = q.toLowerCase();
+    for (let i = 0; i < enTerms.length; i++) 담기(enTerms[i], enLower[i], 소문자);
   }
 
   return [...new Set([...startsExact, ...starts, ...includes])].slice(0, limit);
