@@ -28,7 +28,7 @@ import {
   type PackSet,
 } from '../src/lib/packSets.ts'
 import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
-import { 번호열쇠 } from '../src/lib/cardNo.ts'
+import { 번호열쇠, 앨범값 } from '../src/lib/cardNo.ts'
 import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
 import pptSetList from '../src/data/pptSetList.json' with { type: 'json' }
 import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
@@ -6579,9 +6579,7 @@ function withUsd<T extends { n: string; m?: string }>(slug: string, cards: T[]):
   const prices = packPriceCache.get(slug)?.prices
   if (!prices) return cards
   return cards.map((c) => {
-    const base = stripZeros(c.n)
-    const vk = c.m === 'master' ? '~m' : c.m === 'poke' ? '~p' : c.m === 'rev' ? '~r' : ''
-    const usd = (vk ? prices[base + vk] : undefined) ?? prices[base] ?? 0
+    const usd = 앨범값(prices, c.n, c.m)
     return usd > 0 ? { ...c, usd } : c
   })
 }
@@ -8175,9 +8173,7 @@ function mountAuth(
         let totalUsd = 0
         let priced = 0
         for (const a of store.album) {
-          const base = stripZeros(a.n)
-          const vk = a.m === 'master' ? '~m' : a.m === 'poke' ? '~p' : a.m === 'rev' ? '~r' : ''
-          const usd = (vk ? prices[a.s]?.[base + vk] : undefined) ?? prices[a.s]?.[base] ?? 0
+          const usd = 앨범값(prices[a.s], a.n, a.m)
           if (usd > 0) {
             totalUsd += usd * a.c
             priced++

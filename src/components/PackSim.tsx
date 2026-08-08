@@ -1,3 +1,4 @@
+import { 앨범값 } from '../lib/cardNo.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
@@ -788,10 +789,7 @@ export function PackSim({
   };
 
     const usdOf = (a: AlbumCard) => {
-    const base = a.n.replace(/^0+/, '') || '0';
-    const vk = a.m === 'master' ? '~m' : a.m === 'poke' ? '~p' : a.m === 'rev' ? '~r' : '';
-    const map = value?.prices[a.s];
-    return (vk ? map?.[base + vk] : undefined) ?? map?.[base] ?? 0;
+    return 앨범값(value?.prices[a.s], a.n, a.m);
   };
   // ⚠️ 여기 간소한 사본이 있었다. 정식 규칙(lib/koCardName.ts)과 31장이 달랐다 —
   //    "Team Rocket's Houndoom"이 "Team 로켓단의 헬가"로 영어가 남았다(2026-08-07 실측).
