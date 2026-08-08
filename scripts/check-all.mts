@@ -14,7 +14,7 @@
  *    **숫자가 늘어났는지**를 본다.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,6 +28,7 @@ const 우리것 = [
   ['도감 갈래', 'check-card-facts.mts'],
   ['사전이 규칙을 덮나', 'check-rule-override.mts'],
   ['사전끼리 어긋나나', 'check-name-conflicts.mts'],
+  ['번호 별칭이 딴 카드를 가리키나', 'check-alias-better-match.mts'],
 ]
 const 덤프것 = [
   ['세트 대조표', 'check-set-mapping.mts'],
@@ -43,10 +44,14 @@ for (const [이름, 파일] of [...우리것, ...(CSV ? 덤프것 : [])]) {
     실패++
     continue
   }
-  const r = spawnSync(process.execPath, ['--experimental-strip-types', 길, ...(CSV ? [CSV] : [])], {
-    cwd: ROOT,
-    encoding: 'utf-8',
-  })
+  // ⚠️ koreanize*.ts 를 가져오는 검사기는 node 로 못 돈다(확장자 없는 import). tsx 로 돌린다.
+  const tsx = /koreanize/.test(readFileSync(길, 'utf-8'))
+  const r = tsx
+    ? spawnSync('npx', ['tsx', 길, ...(CSV ? [CSV] : [])], { cwd: ROOT, encoding: 'utf-8' })
+    : spawnSync(process.execPath, ['--experimental-strip-types', 길, ...(CSV ? [CSV] : [])], {
+        cwd: ROOT,
+        encoding: 'utf-8',
+      })
   const 줄 = String(r.stdout ?? '')
     .split('\n')
     .filter((x) => x.trim() && !/ExperimentalWarning|--experimental|^\(Use `node/.test(x))
