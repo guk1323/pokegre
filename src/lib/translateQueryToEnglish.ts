@@ -9,6 +9,7 @@ import {
 import { KO_SEARCH_ALIASES } from './translateQuery';
 import pokemonNames from '../data/pokemonNames.json';
 import pokemonNameAliases from '../data/pokemonNameAliases.json';
+import setNameKoCode from '../data/setNameKoCode.json' with { type: 'json' };
 import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
 // 영문판 세트의 "한글 이름 → 원래 영어 이름". scripts/gen-set-names.mts가 만든다.
@@ -335,9 +336,20 @@ const packJpPatterns = (packNames as PackName[])
 // ⚠️ 같은 한글 이름이 양쪽에 다 있으면 **코드 쪽을 쓴다**. PPT의 일본판 세트명은
 //    코드로 시작해서 그게 제일 정확하다. 길이순으로만 정렬했더니 "포켓몬 카드 151"이
 //    SV2a 대신 「151」로, "썬 & 문"이 SM1p 대신 「Sun & Moon」으로 나갔다.
+// ⚠️⚠️ **화면에 보이는 세트 이름은 무조건 검색돼야 한다.** 팩 이름표에 없거나 표기가
+//    한 글자 다른 세트가 있어서, 우리 화면에 있는 이름을 그대로 쳤는데 0장이 나왔다
+//    (2026-08-08 실측): "스톰에메랄다"(M6, 최신 팩) · "창공의스트림"(S7R).
+//    세트 목록에서 뽑은 이름↔코드 표를 뒤에 덧붙인다. 팩 이름표가 먼저이고, 거기 없는
+//    이름만 이걸로 메운다. 다시 만들기: scripts/gen-set-name-codes.mts
+const 목록이름패턴 = Object.entries(setNameKoCode as Record<string, string>)
+  .filter(([ko]) => !pokemonKoSet.has(ko))
+  .sort((a, b) => b[0].length - a[0].length)
+  .map(([ko, code]) => ({ ko, re: packPattern(ko), en: code }));
+
 const packJpKo = new Set(packJpPatterns.map((p) => p.ko.replace(/\s+/g, '')));
 const packJpAllPatterns = [
   ...packJpPatterns,
+  ...목록이름패턴.filter((p) => !packJpKo.has(p.ko.replace(/\s+/g, ''))),
   ...packEnPatterns.filter((p) => !packJpKo.has(p.ko.replace(/\s+/g, ''))),
 ].sort((a, b) => b.ko.length - a.ko.length);
 
