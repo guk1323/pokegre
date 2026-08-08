@@ -2307,9 +2307,18 @@ export async function loadPptState() {
     }
     // 하루치는 UTC 자정에 새로 찬다. 어제 것이면 그대로 쓰면 안 된다.
     if (s.day !== utcDay()) return
-    if (typeof s.left === 'number' && s.left >= 0) {
+    // ⚠️ **"남은 0"인데 막혀 있지도 않으면 잘못 적힌 값이다.** 진짜로 다 썼으면 저쪽이
+    //    429를 주고 dailyOut이 서 있다. 둘이 안 맞으면 "모름"으로 두고 다시 재게 한다.
+    //    안 그러면 잘못된 0을 이어받아, 감정수량 조회와 시세 미리받기가 방문자 몫을
+    //    지키느라 하루 종일 멎어 있는다(2026-08-08에 실제로 그랬다).
+    if (typeof s.left === 'number' && s.left > 0) {
       pptDailyLeft = s.left
       pptDailyLeftDay = s.day
+    } else if (s.left === 0 && s.dailyOut) {
+      pptDailyLeft = 0
+      pptDailyLeftDay = s.day
+    } else if (s.left === 0) {
+      console.log('[pokegre] 앞뒤가 안 맞는 크레딧 0을 버렸습니다(막혀 있지도 않은데 0) — 다시 재 봅니다.')
     }
     // ⚠️ 하루치를 다 쓴 게 아닌데(dailyOut=false) 몇 시간씩 막혀 있을 이유가 없다
     //    — 분당 한도는 1분이면 풀린다. 그런 값이 파일에 남아 있으면 버린다.
