@@ -1,6 +1,6 @@
 import { loadNameDict } from '../lib/nameDict';
 import { pptSetKo } from '../lib/pptSetKo';
-import { 레어도떼기, 레어도맞나 } from '../lib/rarityCode';
+import { 레어도떼기, 레어도맞나, 마켓전용말떼기 } from '../lib/rarityCode';
 
 // PPT가 쓰는 세트 이름 → 우리 한글 세트 이름.
 //
@@ -100,6 +100,8 @@ export interface EbaySearchResult {
   rarityMissing?: string;
   /** 레어도**만** 쳤을 때 그 코드. 이름 없이는 찾을 수 없다고 알려야 한다. */
   rarityOnly?: string;
+  /** 저쪽이 모르는 말(":1ED")을 빼고 찾았을 때 그 말. 빈 화면 대신 알려 주려는 것이다. */
+  droppedTerm?: string;
   // 더 받을 게 남았는지. 원본 페이지가 꽉 찼으면(=요청한 만큼 왔으면) 뒤에 더 있다고 본다.
   hasMore: boolean;
   /** 실제로 보낸 영문 검색어. 결과가 없을 때 "이베이에서 직접 찾아보기" 링크에 쓴다. */
@@ -204,7 +206,11 @@ export async function searchEbayCards(
   //    그대로 보내면 "리자몽 MUR"은 0장이고, "리자몽 SAR"은 더 나쁘다 — 저쪽이 모르는
   //    낱말을 흘려버려 **SAR가 아닌 카드 7장**을 준다(2026-08-08 실측). 엉뚱한 카드를
   //    그 레어도인 것처럼 보여 주는 셈이다. 팝수 화면과 같은 방식으로 고친다.
-  const { 이름: 이름부분, 코드: 레어도 } = 레어도떼기(query);
+  // ⚠️ **스니커덩크 전용 꼬리말을 먼저 뗀다.** ":1ED" 같은 것은 저쪽(PPT)이 모르고,
+  //    그대로 보내면 0장이 온다. 레어도보다 먼저 떼야 "거북왕 EX RR :1ED"에서
+  //    레어도(RR)까지 제대로 잡힌다.
+  const { 이름: 저쪽말뺀것, 뗀말 } = 마켓전용말떼기(query);
+  const { 이름: 이름부분, 코드: 레어도 } = 레어도떼기(저쪽말뺀것);
   const trimmed = 이름부분.trim();
   // ⚠️ 레어도만 쳤을 때는 빈손으로 돌려주되 **그 까닭을 같이 준다.** 저쪽에는 레어도로
   //    물어보는 방법이 없어서, 그냥 보내면 이름에 그 글자가 든 카드가 잔뜩 온다
@@ -288,6 +294,8 @@ export async function searchEbayCards(
     asOf: json.asOf,
     rarity: 레어도 && 걸러진.length > 0 ? 레어도 : undefined,
     rarityMissing: 레어도 && 걸러진.length === 0 ? 레어도 : undefined,
+    // 스니커덩크에서만 통하는 말을 빼고 찾았으면 그 사실을 알린다(빈 화면보다 낫다).
+    droppedTerm: 뗀말 || undefined,
   };
 }
 
