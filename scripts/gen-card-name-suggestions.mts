@@ -28,6 +28,14 @@ const idx = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), '
   serie?: string
 }[]
 
+// ⚠️ **영문판에만 있는 세트인데 한글로 찾는 사람이 있다.** 맥도날드 해피밀 카드는
+//    한국에서도 나와서 "맥도날드"로 친다(운영 검색 기록 30번). 그런데 우리 사전에는
+//    영문 이름("McDonald's Collection 2024")만 있어 **목록이 통째로 비었다**.
+//    한글 이름은 사장님이 정해 주신 대로 적는다 — **내가 지어내지 않는다.**
+//    ⚠️ 검색이 되려면 짝이 맞아야 한다. translateQueryToEnglish의 PACK_KO_EN에
+//       같은 한글이 들어 있어야 눌렀을 때 영문으로 되돌아간다. **한쪽만 넣지 말 것.**
+const 영문세트한글이름: [string, string][] = [["McDonald's Collection", '맥도날드 컬렉션']]
+
 const 이름들 = new Set<string>()
 // ── 영문 이름 ────────────────────────────────────────────────────────────────
 // ⚠️ **영문으로 치는 사람에게 목록이 통째로 비어 있었다.** 아래 한글 걸러내기 때문에
@@ -40,6 +48,11 @@ const 이름들 = new Set<string>()
 // 영문 이름은 **몇 개 세트에 나왔는지**를 같이 센다. 아래에서 표기가 갈릴 때 쓴다.
 const 영문세트수 = new Map<string, Set<string>>()
 for (const s of idx) {
+  // 위 표에 있는 세트는 **한글 이름도** 넣는다("McDonald's Collection 2024"
+  // → "맥도날드 컬렉션 2024"). 연도는 그대로 두어 연도까지 치는 사람도 찾는다.
+  for (const [en, ko] of 영문세트한글이름) {
+    if (s.name?.startsWith(en)) 이름들.add(s.name.replace(en, ko).trim())
+  }
   const d = JSON.parse(readFileSync(path.join(ROOT, `public/sets/${s.slug}.json`), 'utf8')) as {
     cards?: { name: string }[]
   }
