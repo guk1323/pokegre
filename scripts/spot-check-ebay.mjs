@@ -35,7 +35,13 @@ for (const [lang, set] of 고른세트) {
   for (const c of j.cards ?? []) {
     카드수++
     if (String(c.tcgPlayerId).includes('~')) 갈린것++
-    const 내번호 = String(c.cardNumber ?? '').trim()
+    // ⚠️ **카드 번호도 제목과 같은 꼴로 맞춘 뒤 견준다.** 안 그러면 "232/091"과 "232/91"이
+    //    다른 것이 되어 멀쩡한 낙찰이 전부 걸린다(처음에 386개가 그렇게 걸렸다).
+    //    글자가 붙은 번호(GG69/GG70)는 글자를 떼고 본다.
+    const 내번호 = (() => {
+      const m = String(c.cardNumber ?? '').match(/(\d{1,4})\s*\/\s*(\d{1,3})/)
+      return m ? 번호맞추기(m[1], m[2]) : ''
+    })()
     for (const g of c.grades ?? []) {
       const 값 = (g.sales ?? []).map((s) => s.price).filter((v) => v > 0)
       if (값.length >= 3 && Math.max(...값) / Math.min(...값) > 20)

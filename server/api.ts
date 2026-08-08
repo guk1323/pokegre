@@ -2957,9 +2957,18 @@ function 딴카드거르기(
     }),
   )
   // **떼로 어긋난 것만** 뺀다. 한두 건은 판매자 오타다.
-  const 떼인가 = (m: Map<string, number>, k: string) => {
+  // ⚠️ **"전체의 5% 이상"은 뺐다**(2026-08-08). 형제 세트 이름이 적힌 것이 먼저 빠지고 나면
+  //    남은 것이 몇 건뿐이라 5%에 못 미쳐 그대로 통과했다. 실제로 베이스셋 리자몽(4/102)에
+  //    베이스셋2(4/130) 낙찰 3건이 그렇게 남아 있었다 — 89건은 이름으로 걸러졌는데
+  //    "Set 2"라고만 적었거나 "Base Set"이라 적은 것들이 샜다.
+  //    ⚠️ 대신 **비슷한 숫자는 여전히 안 뺀다.** 102↔103처럼 한두 끗 차이는 오타일 수 있다.
+  const 떼인가 = (m: Map<string, number>, k: string, 대표: string) => {
     const c = m.get(k) ?? 0
-    return c >= 3 && c / 전부.length >= 0.05
+    if (c < 3) return false
+    // 번호 전체("4/130")는 숫자가 아니라 뺄 수 없다 — 그건 대놓고 다른 카드로 본다.
+    const 차 =
+      Number.isFinite(Number(k)) && Number.isFinite(Number(대표)) ? Math.abs(Number(k) - Number(대표)) : Infinity
+    return 차 > 2 || c / 전부.length >= 0.05
   }
 
   return (x) => {
@@ -2970,17 +2979,17 @@ function 딴카드거르기(
     if (D.믿나) {
       const d = 제목분모(t)
       // 0 채움은 무시하고 숫자로 견준다("232/91" = "232/091").
-      if (d && Number(d) !== Number(D.대표) && 떼인가(D.셈, d)) return true
+      if (d && Number(d) !== Number(D.대표) && 떼인가(D.셈, d, D.대표)) return true
     }
     if (N.믿나) {
       const n = 제목번호들(t)[0] ?? ''
-      if (n && n !== N.대표 && 떼인가(N.셈, n)) return true
+      if (n && n !== N.대표 && 떼인가(N.셈, n, N.대표)) return true
     }
     if (Y.믿나) {
       const y = 제목연도(t)
       if (y.length) {
         const k = String(Math.min(...y))
-        if (Math.abs(Number(k) - Number(Y.대표)) >= 3 && 떼인가(Y.셈, k)) return true
+        if (Math.abs(Number(k) - Number(Y.대표)) >= 3 && 떼인가(Y.셈, k, Y.대표)) return true
       }
     }
     return false
