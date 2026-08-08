@@ -1,4 +1,5 @@
 import { formatGradeLabel, 대표등급, mainPrice, type EbayCard } from '../api/ebayPrices';
+import { 상태글 } from '../lib/tcgCondition';
 import { Price } from './KrwHint';
 import { CardImg } from './CardImg';
 
@@ -61,6 +62,13 @@ export function EbayCardTile({
         ? tcg && (
             <>
               <Price amount={tcg.market} currency="usd" />
+              {/* ⚠️ **어떤 상태의 매물로 잡힌 값인지 목록에서도 밝힌다.** 옛 일본판은
+                  매물이 귀해 민트가 아닌 카드로 값이 잡히는 일이 흔하다 — 실측으로
+                  TCGplayer 값이 있는 카드의 28%가 그랬다(2026-08-08). 상세에만 적어
+                  두면, 목록을 훑는 사람은 민트 값인 줄 안다. */}
+              {상태글(tcg.condition) && (
+                <p className="text-[10px] leading-tight text-amber-700">{상태글(tcg.condition)} 매물 기준</p>
+              )}
             </>
           )
         : topGrade &&

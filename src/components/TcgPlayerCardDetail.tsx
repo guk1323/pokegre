@@ -6,19 +6,11 @@ import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
 import { ShareButton } from './ShareButton';
 import { GradedPopulation } from './GradedPopulation';
+import { 상태글 } from '../lib/tcgCondition';
 
 
 // 마켓가가 잡힌 매물의 상태를 한글로. **민트면 null**(굳이 알릴 게 없다).
 // 저쪽 값은 "Moderately Played 1st Edition - Japanese"처럼 인쇄·판까지 붙어서 온다.
-function 상태글(cond: string | null): string | null {
-  if (!cond) return null;
-  if (/Near Mint/i.test(cond)) return null;
-  if (/Lightly Played/i.test(cond)) return '조금 사용된';
-  if (/Moderately Played/i.test(cond)) return '보통 사용된';
-  if (/Heavily Played/i.test(cond)) return '많이 사용된';
-  if (/Damaged/i.test(cond)) return '손상된';
-  return null; // 모르는 표기는 조용히 넘긴다 — 틀리게 말하느니 안 하는 게 낫다
-}
 
 function shortDate(iso: string | null): string | null {
   if (!iso) return null;
