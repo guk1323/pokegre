@@ -8,7 +8,10 @@
  *    `npm run build`의 배포 파일 검사가 빠뜨리면 알려 준다.
  */
 
-export const 등급앞말 = /(psa|bgs|cgc|sgc|tag|ace|ars|grade|gem|mint|pgs|mpg)\s*$/i
+// ⚠️ 이 말들 바로 뒤 숫자는 **등급 점수**지 카드 번호가 아니다.
+//    "CGC PERFECT 10/10"의 10/10을 카드 번호로 읽어 묶음 판매로 오해한 적이 있다(2026-08-08).
+export const 등급앞말 =
+  /(psa|bgs|cgc|sgc|tag|ace|ars|grade|gem|mint|pgs|mpg|perfect|pristine|black label|subgrade[ds]?|subs?)\s*$/i
 /**
  * **제목에 적힌 감정 등급을 "칸 이름"으로 바꾼다**("PSA 10" → psa10 · "CGC 9.5" → cgc9_5).
  *
@@ -46,10 +49,26 @@ export const 제목등급칸 = (t: string): string => {
  *    수천 건이 걸린다(처음에 그랬다). "lot of 3"처럼 **수량을 말하는 꼴**만 본다.
  * ⚠️ 목록에서 지우지는 않는다. 평균·중앙값·그래프에서만 뺀다 — 사람이 보고 판단하게.
  */
-export const 묶음인가 = (t: string | undefined): boolean =>
-  /\b(?:lot|set|bundle|collection|joblot)\s*of\s*\d+|\bjob\s*lot\b|\b\d+\s*card\s*lot\b|\bbundle\s*of\b/i.test(
-    String(t ?? ''),
-  )
+export const 묶음인가 = (t: string | undefined): boolean => {
+  const s = String(t ?? '')
+  if (/\b(?:lot|set|bundle|collection|joblot)\s*of\s*\d+|\bjob\s*lot\b|\b\d+\s*card\s*lot\b|\bbundle\s*of\b/i.test(s))
+    return true
+  // ⚠️ **카드 번호가 둘 이상 적힌 제목은 여러 장을 같이 판 것이다.**
+  //    "Umbreon VMAX 245/184 & Umbreon 244/184" · "Latias ex 239/191 and Latios 203/191"
+  //    한 장 값이 아닌데 한 장 값으로 들어가면 시세가 부풀려진다. 실제로 방문자가 자주
+  //    찾는 피카츄 227/S-P에 "Pikachu 227/S-P + Cramorant 226/S-P" $3,746이 있었다.
+  //    낙찰 17,716건에 걸어 34건(0.19%)이 나왔고 **전부 진짜 묶음**이었다(2026-08-08).
+  //    ⚠️ 같은 번호를 두 꼴로 적은 것("232/091"·"232/91")은 번호맞추기가 하나로 모으므로
+  //       여기 안 걸린다.
+  //    ⚠️ 프로모는 분모가 글자다("227/S-P"·"SWSH123"). 그건 카드 번호로는 안 쓰지만
+  //       **묶음을 가릴 때는 센다** — "Pikachu 227/S-P Cramorant 226/S-P"가 그렇다.
+  const 번호꼴 = new Set(제목번호들(s))
+  //    ⚠️ 글자 분모는 **가운뎃줄이 있는 꼴만** 본다(S-P · SM-P · XY-P). 안 그러면
+  //       "Base Set 2 / Base II"의 "2 / Base"를 번호로 읽는다(2026-08-08에 겪음).
+  for (const m of s.matchAll(/(^|[^\w/])(\d{1,4})\s*\/\s*([A-Za-z]{1,3}-[A-Za-z]{1,2})\b/g))
+    번호꼴.add(`${Number(m[2])}/${m[3].toUpperCase()}`)
+  return 번호꼴.size >= 2
+}
 
 export const 칸회사 = (칸: string): string => (칸 === 'ungraded' ? '' : (칸.match(/^[a-z]+/i)?.[0] ?? '').toLowerCase())
 

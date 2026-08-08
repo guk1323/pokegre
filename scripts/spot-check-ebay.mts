@@ -22,9 +22,15 @@
  *   ⑤ 묶음 판매 — 여러 장을 한꺼번에 판 것
  *   ⑥ (참고) 값 벌어짐 — 섞임이라기보다 시장 편차일 때가 많다
  *
- * 실행: npx tsx scripts/spot-check-ebay.mts [세트수] [세트당 카드수]
+ * 실행:
+ *   npx tsx scripts/spot-check-ebay.mts [세트수] [세트당 카드수]   ← 세트를 무작위로
+ *   npx tsx scripts/spot-check-ebay.mts 인기                        ← **방문자가 실제로 찾은 말**로
+ *
+ * ⚠️ "인기"로 돌리면 운영 서버의 인기 검색어를 가져와 그 카드만 본다. 무작위보다
+ *    **사람이 실제로 보는 화면**을 먼저 지킬 수 있다.
  */
 import { readFileSync } from 'node:fs'
+import { translateSearchQueryToEnglish } from '../src/lib/translateQueryToEnglish.ts'
 import { 제목번호들, 제목등급칸, 묶음인가, 번호맞추기 } from '../src/lib/listingTitle.ts'
 import { shapeEbayCards } from '../server/api.ts'
 
@@ -61,14 +67,37 @@ const N = Number(process.argv[2] ?? 6)
 const M = Number(process.argv[3] ?? 8)
 const 변형표: [string, RegExp][] = [['마스터볼', /master\s*ball/i], ['몬스터볼', /pok[eé]\s*ball/i]]
 
-const 고른세트 = [...세트].sort(() => Math.random() - 0.5).slice(0, N)
+// 방문자가 실제로 찾은 말로 볼지, 세트를 무작위로 볼지.
+const 인기모드 = process.argv.includes('인기')
+const 검색어: string[] = []
+if (인기모드) {
+  const r = await fetch('https://pokegre.com/api/local/popular-searches')
+  const j = (await r.json()) as { items?: { term: string }[] }
+  for (const x of j.items ?? []) {
+    const en = translateSearchQueryToEnglish(x.term, 'english')
+    if (en) 검색어.push(en)
+  }
+}
+const 고른세트 = 인기모드 ? [] : [...세트].sort(() => Math.random() - 0.5).slice(0, N)
 let 카드수 = 0
 let 갈린것 = 0
 const 문제: string[] = []
 const 의심: string[] = []
 
-for (const [lang, set] of 고른세트) {
-  const p = new URLSearchParams({ language: lang, setName: set, limit: String(M), includeEbay: 'true', sortBy: 'price', sortOrder: 'desc' })
+const 볼것: { p: URLSearchParams; 이름: string }[] = 인기모드
+  ? 검색어.flatMap((q) =>
+      (['japanese', 'english'] as const).map((lang) => ({
+        p: new URLSearchParams({ language: lang, search: q, limit: '6', includeEbay: 'true', sortBy: 'price', sortOrder: 'desc' }),
+        이름: `${q}(${lang[0]})`,
+      })),
+    )
+  : 고른세트.map(([lang, set]) => ({
+      p: new URLSearchParams({ language: lang, setName: set, limit: String(M), includeEbay: 'true', sortBy: 'price', sortOrder: 'desc' }),
+      이름: `${set}(${lang[0]})`,
+    }))
+
+for (const { p, 이름: 볼이름 } of 볼것) {
+  const set = 볼이름
   const r = await fetch(`https://www.pokemonpricetracker.com/api/v2/cards?${p}`, { headers: { authorization: `Bearer ${key}` } })
   if (!r.ok) {
     문제.push(`  [${set}] 저쪽 ${r.status}`)
@@ -124,8 +153,8 @@ for (const [lang, set] of 고른세트) {
   }
 }
 
-console.log(`세트 ${고른세트.length}개 · 카드 ${카드수}장 · 그중 갈라진 것 ${갈린것}장`)
-console.log(고른세트.map(([l, s]) => `${s}(${l[0]})`).join(' · '))
+console.log(`${인기모드 ? '방문자가 찾은 말' : '세트'} ${볼것.length}개 · 카드 ${카드수}장 · 그중 갈라진 것 ${갈린것}장`)
+console.log(볼것.map((x) => x.이름).join(' · '))
 console.log(문제.length ? `\n⚠️ 확실한 섞임 ${문제.length}개` : '\n확실한 섞임: 없음')
 for (const x of 문제.slice(0, 25)) console.log(x)
 console.log(의심.length ? `\n· 봐야 할 것(값이 크게 벌어짐) ${의심.length}개` : '\n· 봐야 할 것: 없음')

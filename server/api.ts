@@ -2792,6 +2792,33 @@ export function startCardNameStore(): void {
  * ⚠️ **한 번호가 2건 이상 나올 때만 센다.** 판매자 오타 한 건으로 카드를 통째로
  *    가리면 안 된다.
  */
+/**
+ * **한 제목에 서로 다른 포켓몬이 둘 이상 나오면 여러 장을 같이 판 것이다.**
+ *   "PSA 9 Pikachu 227/S-P **&** Cramorant 226 Stamp Box"  $3,185
+ * 번호가 하나뿐이라 번호로는 못 잡는다(2026-08-08, 방문자가 자주 찾는 피카츄에서 나왔다).
+ *
+ * ⚠️⚠️ **태그팀 카드를 잘못 잡으면 안 된다.** "Umbreon & Espeon GX"는 이름 자체가 둘이다.
+ *    그래서 **우리 카드 이름에 이미 여러 포켓몬이 들어 있으면 이 검사를 건너뛴다.**
+ * ⚠️ 진화 라인이 한 제목에 나오는 것도 흔하다("Charizard Charmeleon Charmander"). 그건
+ *    실제로 세 장 묶음이라 잡는 게 맞다.
+ */
+const 제목속포켓몬 = (t: string): string[] => {
+  const s2 = String(t)
+  const 본것: string[] = []
+  for (const n of 포켓몬이름표) {
+    if (!new RegExp(`\\b${n}\\b`, 'i').test(s2)) continue
+    // 이미 잡은 긴 이름 안에 든 것은 세지 않는다(Mew ⊂ Mewtwo).
+    if (본것.some((x) => x.toLowerCase().includes(n.toLowerCase()))) continue
+    본것.push(n)
+    if (본것.length >= 3) break
+  }
+  return 본것
+}
+const 두장묶음인가 = (제목: string, 카드이름: string): boolean => {
+  if (제목속포켓몬(카드이름).length >= 2) return false // 태그팀 등 이름이 원래 둘인 카드
+  return 제목속포켓몬(제목).length >= 2
+}
+
 const 등급말앞 = /(psa|bgs|cgc|sgc|tag|ace|grade|gem|mint|black label)\s*$/i
 const 제목분모 = (t: string): string => {
   // ⚠️ 소수점 뒤는 번호가 아니다(BGS 부점수 "9.5/9.5/10/9.5" → ".5/9"). listingTitle.ts와 같은 이유.
@@ -3337,7 +3364,8 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
                 (x.price ?? 0) <= (stat.maxPrice ?? Infinity) * 1.001 &&
                 (x.price ?? 0) <= 값상한 &&
                 (x.price ?? 0) >= 값하한 &&
-                !묶음인가(x.title),
+                !묶음인가(x.title) &&
+                !두장묶음인가(String(x.title ?? ''), String(card.name ?? '')),
             )
             // ⚠️ **우리가 뺀 것이 있으면 반드시 다시 센다.** 예전엔 "딴 카드"를 뺐을 때만
             //    다시 셌더니, 값 하한·상한·묶음으로 뺀 것이 머리글에 그대로 남았다 —
@@ -3434,7 +3462,7 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
                 title: String(x.title ?? ''),
                 뺀까닭: 딴것(x)
                   ? 딴것(x)
-                  : 묶음인가(x.title)
+                  : 묶음인가(x.title) || 두장묶음인가(String(x.title ?? ''), String(card.name ?? ''))
                   ? '여러 장 묶음'
                   : (x.price ?? 0) > 값상한 || (x.price ?? 0) < 값하한
                     ? '값이 너무 벗어남'
