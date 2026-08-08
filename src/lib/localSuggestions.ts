@@ -49,7 +49,12 @@ import { CARD_NAME_KO_TO_EN, STRUCTURAL_EN_TO_KO } from './koreanizeEnglishTitle
 // ⚠️ **굽은 따옴표(’)도 곧은 것(')과 같게 본다.** 같은 카드가 자료마다 다르게 적혀 있어
 //    "Farfetch'd"와 "Farfetch’d", "Brock's Grit"와 "Brock’s Grit"가 **나란히 떴다**
 //    (2026-08-08 확인. 굽은 쪽 45가지 · 곧은 쪽 543가지). 사람 눈에는 같은 글자다.
-const 붙임열쇠 = (s: string) => s.replace(/[\s-]/g, '').replace(/[’‘]/g, "'");
+// ⚠️ **악센트(é)도 없는 것과 같게 본다.** 우리 세트 자료는 "Pokémon Park"이라 적고
+//    저쪽(PPT) 덤프는 "Pokemon Park"이라 적어서, 둘이 **목록에 나란히 떴다**.
+//    게다가 자판으로는 보통 "pokemon"을 치는데 그러면 é가 든 이름이 안 걸렸다
+//    (2026-08-08 확인. é가 든 이름 54가지).
+const 악센트빼기 = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const 붙임열쇠 = (s: string) => 악센트빼기(s).replace(/[\s-]/g, '').replace(/[’‘]/g, "'");
 
 // ⚠️ 예전엔 포켓몬 이름과 팩 이름만 재료로 썼다. 그래서 트레이너·굿즈 카드
 //    (네모·페퍼·저지맨·개조해머·누룩스시티…)를 치면 목록이 통째로 비었다.
@@ -116,7 +121,8 @@ const koTerms: string[] = [
 // 영문판 세트의 원래 카드 이름(4,651가지). 소문자로 미리 만들어 두고 견준다 —
 // 칠 때마다 4,651개를 소문자로 바꾸면 글자마다 그 일을 다시 하게 된다.
 const enTerms: string[] = (cardNamesEn as string[]).filter((s) => !!s && s === s.trim());
-const enLower: string[] = enTerms.map((s) => s.toLowerCase());
+// ⚠️ 견줄 때 쓰는 소문자 짝은 **악센트도 뺀다**("pokemon"으로 "Pokémon"을 찾게).
+const enLower: string[] = enTerms.map((s) => 악센트빼기(s).toLowerCase());
 
 let 레어도받는중 = false;
 function ensureRarityTerms(): void {
@@ -138,7 +144,7 @@ function ensureRarityTerms(): void {
         if (/[가-힣]/.test(t)) koTerms.push(t);
         else {
           enTerms.push(t);
-          enLower.push(t.toLowerCase());
+          enLower.push(악센트빼기(t).toLowerCase());
         }
       }
     })
@@ -201,7 +207,7 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
   //    카드 이름은 "Pikachu"라서, 그대로 견주면 하나도 안 걸린다.
   // ⚠️ 한글이 섞인 말에는 안 돌린다 — 걸릴 리가 없는데 4,651가지를 훑을 이유가 없다.
   if (/[A-Za-z]/.test(q) && !/[가-힣]/.test(q)) {
-    const 소문자 = q.toLowerCase();
+    const 소문자 = 악센트빼기(q).toLowerCase();
     for (let i = 0; i < enTerms.length; i++) 담기(enTerms[i], enLower[i], 소문자);
   }
 
