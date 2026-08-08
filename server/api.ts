@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
-import { gunzipSync } from 'node:zlib'
+import { brotliCompressSync, constants as zlibConst, gunzipSync } from 'node:zlib'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 // ⚠️ 카드 이름을 **서버에서** 한글로 바꾸려고 가져온다. 화면에서 바꾸면 이름 사전
@@ -2111,12 +2111,22 @@ function mountSearchTracker(app: Mountable) {
   // 자동완성이 쓰는 "이름 + 레어도"("리자몽 MUR"). 서버가 시세 덤프를 받는 김에 매일
   // 다시 뽑는다 — 빌드에 박힌 목록은 만든 날에 멈춰 있어서 새 레어도를 못 따라간다.
   // 아직 한 번도 못 뽑았으면 빈 목록을 준다. 화면은 빌드 시점 목록으로 그냥 돌아간다.
-  app.use('/api/local/rarity-terms', (_req, res) => {
+  app.use('/api/local/rarity-terms', (req, res) => {
     res.statusCode = 200
     res.setHeader('content-type', 'application/json; charset=utf-8')
     // 하루 한 번 바뀌는 값이라 오래 물고 있어도 된다.
     res.setHeader('cache-control', 'public, max-age=3600')
-    res.end(JSON.stringify({ terms: 레어도낱말 }))
+    // ⚠️ **미리 눌러 둔 것을 그대로 보낸다.** 325KB짜리라 요청마다 누르면 기계가 고생한다.
+    //    brotli를 받겠다고 한 브라우저에만 준다(요즘 브라우저는 다 받는다). 아니면 글자
+    //    그대로 보내고, 그건 앞단의 compression이 gzip으로 눌러 준다.
+    const 받겠나 = String(req.headers['accept-encoding'] ?? '').includes('br')
+    if (받겠나 && 레어도낱말BR) {
+      res.setHeader('content-encoding', 'br')
+      res.setHeader('vary', 'accept-encoding')
+      res.end(레어도낱말BR)
+      return
+    }
+    res.end(레어도낱말JSON)
   })
 
   app.use('/api/local/popular-searches', async (_req, res) => {
@@ -5165,6 +5175,23 @@ function splitCsvLine(line: string): string[] {
 //    레어도를 들고 나와도 안 따라온다. 이 파일이 그 자리를 매일 메운다.
 const RARITY_TERMS_FILE = dataFile('rarity-terms.json')
 let 레어도낱말: string[] = []
+// ⚠️ **미리 눌러 둔 몸통.** 이 목록은 325KB나 되고 검색창을 처음 누르는 사람마다 나간다.
+//    요청마다 압축하면 512MB짜리 기계가 그 일을 되풀이한다 — 하루 한 번만 바뀌는 값이니
+//    만들 때 한 번 눌러 두고 그대로 내보낸다. brotli는 gzip보다 30% 더 준다
+//    (2026-08-08 실측: 325KB → gzip 96KB → brotli 66KB).
+let 레어도낱말JSON = JSON.stringify({ terms: [] as string[] })
+let 레어도낱말BR: Buffer | null = null
+function 레어도낱말굳히기() {
+  레어도낱말JSON = JSON.stringify({ terms: 레어도낱말 })
+  try {
+    레어도낱말BR = brotliCompressSync(Buffer.from(레어도낱말JSON), {
+      // 기본값(11)은 이만한 글에 몇 초씩 걸린다. 5면 거의 같은 크기에 한참 빠르다.
+      params: { [zlibConst.BROTLI_PARAM_QUALITY]: 5 },
+    })
+  } catch {
+    레어도낱말BR = null // 못 눌러도 아래에서 그냥 글자로 내보낸다
+  }
+}
 
 // 저쪽(PPT) 표기 → 사람들이 실제로 치는 짧은 코드.
 // ⚠️ **표는 src/lib/rarityCode.ts 한 곳에만 둔다.** 여기에 베껴 두었더니 검색기 쪽과
@@ -5233,7 +5260,8 @@ async function loadRarityTerms(): Promise<void> {
     const 것 = JSON.parse(await readFile(RARITY_TERMS_FILE, 'utf-8'))
     if (Array.isArray(것)) {
       레어도낱말 = 것.filter((t): t is string => typeof t === 'string')
-      if (레어도낱말.length) console.log(`[pokegre] 레어도 낱말 ${레어도낱말.length.toLocaleString()}가지를 이어받았습니다.`)
+      레어도낱말굳히기()
+      if (레어도낱말.length) console.log(`[pokegre] 자동완성 낱말 ${레어도낱말.length.toLocaleString()}가지를 이어받았습니다.`)
     }
   } catch {
     레어도낱말 = []
@@ -5300,6 +5328,7 @@ async function 레어도뽑기(모은것: Map<string, Set<string>>): Promise<voi
     return
   }
   레어도낱말 = 낱말
+  레어도낱말굳히기()
   await writeJsonFile(RARITY_TERMS_FILE, 낱말)
   console.log(
     `[pokegre] 자동완성 낱말 ${낱말.length.toLocaleString()}가지를 적었습니다` +
