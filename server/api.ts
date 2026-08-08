@@ -3197,10 +3197,16 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
         .map((x) => x.price ?? 0)
         .filter((v) => v > 0)
         .sort((a, b) => a - b)
-      const 값상한 =
-        카드값들.length >= 20
-          ? 카드값들[Math.min(카드값들.length - 1, Math.floor((카드값들.length - 1) * 0.9))] * 30
-          : Infinity
+      const 백분 = (p2: number) => 카드값들[Math.min(카드값들.length - 1, Math.floor((카드값들.length - 1) * p2))]
+      const 값상한 = 카드값들.length >= 20 ? 백분(0.9) * 30 : Infinity
+      // ⚠️ **낮은 쪽도 막아야 한다.** 높은 쪽만 막고 있었더니 이런 것이 그대로 셈에 들어갔다:
+      //    "2021 Evolving Skies Secret #218 FA Rayquaza VMAX PSA 10" **$2**
+      //    (같은 카드·같은 등급인데 실제 시세는 $2,700이다. 저쪽이 정한 최저가도 $2였다.)
+      //    잘못 적힌 값이거나 배송비만 결제된 것으로 보인다. 그대로 두면 "최저 $2"가 나가고
+      //    그래프 바닥도 눌린다.
+      //    상위 10%의 30배를 상한으로 쓰는 것과 대칭으로, **하위 10%의 1/30**을 하한으로 쓴다.
+      //    ⚠️ 1/10로 하면 싼 카드의 진짜 낙찰($12~$30)까지 잘린다(표본으로 확인). 1/30이다.
+      const 값하한 = 카드값들.length >= 20 ? 백분(0.1) / 30 : 0
       const 낱개전부왔나 =
         (card.ebay?.totalSales ?? 0) === Object.values(card.ebay?.soldListings ?? {}).flat().length &&
         (card.ebay?.totalSales ?? 0) > 0
@@ -3317,7 +3323,6 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
             //    준 옛 건수가 적히고, 아래 낱개 목록에는 옮겨 온 거래가 보여 서로 어긋난다.
             //    다시 세도 되는 때는 **저쪽이 낱개를 전부 줬을 때**다(카드 단위로 본다).
             const 새칸 = !card.ebay?.salesByGrade?.[grade]
-            const 다시셀까 = 새칸 || (낱개전부왔나 && (뺀수 > 0 || 원래.length !== (stat.count ?? 0)))
             // ⚠️⚠️ **저쪽이 이상값으로 빼 둔 것을 우리도 빼야 한다.** 저쪽 셈법을 뜯어보니
             //    이렇다 — **건수(count)는 전부 세고, 값(합·평균·중앙·최저·최고)은 최저~최고
             //    범위 안의 것만으로 낸다.** 등급칸 2,669개를 맞춰 보니 **2,669개 전부**
@@ -3333,8 +3338,15 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
                 (x.price ?? 0) >= (stat.minPrice ?? 0) * 0.999 &&
                 (x.price ?? 0) <= (stat.maxPrice ?? Infinity) * 1.001 &&
                 (x.price ?? 0) <= 값상한 &&
+                (x.price ?? 0) >= 값하한 &&
                 !묶음인가(x.title),
             )
+            // ⚠️ **우리가 뺀 것이 있으면 반드시 다시 센다.** 예전엔 "딴 카드"를 뺐을 때만
+            //    다시 셌더니, 값 하한·상한·묶음으로 뺀 것이 머리글에 그대로 남았다 —
+            //    레쿠쟈 VMAX psa10이 목록에서는 $2를 "뺌"이라 적어 놓고 머리글에는
+            //    "최저 $2"라고 적고 있었다(2026-08-08).
+            const 다시셀까 =
+              새칸 || (낱개전부왔나 && (뺀수 > 0 || 원래.length !== (stat.count ?? 0) || 안쪽.length !== 남은.length))
             const 값 = 안쪽.map((x) => x.price ?? 0).sort((a, b) => a - b)
             const 중앙 = 값.length
               ? 값.length % 2
@@ -3426,7 +3438,7 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
                   ? 딴것(x)
                   : 묶음인가(x.title)
                   ? '여러 장 묶음'
-                  : (x.price ?? 0) > 값상한
+                  : (x.price ?? 0) > 값상한 || (x.price ?? 0) < 값하한
                     ? '값이 너무 벗어남'
                     : (x.price ?? 0) < (stat.minPrice ?? 0) * 0.999 || (x.price ?? 0) > (stat.maxPrice ?? Infinity) * 1.001
                       ? '저쪽이 셈에서 뺀 값'
