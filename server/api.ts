@@ -221,6 +221,18 @@ const BACKUP_KEEP_DAYS = 7
 const UPSTREAM_TIMEOUT_MS = 8000 // 시세·목록처럼 보통 1초 안에 오는 것
 const UPSTREAM_SLOW_MS = 15000 // 이미지·이베이 검색처럼 더 걸릴 수 있는 것
 const SCAN_TIMEOUT_MS = 45000 // 사진 인식(Claude)은 원래 오래 걸린다
+/**
+ * **받아 줄 사람 없이 던져 놓는 일**을 안전하게 던진다.
+ *
+ * ⚠️ `void 어떤일()`은 예외를 아무도 안 받는다 — Node는 그걸 보면 **프로세스를 내린다.**
+ *    하루 한 번 도는 곁다리(자동완성 낱말 적기·시세 미리받기·힛카드 갱신)가 디스크
+ *    한 번 못 써서 서버를 죽이는 셈이다. 실제로 그런 길이 있었다(2026-08-08에 막음).
+ *    앞으로 `void`로 던질 일은 **이걸로** 던질 것.
+ */
+function 던지기(무엇: string, 일: Promise<unknown>): void {
+  void 일.catch((e) => console.log(`[pokegre] ${무엇} 중 오류: ${String(e).slice(0, 120)}`))
+}
+
 export async function backupDataFiles(): Promise<void> {
   const dir = path.join(DATA_DIR, 'backups')
   const today = kstDayKey(Date.now())
@@ -6260,7 +6272,7 @@ async function warmPackPrices(apiKey: string) {
     // 아래 한도(30분)는 안전장치다. 실패한 세트는 위 packWarmDue가 6시간 막아 주지만,
     // 이 타이머까지 5분이면 그 사이 서른 번 헛되이 깨어난다.
     const wait = Math.max(30 * 60_000, until - Date.now() + 5_000)
-    setTimeout(() => void warmPackPrices(apiKey), wait)
+    setTimeout(() => 던지기('시세 미리받기', warmPackPrices(apiKey)), wait)
   }
 }
 
@@ -6627,26 +6639,20 @@ function mountAuth(
         //    Node가 프로세스를 내린다 — 하루 한 번 도는 일이 서버를 죽이는 셈이다.
         void runDailyExports(pptApiKey)
           .catch((e) => console.log(`[pokegre] 통째 받기 중 오류: ${String(e).slice(0, 120)}`))
-          .finally(() => void warmPackPrices(pptApiKey))
+          .finally(() => 던지기('시세 미리받기', warmPackPrices(pptApiKey)))
       }, 5_000)
-      setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, 받을 차례가 된 것만
+      setInterval(() => 던지기('시세 미리받기', warmPackPrices(pptApiKey)), 60 * 60 * 1000) // 매시간 점검
       // 하루가 바뀌면(UTC 0시 = 한국시간 오전 9시) 다시 받을 차례가 온다. 함수 안에서
       // "오늘 이미 받았으면 건너뛴다"를 보므로 자주 불러도 한 번만 실제로 받는다.
-      setInterval(
-        () =>
-          void runDailyExports(pptApiKey).catch((e) =>
-            console.log(`[pokegre] 통째 받기 중 오류: ${String(e).slice(0, 120)}`),
-          ),
-        60 * 60 * 1000,
-      )
+      setInterval(() => 던지기('통째 받기', runDailyExports(pptApiKey)), 60 * 60 * 1000)
 
       // ⚠️ **신상 일본판 힛카드는 스니커덩크로 매일 받는다.** 저쪽(PPT)은 미국 마켓이라
       //    갓 나온 일본판의 값이 비어 있다(스톰에메랄다 116줄 중 54줄이 값 0, 제일 비싼
       //    113번은 $0 · 2026-08-08 덤프 확인). 스니커덩크는 무료라 크레딧이 안 든다.
       //    기동 20초 뒤에 한 번(다른 일이 끝난 뒤), 그 뒤 1시간마다 확인한다 —
       //    함수 안에서 "오늘 이미 받았으면 건너뛴다"를 보므로 실제로는 하루 한 번이다.
-      setTimeout(() => void refreshSnkrdunkHitCards(), 20_000)
-      setInterval(() => void refreshSnkrdunkHitCards(), 60 * 60 * 1000)
+      setTimeout(() => 던지기('힛카드 갱신', refreshSnkrdunkHitCards()), 20_000)
+      setInterval(() => 던지기('힛카드 갱신', refreshSnkrdunkHitCards()), 60 * 60 * 1000)
     }
   })
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
