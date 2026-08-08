@@ -1,3 +1,4 @@
+import { 번호열쇠 } from '../src/lib/cardNo.ts'
 import express from 'express'
 import compression from 'compression'
 import path from 'node:path'
@@ -322,9 +323,9 @@ app.get('/set/:slug', async (req, res) => {
   }
   const hits = topPricedCards(slug, 8)
   const basis = topPricedBasis(slug)
-  const byNum = new Map(cards.map((c) => [String(Number(c.n)), c]))
+  const byNum = new Map(cards.map((c) => [번호열쇠(c.n), c]))
   const rows = hits
-    .map((h) => ({ ...h, card: byNum.get(String(Number(h.n))) }))
+    .map((h) => ({ ...h, card: byNum.get(번호열쇠(h.n)) }))
     .filter((r) => r.card)
     .map((r) => ({ n: r.n, usd: r.usd, name: koName(ed, r.card!.name) }))
 

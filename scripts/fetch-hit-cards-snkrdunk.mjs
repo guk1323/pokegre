@@ -15,6 +15,9 @@
 //
 // 쓰기: node scripts/fetch-hit-cards-snkrdunk.mjs ja-M6          (받아만 보고 저장 안 함)
 //       node scripts/fetch-hit-cards-snkrdunk.mjs ja-M6 --write  (저장)
+// ⚠️ 번호를 Number()로 바꾸면 안 된다 — RC5·TG01·24a가 전부 NaN 한 칸에 뭉친다
+//    (src/lib/cardNo.ts 설명 참고). 앞의 0만 뗀다.
+import { 번호열쇠 } from '../src/lib/cardNo.ts';
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -126,7 +129,7 @@ async function main() {
   }
   // 못 찾은 카드는 이름으로 한 장씩 찾는다.
   for (const c of targets) {
-    const key = String(Number(c.n))
+    const key = 번호열쇠(c.n)
     if (found.has(key)) continue
     for (const p of await search(c.name)) {
       const m = p.title.match(new RegExp(`\\[${codeRe}\\s+(\\d+)/`, 'i'))
@@ -139,7 +142,7 @@ async function main() {
   const rows = []
   let i = 0
   for (const c of targets) {
-    const key = String(Number(c.n))
+    const key = 번호열쇠(c.n)
     const hit = found.get(key)
     i++
     if (!hit?.id) continue

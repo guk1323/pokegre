@@ -10,6 +10,9 @@
 //
 // 쓰기: npx tsx scripts/fill-card-imgs-ppt.mts --budget 1000            (몇 장인지만)
 //       npx tsx scripts/fill-card-imgs-ppt.mts --budget 1000 --write    (저장)
+// ⚠️ 번호를 Number()로 바꾸면 안 된다 — RC5·TG01·24a가 전부 NaN 한 칸에 뭉친다
+//    (src/lib/cardNo.ts 설명 참고). 앞의 0만 뗀다.
+import { 번호열쇠 } from '../src/lib/cardNo.ts'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { assertFloor, noteLeft } from './ppt-floor.mjs'
@@ -277,7 +280,7 @@ for (const [slug, setName] of PAIRS) {
     if (k) 우리이름수.set(k, (우리이름수.get(k) ?? 0) + 1)
   }
   for (const c of blanks) {
-    let hit = src.get(String(Number(c.n)))
+    let hit = src.get(번호열쇠(c.n))
     // 번호로 찾은 게 다른 카드면, 이름으로 다시 찾아본다(테마덱용).
     if (!hit || !sameCard(c.name, hit.name)) {
       const k = normKo(koreanizeEnglishCardName(koreanizeTitle(c.name)))

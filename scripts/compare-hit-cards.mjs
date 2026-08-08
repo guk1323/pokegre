@@ -11,6 +11,8 @@
 //
 // 쓰기: node scripts/compare-hit-cards.mjs ja-M4
 //       node scripts/compare-hit-cards.mjs ja-M4 ja-M3 ja-M2
+// ⚠️ 번호를 Number()로 바꾸면 RC5·TG01이 NaN 한 칸에 뭉친다(src/lib/cardNo.ts).
+import { 번호열쇠 } from '../src/lib/cardNo.ts';
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -85,7 +87,7 @@ async function main() {
       await sleep(600)
     }
     for (const c of targets) {
-      const key = String(Number(c.n))
+      const key = 번호열쇠(c.n)
       if (found.has(key)) continue
       for (const p of await search(c.name)) {
         const m = p.title.match(new RegExp(`\\[${code}\\s+(\\d+)/`))
@@ -95,16 +97,16 @@ async function main() {
     }
     const sd = []
     for (const c of targets) {
-      const id = found.get(String(Number(c.n)))
+      const id = found.get(번호열쇠(c.n))
       if (!id) continue
       const jpy = await tradedJpy(id)
       await sleep(600)
-      if (jpy) sd.push({ n: String(Number(c.n)), jpy })
+      if (jpy) sd.push({ n: 번호열쇠(c.n), jpy })
     }
     sd.sort((a, b) => b.jpy - a.jpy)
 
     // ── 나란히 찍기
-    const nameOf = new Map((set.cards ?? []).map((c) => [String(Number(c.n)), c.name]))
+    const nameOf = new Map((set.cards ?? []).map((c) => [번호열쇠(c.n), c.name]))
     const man = (jpy) => `${(jpy / 10000).toFixed(1)}만엔`
     console.log(`\n■ ${set.name ?? slug} (${slug})`)
     console.log(`  ${'순위'.padEnd(4)} ${'TCGplayer(미국)'.padEnd(30)} ${'스니커덩크(일본 실거래)'.padEnd(30)}`)

@@ -15,6 +15,9 @@
 //   npx tsx scripts/warm-set-imgs.mts --per 24        (세트당 장수 바꾸기)
 //   npx tsx scripts/warm-set-imgs.mts --host http://localhost:3970
 //   npx tsx scripts/warm-set-imgs.mts --dry           (받지 않고 몇 장인지만)
+// ⚠️ 번호를 Number()로 바꾸면 안 된다 — RC5·TG01·24a가 전부 NaN 한 칸에 뭉친다
+//    (src/lib/cardNo.ts 설명 참고). 앞의 0만 뗀다.
+import { 번호열쇠 } from '../src/lib/cardNo.ts'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { cardImg, thumb, usable } from '../src/lib/cardImg.ts'
@@ -160,13 +163,13 @@ async function main() {
     //    값이 높은 카드라 거의 다 뒷번호다(클레이버스트는 89·96·93…).
     //    "앞 16장"만 데웠다가 정작 제일 잘 보이는 자리가 하나도 안 데워진 걸
     //    화면에서 확인했다(2026-08-05). 격자 앞부분보다 이쪽이 먼저다.
-    const byNum = new Map(cards.map((c) => [String(Number(c.n)), c]))
+    const byNum = new Map(cards.map((c) => [번호열쇠(c.n), c]))
     try {
       const r = await fetch(`${HOST}/api/local/set-hit-cards?slug=${encodeURIComponent(s.slug)}&limit=8`)
       const d = r.ok ? ((await r.json()) as { priced?: boolean; cards?: { n: string }[] }) : null
       if (d?.priced) {
         for (const h of d.cards ?? []) {
-          const c = byNum.get(String(Number(h.n)))
+          const c = byNum.get(번호열쇠(h.n))
           if (c && usable(c.img)) {
             add(thumb(cardImg(c.img!), GRID_W))
             hitTotal++

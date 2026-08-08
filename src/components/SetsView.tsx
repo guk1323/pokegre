@@ -1,3 +1,4 @@
+import { 번호열쇠 } from '../lib/cardNo.ts';
 import { useEffect, useRef, useState } from 'react';
 import {
   CARD_BACK,
@@ -338,14 +339,14 @@ export function SetsView({
     const visible = (cards ?? []).slice(0, shown);
     // 값으로 고른 카드가 있으면 그것을 쓴다. 세트 파일에서 같은 번호를 찾아 그림·이름을
     // 가져온다(값만 있고 그림이 없으면 화면에 못 올린다).
-    const byNum = new Map((cards ?? []).map((c) => [String(Number(c.n)), c]));
+    const byNum = new Map((cards ?? []).map((c) => [번호열쇠(c.n), c]));
     const priced = (hitCards ?? [])
-      .map((h) => byNum.get(String(Number(h.n))))
+      .map((h) => byNum.get(번호열쇠(h.n)))
       .filter((c): c is SetCard => !!c && usable(c.img));
     const highlights = priced.length >= 3 ? priced : topCards(selected.ed, cards ?? []);
     const pricedMode = priced.length >= 3;
     // 번호 → 값(USD). 화면에 원화로 적는다.
-    const usdByNum = new Map((hitCards ?? []).map((h) => [String(Number(h.n)), h.usd]));
+    const usdByNum = new Map((hitCards ?? []).map((h) => [번호열쇠(h.n), h.usd]));
     return (
       <div className="mx-auto max-w-4xl">
         <button
@@ -483,7 +484,7 @@ export function SetsView({
                           </span>
                         </div>
                         {(() => {
-                          const usd = usdByNum.get(String(Number(c.n)));
+                          const usd = usdByNum.get(번호열쇠(c.n));
                           if (!usd) return null;
                           return (
                             <p className="text-[11px] text-neutral-500">

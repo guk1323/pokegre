@@ -15,6 +15,9 @@
 //
 // 돌리기: node --experimental-strip-types scripts/fetch-missing-illustrators.mts
 
+// ⚠️ 번호를 Number()로 바꾸면 안 된다 — RC5·TG01·24a가 전부 NaN 한 칸에 뭉친다
+//    (src/lib/cardNo.ts 설명 참고). 앞의 0만 뗀다.
+import { 번호열쇠 } from '../src/lib/cardNo.ts'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -62,7 +65,7 @@ for (const s of 채울세트) {
           결과[`${s.slug}|${c.n}`] = {
             illustrator: j.illustrator,
             name: c.name,
-            number: String(Number(c.n)),
+            number: 번호열쇠(c.n),
             set: s.name,
             img: c.img ?? '',
             s: s.slug,

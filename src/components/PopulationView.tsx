@@ -1,3 +1,4 @@
+import { 번호열쇠 } from '../lib/cardNo.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CardImg } from './CardImg';
 import { trackEvent } from '../api/localStats';
@@ -261,9 +262,9 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
           const 카드자료 = (await (await fetch(`/sets/${세트.slug}.json`)).json()) as {
             cards?: { n: string; name: string; img?: string }[];
           };
-          const 번호로 = new Map((카드자료.cards ?? []).map((c) => [String(Number(c.n)), c]));
+          const 번호로 = new Map((카드자료.cards ?? []).map((c) => [번호열쇠(c.n), c]));
           const 카드 = 목록
-            .map((h) => ({ h, c: 번호로.get(String(Number(h.n))) }))
+            .map((h) => ({ h, c: 번호로.get(번호열쇠(h.n)) }))
             .filter((x) => x.c?.img)
             .map((x) => ({ n: String(x.h.n), 이름: 보일이름('japanese', x.c!.name), img: String(x.c!.img) }))
             .slice(0, 6);

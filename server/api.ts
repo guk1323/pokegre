@@ -28,6 +28,7 @@ import {
   type PackSet,
 } from '../src/lib/packSets.ts'
 import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
+import { 번호열쇠 } from '../src/lib/cardNo.ts'
 import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
 import pptSetList from '../src/data/pptSetList.json' with { type: 'json' }
 import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
@@ -8420,7 +8421,7 @@ async function refreshSnkrdunkHitCards(): Promise<void> {
 
   const 값 = new Map<string, number>()
   for (const c of 후보) {
-    const id = 찾음.get(String(Number(c.n)))
+    const id = 찾음.get(번호열쇠(c.n))
     if (!id) continue
     const jpy = await 스니덩실거래(id)
     await 쉬기(700)
@@ -8485,7 +8486,7 @@ export function topPricedCards(slug: string, limit = 4): { n: string; usd: numbe
     const names = setCardNames(slug)
     return saved.cards
       .slice(0, limit)
-      .map((c) => ({ n: c.n, usd: c.usd, name: names.get(String(Number(c.n))) ?? '' }))
+      .map((c) => ({ n: c.n, usd: c.usd, name: names.get(번호열쇠(c.n)) ?? '' }))
   }
   if (!hit) {
     // 앨범 시세가 없으면 미리 받아 둔 파일을 본다. 이름은 세트 파일에서 번호로 찾는다.
@@ -8493,7 +8494,7 @@ export function topPricedCards(slug: string, limit = 4): { n: string; usd: numbe
     const names = setCardNames(slug)
     return saved.cards
       .slice(0, limit)
-      .map((c) => ({ n: c.n, usd: c.usd, name: names.get(String(Number(c.n))) ?? '' }))
+      .map((c) => ({ n: c.n, usd: c.usd, name: names.get(번호열쇠(c.n)) ?? '' }))
   }
   return Object.entries(hit.prices)
     .filter(([n]) => !n.includes('~'))
@@ -8527,7 +8528,7 @@ function setCards(slug: string): Map<string, { name: string; img: string }> {
       const d = JSON.parse(readFileSync(path.resolve(base, `${slug}.json`), 'utf-8')) as {
         cards?: { n: string; name?: string; img?: string }[]
       }
-      for (const c of d.cards ?? []) out.set(String(Number(c.n)), { name: c.name ?? '', img: c.img ?? '' })
+      for (const c of d.cards ?? []) out.set(번호열쇠(c.n), { name: c.name ?? '', img: c.img ?? '' })
       break
     } catch {
       /* 다음 경로 */
@@ -8675,7 +8676,7 @@ function mountSetHitCards(app: Mountable) {
       cards: cards.map((c) => ({
         ...c,
         ko: koName(고른것.ed ?? 'ja', c.name),
-        img: byNum.get(String(Number(c.n)))?.img ?? '',
+        img: byNum.get(번호열쇠(c.n))?.img ?? '',
       })),
     }
     latestHit = { at: Date.now(), body, 판: 힛카드판번호 }
