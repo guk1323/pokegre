@@ -3024,6 +3024,8 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
    *    카드인지 모른다. 번호 없는 것들만 모아 **번호를 안 적은 카드**로 따로 낸다(열쇠는
    *    원래 것 그대로). 버리지도, 없는 사실을 지어내지도 않는다.
    */
+  // 저쪽이 아는 세트 이름 중 **길고 뚜렷한 것**만. 짧거나 흔한 말("Promo")은 아무 데나 걸린다.
+  const 긴세트이름 = (pptSetList as string[]).filter((n) => n.length >= 8 && !/promo/i.test(n))
   const 갈라담기 = (카드들: RawPriceTrackerCard[]): RawPriceTrackerCard[] => {
     const 결과: RawPriceTrackerCard[] = []
     for (const c of 카드들) {
@@ -3049,6 +3051,27 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
           if (b2) 맨셈.set(b2, (맨셈.get(b2) ?? 0) + 1)
         }
       }
+      // ⚠️ 번호가 아예 없는 매물도 제목에 **세트 이름**을 적은 것이 있다
+      //    ("2011 Pokemon Call of Legends #15" 같은 것 말고, 번호 없이 "Call of Legends"만).
+      //    그것도 갈래로 쓴다 — 안 그러면 전부 "번호 미상"에 남는다.
+      const 세트셈 = new Map<string, number>()
+      const 내세트 = String(c.setName ?? '').toLowerCase()
+      const 제목세트 = (t: string): string => {
+        const s2 = t.toLowerCase()
+        let 긴것 = ''
+        for (const n of 긴세트이름) {
+          if (n.toLowerCase() === 내세트) continue
+          if (s2.includes(n.toLowerCase()) && n.length > 긴것.length) 긴것 = n
+        }
+        return 긴것
+      }
+      for (const x of 낱개) {
+        if (딴것(x)) continue
+        const t = String(x.title ?? '')
+        if (제목번호들(t).length || 맨번호들(t).length) continue
+        const sn = 제목세트(t)
+        if (sn) 세트셈.set(sn, (세트셈.get(sn) ?? 0) + 1)
+      }
       const 갈래 = [...셈].filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1])
       // ⚠️ **앞자리가 딱 하나의 갈래와 맞으면 그리로 합친다.** "#4"가 4/102 하나뿐이면
       //    같은 카드로 본다. 4/102와 4/130 둘 다 있으면 가릴 수 없으니 따로 둔다.
@@ -3059,7 +3082,8 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
         if (맞는것.length === 1) 맨합칠곳.set(b2, 맞는것[0][0])
         else 맨갈래.push([`#${b2}`, v])
       }
-      if (갈래.length + 맨갈래.length < 2) {
+      const 세트갈래 = [...세트셈].filter(([, v]) => v >= 2).sort((x, y) => y[1] - x[1])
+      if (갈래.length + 맨갈래.length + 세트갈래.length < 2) {
         결과.push(c)
         continue
       }
@@ -3069,13 +3093,17 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
         const n = 제목번호들(String(x.title ?? ''))[0]
         if (n) { 모든번호.add(n); continue }
         const b2 = 맨번호들(String(x.title ?? ''))[0]
-        if (b2) 모든번호.add(맨합칠곳.get(b2) ?? `#${b2}`)
+        if (b2) { 모든번호.add(맨합칠곳.get(b2) ?? `#${b2}`); continue }
+        const sn = 제목세트(String(x.title ?? ''))
+        if (sn && 세트셈.get(sn)! >= 2) 모든번호.add(`@${sn}`)
       }
       const 담을곳 = (x: { title?: string }) => {
         const n = 제목번호들(String(x.title ?? ''))[0]
         if (n) return n
         const b2 = 맨번호들(String(x.title ?? ''))[0]
-        return b2 ? (맨합칠곳.get(b2) ?? `#${b2}`) : ''
+        if (b2) return 맨합칠곳.get(b2) ?? `#${b2}`
+        const sn = 제목세트(String(x.title ?? ''))
+        return sn && (세트셈.get(sn) ?? 0) >= 2 ? `@${sn}` : ''
       }
       for (const 번호 of [...모든번호, '']) {
         const 새칸: Record<string, typeof 낱개> = {}
@@ -3097,9 +3125,14 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
           imageCdnUrl400: 번호 ? undefined : c.imageCdnUrl400,
           imageCdnUrl200: 번호 ? undefined : c.imageCdnUrl200,
           rarity: 번호 ? undefined : c.rarity,
-          tcgPlayerId: 번호 ? `${c.tcgPlayerId}~${번호.replace('/', '-')}` : c.tcgPlayerId,
-          cardNumber: 번호 || null,
-          name: 번호 ? `${c.name ?? ''} ${번호}`.trim() : `${c.name ?? ''} (번호 미상)`.trim(),
+          tcgPlayerId: 번호 ? `${c.tcgPlayerId}~${번호.replace(/[/ ]/g, '-')}` : c.tcgPlayerId,
+          // "@Call of Legends"는 번호가 아니라 세트 이름이다 — 번호 칸에 넣지 않는다.
+          cardNumber: 번호.startsWith('@') ? null : 번호 || null,
+          name: !번호
+            ? `${c.name ?? ''} (번호 미상)`.trim()
+            : 번호.startsWith('@')
+              ? `${c.name ?? ''} (${번호.slice(1)})`.trim()
+              : `${c.name ?? ''} ${번호}`.trim(),
           ebay: { ...c.ebay, soldListings: 새칸, salesByGrade: undefined, totalSales: 수 },
         } as RawPriceTrackerCard)
       }
