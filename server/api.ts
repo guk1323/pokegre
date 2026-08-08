@@ -5358,7 +5358,18 @@ async function 레어도뽑기(모은것: Map<string, Set<string>>): Promise<voi
   낱말줄어든적 = false
   레어도낱말 = 낱말
   레어도낱말굳히기()
-  await writeJsonFile(RARITY_TERMS_FILE, 낱말)
+  // ⚠️ **적다가 실패해도 여기서 멈추면 안 된다.** 이건 곁다리(자동완성)이고, 이 함수를
+  //    부른 쪽은 본체(시세 331개 세트)를 넣는 중이다. 디스크가 꽉 차면 writeJsonFile이
+  //    예외를 던지는데, 그게 밖으로 나가면 **그날 시세가 통째로 안 들어간다.**
+  //    게다가 부르는 자리가 `void runDailyExports(...)`라 아무도 안 받고,
+  //    Node는 안 받은 예외에 프로세스를 내린다 — 즉 **서버가 죽는다.**
+  //    메모리에는 이미 새 낱말이 들어갔으니, 못 적었으면 다음 기동 때 어제 것으로
+  //    돌아갈 뿐이다(하루 뒤 다시 만든다).
+  try {
+    await writeJsonFile(RARITY_TERMS_FILE, 낱말)
+  } catch (e) {
+    console.log(`[pokegre] 자동완성 낱말을 파일에 못 적었습니다(메모리에는 들어갔습니다): ${String(e).slice(0, 80)}`)
+  }
   console.log(
     `[pokegre] 자동완성 낱말 ${낱말.length.toLocaleString()}가지를 적었습니다` +
       ` (카드 이름 ${이름들.size.toLocaleString()} · 포켓몬+레어도 ${짝.size.toLocaleString()}종` +
@@ -6612,12 +6623,22 @@ function mountAuth(
       //    세트별로 부를 일이 거의 없다(우리 세트 371개 중 331개가 여기서 찬다).
       //    순서를 바꾸면 세트별 호출이 먼저 크레딧을 쓰고 덤프가 그걸 덮어쓰는 낭비가 된다.
       setTimeout(() => {
-        void runDailyExports(pptApiKey).finally(() => void warmPackPrices(pptApiKey))
+        // ⚠️ **.catch를 꼭 붙인다.** .finally는 예외를 받아 주지 않는다. 안 받으면
+        //    Node가 프로세스를 내린다 — 하루 한 번 도는 일이 서버를 죽이는 셈이다.
+        void runDailyExports(pptApiKey)
+          .catch((e) => console.log(`[pokegre] 통째 받기 중 오류: ${String(e).slice(0, 120)}`))
+          .finally(() => void warmPackPrices(pptApiKey))
       }, 5_000)
       setInterval(() => void warmPackPrices(pptApiKey), 60 * 60 * 1000) // 매시간 점검, 받을 차례가 된 것만
       // 하루가 바뀌면(UTC 0시 = 한국시간 오전 9시) 다시 받을 차례가 온다. 함수 안에서
       // "오늘 이미 받았으면 건너뛴다"를 보므로 자주 불러도 한 번만 실제로 받는다.
-      setInterval(() => void runDailyExports(pptApiKey), 60 * 60 * 1000)
+      setInterval(
+        () =>
+          void runDailyExports(pptApiKey).catch((e) =>
+            console.log(`[pokegre] 통째 받기 중 오류: ${String(e).slice(0, 120)}`),
+          ),
+        60 * 60 * 1000,
+      )
 
       // ⚠️ **신상 일본판 힛카드는 스니커덩크로 매일 받는다.** 저쪽(PPT)은 미국 마켓이라
       //    갓 나온 일본판의 값이 비어 있다(스톰에메랄다 116줄 중 54줄이 값 0, 제일 비싼
