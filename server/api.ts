@@ -2568,6 +2568,9 @@ interface ShapedEbayCard {
 // 등급 하나에 몇 건까지 보여 줄지. 사람이 훑어보는 데는 이 정도면 충분하고,
 // 더 보고 싶으면 등급 줄을 눌러 이베이 낙찰내역으로 갈 수 있다.
 const EBAY_SALES_PER_GRADE = 5
+// 그래프에 보낼 날짜 수 상한(등급당). 낱개로 다시 그리면 점이 많아질 수 있어 막아 둔다 —
+// 낱개 2,151건짜리 카드도 있다. 넉넉히 잡아도 선 모양은 그대로다.
+const EBAY_HISTORY_MAX = 120
 
 // PokemonPriceTracker 원본 응답에는 화면에 안 쓰는 정보(개별 낙찰 목록, 전체 가격
 // 히스토리, smartMarketPrice 등)까지 들어 있다. 원본을 그대로 프록시로 흘리면 이
@@ -2830,7 +2833,16 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
         //    이 값이 있어야 화면에서 진짜 그 레어도만 걸러낼 수 있다(팝수 화면과 같은 방식).
         rarity: card.rarity ?? '',
         imageUrl: card.imageCdnUrl400 ?? card.imageCdnUrl200 ?? '',
-        totalSales: card.ebay?.totalSales ?? 0,
+        // ⚠️ **총 낙찰 건수도 딴 카드를 빼고 센다.** 저쪽 값을 그대로 쓰면 "총 53건"이라
+        //    적히는데 그중 14건이 딴 카드다(2026-08-08). 낱개가 늘 전부 오므로
+        //    (카드 40장 전수 확인) 거른 낱개를 세는 쪽이 맞다.
+        totalSales: (() => {
+          const 낱개 = Object.values(card.ebay?.soldListings ?? {}).flat()
+          if (!낱개.length) return card.ebay?.totalSales ?? 0
+          const 남 = 낱개.filter((x) => !딴것(x)).length
+          // 저쪽 총계와 낱개 수가 어긋나면(낱개가 일부만 온 경우) 저쪽 값을 믿는다.
+          return (card.ebay?.totalSales ?? 0) === 낱개.length ? 남 : card.ebay?.totalSales ?? 0
+        })(),
         monthlySales:
           (card.ebay?.salesVelocity?.monthlyTotal ?? 0) > 0 ? (card.ebay?.salesVelocity?.monthlyTotal ?? null) : null,
         tcgplayer,
@@ -2882,7 +2894,32 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
               return sp
             })(),
             confidence: stat.smartMarketPrice?.confidence ?? null,
-            history: shapeGradeHistory(history[grade]),
+            // ⚠️ **그래프도 우리가 다시 그린다.** 두 가지 때문이다:
+            //    ① 저쪽 그래프는 **날짜별 평균에 딴 카드까지 넣어** 계산한 값이다.
+            //       (2026-08-01 psa10을 보면 sevenDayAverage가 $433인데, 그날 실제로
+            //        팔린 진짜 카드는 $911 하나다 — 나머지는 2016년 카드다.)
+            //    ② 저쪽 그래프는 **최근 며칠치뿐**이라 거의 비어 있다. 이 카드는
+            //       미감정이 12건 팔렸는데 **점이 0개**여서 그래프가 아예 안 떴다.
+            //       낱개 2,151건짜리 카드도 점은 89개뿐이었다.
+            //    낱개는 **늘 전부 온다**(카드 40장 전수 확인: 낱개 수 = 등급별 건수 합).
+            //    그러니 낱개로 그리면 오염도 없고 훨씬 촘촘하다.
+            // ⚠️ 하루에 여러 건 팔리면 그날 평균을 쓴다(저쪽과 같은 뜻으로 맞춘다).
+            // ⚠️ **최근 것부터 EBAY_HISTORY_MAX일까지만** 보낸다. 다 보내면 응답이 커진다.
+            history: (() => {
+              if (!남은.length) return shapeGradeHistory(history[grade])
+              const 날별 = new Map<string, { 합: number; 수: number }>()
+              for (const x of 남은) {
+                const d = String(x.soldDate).slice(0, 10)
+                const v = 날별.get(d) ?? { 합: 0, 수: 0 }
+                v.합 += x.price ?? 0
+                v.수 += 1
+                날별.set(d, v)
+              }
+              return [...날별.entries()]
+                .map(([date, v]) => ({ date, price: Math.round((v.합 / v.수) * 100) / 100 }))
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .slice(-EBAY_HISTORY_MAX)
+            })(),
             sales: 남은
               // 최근 것부터. 저쪽이 어떤 순서로 주는지 보장이 없어 우리가 정렬한다.
               .sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate)))
