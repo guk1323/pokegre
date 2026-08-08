@@ -1,3 +1,4 @@
+import { 오름폭 } from '../lib/priceTrend';
 import { useMemo, useRef, useState } from 'react';
 import { koreanizeGrade } from '../api/snkrdunk';
 import type { ConditionOption, PricePoint, PriceRange, RangeOption } from '../api/snkrdunk';
@@ -74,9 +75,9 @@ export function PriceChart({
     const area = `${line} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`;
     const minIdx = points.reduce((best, p, i) => (p.price < points[best].price ? i : best), 0);
     const maxIdx = points.reduce((best, p, i) => (p.price > points[best].price ? i : best), 0);
-    const first = points[0].price;
     const last = points[points.length - 1].price;
-    const changePct = first === 0 ? 0 : ((last - first) / first) * 100;
+    // 오름폭은 이베이 그래프와 **같은 한 벌**을 쓴다(priceTrend.ts). 점이 적으면 null이다.
+    const changePct = 오름폭(points.map((p) => p.price));
     return { coords, line, area, minIdx, maxIdx, pMin, pMax, last, changePct };
   }, [points]);
 
@@ -108,10 +109,13 @@ export function PriceChart({
             <span className="mr-1 font-normal">
               {range === 'all' ? '전체 기간' : `최근 ${RANGE_LABELS[range] ?? ''}`}
             </span>
-            <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>
-              <span aria-hidden>{geom.changePct >= 0 ? '▲' : '▼'}</span>{' '}
-              {Math.abs(geom.changePct).toFixed(1)}%
-            </span>
+            {/* 점이 여섯도 안 되면 오름폭을 안 적는다(priceTrend.ts 설명 참고). */}
+            {geom.changePct != null && (
+              <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>
+                <span aria-hidden>{geom.changePct >= 0 ? '▲' : '▼'}</span>{' '}
+                {Math.abs(geom.changePct).toFixed(1)}%
+              </span>
+            )}
           </span>
         )}
       </div>

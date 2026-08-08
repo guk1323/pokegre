@@ -1,3 +1,4 @@
+import { 오름폭 } from '../lib/priceTrend';
 import { useMemo, useRef, useState } from 'react';
 import { formatGradeLabel, 대표등급, type EbayGradeStat } from '../api/ebayPrices';
 import { useKrw } from './KrwHint';
@@ -42,18 +43,7 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
     const coords = points.map((p) => ({ cx: x(new Date(p.date).getTime()), cy: y(p.price), ...p }));
     const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`).join(' ');
     const area = `${line} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`;
-    // ⚠️⚠️ **오름폭을 첫 점·끝 점 하나씩으로 세면 안 된다.** 그 하루에 싸게 팔린 한 건이
-    //    그대로 전체 오름폭이 된다 — 베이스셋 리자몽 psa10이 "▲4525%"($400 → $18,500)로
-    //    나가고 있었다(2026-08-08 실측). 등급칸 486개 중 18개(3.7%)가 300%를 넘었다.
-    //    **앞 세 점의 중앙값과 뒤 세 점의 중앙값**으로 견주면 7개로 줄고 최악이 사라진다.
-    // ⚠️ 점이 적으면 아예 안 보여준다. 넉 점짜리로 "▲2300%"라고 적는 건 아는 척이다.
-    const 중앙 = (v: number[]) => {
-      const a2 = [...v].sort((x, y) => x - y);
-      return a2.length % 2 ? a2[(a2.length - 1) / 2] : (a2[a2.length / 2 - 1] + a2[a2.length / 2]) / 2;
-    };
-    const 앞 = 중앙(prices.slice(0, 3));
-    const 뒤 = 중앙(prices.slice(-3));
-    const changePct = prices.length < 6 || 앞 === 0 ? null : ((뒤 - 앞) / 앞) * 100;
+    const changePct = 오름폭(prices);
     return { coords, line, area, pMin, pMax, changePct, points };
   }, [active]);
 
