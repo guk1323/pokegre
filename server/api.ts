@@ -4386,6 +4386,32 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
     res.end(JSON.stringify({ population: pop, grades, 받은날: exportDoneDay.population ?? null }))
   })
 
+  // ⚠️ **아는 값만 저쪽에 넘긴다.** 예전엔 방문자가 보낸 주소를 통째로 넘겼는데,
+//    저쪽은 모르는 값이 하나만 붙어도 **400을 주고 아무것도 안 준다.** 실제로
+//    확인용으로 붙인 `?notrack=1` 하나 때문에 시세가 통째로 안 나왔다
+//    (2026-08-08). 광고·추천 링크에 흔히 붙는 utm_* 같은 것이 따라 들어오면
+//    그 방문자에게는 시세 화면이 통째로 비어 보인다.
+//    have는 우리 서버에서만 쓰는(소스 필터) 값이라 역시 안 보낸다.
+const 넘길것 = new Set([
+  'language',
+  'tcgPlayerId',
+  'search',
+  'setName',
+  'setId',
+  'rarity',
+  'artist',
+  'cardType',
+  'minPrice',
+  'maxPrice',
+  'limit',
+  'offset',
+  'sortBy',
+  'sortOrder',
+  'includeEbay',
+  'fetchAllInSet',
+])
+
+
   app.use('/api/local/card-prices', async (req, res) => {
     if (!apiKey) {
       res.statusCode = 501
@@ -4395,7 +4421,12 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
     }
 
     const url = new URL(req.url ?? '', 'http://localhost')
-    const cacheKey = url.search
+    // ⚠️ **캐시 열쇠도 거른 값으로 만든다.** 방문자 주소를 그대로 쓰면 utm_* 하나만
+    //    달라도 딴 요청으로 세어, 같은 카드를 크레딧 주고 또 산다.
+    const 거른것 = new URLSearchParams()
+    for (const [k, v] of [...url.searchParams].sort((x, y) => x[0].localeCompare(y[0])))
+      if (넘길것.has(k) || k === 'have') 거른것.append(k, v)
+    const cacheKey = '?' + 거른것.toString()
     const cached = cache.get(cacheKey)
 
     if (cached) {
@@ -4442,9 +4473,8 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       // 등급별 가격 추이 그래프를 그리려면 히스토리를 함께 받아야 한다. 클라이언트가
       // 보낸 검색 조건은 그대로 두고 히스토리 옵션만 서버에서 덧붙인다. (캐시 키는
       // 클라이언트 쿼리 기준이라 그대로 두면 된다.)
-      const upstreamParams = new URLSearchParams(url.search)
-      // have는 우리 서버에서만 쓰는(소스 필터) 값이라 PPT엔 보내지 않는다(보내면 400).
-      upstreamParams.delete('have')
+      const upstreamParams = new URLSearchParams()
+      for (const [k, v] of url.searchParams) if (넘길것.has(k)) upstreamParams.append(k, v)
       upstreamParams.set('includeHistory', 'true')
       // 이베이 날짜별 낙찰 히스토리는 includeEbay를 켜야 온다(등급별 그래프의 재료).
       upstreamParams.set('includeEbay', 'true')
