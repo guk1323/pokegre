@@ -1664,18 +1664,12 @@ function App() {
       {/* ⚠️ 공지 배너(OnboardingBanner)를 홈에서 뺐다(2026-08-05, 운영자 지시).
           컴포넌트 파일은 남겨 두었으니 다시 붙이려면 여기에 <OnboardingBanner />만
           되살리면 된다. */}
-      <PopularSearches
-        items={popularSearches}
-        asOf={popularAsOf}
-        loading={popularLoading}
-        onSelect={(term) => {
-          // 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다.
-          confirmSearch(term, 'popular');
-          setQuery(term);
-        }}
-      />
-      {/* ⚠️ 신팩 힛카드는 인기 검색어 바로 아래다(운영자 지시 2026-08-05). 검색을 한
-          번도 안 해도 지금 제일 비싼 카드가 얼마인지 보이게 하려는 자리다.
+      {/* ⚠️ **신팩 힛카드를 인기 검색어보다 위로 올렸다**(2026-08-08).
+          예전엔 인기 검색어 아래였는데(운영자 지시 2026-08-05), 그러면 첫 화면
+          900px에 **빈 검색창과 이름만 적힌 순위표 10줄**만 들어오고 카드 그림은
+          523px 아래에서야 걸쳤다 — 포켓몬 카드 사이트인데 첫인상이 글자뿐이었다.
+          ⚠️ 되돌리려면 이 블록과 아래 <PopularSearches> 블록의 순서만 맞바꾸면 된다.
+          검색을 한 번도 안 해도 지금 제일 비싼 카드가 얼마인지 보이게 하려는 자리다.
           어느 세트를 띄울지는 서버가 고른다 — 발매일이 제일 최근이면서 시세가 있는
           세트다. 여기에 세트를 박아 두면 새 팩이 나올 때마다 사람이 고쳐야 한다. */}
       <NewSetHitCards
@@ -1699,6 +1693,16 @@ function App() {
         onOpenSet={(slug) => {
           setSetsInitialSlug(slug);
           navigate({ view: 'sets' });
+        }}
+      />
+      <PopularSearches
+        items={popularSearches}
+        asOf={popularAsOf}
+        loading={popularLoading}
+        onSelect={(term) => {
+          // 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다.
+          confirmSearch(term, 'popular');
+          setQuery(term);
         }}
       />
       {/* ⚠️ **곁다리 구역은 한 덩이로 묶는다.** 제목 크기만 낮춰서는 다섯 구역이 여전히
