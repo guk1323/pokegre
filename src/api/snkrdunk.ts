@@ -89,6 +89,31 @@ function toCard(raw: RawProduct): SnkrdunkCard {
   };
 }
 
+/**
+ * 친 말을 스니커덩크가 알아듣는 말로 바꾼다.
+ *
+ * ⚠️ 한글을 일본어로 바꿔 보내되, **한글이 없는 검색어는 손대지 않는다.**
+ *    "PCG9 052"처럼 세트 코드로 찾을 때 번역기가 "PC"를 "パソコン"으로 바꿔
+ *    "パソコンG9 052"를 보내고 있었다 — PCG 세트 9개(722장)가 통째로 0건이었다
+ *    (2026-08-07 점검 중 발견). 영문·숫자뿐인 검색어는 이미 그 마켓이 쓰는 말이다.
+ *
+ * ⚠️ **일본어로 다 못 옮기면 영어로 보낸다.** 우리 사전에는 영문판에서만 나온 한글
+ *    이름이 1,602가지 있다(넷볼·비스트볼·약점보험·금선…). 그런 말은 일본어 사전에
+ *    없어서 한글째 나갔고 **0장**이 됐다 — 사전 낱말 8,750가지 중 627가지가 그랬다
+ *    (2026-08-08 실측). 스니커덩크는 **영어 이름으로도 찾아 준다**:
+ *      "ネットボール" 10장 · "Net Ball" 10장 · "넷볼" 0장 (직접 물어봐 확인)
+ *    그래서 한글이 남으면 영어로 한 번 더 옮겨 본다. 영어로도 한글이 남으면 그때는
+ *    일본어 쪽을 쓴다(둘 다 안 되면 어느 쪽이든 0장이라, 덜 이상한 쪽으로 둔다).
+ */
+async function 스니덩말로(keyword: string): Promise<string> {
+  if (!/[가-힣]/.test(keyword)) return keyword
+  const dict = await loadNameDict()
+  const 일본어 = dict.translateSearchQuery(keyword)
+  if (!/[가-힣]/.test(일본어)) return 일본어
+  const 영어 = dict.translateSearchQueryToEnglish(keyword, 'japanese')
+  return /[가-힣]/.test(영어) ? 일본어 : 영어
+}
+
 export async function searchPokemonCards(
   keyword: string,
   page = 1,
@@ -97,11 +122,7 @@ export async function searchPokemonCards(
   const params = new URLSearchParams({
     func: 'all',
     refId: 'search',
-    // ⚠️ 한글을 일본어로 바꿔 보내되, **한글이 없는 검색어는 손대지 않는다.**
-    //    "PCG9 052"처럼 세트 코드로 찾을 때 번역기가 "PC"를 "パソコン"으로 바꿔
-    //    "パソコンG9 052"를 보내고 있었다 — PCG 세트 9개(722장)가 통째로 0건이었다
-    //    (2026-08-07 점검 중 발견). 영문·숫자뿐인 검색어는 이미 그 마켓이 쓰는 말이다.
-    keyword: /[가-힣]/.test(keyword) ? (await loadNameDict()).translateSearchQuery(keyword) : keyword,
+    keyword: await 스니덩말로(keyword),
     sortKey: 'default',
     cardVersion: '2',
     brandIds: 'pokemon',
