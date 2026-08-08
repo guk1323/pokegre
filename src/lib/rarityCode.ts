@@ -28,6 +28,13 @@ export const 레어도표 = new Map<string, string[]>([
   ['RRR', ['Triple Rare']],
   ['RR', ['Double Rare']],
   ['UR', ['Ultra Rare']],
+  // ⚠️ 이 둘이 빠져 있었다(2026-08-08 점검에서 잡음). 서버가 덤프에서 자동완성 낱말을
+  //    만들 때는 넣는데("디안시 PR"·"○○ ACE" 68가지) 여기 없어서, **눌러 보면 0장**이
+  //    나왔다 — 레어도로 못 알아듣고 이름째 저쪽에 물어보기 때문이다.
+  //    ⚠️ 자동완성이 만드는 코드와 여기 표는 **같아야 한다.** server/api.ts의
+  //       RARITY_CODE와 scripts/gen-rarity-from-dump.mts의 표를 같이 볼 것.
+  ['ACE', ['ACE SPEC Rare']],
+  ['PR', ['Prism Rare']],
   ['RAINBOW', ['Rainbow Rare']],
   ['RADIANT', ['Radiant Rare']],
   ['찬란', ['Radiant Rare', 'Kagayaku']],
