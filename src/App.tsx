@@ -970,7 +970,26 @@ function App() {
     const timer = setTimeout(() => {
       fetchRemoteSuggestions(trimmed).then((remote) => {
         if (cancelled || remote.length === 0) return;
-        setSuggestions((prev) => [...new Set([...prev, ...remote])].slice(0, 10));
+        setSuggestions((prev) => {
+          // ⚠️ **스니커덩크 목록은 사람들이 친 말이라 표기가 제멋대로다.** 우리 목록에
+          //    이미 있는 것과 대소문자·띄어쓰기만 다른 것이 나란히 떴다 —
+          //    "Charizard ex" 밑에 "charizard ex"가 한 줄 더 붙는 식이다(2026-08-08 확인).
+          //    열 줄뿐인 목록에서 한 줄은 크다.
+          //    ⚠️ **우리 목록끼리는 안 합친다.** "리자몽 ex"(요즘)와 "리자몽 EX"(2000년대)는
+          //       진짜 다른 카드다. 여기서 거르는 건 **뒤에 붙이는 쪽**뿐이다.
+          // ⚠️ 친 말 그대로도 뺀다. "리자몽"을 친 사람에게 "리자몽"을 권하는 건 빈 줄이다
+          //    (우리 목록은 원래 빼는데, 저쪽 목록에는 들어 있었다).
+          const 열쇠 = (t: string) => t.toLowerCase().replace(/[\s-]/g, '');
+          const 있는것 = new Set([trimmed, ...prev].map(열쇠));
+          const 더할것: string[] = [];
+          for (const t of remote) {
+            const k = 열쇠(t);
+            if (있는것.has(k)) continue;
+            있는것.add(k);
+            더할것.push(t);
+          }
+          return [...prev, ...더할것].slice(0, 10);
+        });
       });
     }, 200);
 
