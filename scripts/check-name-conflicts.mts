@@ -16,7 +16,7 @@
  *
  * 실행: node --experimental-strip-types scripts/check-name-conflicts.mts [cards.csv 경로]
  */
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -60,10 +60,27 @@ const 띄기 = (s: string) => s.replace(/\s+/g, '')
 const 띄어쓰기만 = 어긋.filter((x) => 띄기(x.autoKo) === 띄기(x.손))
 const 진짜 = 어긋.filter((x) => 띄기(x.autoKo) !== 띄기(x.손))
 
-// 카드 장수로 순서를 매긴다(덤프가 있을 때만).
+// 카드 장수로 순서를 매긴다.
+// ⚠️ 예전엔 **덤프가 있을 때만** 셌다. 덤프 없이 돌리면 전부 "0장"으로 나와서
+//    "아무 카드에도 안 쓰인다"로 읽혔다 — 실제로는 구애벨트처럼 수십 장짜리가 섞여 있었다.
+//    상시 검사(check-all)는 덤프 없이 도는 쪽이라, **우리 세트 자료로도 센다.**
 const CSV = process.argv[2]
 const 셈장수 = new Map<string, number>()
+{
+  const dir = existsSync(join(ROOT, 'public/sets')) ? join(ROOT, 'public/sets') : join(ROOT, 'dist/sets')
+  // 영문 세트의 카드 이름이 곧 영문 이름이다. 뒤에 붙는 꼬리(" - Team Plasma")는 뗀다.
+  const 꼬리 = (x: string) => x.replace(/\s*-\s*[A-Za-z0-9/ -]+$/, '').trim()
+  for (const f of readdirSync(dir)) {
+    if (!f.startsWith('en-') || !f.endsWith('.json')) continue
+    for (const c of (JSON.parse(readFileSync(join(dir, f), 'utf8')).cards ?? []) as { name?: string }[]) {
+      for (const n of new Set([String(c.name ?? '').trim(), 꼬리(String(c.name ?? ''))])) {
+        if (n) 셈장수.set(n, (셈장수.get(n) ?? 0) + 1)
+      }
+    }
+  }
+}
 if (CSV && existsSync(CSV)) {
+  셈장수.clear()
   const 쪼개기 = (line: string) => {
     const r: string[] = []
     let cur = ''
@@ -87,7 +104,12 @@ if (CSV && existsSync(CSV)) {
 }
 
 console.log(`자동 사전 ${auto.size}개 · 어긋남 ${어긋.length}개 (어긋나면 자동이 이긴다)`)
-console.log(`  띄어쓰기만 다름 ${띄어쓰기만.length}개 · 낱말이 다름 ${진짜.length}개\n`)
+console.log(`  띄어쓰기만 다름 ${띄어쓰기만.length}개 · 낱말이 다름 ${진짜.length}개`)
+// ⚠️ **어느 표가 덮이는지가 제일 중요하다.** USER_CONFIRMED는 사장님이 직접 확인해 준
+//    값이라, 그게 덮이고 있으면 확인해 준 보람이 없다.
+const 표별 = new Map<string, number>()
+for (const x of 진짜) 표별.set(x.표, (표별.get(x.표) ?? 0) + 1)
+console.log(`  덮이는 표: ${[...표별].map(([k, v]) => `${k.replace('_EN_TO_KO', '')} ${v}개`).join(' · ')}\n`)
 for (const x of 진짜
   .map((x) => ({ ...x, 장수: 셈장수.get(x.en) ?? 0 }))
   .sort((a, b) => b.장수 - a.장수 || a.en.localeCompare(b.en))) {
