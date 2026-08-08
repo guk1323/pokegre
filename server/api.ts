@@ -5823,8 +5823,63 @@ async function loadJsonMap(file: string, m: Map<string, unknown>, 이름: string
  * ⚠️ 하루 2회가 전부다. 시세(cards)를 먼저 받고, 남는 한 칸은 **가장 오래된 것**에 준다.
  *    셋을 매일 받으려 들면 시세가 밀려 어제 값이 그대로 남는다.
  */
+/**
+ * **오늘은 이것만 받아서 파일로 남겨라** — 손으로 켜는 스위치.
+ *
+ * 왜: 아직 안 써 본 종류(printings·sealed)가 뭘 담고 있는지 **눈으로 보고 나서**
+ * 계획표를 짜야 한다. 그런데 하루 2칸을 서버가 평소 계획대로 다 써 버려서, 사람이
+ * 볼 몫이 남지 않는다(2026-08-08 사장님 지시).
+ *
+ * 켜기:  fly secrets set EXPORT_TODAY=printings,sealed -a pokegre
+ * 끄기:  fly secrets unset EXPORT_TODAY -a pokegre     ← **보고 나면 반드시 끌 것**
+ *
+ * ⚠️ 켜져 있으면 **평소 계획(시세·감정 수량·등급별 낙찰)을 통째로 건너뛴다.** 그날은
+ *    시세가 안 들어온다. 하루치라 값이 하루 묵을 뿐이지만, 켜 둔 걸 잊으면 계속 묵는다.
+ * ⚠️ 받은 것을 **해석하지 않고 그대로 /data에 적는다.** 아직 열이 뭔지 모르는 자료를
+ *    억지로 읽으면 엉뚱한 값이 화면에 나간다.
+ */
+function 오늘손으로받을것(): string[] {
+  return String(process.env.EXPORT_TODAY ?? '')
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => /^[a-z]+$/.test(t))
+    .slice(0, EXPORT_DAILY_MAX)
+}
+
+async function 받아서파일로만(apiKey: string, 종류: string): Promise<void> {
+  const text = await fetchExport(apiKey, 종류)
+  if (text == null) return
+  const 곳 = dataFile(`export-${종류}.csv`)
+  try {
+    await mkdir(path.dirname(곳), { recursive: true })
+    await writeFile(곳, text)
+    const 줄 = text.split('\n')
+    console.log(
+      `[pokegre] ${종류}를 그대로 적었습니다: ${(Buffer.byteLength(text) / 1024 / 1024).toFixed(1)}MB · ` +
+        `${줄.length.toLocaleString()}줄 · 열: ${(줄[0] ?? '').slice(0, 200)}`,
+    )
+  } catch (e) {
+    console.log(`[pokegre] ${종류}를 파일로 못 적었습니다: ${String(e).slice(0, 80)}`)
+  }
+}
+
 async function runDailyExports(apiKey: string) {
   if (!apiKey) return
+  // ⚠️ 스위치가 켜져 있으면 **이것만** 하고 끝낸다(위 설명).
+  const 손으로 = 오늘손으로받을것()
+  if (손으로.length) {
+    for (const 종류 of 손으로) {
+      const 쓴것 = Object.values(exportDoneDay).filter((날) => 날 === utcDay()).length
+      if (쓴것 >= EXPORT_DAILY_MAX) {
+        console.log('[pokegre] 오늘 통째 받기 몫을 다 썼습니다 — 남은 것은 내일.')
+        return
+      }
+      if (!exportDue(종류)) continue
+      console.log(`[pokegre] EXPORT_TODAY가 켜져 있습니다 — ${종류}를 받아 파일로만 남깁니다.`)
+      await 받아서파일로만(apiKey, 종류)
+    }
+    return
+  }
   let 쓴칸 = Object.values(exportDoneDay).filter((날) => 날 === utcDay()).length
   if (쓴칸 >= EXPORT_DAILY_MAX) {
     console.log('[pokegre] 오늘 통째 받기 몫을 이미 다 썼습니다(한국시간 오전 9시에 초기화).')
