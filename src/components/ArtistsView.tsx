@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
-import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
 import { koSetName } from '../lib/setNameKo';
 import type { 도감카드정보 } from '../lib/pokedexRoute';
 import { loadSetIndex, type SetIndexEntry } from '../lib/cardCatalog';
@@ -267,11 +266,14 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
   // ── 작가 한 명의 카드 그리드 ────────────────────────────────────────────────
   if (selected) {
     // 포켓몬명 검색: 한글(변환)·영어 어느 쪽으로 쳐도 걸러진다.
+    // ⚠️ **아래 그리드가 보여주는 것과 같은 함수(koCardName)로 견준다.** 예전엔 여기만
+    //    koreanizeEnglishCardName을 썼는데, 그 함수는 전각 부호를 안 다듬는다. 그래서
+    //    화면에는 "초련&담죽"이라 적혀 있는데 검색은 "초련＆담죽"과 견주어,
+    //    **보이는 대로 쳐도 안 걸렸다**(2026-08-08. "포로!핸드 익스텐션"도 같다).
     const cq = cardQuery.trim().toLowerCase();
     const filtered = cq
       ? (cards ?? []).filter(
-          (c) =>
-            c.name.toLowerCase().includes(cq) || koreanizeEnglishCardName(c.name).toLowerCase().includes(cq),
+          (c) => c.name.toLowerCase().includes(cq) || koCardName('en', c.name).toLowerCase().includes(cq),
         )
       : (cards ?? []);
     const visible = filtered.slice(0, shown);

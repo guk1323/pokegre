@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { scanCard, type CardScanResult } from '../api/cardScan';
 import { trackEvent } from '../api/localStats';
-import { koreanizeTitle } from '../lib/koreanizeTitle';
-import { koreanizeEnglishCardName } from '../lib/koreanizeEnglishTitle';
+import { koName, koSet } from '../lib/koCardName';
 
 // 운영자 전용 실험실. 사진 → 스캔(AI가 읽은 원본값) → 번호+세트로 우리 데이터에서 "딱 그 카드"를
 // 찾아 보여준다. 공개 사진검색(이름 목록)은 그대로 두고, 여기서 정확도만 검증한다.
@@ -75,9 +74,10 @@ export function ScanTest() {
     }
   }
 
-  const koName = (ed: 'ja' | 'en', name: string) =>
-    ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name);
-  const koSet = (ed: 'ja' | 'en', name: string) => (ed === 'ja' ? koreanizeTitle(name) : name);
+  // ⚠️ 이름 규칙을 여기서 따로 쓰지 않는다. 화면·서버가 쓰는 한 벌(koCardName)만 쓴다 —
+  //    예전에 여기 적어 둔 규칙에는 번호 꼬리 떼기·전각 부호 다듬기·일본판인데 이름이
+  //    영어로 들어온 카드 갈래가 빠져 있었다. 스캔 시험이 실제 화면과 다른 이름을
+  //    보여 주면 시험을 믿을 수 없다.
 
   return (
     <div className="mx-auto max-w-2xl">
