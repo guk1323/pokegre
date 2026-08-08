@@ -6365,7 +6365,10 @@ const PACK_WARM_RETRY_MS = 6 * 60 * 60 * 1000
 const packWarmDue = (hit?: PackPriceEntry) =>
   !hit || (!packPriceFresh(hit) && Date.now() - (hit.triedAt ?? hit.at) >= PACK_WARM_RETRY_MS)
 const PACK_PRICE_FILE = dataFile('pack-prices.json')
-const stripZeros = (n: string) => n.replace(/^0+/, '') || '0'
+// ⚠️ **번호 다듬는 규칙은 한 벌뿐이다**(src/lib/cardNo.ts의 번호열쇠). 여기서 또 적으면
+//    언젠가 한쪽만 고쳐 값이 안 붙는다. 빈 값만 "0"으로 받는 것이 다르다 — 이 길에는
+//    번호가 빈 줄이 들어올 수 있고, 그때 빈 열쇠를 만들면 안 되기 때문이다.
+const stripZeros = (n: string) => 번호열쇠(n) || '0'
 
 // 저쪽(PPT) 번호를 **우리 번호로** 되돌린다. 세트마다 번호 체계가 다를 수 있어서다.
 // 표는 src/data/setCardNumberAlias.json에 둔다(우리 번호 → 저쪽 번호).

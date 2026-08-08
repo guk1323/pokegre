@@ -1,4 +1,4 @@
-import { 앨범값 } from '../lib/cardNo.ts';
+import { 앨범값, 번호열쇠 } from '../lib/cardNo.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
@@ -783,7 +783,7 @@ export function PackSim({
   //           (아직 못 받았으면 한글→영문 번역으로 최선을 다한다)
   const pickTarget = (slug2: string, n: string, rawName: string): PickTarget => {
     const jp = !!packBySlug.get(slug2)?.jp;
-    const en = value?.names?.[slug2]?.[n.replace(/^0+/, '') || '0'];
+    const en = value?.names?.[slug2]?.[번호열쇠(n)];
     const name = en || (jp ? koName(true, rawName) : rawName);
     return { query: `${name} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
   };
