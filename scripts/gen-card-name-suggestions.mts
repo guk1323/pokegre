@@ -23,6 +23,9 @@ const 영문나온곳 = path.join(ROOT, 'src/data/cardNamesEn.json')
 const idx = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf8')) as {
   slug: string
   ed: 'ja' | 'en'
+  id?: string
+  name?: string
+  serie?: string
 }[]
 
 const 이름들 = new Set<string>()
@@ -105,6 +108,37 @@ const 목록 = [
 writeFileSync(나온곳, JSON.stringify(목록))
 const KB = (Buffer.byteLength(JSON.stringify(목록)) / 1024).toFixed(0)
 console.log(`카드 이름 ${목록.length.toLocaleString()}가지를 ${path.relative(ROOT, 나온곳)}에 적었습니다 (${KB}KB).`)
+
+// ── 영문 세트 이름·시리즈·세트 코드 ─────────────────────────────────────────
+// ⚠️ **영문으로 세트를 찾는 사람이 있다.** 방문자가 친 영문 검색어 260번을 훑어 보니
+//    "25th Anniversary"·"XY Promos"·"crown zenith"·"pitch black"처럼 **세트 이름**이
+//    적지 않았고, 우리 사전에는 한글 팩 이름만 있어 목록이 통째로 비었다.
+//    넣으면 빈 목록 100번 중 12번이 메워진다(2026-08-08 실측).
+// ⚠️ 세트 코드도 넣는다("bw3"·"sv-p"처럼 코드로 치는 사람이 있다). 두 글자짜리는
+//    아무 데나 걸리므로 **세 글자부터**만 담는다.
+// ⚠️ 시리즈 이름(Mega Evolution)도 담는다 — 세트가 아니라 묶음으로 찾는 사람이 있다.
+// ⚠️ **판으로 가르면 안 된다.** "25th Anniversary"는 **일본판(S8a) 세트인데 이름이 영어**다.
+//    영문판만 담았더니 정작 세 번이나 검색된 이 이름이 빠졌다. 글자로 가른다 —
+//    한글도 일본어도 안 섞인 이름이면 담는다.
+// ⚠️ **이미 담긴 이름을 덮지 않는다.** 카드 이름과 세트 이름이 같을 수 있는데
+//    (예: "Pitch Black"), 덮어쓰면 "몇 개 세트에 나왔나"가 1로 줄어 아래 표기 고르기가
+//    엉뚱해진다.
+const 일본글자 = /[ぁ-んァ-ヶ一-龯]/
+for (const s of idx) {
+  const 담기 = (t?: string) => {
+    const v = (t ?? '').trim()
+    if (v.length < 3 || !/[A-Za-z]/.test(v) || /[가-힣]/.test(v) || 일본글자.test(v)) return
+    const 것 = 영문세트수.get(v)
+    if (것) 것.add(s.slug)
+    else 영문세트수.set(v, new Set([s.slug]))
+  }
+  담기(s.name)
+  담기(s.serie)
+  // "SV: Scarlet & Violet 151"처럼 앞머리가 붙은 이름은 뒤쪽만 치는 사람이 많다.
+  담기(s.name?.split(/\s*:\s*/).pop())
+  // 세트 코드는 판을 안 가린다(일본판도 "sv1a"로 친다). 대소문자는 찾을 때 안 가린다.
+  담기(s.id)
+}
 
 // ⚠️ **영문도 띄어쓰기·붙임표만 다른 짝을 합친다.** 같은 카드가 세트마다 다르게 적혀
 //    있다 — "Pikachu EX" ↔ "Pikachu-EX", "Ho Oh" ↔ "Ho-Oh". 목록에 둘 다 뜨면 고장 난
