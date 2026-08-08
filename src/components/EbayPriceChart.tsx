@@ -42,9 +42,18 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
     const coords = points.map((p) => ({ cx: x(new Date(p.date).getTime()), cy: y(p.price), ...p }));
     const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`).join(' ');
     const area = `${line} L${VIEW_W},${VIEW_H} L0,${VIEW_H} Z`;
-    const first = prices[0];
-    const last = prices[prices.length - 1];
-    const changePct = first === 0 ? 0 : ((last - first) / first) * 100;
+    // ⚠️⚠️ **오름폭을 첫 점·끝 점 하나씩으로 세면 안 된다.** 그 하루에 싸게 팔린 한 건이
+    //    그대로 전체 오름폭이 된다 — 베이스셋 리자몽 psa10이 "▲4525%"($400 → $18,500)로
+    //    나가고 있었다(2026-08-08 실측). 등급칸 486개 중 18개(3.7%)가 300%를 넘었다.
+    //    **앞 세 점의 중앙값과 뒤 세 점의 중앙값**으로 견주면 7개로 줄고 최악이 사라진다.
+    // ⚠️ 점이 적으면 아예 안 보여준다. 넉 점짜리로 "▲2300%"라고 적는 건 아는 척이다.
+    const 중앙 = (v: number[]) => {
+      const a2 = [...v].sort((x, y) => x - y);
+      return a2.length % 2 ? a2[(a2.length - 1) / 2] : (a2[a2.length / 2 - 1] + a2[a2.length / 2]) / 2;
+    };
+    const 앞 = 중앙(prices.slice(0, 3));
+    const 뒤 = 중앙(prices.slice(-3));
+    const changePct = prices.length < 6 || 앞 === 0 ? null : ((뒤 - 앞) / 앞) * 100;
     return { coords, line, area, pMin, pMax, changePct, points };
   }, [active]);
 
@@ -84,9 +93,11 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
         <p className="text-xs font-semibold text-neutral-500">{title}</p>
         <span className="text-xs font-semibold text-neutral-400">
           {기간글 && <span className="mr-1 font-normal">{기간글}</span>}
-          <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>
-            <span aria-hidden>{geom.changePct >= 0 ? '▲' : '▼'}</span> {Math.abs(geom.changePct).toFixed(1)}%
-          </span>
+          {geom.changePct != null && (
+            <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>
+              <span aria-hidden>{geom.changePct >= 0 ? '▲' : '▼'}</span> {Math.abs(geom.changePct).toFixed(1)}%
+            </span>
+          )}
         </span>
       </div>
 
