@@ -2355,6 +2355,23 @@ const nextUtcMidnight = (now = Date.now()) => {
 const pptGate = (): { ok: boolean; daily: boolean } =>
   Date.now() < pptBlockedUntil ? { ok: false, daily: pptDailyOut } : { ok: true, daily: false }
 
+/**
+ * 응답 머리글에서 숫자를 읽는다. **없으면 "모름"(NaN)이지 0이 아니다.**
+ *
+ * ⚠️ 여기서 실제로 사고가 났다(2026-08-08 07:17 UTC). `Number(headers.get(...))`로
+ *    읽었는데, 머리글이 없으면 `headers.get`은 null을 주고 **`Number(null)`은 0**이다.
+ *    그런데 `Number.isFinite(0)`은 참이라, "남은 크레딧을 제대로 읽었고 그 값이 0"으로
+ *    통했다. PPT에는 195,341이 멀쩡히 남아 있는데도 서버는 다 쓴 줄 알았다.
+ *    그 뒤로 **감정수량(팝수) 라이브 조회와 시세 미리받기가 통째로 멎는다** — 둘 다
+ *    `pptLeftNow()`가 방문자 몫보다 적으면 그냥 돌아서기 때문이다. 게다가 이 값은
+ *    파일에 남아 서버를 새로 띄워도 이어받는다. 하루가 끝날 때까지 안 풀린다.
+ *    (머리글이 빠지는 응답은 흔하다 — 우리 프록시 앞단의 오류 페이지, 게이트웨이 응답 등.)
+ */
+const 머리글숫자 = (headers: Headers, 이름: string): number => {
+  const v = headers.get(이름)
+  return v === null || v.trim() === '' ? NaN : Number(v)
+}
+
 // 응답을 보고 언제까지 쉴지 정한다.
 // 5xx는 PPT 쪽 장애라 한도와 무관하므로 판단을 바꾸지 않는다.
 function notePpt(status: number, headers: Headers) {
@@ -2367,7 +2384,7 @@ function notePpt(status: number, headers: Headers) {
 }
 
 function notePptInner(status: number, headers: Headers) {
-  const left = Number(headers.get('x-ratelimit-daily-remaining'))
+  const left = 머리글숫자(headers, 'x-ratelimit-daily-remaining')
   if (Number.isFinite(left)) {
     // ⚠️ 크레딧이 어디로 갔는지 로그에 아무것도 안 남아 있었다. 그래서 새벽에 400쯤
     //    줄어든 걸 보고도 누가 썼는지 끝내 못 밝혔다(2026-08-05). 매번 찍으면 시끄러우니
@@ -2381,7 +2398,7 @@ function notePptInner(status: number, headers: Headers) {
     pptDailyLeft = left
     pptDailyLeftDay = utcDay()
   }
-  const after = Number(headers.get('retry-after'))
+  const after = 머리글숫자(headers, 'retry-after')
   const wait = Number.isFinite(after) && after > 0 ? after * 1000 : 0
 
   // 키가 정지되면 429가 아니라 403으로 오고, 남은 시간을 Retry-After로 알려준다
@@ -2695,49 +2712,106 @@ export function startCardNameStore(): void {
 //      그래서 화면에 **평균 $461 · 중앙 $379**가 나갔다. 실제로는 $781쯤이다.
 //    카드 39장·낙찰 13,771건을 훑어 보니 **10.8%가 딴 카드**였다. 한 장짜리 사고가 아니다.
 //
-// ⚠️ **우리 세트 자료로는 못 가린다** — 세 세트 이름이 다 겹치기 때문이다. 대신
-//    **그 카드의 낙찰 기록끼리 견준다.** 매물 제목에 적힌 ① 카드 번호의 분모("015/087")와
-//    ② 연도가, 다수와 다르면 딴 카드다. 바깥 자료가 필요 없고 어느 카드에나 통한다.
-//
-// ⚠️ **다수가 없으면 아무것도 안 뺀다.** 기록이 적으면 "다수"라는 말이 뜻이 없다.
-//    잘못 빼는 쪽이 섞이는 쪽보다 나쁘다 — 진짜 거래를 지우면 값이 거꾸로 틀어진다.
-const 제목분모 = (t: string) => t.match(/\b\d{1,3}\s*\/\s*(\d{2,3})\b/)?.[1] ?? ''
-const 제목연도 = (t: string) => (t.match(/\b(19[89]\d|20[0-2]\d)\b/g) ?? []).map(Number)
+/**
+ * 이 카드의 낙찰 기록 중 **딴 카드인 것**을 가려내는 검사를 만든다.
+ *
+ * ⚠️⚠️⚠️ **잘못 빼는 쪽이 섞이는 쪽보다 나쁘다.** 진짜 거래를 지우면 값이 거꾸로 틀어진다.
+ *    여기까지 오는 데 잘못된 규칙을 세 번 만들었다(2026-08-08, 전부 표본 119장·낙찰
+ *    20,682건 전수 대조로 잡았다):
+ *      ① "제목 번호가 **다수**와 다르면 딴 카드" → **거꾸로 잘랐다.** 번호를 안 적는
+ *         사람이 더 많아서, 정확히 적은 진짜 기록이 소수가 된다.
+ *         (Pikachu Star 104/110 — 맞게 적은 52건이 통째로 잘렸다.)
+ *      ② 글자로 견주기 → "232/91"과 "232/091"이 다른 것이 됐다(0 채움 차이).
+ *      ③ **연도만 어긋나면 뺀다**(건수 문턱 없이) → 표본에서 **30건 넘게 잘못 잘렸다.**
+ *         감정 라벨의 연도 오기가 아주 흔하다 — "2003 EX DRAGON FRONTIERS #97"(진짜는
+ *         2006) · "2021 PALDEAN FATES #232"(진짜는 2024) · "2004 PALDEAN FATES".
+ *         제목에 박힌 판매일("Sold Nov 9, 2025")도 카드 연도로 읽혔다.
+ *      ④ **번호 앞자리**로 견주기 → 표본에서 12건이 잘못 잘렸다. 앞자리는 카드 번호가
+ *         아닌 것이 너무 많다. LEGEND는 상·하 두 장이라 제목이 "#89 and #90"이고,
+ *         뮤는 **도감번호 151**을 제목에 쓴다(진짜 번호는 1/18).
+ *
+ * ⚠️ **저쪽이 준 카드 번호는 잣대로 안 쓴다.** 틀린 것이 있다("Mew"의 번호가 빈칸,
+ *    나인테일도 빈칸). 그래서 **그 카드의 낙찰 기록끼리만** 견준다.
+ *
+ * 지금 규칙: **번호를 적은 기록끼리만** 견주고, **떼로 어긋난 것만** 뺀다.
+ *   · 번호를 적은 게 5건 이상이고 그중 70% 이상이 한 분모여야 그 분모를 잣대로 삼는다
+ *   · 어긋난 분모가 **3건 이상이고 전체의 5% 이상**일 때만 뺀다
+ *     (판매자 오타는 한두 건이다 — "232/232"·"#1/17" 같은 것을 지우면 안 된다)
+ *   · 연도도 같은 방식. **기간 표기("2003-06")와 올해(=팔린 해)는 안 본다.**
+ *
+ * ⚠️ **아직 못 잡는 것이 있다.** 사장님이 잡아 주신 /e/575612(1996 일본판 나인테일)는
+ *    섞인 쪽(2016년 CP6)이 **번호를 적은 기록 중에서는 다수**라 이 규칙으로 안 걸린다.
+ *    그건 세트를 알아보는 방법이 따로 있어야 한다 — 다음 회차에서 잇는다.
+ */
+const 등급말앞 = /(psa|bgs|cgc|sgc|tag|ace|grade|gem|mint|black label)\s*$/i
+const 제목분모 = (t: string): string => {
+  for (const m of t.matchAll(/(^|[^\d/])(\d{1,3})\s*\/\s*(\d{2,3})(?![\d/])/g)) {
+    if (등급말앞.test(t.slice(0, (m.index ?? 0) + m[1].length))) continue
+    return m[3]
+  }
+  return ''
+}
+const 기간표기 = /\b(19|20)\d{2}\s*-\s*\d{2,4}\b/
+// ⚠️ **제목 맨 앞에 판 날짜가 붙어 오는 것이 있다** — "Sold  Nov 9, 2025- PSA 10 - Pikachu
+//    058/102 Base Set"처럼. 이걸 안 떼면 **2025가 카드 연도로 읽혀** 1999년 카드에서
+//    멀쩡한 기록이 잘린다(표본에서 실제로 3건 잘렸다). 뒤 글자에 붙어 있기도 하다
+//    ("Sold  Sep 10, 20252005 Pokemon EX Deoxys…") — 그래서 연도까지만 떼어 낸다.
+const 판날짜앞 = /^\s*Sold\s+[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}/i
+const 제목연도 = (t: string) => {
+  const s = t.replace(판날짜앞, ' ')
+  return 기간표기.test(s)
+    ? []
+    : (s.match(/\b(19[89]\d|20[0-2]\d)\b/g) ?? []).map(Number).filter((y) => y < new Date().getFullYear())
+}
 
-/** 이 카드의 낙찰 기록 중 **딴 카드인 것**을 가려내는 검사를 만든다. */
 function 딴카드거르기(
   soldListings: Record<string, { title?: string }[]> | undefined,
 ): (x: { title?: string }) => boolean {
   const 전부 = Object.values(soldListings ?? {}).flat()
-  // 다섯 건은 있어야 "다수"를 말할 수 있다.
-  if (전부.length < 5) return () => false
-  const 최빈 = (값들: string[]) => {
-    const 셈 = new Map<string, number>()
-    for (const v of 값들) 셈.set(v, (셈.get(v) ?? 0) + 1)
-    let 값 = '',
+  if (전부.length < 8) return () => false
+
+  const 셈하기 = (값들: string[]) => {
+    const m = new Map<string, number>()
+    for (const v of 값들) if (v) m.set(v, (m.get(v) ?? 0) + 1)
+    let 대표 = '',
       n = 0
-    for (const [k, m] of 셈) if (m > n) ((값 = k), (n = m))
-    return { 값, 몫: n / 값들.length }
+    for (const [k, c] of m) if (c > n) ((대표 = k), (n = c))
+    const 합 = [...m.values()].reduce((a, b) => a + b, 0)
+    // 적은 게 5건 이상이고 그중 70% 이상이 한 값이어야 잣대로 삼는다.
+    return { 셈: m, 대표, 믿나: 합 >= 5 && n / 합 >= 0.7 }
   }
-  const D = 최빈(전부.map((x) => 제목분모(String(x.title ?? ''))))
-  const Y = 최빈(
+  const D = 셈하기(전부.map((x) => 제목분모(String(x.title ?? ''))))
+  const Y = 셈하기(
     전부.map((x) => {
       const y = 제목연도(String(x.title ?? ''))
       return y.length ? String(Math.min(...y)) : ''
     }),
   )
+  // **떼로 어긋난 것만** 뺀다. 한두 건은 판매자 오타다.
+  const 떼인가 = (m: Map<string, number>, k: string) => {
+    const c = m.get(k) ?? 0
+    return c >= 3 && c / 전부.length >= 0.05
+  }
+
   return (x) => {
     const t = String(x.title ?? '')
-    if (!t) return false // 제목이 없으면 판단하지 않는다
-    // ① 번호 분모가 다수와 다르면 딴 세트다("015/087" ↔ 분모 없음).
-    const d = 제목분모(t)
-    if (D.몫 >= 0.6 && d && d !== D.값) return true
-    // ② 연도가 다수와 한 해 넘게 벌어지면 딴 판이다(2016 ↔ 1996, 1999 영문판 ↔ 1996 일본판).
-    const y = 제목연도(t)
-    if (Y.몫 >= 0.5 && Y.값 && y.length && !y.some((v) => Math.abs(v - Number(Y.값)) <= 1)) return true
+    if (!t) return false
+    if (D.믿나) {
+      const d = 제목분모(t)
+      // 0 채움은 무시하고 숫자로 견준다("232/91" = "232/091").
+      if (d && Number(d) !== Number(D.대표) && 떼인가(D.셈, d)) return true
+    }
+    if (Y.믿나) {
+      const y = 제목연도(t)
+      if (y.length) {
+        const k = String(Math.min(...y))
+        if (Math.abs(Number(k) - Number(Y.대표)) >= 3 && 떼인가(Y.셈, k)) return true
+      }
+    }
     return false
   }
 }
+
 
 function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): ShapedEbayCard[] {
   const body = raw as { data?: RawPriceTrackerCard | RawPriceTrackerCard[] }
@@ -4315,7 +4389,7 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
         // 429는 두 종류다. 분당 한도면 정말 "잠시 후"에 풀리지만, 하루치를 다 쓴 것이면
         // 한국시간 오전 9시(UTC 0시)까지 안 열린다. 화면에 다르게 안내해야 방문자가
         // 헛되이 새로고침하지 않는다.
-        const dailyLeft = Number(upstream.headers.get('x-ratelimit-daily-remaining'))
+        const dailyLeft = 머리글숫자(upstream.headers, 'x-ratelimit-daily-remaining')
         const daily = upstream.status === 429 && Number.isFinite(dailyLeft) && dailyLeft <= 0
         const stale = stalePrice(cacheKey)
         if (stale) {
@@ -5234,7 +5308,7 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
     }
     // ⚠️ **몸통을 읽기 전에 길이부터 본다.** 아래 검사들은 이미 메모리에 올린 뒤라
     //    정작 위험한 순간(올리는 중)을 못 막는다. 머리글에 길이가 있으면 여기서 끊는다.
-    const 알린길이 = Number(r.headers.get('content-length') ?? '')
+    const 알린길이 = 머리글숫자(r.headers, 'content-length')
     if (Number.isFinite(알린길이) && 알린길이 > EXPORT_MAX_BYTES) {
       console.log(
         `[pokegre] 통째 받기(${종류})가 너무 큽니다(받기 전 확인): ` +
