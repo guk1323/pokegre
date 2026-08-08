@@ -2799,18 +2799,24 @@ function 긴형제(세트: string): string[] {
   const 있는것 = 형제캐시.get(내이름)
   if (있는것) return 있는것
   const 내낱말 = new Set(내이름.trim().split(' '))
-  const 것 = 세트이름들
-    .filter((원본) => {
-      const n = 이름고르기(원본)
-      if (n === 내이름 || !n.includes(내이름)) return false
-      // ① 콜론 뒤가 우리 이름과 같으면 코드만 붙인 같은 세트다.
+  const 것: string[] = []
+  for (const 원본 of 세트이름들) {
+    // ⚠️ **앞의 코드를 안 붙이고 적는 사람이 많다.** "CP6: Expansion Pack 20th
+    //    Anniversary"를 그냥 "Expansion Pack 20th Anniversary"라고 쓴다. 전체 이름만
+    //    보면 이런 것이 빠져나간다(나인테일 PSA 10에서 실제로 $96짜리 하나가 남았다).
+    //    그래서 콜론 뒤 토막도 같이 본다 — 그래도 우리 이름보다 길어야 통과한다.
+    const 후보 = 원본.includes(':') ? [원본, 원본.slice(원본.lastIndexOf(':') + 1)] : [원본]
+    for (const 조각 of 후보) {
+      const n = 이름고르기(조각)
+      if (n === 내이름 || !n.includes(내이름) || 것.includes(n)) continue
+      // ① 콜론 뒤가 우리 이름과 같으면 코드만 붙인 같은 세트다("XY-P: XY Promos").
       const 콜론뒤 = 원본.includes(':') ? 이름고르기(원본.slice(원본.lastIndexOf(':') + 1)) : ''
-      if (콜론뒤 === 내이름) return false
-      // ② 더 붙은 낱말이 전부 흔한 말이면 같은 세트를 달리 적은 것이다.
+      if (콜론뒤 === 내이름) break
+      // ② 더 붙은 낱말이 전부 흔한 말이면 같은 세트를 달리 적은 것이다("Pokemon Jungle").
       const 더붙은 = n.trim().split(' ').filter((w) => !내낱말.has(w))
-      return 더붙은.some((w) => !흔한말.has(w))
-    })
-    .map(이름고르기)
+      if (더붙은.some((w) => !흔한말.has(w))) 것.push(n)
+    }
+  }
   형제캐시.set(내이름, 것)
   return 것
 }
