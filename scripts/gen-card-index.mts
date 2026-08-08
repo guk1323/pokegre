@@ -13,9 +13,7 @@
 
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle'
-import { koSetName } from '../src/lib/setNameKo'
+import { koName, koSet } from '../src/lib/koCardName'
 import { isPocketSet } from '../src/lib/pocketSets'
 
 const SETS_DIR = path.resolve('public/sets')
@@ -36,8 +34,12 @@ interface SetIndexEntry {
 // [4] 공식 한글명(없으면 '') · [5] 한글판 이미지 · [6] 한글판 번호
 type Row = [string, string, string, string, string, string, string]
 
-const koName = (ed: 'ja' | 'en', name: string) =>
-  ed === 'ja' ? koreanizeEnglishCardName(koreanizeTitle(name)) : koreanizeEnglishCardName(name)
+// ⚠️ **화면과 같은 함수를 쓴다.** 예전엔 여기서 규칙을 따로 들고 있었는데, 화면 쪽
+//    koName에는 없는 갈래가 빠져 있어 **33장이 화면과 다른 이름으로 색인**됐다
+//    (2026-08-08 실측). 일본판인데 원본 이름이 영어로 들어온 카드들이다:
+//        화면 "로켓단의 아폴로"   ↔   색인 "Team 로켓단의 Archer"
+//    색인은 카드 검색이 읽는 자료라, 이름이 다르면 **화면에 보이는 이름으로 검색해도
+//    안 나온다.** 규칙이 둘이면 언젠가 반드시 어긋난다.
 
 async function main() {
   const index = JSON.parse(await readFile(path.join(SETS_DIR, 'index.json'), 'utf-8')) as SetIndexEntry[]
@@ -65,7 +67,8 @@ async function main() {
     // 모바일 포켓은 실물이 없어 플리마켓에서 팔 수 없다 — 색인에서 뺀다.
     if (slug.includes('pocket')) continue
 
-    const setKo = meta ? (ed === 'ja' ? koreanizeTitle(meta.name) : koSetName(meta.name)) : slug
+    // 세트 이름도 화면과 같은 함수(koSet)를 쓴다. 여기도 규칙이 따로 있었다.
+    const setKo = meta ? koSet(ed, meta.name) : slug
     sets[slug] = [setKo, ed, meta?.releaseDate ?? '']
 
     for (const c of file.cards ?? []) {
