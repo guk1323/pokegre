@@ -87,6 +87,15 @@ export const 레어도떼기 = (말: string): { 이름: string; 코드: string }
   const 끝 = 조각[조각.length - 1];
   const 코드 = 레어도표.has(끝.toUpperCase()) ? 끝.toUpperCase() : 레어도표.has(끝) ? 끝 : '';
   if (!코드) return { 이름: 말.trim(), 코드: '' };
+  // ⚠️ **한 글자 코드(S)는 영문 이름 뒤에서 떼지 않는다.** "Unown S"는 진짜 카드 이름이다
+  //    (en-dp3 39번·ja-neo4 51번. 같은 카드를 다른 세트는 "Unown [S]"로 적어 놨다).
+  //    그대로 떼면 "Unown"을 Shiny Rare로 걸러 엉뚱한 답이 나간다(2026-08-08 점검에서 잡음).
+  //    레어도 코드는 일본·한국 장터 말이라 **영문으로 치는 사람은 "Charizard S"라고
+  //    안 친다.** 우리 자동완성도 영문 이름에는 코드를 안 붙인다(한글 이름에만 붙인다).
+  //    사전 낱말 13,334가지를 전수로 대조해 이 한 가지만 걸렸다.
+  if (코드.length === 1 && !/[가-힣]/.test(조각.slice(0, -1).join(' '))) {
+    return { 이름: 말.trim(), 코드: '' };
+  }
   return { 이름: 조각.slice(0, -1).join(' '), 코드 };
 };
 
