@@ -41,7 +41,26 @@ const KO_POKEMON = (pokemonNames as { ko: string }[])
   .sort((a, b) => b.length - a.length)
 const pokemonIn = (s: string) => KO_POKEMON.find((k) => s.includes(k)) ?? ''
 
-const VARIANT = /\s*\((?:Mirror |Reverse |Cosmos |Poke Ball |Master Ball )?(?:Holofoil|Holo|Foil|Non ?-?Holo(?:foil)?)\)/gi
+// ⚠️⚠️ **반쪽만 옮겨진 이름은 사전에 넣지 않는다.** 한글 이름 안에 영어 낱말이 남아
+//    있으면 그건 한글 이름이 아니다 — 아무도 그렇게 안 친다. 게다가 이 사전은
+//    **거꾸로도 쓰인다**(영문 → 한글 표시). 그래서 반쪽짜리를 넣으면 손으로 적어 둔
+//    정답을 덮어 버린다. 2026-08-08에 실제로 그랬다:
+//        koreanizeEnglishTitle에 "Team Rocket's Archer" → "로켓단의 아폴로"가 있는데
+//        사전이 "Team Rocket's Archer" → "Team 로켓단의 Archer"로 덮었다.
+//    카드 이름에 원래 영어로 남는 것(ex·V·VSTAR·N·AZ…)만 통과시킨다.
+//    한 글자짜리는 그냥 둔다 — "폴리곤Z"·"포켓바이털A"처럼 한글 이름에 원래 붙는다.
+const 남아도되는말 = /^([A-Za-z]|ex|EX|VMAX|VSTAR|VUNION|GX|BREAK|LV|AZ|MC|PRO|TM|SP|FA|SR|UR)$/
+const 반쪽인가 = (ko: string) =>
+  (ko.match(/[A-Za-z]+/g) ?? []).some((w) => !남아도되는말.test(w))
+
+// ⚠️ **"… Pattern)"도 떼야 한다.** 안 떼면 그 포켓몬의 **한글 이름 전체**가 그 변종
+//    하나에 묶인다 — 사전은 "한글 이름 → 영문 이름" 한 줄뿐이기 때문이다.
+//    실제로 17장이 그랬고, 검색이 이렇게 나갔다(2026-08-08 실측):
+//        레쿠쟈    → "Rayquaza (Friend Ball Pattern)"     1장   (제대로면 10장)
+//        테라파고스 → "Terapagos (Energy Symbol Pattern)"  **0장** (제대로면 5장)
+//    받아 둔 이름 4,740개 중 301개에 Pattern이 붙어 있다.
+const VARIANT =
+  /\s*\((?:Mirror |Reverse |Cosmos |Poke Ball |Master Ball )?(?:Holofoil|Holo|Foil|Non ?-?Holo(?:foil)?)\)|\s*\([A-Za-z' ]+Pattern\)/gi
 const cleanVariant = (s: string) => s.replace(VARIANT, '').trim()
 const ko = (ja: string) => koreanizeEnglishCardName(koreanizeTitle(ja))
 
@@ -93,6 +112,7 @@ for (const [code, byNo] of Object.entries(enBySet)) {
     // 포켓몬 이름은 별도 사전(pokemonNames)이 이미 양방향으로 처리한다. 여기서 또 넣으면
     // "리자몽 ex" 같은 조합까지 통째로 굳어 버려 다른 접미사가 붙은 카드를 못 찾는다.
     if (CARD_NAME_KO_TO_EN.has(k)) continue
+    if (반쪽인가(k)) continue
     const prev = pairs.get(k)
     if (prev && prev !== e2) continue // 같은 한글에 영문이 둘이면 애매하니 안 넣는다
     pairs.set(k, e2)
@@ -119,7 +139,7 @@ if (WRITE) {
     const back = koreanizeEnglishCardName(v)
     const p1 = pokemonIn(k)
     const p2 = pokemonIn(back)
-    if (!v || (p1 && p2 && p1 !== p2)) {
+    if (!v || 반쪽인가(k) || (p1 && p2 && p1 !== p2)) {
       rejected++
       continue
     }
