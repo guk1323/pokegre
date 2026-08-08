@@ -177,5 +177,34 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
     for (let i = 0; i < enTerms.length; i++) 담기(enTerms[i], enLower[i], 소문자);
   }
 
-  return [...new Set([...startsExact, ...starts, ...includes])].slice(0, limit);
+  const 찾은것 = [...new Set([...startsExact, ...starts, ...includes])];
+  if (찾은것.length) return 찾은것.slice(0, limit);
+
+  // ── 아무것도 못 찾았을 때만: **낱말이 떨어져 있어도 찾아 본다** ──────────────
+  // ⚠️ 위 찾기는 친 말이 **붙어 있어야** 걸린다. 그래서 자연스럽게 치는 말이 통째로
+  //    비었다 — 제일 아까운 건 **&로 이어진 카드**다:
+  //      "가디안 님피아" → (없음)   실제 카드 이름은 "가디안 & 님피아 GX"
+  //      "체육관 프로모" → (없음)   실제로는 "체육관 배지 프로모"·"체육관 트레이너 프로모"
+  //      "gym p"        → (없음)   실제로는 "Pewter City Gym"
+  //    친 낱말이 **모두** 들어 있으면 보여 준다.
+  // ⚠️ **빈손일 때만 돈다.** 평소에도 돌리면 "메가 e"에 "메가니움 ex"(메가진화가 아니다)
+  //    같은 게 섞여 목록이 미덥지 않아진다. 지금 순서를 밀어내지 않는 게 더 중요하다.
+  //    실측(방문자가 친 말 952가지의 모든 단계): 빈 목록 22.5% 중 **1.04%**를 메운다.
+  // ⚠️ 한 낱말이면 안 돈다(위에서 이미 다 봤다).
+  const 낱말 = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (낱말.length < 2) return [];
+  const 다들었나 = (t: string) =>
+    낱말.every((w) => t.startsWith(w) || t.includes(` ${w}`) || t.includes(`-${w}`) || t.includes(`&${w}`));
+  const 흩어진것: string[] = [];
+  const 담기2 = (원본: string, 견줄것: string) => {
+    if (흩어진것.length >= limit) return;
+    if (견줄것 === 낱말.join(' ')) return; // 친 말 그대로는 뺀다
+    if (다들었나(견줄것)) 흩어진것.push(원본);
+  };
+  for (const term of koTerms) {
+    if (흩어진것.length >= limit) break;
+    담기2(term, term.toLowerCase());
+  }
+  for (let i = 0; i < enTerms.length && 흩어진것.length < limit; i++) 담기2(enTerms[i], enLower[i]);
+  return [...new Set(흩어진것)].slice(0, limit);
 }
