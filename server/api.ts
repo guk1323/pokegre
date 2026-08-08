@@ -5849,7 +5849,26 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
   }
 
   // 세트별로 모은다. 값 고르는 규칙은 세트별 받기와 같다.
-  const 모음 = new Map<string, { prices: Record<string, number>; names: Record<string, string>; base: Set<string> }>()
+  const 모음 = new Map<
+    string,
+    { prices: Record<string, number>; names: Record<string, string>; base: Set<string>; 이름맞음: Set<string> }
+  >()
+  // 세트별 "번호 → 우리 카드 이름"(겹친 번호를 가릴 때 쓴다). 한 번 만들고 다시 쓴다.
+  const 이름표캐시 = new Map<string, Map<string, string> | null>()
+  const 세트이름표 = (slug: string): Map<string, string> | null => {
+    const 있는것 = 이름표캐시.get(slug)
+    if (있는것 !== undefined) return 있는것
+    let m: Map<string, string> | null = null
+    try {
+      m = new Map<string, string>()
+      for (const [n, v] of setCards(slug)) m.set(stripZeros(n), 이름만벗기기(String(v.name ?? '')))
+      if (!m.size) m = null
+    } catch {
+      m = null
+    }
+    이름표캐시.set(slug, m)
+    return m
+  }
   // 자동완성용 "이름 + 레어도" 재료. **줄을 자르는 김에 같이 줍는다** — 이것 때문에 덤프를
   // 한 번 더 받으면 하루 2회뿐인 몫이 날아간다(2026-08-08).
   // ⚠️ 아래 `if (!slug) continue`보다 **먼저** 주워야 한다. 우리가 이름을 모르는 세트의
@@ -5892,8 +5911,23 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
       const 되돌림 = 번호되돌리기(slug, String(c[I.cardNumber] ?? ''), String(c[I.name] ?? ''))
       const num = stripZeros(되돌림.split('/')[0].trim())
       if (!num) continue
-      const 것 = 모음.get(slug) ?? { prices: {}, names: {}, base: new Set<string>() }
+      const 것 = 모음.get(slug) ?? { prices: {}, names: {}, base: new Set<string>(), 이름맞음: new Set<string>() }
       if (속인가 && 것.prices[num] !== undefined) continue
+      // ⚠️⚠️ **한 세트 안에서도 앞자리가 겹친다.** 저쪽은 프로모 세트에 여러 시리즈를 같이
+      //    담는데 번호 분모가 다르다("01/64" · "41/53"). 앞자리만 열쇠로 쓰면 서로 덮어쓴다:
+      //        en-basep 1번  Clefable(Prerelease) $999.95 · Aerodactyl $86.96 · Pikachu $43.39
+      //    이름이 우리 카드와 맞는 줄이 그 자리를 차지하면, 뒤에 오는 안 맞는 줄은 안 받는다.
+      //    (세트별 받기 쪽 담기()와 같은 규칙이다 — 규칙이 둘이면 언젠가 어긋난다.)
+      const 우리이름 = 세트이름표(slug)?.get(num)
+      const 이름맞나 = !!우리이름 && 이름만벗기기(nm) === 우리이름
+      if (이름맞나 && !것.이름맞음.has(num)) {
+        // 이름이 맞는 첫 줄이다. 앞서 안 맞는 줄이 차지했으면 그것을 밀어낸다.
+        delete 것.prices[num]
+        것.base.delete(num)
+        것.이름맞음.add(num)
+      } else if (!이름맞나 && 것.이름맞음.has(num)) {
+        continue // 이미 이름이 맞는 줄이 있다
+      }
       const isBase = !nm.includes('(')
       if (nm && (isBase || !것.names[num])) 것.names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
       if (isBase) {
@@ -6883,6 +6917,19 @@ async function fetchWholeSet(setName: string, lang: string, apiKey: string): Pro
  *    이 값은 세트별 "값 높은 카드"와 카드 뽑기 앨범에 그대로 나간다.
  *    → **부른 세트와 이름이 다른 줄은 버린다.**
  */
+/**
+ * 이름을 견줄 꼴로 다듬는다. 저쪽이 붙이는 꼬리(번호·괄호)를 떼고 부호를 지운다.
+ * ⚠️ **function으로 둔다(const 아님).** 이 파일 위쪽(덤프 읽는 곳)에서 먼저 쓰는데,
+ *    const로 두면 선언 전 접근이 되어 언젠가 터진다.
+ */
+function 이름만벗기기(x: string): string {
+  return x
+    .replace(/\s*-\s*[A-Za-z0-9/-]+\s*$/, '')
+    .replace(/\s*\([^()]*\)\s*$/, '')
+    .replace(/[^A-Za-z0-9가-힣]/g, '')
+    .toLowerCase()
+}
+
 function 담기(
   list: 저쪽카드[],
   prices: Record<string, number>,
@@ -6904,12 +6951,7 @@ function 담기(
   //       ② **우리 세트에 그 번호가 아예 없을 때만** — ①만으로도 2,403줄이 옮겨졌다.
   //          저쪽은 같은 이름의 시크릿을 여러 장 두는데(125·130·109번 리자몽 ex),
   //          그게 전부 우리 한 카드로 몰린다. 번호가 있으면 번호가 맞다.
-  const 이름벗기기 = (x: string) =>
-    x
-      .replace(/\s*-\s*[A-Za-z0-9/-]+\s*$/, '')
-      .replace(/\s*\([^()]*\)\s*$/, '')
-      .replace(/[^A-Za-z0-9가-힣]/g, '')
-      .toLowerCase()
+  const 이름벗기기 = 이름만벗기기
   const 열쇠뽑기 = (c: 저쪽카드): string => {
     const 되 = slug ? 번호되돌리기(slug, String(c.cardNumber ?? ''), String(c.name ?? '')) : String(c.cardNumber ?? '')
     const raw = 되 || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
