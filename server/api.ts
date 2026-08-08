@@ -2934,6 +2934,35 @@ function 딴카드거르기(
   // ⚠️ **잣대를 세울 땐 이미 딴 세트로 판명난 것을 빼고 센다.** 안 그러면 섞인 쪽이
   //    다수가 되어 잣대가 거꾸로 선다(나인테일이 그랬다 — 진짜 1996년 기록은 "#38"이라
   //    분모를 안 적고, 섞인 2016년 CP6가 "015/087"이라 분모 표에서 다수였다).
+  /**
+   * ⚠️ **제목이 딴 세트 이름을 대놓고 적었나.** 재판(리메이크) 카드가 원본과 **같은 번호**를
+   *    쓰는 일이 있어 번호로는 못 가른다:
+   *        네오 레벨레이션 66/64 「빛나는 잉어킹」(2001)  ↔  셀레브레이션즈 66/64(2021)
+   *    실제로 2001년 카드 시세에 2021년 재판이 섞여 $15~$1,500이 한 칸에 있었다.
+   * ⚠️ 한 집안 이름은 안 본다("Celebrations" ⊂ "Celebrations: Classic Collection").
+   *    이걸 빼먹으면 걸리는 것이 2.8%에서 18.6%로 뛴다 — 제 세트를 딴 세트로 읽는 것이다.
+   * ⚠️ **12글자 이상**인 이름만 본다. 짧으면 아무 데나 걸린다.
+   * ⚠️ 번호 없는 프로모 뭉치 칸에는 안 건다 — 거긴 **가르는 쪽**이 맞다(갈라담기 참고).
+   * 실측(2026-08-08): 낙찰 19,274건 중 231건(1.2%)이 걸리고 **전부 재판↔원본 짝**이었다.
+   */
+  // 견줄 때 쓰는 꼴: 소문자·글자와 숫자만 남기고 빈칸 하나로.
+  const 벗김 = (x: string) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const 내세트벗김 = 벗김(String(setName ?? ''))
+  const 프로모뭉치 = /unnumbered|promotional/i.test(String(setName ?? ''))
+  const 딴세트이름 = 프로모뭉치 || !내세트벗김
+    ? []
+    : (pptSetList as string[])
+        .filter((n) => n.length >= 12 && !/promo/i.test(n))
+        .map((n) => 벗김(n))
+        .filter((v) => v && v !== 내세트벗김 && !내세트벗김.includes(v) && !v.includes(내세트벗김))
+  const 딴세트적힘 = (t: string): string => {
+    if (!딴세트이름.length) return ''
+    const s2 = 벗김(t)
+    if (s2.includes(내세트벗김)) return '' // 우리 세트 이름이 적혀 있으면 그 카드다
+    let 긴것 = ''
+    for (const v of 딴세트이름) if (s2.includes(v) && v.length > 긴것.length) 긴것 = v
+    return 긴것
+  }
   const 성한것 = 전부.filter((x) => !형제인가(String(x.title ?? '')))
   const 잣대 = 성한것.length >= 5 ? 성한것 : 전부
   const D = 셈하기(잣대.map((x) => 제목분모(String(x.title ?? ''))))
@@ -2982,6 +3011,8 @@ function 딴카드거르기(
     if (!t) return ''
     // 제목이 더 긴 형제 세트 이름을 통째로 적었으면 다수결을 볼 것도 없다.
     if (형제인가(t)) return '같은 이름의 다른 세트'
+    const 딴세트 = 딴세트적힘(t)
+    if (딴세트) return `제목에 다른 세트가 적힘(${딴세트})`
     if (D.믿나) {
       const d = 제목분모(t)
       // 0 채움은 무시하고 숫자로 견준다("232/91" = "232/091").
