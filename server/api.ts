@@ -2591,7 +2591,7 @@ interface ShapedEbayCard {
     // 실제 낙찰 몇 건(최근 순). 통계가 아니라 **낱개 거래**다.
     // ⚠️ 등급당 EBAY_SALES_PER_GRADE건까지만 넘긴다. 전부 넘기면 응답이 264KB까지
     //    부풀고(에브이 ex 663건), 화면에서 다 보여 줄 수도 없다.
-    sales: { price: number; date: string; url: string; auction: boolean }[]
+    sales: { price: number; date: string; url: string; auction: boolean; title: string }[]
   }[]
 }
 
@@ -3103,6 +3103,24 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
       }
       // 저쪽이 낱개를 **전부** 줬나. 카드 단위로 한 번만 본다 — 칸을 옮기면 칸별 건수는
       // 달라지므로 칸끼리 견주면 안 된다.
+      // ⚠️⚠️ **터무니없는 값 한둘이 그 등급의 시세를 통째로 뒤집는다.**
+      //    Mew ex 232/091의 BGS 10 칸에 "$250,000"·"$181,000" 두 건이 있었고, 저쪽이 정한
+      //    범위가 하필 그 둘만 남겨 **중앙값이 $215,500**으로 나갔다(2026-08-08).
+      //    같은 카드의 다른 등급은 전부 $500~$4,900다. 제목은 "POP 1 … BGS 10 BLACK LABEL"
+      //    인데, POP 1(세상에 한 장)이 같은 날 두 번 팔릴 수는 없다.
+      //    → 그 카드 낙찰값의 **상위 10%(p90)의 30배**를 넘으면 셈에서 뺀다. 목록에는
+      //      그대로 보여 주고 **평균·중앙값·그래프에서만** 뺀다(저쪽이 범위 밖을 다루는 것과 같다).
+      //    ⚠️ 30배는 넉넉히 잡은 것이다. 10배로 하면 베이스셋 리자몽의 진짜 $21,020 낙찰까지
+      //       잘린다(표본으로 확인). 낱개가 20건 넘는 카드에만 건다 — 적으면 p90이 못 미덥다.
+      const 카드값들 = Object.values(card.ebay?.soldListings ?? {})
+        .flat()
+        .map((x) => x.price ?? 0)
+        .filter((v) => v > 0)
+        .sort((a, b) => a - b)
+      const 값상한 =
+        카드값들.length >= 20
+          ? 카드값들[Math.min(카드값들.length - 1, Math.floor((카드값들.length - 1) * 0.9))] * 30
+          : Infinity
       const 낱개전부왔나 =
         (card.ebay?.totalSales ?? 0) === Object.values(card.ebay?.soldListings ?? {}).flat().length &&
         (card.ebay?.totalSales ?? 0) > 0
@@ -3231,7 +3249,8 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
             const 안쪽 = 남은.filter(
               (x) =>
                 (x.price ?? 0) >= (stat.minPrice ?? 0) * 0.999 &&
-                (x.price ?? 0) <= (stat.maxPrice ?? Infinity) * 1.001,
+                (x.price ?? 0) <= (stat.maxPrice ?? Infinity) * 1.001 &&
+                (x.price ?? 0) <= 값상한,
             )
             const 값 = 안쪽.map((x) => x.price ?? 0).sort((a, b) => a - b)
             const 중앙 = 값.length
@@ -3311,6 +3330,10 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
                 url: x.url ?? '',
                 // 경매인지 즉시구매인지. 경매가는 "그날 시장이 매긴 값"이라 더 믿을 만하다.
                 auction: String(x.listingType ?? '').toLowerCase() === 'auction',
+                // ⚠️ **매물 제목도 같이 보낸다.** 이게 없으면 "이 낙찰이 정말 그 카드인가"를
+                //    아무도 확인할 수 없다 — 내가 만든 점검 도구도 제목이 없어 헛돌았다
+                //    (2026-08-08). 사람이 눈으로 가리는 유일한 단서이기도 하다.
+                title: String(x.title ?? ''),
               })),
             }
           })
