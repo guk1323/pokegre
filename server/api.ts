@@ -5363,6 +5363,12 @@ const packPriceCache = new Map<string, PackPriceEntry>()
 // ⚠️ 표는 **따로 파일로** 둔다. packPriceCache에 넣으면 세트 목록을 훑는 곳
 //    (통계·세트 고르기)이 이걸 세트로 세어 버린다.
 const MIX_FIX_MARK_FILE = dataFile('mix-fix-done-2.json')
+// ⚠️ 대조표(pptSetNames)가 **뒤바뀌어 있던** 세트. 이 둘은 서로의 카드 시세를 받아
+//    갖고 있었다(2026-08-08, scripts/check-set-mapping.mts로 찾음):
+//        ja-SVLN 님피아 스타터 → "SV: Ceruledge ex …"(창염마 덱)
+//        ja-SVLS 창염마 스타터 → "SV: Sylveon ex …"(님피아 덱)
+//    표는 고쳤고, 저장돼 있던 값은 한 번 비워 다시 받는다.
+const 대조표고친세트 = ['ja-SVLN', 'ja-SVLS']
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 // 캐시를 그대로 써도 되는지. partial(뒤 페이지를 못 받음)이거나 names(영문 카드명)가
 // 없으면 다시 받는다 — names는 나중에 추가한 항목이라, 이전에 저장된 캐시에는 없다.
@@ -6332,24 +6338,30 @@ async function loadPackPriceFile() {
     // ⚠️ **고치기 전에 받아 둔 값에는 딴 세트가 섞여 있다.** 그냥 두면 순번이 돌아올
     //    때까지(최대 45일) 틀린 값이 화면에 남는다. 딸려오는 세트만 한 번 비워
     //    다시 받게 한다. 이미 비운 뒤면 표가 남아 있어 다시 안 비운다.
+    // ⚠️ **이미 지운 세트는 표에 적어 두고 다시 안 지운다.** 예전엔 "다 지웠음" 표
+    //    하나만 뒀는데, 새로 고칠 세트가 생길 때마다 40개를 통째로 다시 받아야 했다.
+    let 지운것: string[] = []
     try {
-      await readFile(MIX_FIX_MARK_FILE, 'utf-8')
-      return // 이미 한 번 치웠다
+      const 표 = JSON.parse(await readFile(MIX_FIX_MARK_FILE, 'utf-8')) as { 지운것?: string[] }
+      if (Array.isArray(표.지운것)) 지운것 = 표.지운것
+      else 지운것 = [...딸려오는세트(), ...Object.keys(번호별칭)] // 예전 표 = 그때 것까지는 지웠다
     } catch {
-      /* 아직 안 치웠다 */
+      /* 아직 한 번도 안 지웠다 */
     }
     // ⚠️ 번호 별칭을 쓰는 세트도 같이 비운다. 옛 일본판은 저쪽에 번호가 없어서
     //    라이브로 받은 값이 "0번" 한 칸에 몰려 있었다(확장팩 제1탄이 그랬다 —
     //    1등 카드가 에너지 $0.44로 나갔다).
+    const 지울것 = [...new Set([...딸려오는세트(), ...Object.keys(번호별칭), ...대조표고친세트])]
     let 비움 = 0
-    for (const slug of [...딸려오는세트(), ...Object.keys(번호별칭)]) {
+    for (const slug of 지울것) {
+      if (지운것.includes(slug)) continue
       if (packPriceCache.delete(slug)) 비움++
     }
     if (비움) {
       console.log(`[pokegre] 딴 세트가 섞여 있던 ${비움}개 세트의 시세를 비웠습니다 — 순번대로 다시 받습니다.`)
       await savePackPriceFile()
     }
-    await writeJsonFile(MIX_FIX_MARK_FILE, { at: Date.now(), 비움 })
+    await writeJsonFile(MIX_FIX_MARK_FILE, { at: Date.now(), 지운것: 지울것 })
   } catch {
     /* 처음엔 없다 */
   }
