@@ -64,6 +64,10 @@ for (const [lang, set] of 고른세트) {
         의심.push(`  [값 벌어짐] ${c.name} ${g.grade}  $${Math.min(...값)} ~ $${Math.max(...값)}`)
       for (const s of g.sales ?? []) {
         if (g.grade === 'ungraded' && 등급말.test(s.title ?? '')) 문제.push(`  [미감정에 등급] ${c.name}  ${String(s.title).slice(0, 60)}`)
+        // 묶음 판매(여러 장)는 한 장 값이 아니다. ⚠️ "PSA 6 Card"의 "6 Card"를 세면
+        //    멀쩡한 낙찰 수천 건이 걸린다 — 수량을 말하는 꼴만 본다.
+        if (/\b(?:lot|set|bundle|collection|joblot)\s*of\s*\d+|\bjob\s*lot\b|\b\d+\s*card\s*lot\b/i.test(s.title ?? ''))
+          문제.push(`  [묶음 판매] ${c.name} ${g.grade} $${s.price}  ${String(s.title).slice(0, 54)}`)
         const 내변형 = 변형표.filter(([, re]) => re.test(String(c.name))).map(([k]) => k)
         const 제목변형 = 변형표.filter(([, re]) => re.test(s.title ?? '')).map(([k]) => k)
         const 딴변형 = 제목변형.filter((k) => !내변형.includes(k))

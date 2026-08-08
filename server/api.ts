@@ -2802,6 +2802,20 @@ const 제목등급칸 = (t: string): string => {
   return `${회사}${m[2].replace('.', '_')}`
 }
 /** 그 칸의 회사 이름(ungraded면 빈값). "cgc8_5" → "cgc" */
+/**
+ * **여러 장을 한꺼번에 판 매물인가.** 한 장 값이 아니라서 시세에 넣으면 안 된다.
+ *
+ * 원본 낙찰 24,373건에 걸어 보니 **1건**뿐이었다(2026-08-08) — 아주 드물다. 대신
+ * 걸리면 값이 통째로 틀어진다("Crown Zenith Mewtwo VSTAR … Set of 3" $153.5가 psa9에).
+ * ⚠️ **헛발이 없게 좁게 잡았다.** "PSA 6 Card"의 "6 Card" 같은 것을 세면 멀쩡한 낙찰
+ *    수천 건이 걸린다(처음에 그랬다). "lot of 3"처럼 **수량을 말하는 꼴**만 본다.
+ * ⚠️ 목록에서 지우지는 않는다. 평균·중앙값·그래프에서만 뺀다 — 사람이 보고 판단하게.
+ */
+const 묶음인가 = (t: string | undefined): boolean =>
+  /\b(?:lot|set|bundle|collection|joblot)\s*of\s*\d+|\bjob\s*lot\b|\b\d+\s*card\s*lot\b|\bbundle\s*of\b/i.test(
+    String(t ?? ''),
+  )
+
 const 칸회사 = (칸: string): string => (칸 === 'ungraded' ? '' : (칸.match(/^[a-z]+/i)?.[0] ?? '').toLowerCase())
 
 /**
@@ -3270,7 +3284,8 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
               (x) =>
                 (x.price ?? 0) >= (stat.minPrice ?? 0) * 0.999 &&
                 (x.price ?? 0) <= (stat.maxPrice ?? Infinity) * 1.001 &&
-                (x.price ?? 0) <= 값상한,
+                (x.price ?? 0) <= 값상한 &&
+                !묶음인가(x.title),
             )
             const 값 = 안쪽.map((x) => x.price ?? 0).sort((a, b) => a - b)
             const 중앙 = 값.length
