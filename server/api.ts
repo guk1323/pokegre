@@ -2522,6 +2522,7 @@ interface RawPriceTrackerCard {
     soldListings?: Record<
       string,
       {
+        listingId?: string
         price?: number
         soldDate?: string
         url?: string
@@ -3369,7 +3370,20 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
           .map(([grade, 담긴것]) => {
             const stat = card.ebay?.salesByGrade?.[grade] ?? {}
             // ⚠️ **딴 카드가 섞인 낙찰을 먼저 뺀다**(위 딴카드거르기 설명).
-            const 원래 = 담긴것.filter((x) => (x.price ?? 0) > 0 && x.soldDate)
+            // ⚠️ **같은 매물이 두 번 들어 있다.** 저쪽 자료에 같은 매물번호(listingId)가
+            //    제목만 다르게 두 번 오는 일이 있다 — 낙찰 17,267건에 13건(0.08%)이었다
+            //    (2026-08-08). 그대로 두면 건수도 값도 부풀려진다:
+            //        리자몽 psa5 $1,750 한 건이 **세 줄**로 들어 있었다.
+            //    매물번호가 있는 것만 겹치는지 본다(없는 것끼리는 가릴 수 없다).
+            const 본매물 = new Set<string>()
+            const 원래 = 담긴것.filter((x) => {
+              if (!((x.price ?? 0) > 0 && x.soldDate)) return false
+              const id = String((x as { listingId?: string }).listingId ?? '') || String(x.url ?? '').split('?')[0]
+              if (!id) return true
+              if (본매물.has(id)) return false
+              본매물.add(id)
+              return true
+            })
             const 남은 = 원래.filter((x) => !딴것(x))
             const 뺀수 = 원래.length - 남은.length
             // ⚠️ **저쪽이 미리 계산한 평균·중앙값은 섞인 것까지 넣고 낸 값이라 못 쓴다.**
