@@ -87,6 +87,17 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
           <p className="text-xs font-semibold text-neutral-500">등급별 이베이 시세</p>
           <span className="text-[11px] text-neutral-400">누르면 이베이 낙찰내역 ↗</span>
         </div>
+        {/* ⚠️ **가릴 수 없는 낙찰만 모인 칸이면 먼저 밝힌다.** 저쪽이 이름만으로 묶어 둔 것을
+            번호·세트로 갈랐는데 제목에 단서가 없어 어디에도 못 넣은 것들이다. 수십 년에 걸친
+            다른 카드가 섞여 있어 대표 시세가 뜻이 없다. 기록은 그대로 보여 주되 값은 믿지
+            말라고 말한다 — 숨기지도, 아는 척하지도 않는다. */}
+        {card.가릴수없음 && (
+          <p className="mb-2 mt-0.5 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-800">
+            아래 낙찰은 <b>어느 카드인지 가릴 수 없는 것들</b>입니다. 매물 제목에 번호도 세트도
+            적혀 있지 않아, 서로 다른 카드가 섞여 있습니다. <b>값은 믿지 마시고</b> 아래 제목을
+            직접 보고 판단해 주세요.
+          </p>
+        )}
         {/* 처음 온 사람은 "시세"가 최근 기준인지, "신뢰도"가 뭔지 모른다. 한 줄로만 짚어준다. */}
         <p className="mb-2 mt-0.5 text-[11px] leading-snug text-neutral-400">
           최근 낙찰 기준 현재 시세입니다. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 거래가 적어

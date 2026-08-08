@@ -2583,7 +2583,14 @@ interface ShapedEbayCard {
     maxPrice: number
     marketTrend: string | null
     lastSaleDate: string | null
-    /** 딴 카드로 보여 뺀 낙찰 건수(0이면 없음). 화면이 "몇 건 뺐다"를 밝히는 데 쓴다. */
+    /**
+   * **어느 카드인지 가릴 수 없는 낙찰만 모인 칸.** 저쪽이 이름만으로 묶어 둔 것을 번호·세트로
+   * 갈랐는데, 제목에 아무 단서도 없어 어디에도 못 넣은 것들이다("GRADED LUGIA! GREAT GIFT!").
+   * 수십 년에 걸친 다른 카드가 섞여 있으므로 **대표 시세를 내놓으면 안 된다** — 화면이
+   * 이 값을 보고 "참고만 하라"고 밝힌다.
+   */
+  가릴수없음?: boolean
+  /** 딴 카드로 보여 뺀 낙찰 건수(0이면 없음). 화면이 "몇 건 뺐다"를 밝히는 데 쓴다. */
     droppedOther?: number
     // 현재 적정가와 그 신뢰도. 없으면 null(그땐 화면이 중앙값으로 대체한다).
     smartPrice: number | null
@@ -3128,6 +3135,7 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
           tcgPlayerId: 번호 ? `${c.tcgPlayerId}~${번호.replace(/[/ ]/g, '-')}` : c.tcgPlayerId,
           // "@Call of Legends"는 번호가 아니라 세트 이름이다 — 번호 칸에 넣지 않는다.
           cardNumber: 번호.startsWith('@') ? null : 번호 || null,
+          가릴수없음: !번호 || undefined,
           name: !번호
             ? `${c.name ?? ''} (번호 미상)`.trim()
             : 번호.startsWith('@')
@@ -3266,6 +3274,8 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
         name: card.name ?? '',
         setName: card.setName ?? '',
         cardNumber: card.cardNumber ?? null,
+        // 갈라 담을 때 붙인 표시(위 갈라담기 설명). 갈리지 않은 카드에는 없다.
+        가릴수없음: (card as { 가릴수없음?: boolean }).가릴수없음 || undefined,
         // ⚠️ **레어도를 같이 내보낸다.** 저쪽의 search는 카드 이름만 보므로
         //    "리자몽 MUR"을 그대로 보내면 0장이 오고, "리자몽 SAR"은 **SAR가 아닌 카드
         //    7장**이 온다(2026-08-08 실측 — 저쪽이 모르는 낱말을 흘려버린다).
