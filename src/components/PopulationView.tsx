@@ -4,7 +4,7 @@ import { trackEvent } from '../api/localStats';
 import { loadNameDict, warmNameDict } from '../lib/nameDict';
 import { koName } from '../lib/koCardName';
 import { pptSetKoMany } from '../lib/pptSetKo';
-import { 레어도떼기, 레어도맞나 } from '../lib/rarityCode';
+import { 레어도떼기, 레어도맞나, 마켓전용말떼기 } from '../lib/rarityCode';
 import { SearchSuggestions } from './SearchSuggestions';
 
 // 팝수(감정 수량) 조회.
@@ -72,6 +72,8 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   const [좁힌레어도, set좁힌레어도] = useState('');
   // 뒤에 레어도를 쳤는데 받아 온 목록에 하나도 없을 때 그 코드(왜 전체가 나오는지 알린다).
   const [못찾은레어도, set못찾은레어도] = useState('');
+  // 저쪽이 모르는 말(":1ED")을 빼고 찾았을 때 그 말. 빈 화면 대신 알려 주려는 것이다.
+  const [뺀말, set뺀말] = useState('');
   // 처음 들어왔을 때 보여 줄 **실제 카드**(홈의 신팩 힛카드를 그대로 쓴다).
   const [맛보기, set맛보기] = useState<{ 세트: string; 카드: { n: string; 이름: string; img: string }[] }>({ 세트: '', 카드: [] });
   // 저쪽 세트 이름 → 우리 한글 이름. 결과가 오면 그때 한 번 만든다(공용 대조표).
@@ -116,7 +118,11 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   // ⚠️ **찾을 말과 판(일본/북미)을 인자로 받는다.** 상태를 읽어 쓰면, 판을 눌러 바꾼
   //    바로 그 순간에는 아직 옛 판이 들어 있어 한 박자 늦은 결과가 나온다.
   const 찾기실행 = async (친것0: string, 그판: 'japanese' | 'english') => {
-    const { 이름: 친것, 코드: 레어도 } = 레어도떼기(친것0);
+    // ⚠️ **스니커덩크 전용 꼬리말을 먼저 뗀다.** ":1ED"(초판)는 저쪽(PPT)이 모르고,
+    //    그대로 보내면 0장이 온다. 시세 화면과 같은 방식이다(2026-08-08).
+    //    레어도보다 먼저 떼야 "거북왕 EX RR :1ED"에서 레어도(RR)까지 제대로 잡힌다.
+    const { 이름: 저쪽말뺀것, 뗀말 } = 마켓전용말떼기(친것0);
+    const { 이름: 친것, 코드: 레어도 } = 레어도떼기(저쪽말뺀것);
     // ⚠️ 레어도만 쳤을 때. 저쪽에는 레어도로 물어보는 방법이 없다 — 그냥 보내면
     //    이름에 그 글자가 든 카드가 잔뜩 온다. 무엇을 더 쳐야 하는지 알려 준다.
     if (!친것 && 레어도) {
@@ -132,6 +138,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     set잘림(false);
     set좁힌레어도('');
     set못찾은레어도('');
+    set뺀말(뗀말);
     set고른것(null);
     set자료(null);
     // ⚠️ 저쪽(PPT)은 **영문 이름만 알아듣는다**. 한글로 치면 0건이 된다
@@ -419,7 +426,9 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                 적으면 그게 전종인 줄 알게 된다(2026-08-07 점검에서 확인 — 피카츄가
                 딱 100장으로 잘려 있었다). */}
             <p className="mb-1.5 text-xs text-neutral-500">
-              {좁힌레어도
+              {뺀말
+                ? `'${뺀말}'는 SNKRDUNK에서만 됩니다. 빼고 찾아 ${결과.length}장입니다.`
+                : 좁힌레어도
                 ? `${좁힌레어도} 카드 ${결과.length}장입니다. 누르면 등급표를 봅니다.`
                 : 못찾은레어도
                   ? `'${못찾은레어도}' 카드가 없어 전체 ${결과.length}장을 보여 드립니다${잘림 ? ' (값이 높은 순)' : ''}.`
