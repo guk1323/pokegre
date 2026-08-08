@@ -8298,11 +8298,16 @@ async function refreshSnkrdunkHitCards(): Promise<void> {
   if (후보.length < 3) return
 
   const 코드 = 세트.slug.replace(/^ja-/, '')
+  // ⚠️ **세트 코드를 정규식에 그대로 넣으면 안 된다.** 일본판 코드 5개에 `+`가 들어
+  //    있다(SM1+ · sm2+ · SM3+ · SM4+ · SM5+). `\[SM3+\s`는 정규식에서 "SM" 뒤에
+  //    3이 하나 이상"이라는 뜻이 되어, **딴 세트인 [SM3 …]에 걸리고 정작 자기 것인
+  //    [SM3+ …]은 못 찾는다**(2026-08-08 확인). 그 세트의 힛카드에 딴 세트 값이 붙는다.
+  const 코드정규식 = 코드.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   // 세트 이름으로 한 번 찾으면 그 세트 상품이 한꺼번에 온다 — 카드마다 찾는 것보다 훨씬 적다.
   const 찾음 = new Map<string, string>()
   for (const kw of [세트.name, 코드].filter(Boolean)) {
     for (const p of await 스니덩찾기(kw)) {
-      const m = p.title.match(new RegExp(`\\[${코드}\\s+(\\d+)/`))
+      const m = p.title.match(new RegExp(`\\[${코드정규식}\\s+(\\d+)/`, 'i'))
       const id = p.link.match(/apparels\/(\d+)/)?.[1]
       if (m && id) 찾음.set(String(Number(m[1])), id)
     }

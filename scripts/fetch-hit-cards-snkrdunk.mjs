@@ -106,6 +106,10 @@ async function pickLatest(pid, condCode) {
 async function main() {
   const set = JSON.parse(await readFile(path.resolve(ROOT, `public/sets/${slug}.json`), 'utf8'))
   const code = slug.replace(/^ja-/, '')
+  // ⚠️ 정규식에 그대로 넣으면 안 된다. 일본판 코드 5개에 `+`가 있어서(SM1+ · sm2+ ·
+  //    SM3+ · SM4+ · SM5+) `\[SM3+\s`가 "SM 뒤에 3이 하나 이상"이 된다 —
+  //    딴 세트 [SM3 …]에 걸리고 정작 [SM3+ …]은 못 찾는다(2026-08-08).
+  const codeRe = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const targets = (set.cards ?? []).filter((c) => HIT_RARITY.has(c.r))
   console.log(`${slug} — 카드 ${set.cards.length}장 중 힛카드 후보 ${targets.length}장`)
 
@@ -115,7 +119,7 @@ async function main() {
   for (const kw of [set.name, code]) {
     if (!kw) continue
     for (const p of await search(kw)) {
-      const m = p.title.match(new RegExp(`\\[${code}\\s+(\\d+)/`))
+      const m = p.title.match(new RegExp(`\\[${codeRe}\\s+(\\d+)/`, 'i'))
       if (m) found.set(String(Number(m[1])), { id: p.link.match(/apparels\/(\d+)/)?.[1], title: p.title })
     }
     await sleep(700)
@@ -125,7 +129,7 @@ async function main() {
     const key = String(Number(c.n))
     if (found.has(key)) continue
     for (const p of await search(c.name)) {
-      const m = p.title.match(new RegExp(`\\[${code}\\s+(\\d+)/`))
+      const m = p.title.match(new RegExp(`\\[${codeRe}\\s+(\\d+)/`, 'i'))
       if (m && String(Number(m[1])) === key) { found.set(key, { id: p.link.match(/apparels\/(\d+)/)?.[1], title: p.title }); break }
     }
     await sleep(700)
