@@ -5,6 +5,10 @@ import cardNamesKo from '../data/cardNamesKo.json';
 import cardNamesEn from '../data/cardNamesEn.json';
 import { CARD_NAME_KO_TO_EN, STRUCTURAL_EN_TO_KO } from './koreanizeEnglishTitle';
 
+// 같은 이름을 자료마다 다르게 적어 둔 것을 하나로 보기 위한 열쇠.
+// "썬더-EX"·"썬더 EX"·"썬더EX"가 모두 같은 열쇠가 된다.
+const 붙임열쇠 = (s: string) => s.replace(/[\s-]/g, '');
+
 // ⚠️ 예전엔 포켓몬 이름과 팩 이름만 재료로 썼다. 그래서 트레이너·굿즈 카드
 //    (네모·페퍼·저지맨·개조해머·누룩스시티…)를 치면 목록이 통째로 비었다.
 //    카드 이름을 한 글자씩 쳐 보는 6,460가지 중 1,450가지(22.4%)가 빈 목록이었다
@@ -33,6 +37,34 @@ const koTerms: string[] = [
   //    (2026-08-07 확인). 눌러도 반쪽짜리 검색어가 들어간다.
   .filter((s) => !!s && s === s.trim() && /[가-힣]/.test(s));
 
+// ⚠️ **띄어쓰기·붙임표만 다른 짝을 여기서 한 번 더 합친다.**
+//    카드명 목록(cardNamesKo)은 만들 때 이미 합쳐서 오지만, **재료가 그것만이 아니다** —
+//    번역 사전(cardNameKoEn)·굿즈 대조표(STRUCTURAL_EN_TO_KO)가 같은 것을 다르게 적어
+//    둬서 합친 뒤에 다시 갈라졌다. "별의 조각 ↔ 별의조각", "핸드 스코프 ↔ 핸드스코프",
+//    "송호 오 ↔ 송호오" 같은 7가지가 목록에 나란히 떴다(2026-08-08 점검에서 잡음).
+//    ⚠️ **대소문자는 합치지 않는다** — "블래키 ex"(요즘)와 "블래키 EX"(2000년대)는
+//       진짜 다른 카드다.
+//    남길 쪽은 **띄어쓰기가 있는 것**을 고른다(사람이 읽기 쉽고 검색도 잘 된다).
+//    자리는 처음 나온 자리를 지킨다 — 앞쪽 재료(포켓몬·팩 이름)가 먼저 잡혀야 한다.
+{
+  const 자리 = new Map<string, number>();
+  const 띈수 = (t: string) => (t.match(/\s/g) ?? []).length;
+  const 남길것: string[] = [];
+  for (const t of koTerms) {
+    const k = 붙임열쇠(t);
+    const i = 자리.get(k);
+    if (i === undefined) {
+      자리.set(k, 남길것.length);
+      남길것.push(t);
+    } else {
+      const 이전 = 남길것[i];
+      if (띈수(t) > 띈수(이전) || (띈수(t) === 띈수(이전) && t.length < 이전.length)) 남길것[i] = t;
+    }
+  }
+  koTerms.length = 0;
+  koTerms.push(...남길것);
+}
+
 // ⚠️ **레어도 낱말("리자몽 MUR")은 서버에서 한 번 더 받는다.** 위 cardNamesKo.json에도
 //    들어 있지만 그건 **빌드한 날에 멈춰 있다** — 새 세트가 새 레어도를 들고 나와도
 //    안 따라온다. 서버는 시세 덤프를 어차피 매일 받으므로 거기서 같이 뽑아 둔다
@@ -52,9 +84,20 @@ function ensureRarityTerms(): void {
     .then((r) => (r.ok ? r.json() : null))
     .then((j: { terms?: unknown } | null) => {
       const 낱말 = Array.isArray(j?.terms) ? (j.terms as unknown[]) : [];
-      const 있는것 = new Set(koTerms);
+      const 있는것 = new Set([...koTerms, ...enTerms].map(붙임열쇠));
       for (const t of 낱말) {
-        if (typeof t === 'string' && t && !있는것.has(t)) koTerms.push(t);
+        if (typeof t !== 'string' || !t) continue;
+        const k = 붙임열쇠(t);
+        if (있는것.has(k)) continue;
+        있는것.add(k);
+        // ⚠️ **한글과 영문을 갈라 담는다.** 영문은 대소문자를 안 가리고 견주므로
+        //    소문자 짝(enLower)이 있어야 한다. 한꺼번에 koTerms에 넣으면 서버가 준
+        //    영문 이름만 "pikachu"로 쳤을 때 안 걸린다.
+        if (/[가-힣]/.test(t)) koTerms.push(t);
+        else {
+          enTerms.push(t);
+          enLower.push(t.toLowerCase());
+        }
       }
     })
     .catch(() => undefined);

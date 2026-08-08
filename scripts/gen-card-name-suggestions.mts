@@ -34,7 +34,8 @@ const 이름들 = new Set<string>()
 //    **치는 도중 16.1%가 영문**이었다(2026-08-08 실측).
 //    영문판 세트의 원래 이름을 그대로 담는다 — 4,651가지·69KB뿐이다.
 // ⚠️ 일본판 세트의 name은 일본어라 안 담는다(영문으로 치는 사람에게 쓸모가 없다).
-const 영문이름들 = new Set<string>()
+// 영문 이름은 **몇 개 세트에 나왔는지**를 같이 센다. 아래에서 표기가 갈릴 때 쓴다.
+const 영문세트수 = new Map<string, Set<string>>()
 for (const s of idx) {
   const d = JSON.parse(readFileSync(path.join(ROOT, `public/sets/${s.slug}.json`), 'utf8')) as {
     cards?: { name: string }[]
@@ -44,7 +45,11 @@ for (const s of idx) {
     // 한글이 하나도 없는 이름(번역이 안 된 것)은 **한글 목록에는** 넣지 않는다 —
     // 한글로 치는 사람에게 안 잡히고, 한글 목록에 영문만 뜨면 어긋나 보인다.
     if (n && /[가-힣]/.test(n)) 이름들.add(n)
-    if (s.ed === 'en' && c.name && /[A-Za-z]/.test(c.name)) 영문이름들.add(c.name)
+    if (s.ed === 'en' && c.name && /[A-Za-z]/.test(c.name)) {
+      let 것 = 영문세트수.get(c.name)
+      if (!것) 영문세트수.set(c.name, (것 = new Set()))
+      것.add(s.slug)
+    }
   }
 }
 
@@ -101,8 +106,37 @@ writeFileSync(나온곳, JSON.stringify(목록))
 const KB = (Buffer.byteLength(JSON.stringify(목록)) / 1024).toFixed(0)
 console.log(`카드 이름 ${목록.length.toLocaleString()}가지를 ${path.relative(ROOT, 나온곳)}에 적었습니다 (${KB}KB).`)
 
+// ⚠️ **영문도 띄어쓰기·붙임표만 다른 짝을 합친다.** 같은 카드가 세트마다 다르게 적혀
+//    있다 — "Pikachu EX" ↔ "Pikachu-EX", "Ho Oh" ↔ "Ho-Oh". 목록에 둘 다 뜨면 고장 난
+//    것처럼 보인다(2026-08-08 점검에서 잡음).
+//    ⚠️ **한글처럼 "띄어쓰기가 있는 쪽"을 남기면 안 된다.** 영문은 붙임표가 정식인
+//       이름이 많다(Ho-Oh · Porygon-Z · Jangmo-o). 그 규칙이면 11개 세트가 쓰는
+//       "Ho-Oh"를 버리고 1개 세트에만 있는 "Ho Oh"를 남긴다.
+//       → **더 많은 세트에 나온 표기**를 남긴다. 그게 곧 흔히 쓰는 표기다.
+//       같은 수면 붙임표가 있는 쪽(공식 표기가 그런 경우가 많다), 그다음 짧은 쪽.
+//    ⚠️⚠️ **대소문자는 절대 합치지 말 것.** "Ho-oh ↔ Ho-Oh"가 나란히 떠서 합치고
+//       싶어지는데, 대소문자만 다른 짝 93무리를 전수로 봤더니 **진짜 오타는 그 하나뿐**이고
+//       나머지 92무리는 **서로 다른 카드**였다(2026-08-08 확인):
+//         Absol ex(2023 요즘) ↔ Absol EX(2004)  ·  Mew ex(8세트) ↔ Mew-EX(2013, 2세트)
+//       합치면 이 92쌍 중 한쪽이 목록에서 통째로 사라진다. 오타 하나를 고치려다
+//       멀쩡한 카드 92종을 잃는 것이라, **그냥 둔다.**
+const 영문대표 = new Map<string, string>()
+for (const [이름, 세트들] of 영문세트수) {
+  const k = 이름.replace(/[\s-]/g, '')
+  const 이전 = 영문대표.get(k)
+  if (!이전) {
+    영문대표.set(k, 이름)
+    continue
+  }
+  const a = 세트들.size
+  const b = 영문세트수.get(이전)!.size
+  const 붙임 = (t: string) => (t.includes('-') ? 1 : 0)
+  if (a > b || (a === b && 붙임(이름) > 붙임(이전)) || (a === b && 붙임(이름) === 붙임(이전) && 이름.length < 이전.length)) {
+    영문대표.set(k, 이름)
+  }
+}
 // 영문도 **짧은 것부터**. 이유는 위 한글과 같다(앞에서 잘라 보여 주므로 순서가 곧 목록이다).
-const 영문목록 = [...영문이름들].sort((a, b) => a.length - b.length || a.localeCompare(b, 'en'))
+const 영문목록 = [...영문대표.values()].sort((a, b) => a.length - b.length || a.localeCompare(b, 'en'))
 writeFileSync(영문나온곳, JSON.stringify(영문목록))
 const 영문KB = (Buffer.byteLength(JSON.stringify(영문목록)) / 1024).toFixed(0)
 console.log(`영문 이름 ${영문목록.length.toLocaleString()}가지를 ${path.relative(ROOT, 영문나온곳)}에 적었습니다 (${영문KB}KB).`)
