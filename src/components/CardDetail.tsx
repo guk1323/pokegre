@@ -69,19 +69,25 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     fetchPriceHistory(card.apparelId, range, condition || undefined, variantId ?? undefined)
       .then((result) => {
         if (cancelled || !result) return;
-        setHistory(result);
         // 첫 조회에서 필터 목록을 받아오면, 그걸로 기본값을 정해 다시 조회한다.
         // 목록은 상품마다 달라서(박스는 등급이 없고 수량 단위도 個/枚로 다름)
         // 코드를 박아두지 않고 API가 주는 첫 항목을 쓴다.
-        if (condition === '' && result.conditions.length > 0) {
-          setCondition(result.conditions[0].code);
-        }
-        if (variantId === null && result.variants.length > 0) {
-          setVariantId(result.variants[0].id);
-        }
+        const 등급정할것 = condition === '' && result.conditions.length > 0;
+        const 변형정할것 = variantId === null && result.variants.length > 0;
+        if (등급정할것) setCondition(result.conditions[0].code);
+        if (변형정할것) setVariantId(result.variants[0].id);
+        // ⚠️⚠️ **등급·변형을 안 고르고 받은 자료는 화면에 올리지 않는다.**
+        //    첫 조회는 필터 없이 나가므로 그 답에는 **PSA 10과 생카가, 마스터볼과
+        //    기본판이 한 줄에 섞여** 있다. 예전엔 그걸 먼저 그려 놓고 곧바로 다시 받아
+        //    덮었는데, 그 사이에 사람이 섞인 그래프와 값을 본다(2026-08-08).
+        //    곧 다시 받으므로 그때 그리면 된다 — 잘못된 값을 잠깐이라도 보이면 안 된다.
+        // ⚠️ 여기서 돌아갈 때는 **로딩 표시를 그대로 둔다.** 끄면 빈 화면이 잠깐 보인다.
+        //    곧 이어질 조회(등급·변형이 정해진)가 자료를 올리며 끈다.
+        if (등급정할것 || 변형정할것) return;
+        setHistory(result);
+        setHistoryLoading(false);
       })
-      .catch(() => undefined)
-      .finally(() => {
+      .catch(() => {
         if (!cancelled) setHistoryLoading(false);
       });
   
