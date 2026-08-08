@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { translateSearchQueryToEnglish } from '../lib/translateQueryToEnglish';
+import { 마켓전용말떼기 } from '../lib/rarityCode';
 import { trackEvent } from '../api/localStats';
 
 // 이베이 한글판(Korean Version) 매물 시세. 서버(/api/local/ebay-korean)가 이베이 Browse
@@ -23,7 +24,15 @@ export function KoreanEbayView({ query }: { query: string }) {
 
   // 이베이 매물 제목은 영어라, 한글로 검색해도 되도록 영문으로 바꿔 보낸다
   // (리자몽 → Charizard). 이미 영어면 그대로 통과한다. 화면 표시는 사용자가 친 원문 유지.
-  const enQuery = translateSearchQueryToEnglish(query, 'english');
+  //
+  // ⚠️ **스니커덩크 전용 꼬리말(":1ED")은 떼고 보낸다.** 이베이 매물 제목에 그런 말이
+  //    있을 리 없어서 그대로 보내면 **0건**이 온다("Charizard :1ED" 0건 · "Charizard" 44건,
+  //    2026-08-08 실측). 시세·팝수 화면과 같은 방식이다.
+  // ⚠️ **레어도(SAR·MUR)는 떼지 않는다.** 다른 화면과 다른 점이다 — 이베이는 판매자가
+  //    제목에 직접 적어서 오히려 **잘 좁혀진다**("Charizard SAR" 12건, 실측).
+  //    저쪽(PPT)은 카드 이름만 보기 때문에 떼야 했던 것이지, 여기까지 뗄 이유는 없다.
+  const { 이름: 뗀뒤, 뗀말 } = 마켓전용말떼기(query);
+  const enQuery = translateSearchQueryToEnglish(뗀뒤, 'english');
 
   useEffect(() => {
     if (!enQuery) return;
@@ -57,9 +66,13 @@ export function KoreanEbayView({ query }: { query: string }) {
   if (items === null) {
     return <p className="py-16 text-center text-sm text-neutral-400">이베이 한글판 매물을 불러오는 중…</p>;
   }
+  const 뗀말안내 = 뗀말 ? (
+    <p className="mb-2 text-xs text-neutral-500">'{뗀말}'는 SNKRDUNK에서만 됩니다. 빼고 찾았습니다.</p>
+  ) : null;
   if (items.length === 0) {
     return (
       <div className="py-16 text-center">
+        {뗀말안내}
         <p className="text-sm font-semibold text-neutral-500">'{query}' 한글판 매물을 찾지 못했습니다.</p>
         {/* ⚠️ 이미 영문으로 찾고 있으면 "영어로 검색하라"는 권유가 말이 안 된다.
             도감·세트·작가에서 눌러 오면 영문 이름으로 오기 때문에 실제로 그런 화면이
@@ -78,6 +91,7 @@ export function KoreanEbayView({ query }: { query: string }) {
   const min = Math.min(...items.map((i) => i.price));
   return (
     <div>
+      {뗀말안내}
       {/* 호가임을 분명히 — 영문판(체결가)과 헷갈리면 안 된다. */}
       <div className="mb-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
         <div className="flex items-center gap-2">
