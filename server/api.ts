@@ -3035,13 +3035,31 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
       }
       const 딴것 = 딴카드거르기(칸들, c.setName)
       const 셈 = new Map<string, number>()
+      // ⚠️ **분모 없이 "#249"라고만 적은 것도 갈래로 센다.** 옛 프로모는 그렇게 적는 사람이
+      //    많아서, 이걸 안 보면 전부 "번호 미상" 한 칸에 뭉친다. 실제로 리자몽 한 칸에
+      //    1997 로켓단 #6($5,000) · 1999 베이스셋($10,000) · 2024 프로모($229)가 같이
+      //    들어 있었다(2026-08-08).
+      const 맨셈 = new Map<string, number>()
       for (const x of 낱개) {
         if (딴것(x)) continue
         const n = 제목번호들(String(x.title ?? ''))[0]
         if (n) 셈.set(n, (셈.get(n) ?? 0) + 1)
+        else {
+          const b2 = 맨번호들(String(x.title ?? ''))[0]
+          if (b2) 맨셈.set(b2, (맨셈.get(b2) ?? 0) + 1)
+        }
       }
       const 갈래 = [...셈].filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1])
-      if (갈래.length < 2) {
+      // ⚠️ **앞자리가 딱 하나의 갈래와 맞으면 그리로 합친다.** "#4"가 4/102 하나뿐이면
+      //    같은 카드로 본다. 4/102와 4/130 둘 다 있으면 가릴 수 없으니 따로 둔다.
+      const 맨갈래: [string, number][] = []
+      const 맨합칠곳 = new Map<string, string>()
+      for (const [b2, v] of [...맨셈].filter(([, v2]) => v2 >= 2).sort((x, y) => y[1] - x[1])) {
+        const 맞는것 = 갈래.filter(([k]) => k.split('/')[0] === b2)
+        if (맞는것.length === 1) 맨합칠곳.set(b2, 맞는것[0][0])
+        else 맨갈래.push([`#${b2}`, v])
+      }
+      if (갈래.length + 맨갈래.length < 2) {
         결과.push(c)
         continue
       }
@@ -3049,9 +3067,16 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
       const 모든번호 = new Set<string>()
       for (const x of 낱개) {
         const n = 제목번호들(String(x.title ?? ''))[0]
-        if (n) 모든번호.add(n)
+        if (n) { 모든번호.add(n); continue }
+        const b2 = 맨번호들(String(x.title ?? ''))[0]
+        if (b2) 모든번호.add(맨합칠곳.get(b2) ?? `#${b2}`)
       }
-      const 담을곳 = (x: { title?: string }) => 제목번호들(String(x.title ?? ''))[0] ?? ''
+      const 담을곳 = (x: { title?: string }) => {
+        const n = 제목번호들(String(x.title ?? ''))[0]
+        if (n) return n
+        const b2 = 맨번호들(String(x.title ?? ''))[0]
+        return b2 ? (맨합칠곳.get(b2) ?? `#${b2}`) : ''
+      }
       for (const 번호 of [...모든번호, '']) {
         const 새칸: Record<string, typeof 낱개> = {}
         for (const [k, l] of Object.entries(칸들))
