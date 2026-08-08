@@ -5360,6 +5360,9 @@ type PackPriceEntry = {
   triedAt?: number
 }
 const packPriceCache = new Map<string, PackPriceEntry>()
+// ⚠️ 표는 **따로 파일로** 둔다. packPriceCache에 넣으면 세트 목록을 훑는 곳
+//    (통계·세트 고르기)이 이걸 세트로 세어 버린다.
+const MIX_FIX_MARK_FILE = dataFile('mix-fix-done.json')
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 // 캐시를 그대로 써도 되는지. partial(뒤 페이지를 못 받음)이거나 names(영문 카드명)가
 // 없으면 다시 받는다 — names는 나중에 추가한 항목이라, 이전에 저장된 캐시에는 없다.
@@ -6304,10 +6307,44 @@ export const 번호되돌리기 = (slug: string, 저쪽번호: string, 저쪽이
 // 앨범을 열 때 받아오면 세트당 1분씩 걸려 못 쓴다(PPT 분당 한도). 대신
 // ① 캐시를 파일로 남겨 재배포 직후에도 어제 시세가 바로 뜨고
 // ② 서버가 뒤에서 1분 간격으로 하나씩 새로 받아 하루 한 번 갈아끼운다.
+// 이름이 남의 세트 이름 안에 들어가는 우리 세트들. 저쪽 세트 검색이 부분일치라
+// 이 세트들만 딴 세트 카드가 딸려 온다(위 담기 설명). 332개 중 28개다.
+let 딸려오는세트캐시: Set<string> | null = null
+const 딸려오는세트 = () => {
+  if (딸려오는세트캐시) return 딸려오는세트캐시
+  const 전부 = [...new Set([...(pptSetList as string[]), ...Object.values(pptSetNames as Record<string, string>)])]
+  const 것 = new Set<string>()
+  for (const [slug, 이름] of Object.entries(SET_NAMES)) {
+    const n = 이름.toLowerCase()
+    if (전부.some((x) => x.toLowerCase() !== n && x.toLowerCase().includes(n))) 것.add(slug)
+  }
+  딸려오는세트캐시 = 것
+  return 것
+}
+
 async function loadPackPriceFile() {
   try {
-    const raw = JSON.parse(await readFile(PACK_PRICE_FILE, 'utf-8')) as Record<string, { at: number; prices: Record<string, number>; partial?: boolean }>
+    const raw = JSON.parse(await readFile(PACK_PRICE_FILE, 'utf-8')) as Record<
+      string,
+      { at: number; prices: Record<string, number>; partial?: boolean }
+    >
     for (const [slug, v] of Object.entries(raw)) packPriceCache.set(slug, v)
+    // ⚠️ **고치기 전에 받아 둔 값에는 딴 세트가 섞여 있다.** 그냥 두면 순번이 돌아올
+    //    때까지(최대 45일) 틀린 값이 화면에 남는다. 딸려오는 세트만 한 번 비워
+    //    다시 받게 한다. 이미 비운 뒤면 표가 남아 있어 다시 안 비운다.
+    try {
+      await readFile(MIX_FIX_MARK_FILE, 'utf-8')
+      return // 이미 한 번 치웠다
+    } catch {
+      /* 아직 안 치웠다 */
+    }
+    let 비움 = 0
+    for (const slug of 딸려오는세트()) if (packPriceCache.delete(slug)) 비움++
+    if (비움) {
+      console.log(`[pokegre] 딴 세트가 섞여 있던 ${비움}개 세트의 시세를 비웠습니다 — 순번대로 다시 받습니다.`)
+      await savePackPriceFile()
+    }
+    await writeJsonFile(MIX_FIX_MARK_FILE, { at: Date.now(), 비움 })
   } catch {
     /* 처음엔 없다 */
   }
@@ -6696,7 +6733,7 @@ async function warmPackPrices(apiKey: string) {
 // 처음엔 이걸 몰라서 세트의 앞번호 카드들이 통째로 잘렸다. 리자몽=6번이 그래서 빠졌다).
 const PPT_PAGE = 200
 
-type 저쪽카드 = { cardNumber?: string; name?: string; prices?: { market?: number } }
+type 저쪽카드 = { cardNumber?: string; name?: string; setName?: string; prices?: { market?: number } }
 
 async function fetchSetPage(
   setName: string,
@@ -6753,13 +6790,37 @@ async function fetchWholeSet(setName: string, lang: string, apiKey: string): Pro
  * 받아 온 줄들을 번호별 시세로 담는다. 통째로 받든 나눠 받든 규칙이 같아야 한다 —
  * 다르면 같은 카드가 받는 길에 따라 다른 값을 갖게 된다.
  */
+/**
+ * ⚠️⚠️ **저쪽 세트 검색은 부분일치다.** 이름이 남의 이름 안에 들어가면 그 세트까지
+ *    통째로 딸려 온다(2026-08-08 실측):
+ *        setName="EX Dragon"   → 201장 (EX Dragon 100 + EX Dragon Frontiers 101)
+ *        setName="Base Set"    → SM Base Set 50 + XY Base Set 50 (진짜 Base Set은 0장)
+ *        setName="Celebrations"→ Celebrations 39 + Classic Collection 25
+ *    그런데 여기서는 번호를 **앞자리만** 쓴다("97/97"도 "97/101"도 그냥 "97").
+ *    그래서 두 세트의 97번이 한 칸에 들어가 **싼 값으로 덮인다**
+ *    (EX Dragon 라이쿠자 $484.98 ↔ Frontiers 라이쿠자 $490).
+ *    게다가 EX Dragon은 97장뿐인데 Frontiers의 98~101번이 없는 카드로 생긴다.
+ *    이 값은 세트별 "값 높은 카드"와 카드 뽑기 앨범에 그대로 나간다.
+ *    → **부른 세트와 이름이 다른 줄은 버린다.**
+ */
 function 담기(
   list: 저쪽카드[],
   prices: Record<string, number>,
   names: Record<string, string>,
   basePriced: Set<string>,
+  부른세트?: string,
 ): void {
-  for (const c of list) {
+  // ⚠️ **다 버리게 되면 아무것도 안 버린다.** 우리가 적어 둔 이름과 저쪽이 돌려주는
+  //    이름이 대소문자 하나라도 다르면 그 세트가 통째로 값이 빈 채로 나갈 수 있다.
+  //    거르는 것보다 세트가 통째로 비는 쪽이 훨씬 나쁘다.
+  const 같은세트 = (a?: string, b?: string) =>
+    !a || !b || a.trim().toLowerCase() === b.trim().toLowerCase()
+  const 쓸것 = 부른세트 ? list.filter((c) => 같은세트(c.setName, 부른세트)) : list
+  const 버린수 = list.length - 쓸것.length
+  if (버린수 && !쓸것.length) {
+    console.log(`[pokegre] "${부른세트}" — 이름이 맞는 줄이 하나도 없어 그대로 씁니다(${list.length}장).`)
+  }
+  for (const c of 버린수 && 쓸것.length ? 쓸것 : list) {
     // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
     const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
     const num = stripZeros(rawNum.split('/')[0])
@@ -6784,6 +6845,7 @@ function 담기(
       else if (!basePriced.has(num)) prices[num] = Math.min(prices[num] ?? Infinity, market)
     }
   }
+  if (버린수 && 쓸것.length) console.log(`[pokegre] "${부른세트}"에 딸려 온 딴 세트 ${버린수}장을 버렸습니다.`)
 }
 
 // pages: 최대 몇 페이지까지 받을지. pauseMs: 페이지 사이 쉬는 시간 — 분당 크레딧이
@@ -6817,7 +6879,7 @@ async function getSetPrices(
     const 통째 = await fetchWholeSet(setName, lang, apiKey)
     if (통째 && 통째.length) {
       noteFillSpend(통째.length)
-      담기(통째, prices, names, basePriced)
+      담기(통째, prices, names, basePriced, setName)
       complete = true
     }
 
@@ -6847,7 +6909,7 @@ async function getSetPrices(
         }
         break
       }
-      담기(list, prices, names, basePriced)
+      담기(list, prices, names, basePriced, setName)
       if (list.length < PPT_PAGE) {
         complete = true // 덜 찬 페이지 = 마지막 페이지까지 다 받았다
         break
