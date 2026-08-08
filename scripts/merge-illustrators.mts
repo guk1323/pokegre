@@ -74,8 +74,12 @@ for (const [이름, 카드들] of 무리) {
   const 기존 = 있는것 && existsSync(파일)
     ? (JSON.parse(readFileSync(파일, 'utf8')) as { cards?: 카드[] }).cards ?? []
     : []
-  const 이미 = new Set(기존.map((c) => `${c.s}|${String(Number(c.number))}`))
-  const 새것 = 카드들.filter((c) => !이미.has(`${c.s}|${String(Number(c.number))}`))
+  // ⚠️ **번호를 Number()로 바꾸면 안 된다.** "24a"·"24b"가 둘 다 NaN이 되어 **다른
+  //    카드가 같은 것으로 묶인다**(en-xya의 대체 아트가 그렇다). 0 채움만 떼면 된다
+  //    ("024" = "24"). 실제로 NaN이 그대로 파일에 적힌 카드가 6장 있었다(2026-08-08).
+  const 번호열쇠 = (c: 카드) => `${c.s}|${String(c.number ?? '').replace(/^0+(?=.)/, '')}`
+  const 이미 = new Set(기존.map(번호열쇠))
+  const 새것 = 카드들.filter((c) => !이미.has(번호열쇠(c)))
   if (새것.length === 0) continue
 
   const 합친것 = [...기존, ...새것].sort(
