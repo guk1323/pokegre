@@ -2108,6 +2108,17 @@ function mountSearchTracker(app: Mountable) {
     res.end(JSON.stringify({ items }))
   })
 
+  // 자동완성이 쓰는 "이름 + 레어도"("리자몽 MUR"). 서버가 시세 덤프를 받는 김에 매일
+  // 다시 뽑는다 — 빌드에 박힌 목록은 만든 날에 멈춰 있어서 새 레어도를 못 따라간다.
+  // 아직 한 번도 못 뽑았으면 빈 목록을 준다. 화면은 빌드 시점 목록으로 그냥 돌아간다.
+  app.use('/api/local/rarity-terms', (_req, res) => {
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json; charset=utf-8')
+    // 하루 한 번 바뀌는 값이라 오래 물고 있어도 된다.
+    res.setHeader('cache-control', 'public, max-age=3600')
+    res.end(JSON.stringify({ terms: 레어도낱말 }))
+  })
+
   app.use('/api/local/popular-searches', async (_req, res) => {
     await loadCounts()
     // 조회할 때도 오래된 날짜를 정리해 파일이 무한정 커지지 않게 한다.
@@ -5116,6 +5127,120 @@ function splitCsvLine(line: string): string[] {
   return out
 }
 
+// ── 덤프에서 "이름 + 레어도"도 같이 뽑는다 (자동완성 재료) ────────────────────
+//
+// 왜 서버가 하나: 사람들은 카드 이름을 정확히 모르는 채 **레어도로 좁혀서** 찾는다
+// (인기 검색어에 "제크로무 ex SR"이 20회 올라 있다). 그 재료는 덤프에만 있는데,
+// 예전엔 그걸 얻으려고 **손으로 통째 받기를 한 번 더 썼다.** 하루 2회뿐인 몫을 서버가
+// 이미 아침에 하나 쓴 줄 모르고 또 받아 429를 냈다(2026-08-08 사장님 지적).
+// 서버가 어차피 매일 받으므로 받는 김에 여기서 같이 뽑는다 — **몫도 크레딧도 0이 더 든다.**
+//
+// ⚠️ 빌드 시점 목록(src/data/cardNamesKo.json)은 만든 날에 멈춰 있다. 새 세트가 새
+//    레어도를 들고 나와도 안 따라온다. 이 파일이 그 자리를 매일 메운다.
+const RARITY_TERMS_FILE = dataFile('rarity-terms.json')
+let 레어도낱말: string[] = []
+
+// 저쪽(PPT) 표기 → 사람들이 실제로 치는 짧은 코드.
+// ⚠️ 여기 없는 레어도는 안 만든다. "Common"·"Rare"는 좁히는 데 도움이 안 된다.
+// ⚠️ scripts/gen-rarity-from-dump.mts의 표와 **같아야 한다**. 한쪽만 고치면 손으로
+//    만든 목록과 서버가 만든 목록이 어긋난다.
+const RARITY_CODE = new Map<string, string>([
+  ['Special Art Rare', 'SAR'], ['Special Illustration Rare', 'SAR'],
+  ['Art Rare', 'AR'], ['Illustration Rare', 'AR'],
+  ['Super Rare', 'SR'], ['Secret Rare', 'SR'],
+  ['Double Rare', 'RR'], ['Triple Rare', 'RRR'],
+  ['Ultra Rare', 'UR'], ['Hyper Rare', 'HR'],
+  ['Shiny Rare', 'S'], ['Shiny Holo Rare', 'S'], ['Shiny Secret Rare', 'SSR'],
+  ['Character Rare', 'CHR'], ['Character Super Rare', 'CSR'],
+  ['Mega Ultra Rare', 'MUR'], ['Mega Hyper Rare', 'MHR'], ['Mega Attack Rare', 'MAR'],
+  ['ACE SPEC Rare', 'ACE'], ['Prism Rare', 'PR'],
+  ['Promo', '프로모'], ['Radiant Rare', '찬란'],
+])
+
+// ⚠️ 짧은 이름은 다른 이름 속에 끼어든다("뮤"가 "뮤츠"에, "삐"가 "삐삐"에).
+//    그렇다고 두 글자를 통째로 빼면 **뮤츠·팬텀·후딘·핫삼·럭키·윈디가 통째로 빠진다.**
+//    그래서 길이가 아니라 **끼어드는지**로 가른다 — 다른 포켓몬 이름 속에 안 들어가는
+//    두 글자 이름 70개는 넣는다. 실제로 재 보니 200가지가 늘고 깨진 것은 0가지였다
+//    (2026-08-08, 덤프 58,235줄 대조).
+// ⚠️ scripts/gen-rarity-from-dump.mts와 **같은 규칙이어야 한다.**
+const 포켓몬한글 = (pokemonNames as { ko: string }[]).map((p) => p.ko).filter(Boolean)
+const 레어도포켓몬 = new Set(
+  포켓몬한글.filter((n) => n.length >= 3 || !포켓몬한글.some((m) => m !== n && m.includes(n))),
+)
+const 레어도포켓몬최대 = Math.max(1, ...[...레어도포켓몬].map((n) => n.length))
+const 레어도포켓몬최소 = Math.min(...[...레어도포켓몬].map((n) => n.length))
+
+/**
+ * 카드 이름 안에 든 **가장 긴** 포켓몬 이름. 없으면 null.
+ *
+ * ⚠️ **정확히 같은 이름만 보면 안 된다.** MUR 카드는 "메가리자몽 X ex"이지 "리자몽"이
+ *    아니라서, 그렇게 하면 MUR이 하나도 안 붙는다. 검색은 이름이 들어 있기만 하면
+ *    찾으므로("리자몽 MUR" → 메가리자몽 X ex 1장) 포함으로 잡는 게 맞다.
+ * ⚠️ 이름 1,000개를 한 줄씩 훑으면 느리다(덤프 13,295줄 × 1,000). 대신 **카드 이름을
+ *    긴 조각부터 잘라 사전에 있는지 본다** — 처음 걸리는 게 곧 가장 긴 것이다.
+ *    길이가 같으면 **먼저 나온 쪽**을 쓴다("토게피&푸푸린&마릴 GX" → 토게피).
+ */
+function 속포켓몬(ko: string): string | null {
+  const 끝 = Math.min(ko.length, 레어도포켓몬최대)
+  for (let len = 끝; len >= 레어도포켓몬최소; len--) {
+    for (let i = 0; i + len <= ko.length; i++) {
+      const 조각 = ko.slice(i, i + len)
+      if (레어도포켓몬.has(조각)) return 조각
+    }
+  }
+  return null
+}
+
+async function loadRarityTerms(): Promise<void> {
+  try {
+    const 것 = JSON.parse(await readFile(RARITY_TERMS_FILE, 'utf-8'))
+    if (Array.isArray(것)) {
+      레어도낱말 = 것.filter((t): t is string => typeof t === 'string')
+      if (레어도낱말.length) console.log(`[pokegre] 레어도 낱말 ${레어도낱말.length.toLocaleString()}가지를 이어받았습니다.`)
+    }
+  } catch {
+    레어도낱말 = []
+  }
+}
+
+/**
+ * 덤프 줄에서 "이름 + 레어도"를 모아 /data에 적는다.
+ *
+ * ⚠️ **중간에 서버를 놓아준다.** 다 합쳐 0.5초쯤 걸리는데(내 컴퓨터 기준, 서버는 더
+ *    느리다) 그동안 통째로 멈추면 마침 들어온 방문자가 그만큼 기다린다. 2,000줄마다
+ *    한 번씩 다른 일에 차례를 넘긴다.
+ */
+async function 레어도뽑기(모은것: { ed: 'ja' | 'en'; name: string; code: string }[]): Promise<void> {
+  const 짝 = new Map<string, Set<string>>()
+  const 캐시 = new Map<string, string | null>() // 같은 이름을 두 번 번역하지 않는다
+  for (let i = 0; i < 모은것.length; i++) {
+    if (i % 2000 === 1999) await new Promise((r) => setImmediate(r))
+    const { ed, name, code } = 모은것[i]
+    const 열쇠 = `${ed}|${name}`
+    let 기본 = 캐시.get(열쇠)
+    if (기본 === undefined) {
+      기본 = 속포켓몬(koName(ed, name))
+      캐시.set(열쇠, 기본)
+    }
+    if (!기본) continue
+    let s = 짝.get(기본)
+    if (!s) 짝.set(기본, (s = new Set()))
+    s.add(code)
+  }
+  const 낱말 = [...짝.entries()]
+    .flatMap(([이름, codes]) => [...codes].map((c) => `${이름} ${c}`))
+    // 짧은 것부터 — 자동완성은 앞에서 잘라 8개만 보여주므로 순서가 곧 "무엇을 보여줄지"다.
+    .sort((a, b) => a.length - b.length || a.localeCompare(b, 'ko'))
+  // ⚠️ 빈 결과로 덮지 않는다. 열 이름이 바뀌거나 덤프가 반토막이면 어제 것이 낫다.
+  if (!낱말.length) {
+    console.log('[pokegre] 레어도 낱말을 하나도 못 뽑았습니다 — 어제 것을 그대로 둡니다.')
+    return
+  }
+  레어도낱말 = 낱말
+  await writeJsonFile(RARITY_TERMS_FILE, 낱말)
+  console.log(`[pokegre] 레어도 낱말 ${낱말.length.toLocaleString()}가지(포켓몬 ${짝.size.toLocaleString()}종)를 적었습니다.`)
+}
+
 async function loadPricesFromCsv(apiKey: string): Promise<number> {
   if (!apiKey) return 0
   if (!exportDue('cards')) return 0
@@ -5140,10 +5265,27 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
 
   // 세트별로 모은다. 값 고르는 규칙은 세트별 받기와 같다.
   const 모음 = new Map<string, { prices: Record<string, number>; names: Record<string, string>; base: Set<string> }>()
+  // 자동완성용 "이름 + 레어도" 재료. **줄을 자르는 김에 같이 줍는다** — 이것 때문에 덤프를
+  // 한 번 더 받으면 하루 2회뿐인 몫이 날아간다(2026-08-08).
+  // ⚠️ 아래 `if (!slug) continue`보다 **먼저** 주워야 한다. 우리가 이름을 모르는 세트의
+  //    카드도 레어도 재료로는 쓸모가 있다(검색은 세트와 상관없이 이름으로 찾는다).
+  // ⚠️ 자른 줄(rows) 전체를 들고 있으면 안 된다 — 58,235줄 × 20칸이라 기계(여유 220MB)에
+  //    부담이다. 레어도가 있는 13,295줄에서 **필요한 세 칸만** 남긴다.
+  const 레어도재료: { ed: 'ja' | 'en'; name: string; code: string }[] = []
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i]
     if (!line.trim()) continue
     const c = splitCsvLine(line)
+    if (I.rarity !== undefined) {
+      const code = RARITY_CODE.get(String(c[I.rarity] ?? '').trim())
+      if (code) {
+        레어도재료.push({
+          ed: String(c[I.language] ?? '').trim() === 'japanese' ? 'ja' : 'en',
+          name: String(c[I.name] ?? ''),
+          code,
+        })
+      }
+    }
     const slug = slug별.get(c[I.setName])
     if (!slug) continue
     // ⚠️ 세트에 따라 저쪽이 **다른 번호 체계**를 쓴다. 셀레브레이션즈 클래식 컬렉션은
@@ -5167,6 +5309,9 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
     }
     모음.set(slug, 것)
   }
+
+  // 시세를 넣기 전에 레어도부터 적는다. 뒤에 두면 시세 저장에서 실패했을 때 같이 날아간다.
+  await 레어도뽑기(레어도재료)
 
   const now = Date.now()
   let 채움 = 0
@@ -6334,6 +6479,8 @@ function mountAuth(
     loadPptState(),
     // 어제까지 받아 둔 스니커덩크 힛카드. 배포로 서버가 새로 떠도 이어받는다.
     loadSnkrdunkHitCards(),
+    // 어제 덤프에서 뽑아 둔 "이름 + 레어도". 배포로 서버가 새로 떠도 이어받는다.
+    loadRarityTerms(),
     loadPackPriceFile(),
     loadLastPrices(),
     loadJsonMap(POPULATION_FILE, populationCache as Map<string, unknown>, '감정 수량'),

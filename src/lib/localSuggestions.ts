@@ -32,6 +32,29 @@ const koTerms: string[] = [
   //    (2026-08-07 확인). 눌러도 반쪽짜리 검색어가 들어간다.
   .filter((s) => !!s && s === s.trim() && /[가-힣]/.test(s));
 
+// ⚠️ **레어도 낱말("리자몽 MUR")은 서버에서 한 번 더 받는다.** 위 cardNamesKo.json에도
+//    들어 있지만 그건 **빌드한 날에 멈춰 있다** — 새 세트가 새 레어도를 들고 나와도
+//    안 따라온다. 서버는 시세 덤프를 어차피 매일 받으므로 거기서 같이 뽑아 둔다
+//    (크레딧 0 · 통째 받기 몫 0). 못 받으면 그냥 빌드 시점 목록으로 간다.
+// ⚠️ **맨 뒤에 붙인다.** 사람이 먼저 찾는 건 카드 이름이지 레어도가 아니다.
+//    이 파일은 검색창을 누를 때 처음 불러오므로, 그 순간이 받기 시작하기 좋은 때다.
+let 레어도받는중 = false;
+function ensureRarityTerms(): void {
+  if (레어도받는중) return;
+  레어도받는중 = true;
+  void fetch('/api/local/rarity-terms')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j: { terms?: unknown } | null) => {
+      const 낱말 = Array.isArray(j?.terms) ? (j.terms as unknown[]) : [];
+      const 있는것 = new Set(koTerms);
+      for (const t of 낱말) {
+        if (typeof t === 'string' && t && !있는것.has(t)) koTerms.push(t);
+      }
+    })
+    .catch(() => undefined);
+}
+ensureRarityTerms();
+
 // 포켓몬/팩 한글 이름 사전에서 접두 일치를 우선하고, 부분 일치를 뒤에 붙여서
 // 타이핑 중에도 즉시(네트워크 요청 없이) 유사 검색어를 보여준다.
 export function getLocalSuggestions(query: string, limit = 8): string[] {

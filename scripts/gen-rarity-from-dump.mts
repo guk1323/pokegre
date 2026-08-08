@@ -74,12 +74,38 @@ const 코드 = new Map<string, string>([
   ['Radiant Rare', '찬란'],
 ])
 
-// ⚠️ 두 글자 이하는 뺀다 — 다른 이름 속에 너무 쉽게 끼어든다("뮤"가 "뮤츠"에).
-const 포켓몬이름들 = (
+// ⚠️ 짧은 이름은 다른 이름 속에 끼어든다("뮤"가 "뮤츠"에, "삐"가 "삐삐"에).
+//    그렇다고 두 글자를 통째로 빼면 **뮤츠·팬텀·후딘·핫삼·럭키·윈디가 통째로 빠진다.**
+//    그래서 길이가 아니라 **끼어드는지**로 가른다(2026-08-08에 고침. 그전엔 길이로 잘라
+//    "뮤츠 U"를 쳐도 아무것도 안 떴다. 넓혀 보니 200가지가 늘고 깨진 것은 0가지였다).
+// ⚠️ server/api.ts의 레어도포켓몬과 **같은 규칙이어야 한다.** 한쪽만 고치면 손으로 만든
+//    목록과 서버가 매일 만드는 목록이 어긋난다.
+const 전체이름 = (
   JSON.parse(readFileSync(path.join(ROOT, 'src/data/pokemonNames.json'), 'utf8')) as { ko: string }[]
 )
   .map((p) => p.ko)
-  .filter((n) => n && n.length >= 3)
+  .filter(Boolean)
+const 포켓몬이름들 = 전체이름.filter(
+  (n) => n.length >= 3 || !전체이름.some((m) => m !== n && m.includes(n)),
+)
+
+// ⚠️ **고르는 방법까지 server/api.ts의 속포켓몬과 똑같아야 한다.** 예전엔 여기서
+//    "전부 훑어 가장 긴 것"을 골랐는데, 길이가 같을 때 고르는 쪽이 서버와 달라
+//    3가지가 어긋났다("토게피 & 삐 & 푸푸린 GX"를 서버는 토게피로, 여기선 푸푸린으로).
+//    이름을 긴 조각부터 잘라 보는 방식이면 **먼저 나온 쪽**으로 자연히 통일된다.
+const 이름집합 = new Set(포켓몬이름들)
+const 이름최대 = Math.max(...포켓몬이름들.map((n) => n.length))
+const 이름최소 = Math.min(...포켓몬이름들.map((n) => n.length))
+function 속포켓몬(ko: string): string | null {
+  const 끝 = Math.min(ko.length, 이름최대)
+  for (let len = 끝; len >= 이름최소; len--) {
+    for (let i = 0; i + len <= ko.length; i++) {
+      const 조각 = ko.slice(i, i + len)
+      if (이름집합.has(조각)) return 조각
+    }
+  }
+  return null
+}
 
 const 줄 = readFileSync(들어온곳, 'utf8').split('\n')
 const 머리 = 줄자르기(줄[0])
@@ -107,9 +133,8 @@ for (let i = 1; i < 줄.length; i++) {
   //    포함으로 잡는 게 맞다.
   // ⚠️ **가장 긴 것 하나만** 고른다. "리자드"와 "리자몽"이 둘 다 걸리는 이름에서
   //    짧은 쪽에 붙이면 엉뚱한 추천이 된다.
-  const 든것 = 포켓몬이름들.filter((n) => ko.includes(n))
-  if (!든것.length) continue
-  const 기본 = 든것.reduce((a, b) => (b.length > a.length ? b : a))
+  const 기본 = 속포켓몬(ko)
+  if (!기본) continue
   if (!짝.has(기본)) 짝.set(기본, new Set())
   짝.get(기본)!.add(code)
 }
