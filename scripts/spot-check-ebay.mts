@@ -40,11 +40,22 @@ const 세트: [string, string][] = [
   ['english', 'Lost Origin'], ['japanese', 'Clay Burst'], ['english', 'Silver Tempest'],
   ['japanese', 'Snow Hazard'], ['english', 'Astral Radiance'], ['japanese', 'Raging Surf'],
   ['english', 'Brilliant Stars'], ['japanese', 'Battle Partners'], ['english', 'Prismatic Evolutions'],
+  // ⚠️ **번호 없는 프로모 칸도 넣는다.** 저쪽이 이름만으로 여러 카드를 묶어 두는 곳이라
+  //    "갈라 담기"가 실제로 도는 유일한 자리다. 안 넣으면 그 길이 한 번도 시험되지 않는다.
+  ['japanese', 'Unnumbered Promotional cards'], ['english', 'Unnumbered Promotional cards'],
 ]
 
 type 낙찰 = { price: number; date: string; url: string; auction: boolean; title?: string }
 type 등급 = { grade: string; count: number; minPrice: number; maxPrice: number; sales?: 낙찰[] }
-type 카드 = { tcgPlayerId: string; name: string; cardNumber: string | null; grades?: 등급[] }
+type 카드 = {
+  tcgPlayerId: string
+  name: string
+  cardNumber: string | null
+  imageUrl?: string
+  rarity?: string
+  tcgplayer?: unknown
+  grades?: 등급[]
+}
 
 const N = Number(process.argv[2] ?? 6)
 const M = Number(process.argv[3] ?? 8)
@@ -66,7 +77,15 @@ for (const [lang, set] of 고른세트) {
   // 서버가 쓰는 그 함수를 그대로 돌린다 — 배포 없이 실제로 나갈 값을 본다.
   for (const c of shapeEbayCards(await r.json(), 'ebay') as unknown as 카드[]) {
     카드수++
-    if (String(c.tcgPlayerId).includes('~')) 갈린것++
+    // ⚠️ **갈라 담은 카드는 원래 카드 것을 물려받으면 안 된다.** 사진·레어도·TCGplayer 값은
+    //    묶인 칸 하나의 것이라, 물려주면 갈라 놓은 카드가 **전부 같은 값**을 달고 나온다
+    //    (2026-08-08에 아홉 장이 같은 사진·같은 $50이었다).
+    if (String(c.tcgPlayerId).includes('~')) {
+      갈린것++
+      if (c.imageUrl) 문제.push(`  [갈라진 카드에 남의 사진] ${c.name}  ${String(c.imageUrl).slice(-30)}`)
+      if (c.tcgplayer) 문제.push(`  [갈라진 카드에 남의 TCGplayer 값] ${c.name}`)
+      if (c.rarity) 문제.push(`  [갈라진 카드에 남의 레어도] ${c.name}  "${c.rarity}"`)
+    }
     // 카드 번호도 제목과 **같은 규칙**으로 맞춘 뒤 견준다.
     const m = String(c.cardNumber ?? '').match(/(\d{1,4})\s*\/\s*(\d{1,3})/)
     const 내번호 = m ? 번호맞추기(m[1], m[2]) : ''

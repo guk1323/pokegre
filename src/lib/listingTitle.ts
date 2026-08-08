@@ -76,7 +76,12 @@ export const 제목번호들 = (t: string): string[] => {
   //    카드 번호가 마침표 바로 뒤에 오는 일은 없다.
   for (const m of String(t).matchAll(/(^|[^\d/.])(\d{1,4})\s*\/\s*(\d{1,3})(?![\d/])/g)) {
     if (등급앞말.test(String(t).slice(0, (m.index ?? 0) + m[1].length))) continue
-    out.add(번호맞추기(m[2], m[3]))
+    const n = 번호맞추기(m[2], m[3])
+    // ⚠️ **"1/1"은 카드 번호가 아니라 자랑말이다** — 감정 케이스 매물에서 "POP 1"·
+    //    "ARS10+ BLACK 1/1"처럼 "세상에 한 장"을 뜻한다. 포켓몬 카드에 1/1 번호는
+    //    사실상 없다. 이걸 번호로 읽으면 멀쩡한 낙찰이 딴 카드로 걸린다(2026-08-08).
+    if (n === '1/1') continue
+    out.add(n)
   }
   return [...out]
 }
