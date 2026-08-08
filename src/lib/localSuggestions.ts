@@ -46,7 +46,10 @@ import { CARD_NAME_KO_TO_EN, STRUCTURAL_EN_TO_KO } from './koreanizeEnglishTitle
 //    실제로 재 보니 `·`가 든 이름은 사전에 7가지뿐이고(연격의 권이·비룡 등) 그 때문에
 //    겹쳐 뜨는 짝은 **하나도 없다**(2026-08-08 전수 확인).
 //    ⚠️ 여기에 대소문자를 넣으면 안 된다 — "뮤 ex"와 "뮤 EX"는 진짜 다른 카드다.
-const 붙임열쇠 = (s: string) => s.replace(/[\s-]/g, '');
+// ⚠️ **굽은 따옴표(’)도 곧은 것(')과 같게 본다.** 같은 카드가 자료마다 다르게 적혀 있어
+//    "Farfetch'd"와 "Farfetch’d", "Brock's Grit"와 "Brock’s Grit"가 **나란히 떴다**
+//    (2026-08-08 확인. 굽은 쪽 45가지 · 곧은 쪽 543가지). 사람 눈에는 같은 글자다.
+const 붙임열쇠 = (s: string) => s.replace(/[\s-]/g, '').replace(/[’‘]/g, "'");
 
 // ⚠️ 예전엔 포켓몬 이름과 팩 이름만 재료로 썼다. 그래서 트레이너·굿즈 카드
 //    (네모·페퍼·저지맨·개조해머·누룩스시티…)를 치면 목록이 통째로 비었다.
@@ -165,7 +168,15 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
   const startsExact: string[] = [];
   const starts: string[] = [];
   const includes: string[] = [];
-  const 담기 = (term: string, 견줄것: string, 친것: string) => {
+  // ⚠️ **굽은 따옴표(’)로 적힌 이름은 곧은 따옴표(')로 쳐도 걸려야 한다.**
+  //    자판으로는 보통 곧은 것을 치는데 카드 이름에는 굽은 것이 섞여 있어,
+  //    "Brock's G"를 쳐도 "Brock’s Grit"이 안 나왔다 — 사실상 못 찾는 카드였다
+  //    (2026-08-08 확인). 따옴표가 든 말을 칠 때만 견주는 글자를 맞춰 준다.
+  const 따옴표섞임 = /['’‘]/.test(q);
+  const 곧게 = (t: string) => t.replace(/[’‘]/g, "'");
+  const 담기 = (term: string, 견줄것0: string, 친것0: string) => {
+    const 견줄것 = 따옴표섞임 ? 곧게(견줄것0) : 견줄것0;
+    const 친것 = 따옴표섞임 ? 곧게(친것0) : 친것0;
     if (견줄것 === 친것) return;
     if (견줄것.startsWith(친것)) {
       // 뒤가 한글·영문·숫자로 이어지면 다른 낱말에 묻힌 것이다.
@@ -175,7 +186,10 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
   };
   // 부분 일치는 "단어 시작"에서만 본다. 아무 데나 걸리게 두면 "이브"에 "드닐레이브",
   // "뮤"에 "줄뮤마"처럼 관계없는 이름이 올라와 목록이 미덥지 않아 보인다.
-  const wordStart = new RegExp(`(^|[\\s:·-])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+  const wordStart = new RegExp(
+    `(^|[\\s:·-])${(따옴표섞임 ? 곧게(q) : q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+    'i',
+  );
   for (const term of koTerms) 담기(term, term, q);
 
   // ⚠️ **영문으로 치면 목록이 통째로 비어 있었다.** 위 한글 사전에는 영문 이름이

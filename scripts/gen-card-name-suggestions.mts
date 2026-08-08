@@ -62,7 +62,9 @@ for (const s of idx) {
 //    ⚠️ **대소문자는 합치지 않는다** — "블래키 ex"(요즘)와 "블래키 EX"(2000년대)는
 //       진짜 다른 카드다.
 //    남길 쪽은 **띄어쓰기가 있는 것**을 고른다. 사람이 읽기 쉽고 검색도 잘 된다.
-const 열쇠 = (s: string) => s.replace(/[\s-]/g, '')
+// ⚠️ 굽은 따옴표(’)도 곧은 것(')과 같게 본다 — "Brock's Grit"와 "Brock’s Grit"가
+//    같은 카드인데 목록에 둘 다 떴다(2026-08-08).
+const 열쇠 = (s: string) => s.replace(/[\s-]/g, '').replace(/[’‘]/g, "'")
 const 대표: Map<string, string> = new Map()
 for (const n of 이름들) {
   const k = 열쇠(n)
@@ -156,7 +158,7 @@ for (const s of idx) {
 //       멀쩡한 카드 92종을 잃는 것이라, **그냥 둔다.**
 const 영문대표 = new Map<string, string>()
 for (const [이름, 세트들] of 영문세트수) {
-  const k = 이름.replace(/[\s-]/g, '')
+  const k = 이름.replace(/[\s-]/g, '').replace(/[’‘]/g, "'")
   const 이전 = 영문대표.get(k)
   if (!이전) {
     영문대표.set(k, 이름)
