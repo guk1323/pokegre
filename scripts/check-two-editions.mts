@@ -74,8 +74,13 @@ for (const f of readdirSync(dir)) {
     const 원 = String(c.name ?? '')
     const en = 저쪽.get(`${slug}|${String(c.n).replace(/^0+(?=.)/, '')}`)
     if (!원 || !en) continue
-    const a = 자동사전없이(() => koreanizeEnglishCardName(koreanizeTitle(원)))
-    const b = 자동사전없이(() => koreanizeEnglishCardName(en))
+    // ⚠️ 기본은 **화면에 실제로 나가는 값**으로 잰다(자동 사전 켠 채). 사전이 양쪽을
+    //    같은 값으로 맞춰 주는 경우가 많아서, 끄고 재면 실제보다 훨씬 부풀려 보인다.
+    //    끄고 재면 **밑에 깔린 규칙**이 어긋난 곳이 드러난다 — 사전에 없는 카드가
+    //    새로 들어올 때 터질 자리다. RULE=1 로 그렇게 볼 수 있다.
+    const 규칙만 = !!process.env.RULE
+    const a = 규칙만 ? 자동사전없이(() => koreanizeEnglishCardName(koreanizeTitle(원))) : koreanizeEnglishCardName(koreanizeTitle(원))
+    const b = 규칙만 ? 자동사전없이(() => koreanizeEnglishCardName(en)) : koreanizeEnglishCardName(en)
     // 한쪽이 한글로 안 옮겨지면 견줄 수 없다(그건 다른 검사가 본다).
     if (!/[가-힣]/.test(a) || !/[가-힣]/.test(b)) continue
     잼++
@@ -88,7 +93,7 @@ const 갈래 = new Map<string, { 수: number; 예: string[] }>()
 const 넣기 = (k: string, 줄: string) => {
   const v = 갈래.get(k) ?? { 수: 0, 예: [] }
   v.수++
-  if (v.예.length < 4) v.예.push(줄)
+  if (v.예.length < (process.env.ALL ? 400 : 4)) v.예.push(줄)
   갈래.set(k, v)
 }
 for (const 줄 of 갈림) {
