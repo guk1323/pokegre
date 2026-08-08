@@ -6891,6 +6891,51 @@ function 담기(
   부른세트?: string,
   slug?: string,
 ): void {
+  // ⚠️⚠️ **한 세트 안에서도 앞자리가 겹친다.** 저쪽은 프로모 세트에 여러 시리즈를 같이
+  //    담는데 번호가 "01/64"·"41/53"처럼 분모가 다르다. 우리는 앞자리만 열쇠로 쓰므로
+  //    서로 덮어쓴다 — 13개 세트 59칸이 그렇다(2026-08-08 실측):
+  //        en-basep 1번  Clefable(Prerelease) $999.95 · Aerodactyl $86.96 · Pikachu
+  //    그래서 **이름이 우리 카드와 맞는 줄을 먼저 믿는다.** 이름이 맞으면 그 카드의
+  //    우리 번호를 쓰고, 안 맞으면 예전처럼 앞자리를 쓴다.
+  //    ⚠️⚠️ **이름은 마지막 수단이다.** 두 번 좁혔다:
+  //       ① 그 세트에서 이름이 하나뿐일 때만 — 요즘 세트는 시크릿이 기본 카드와 같은
+  //          이름이라 겹치는 이름이 23~26가지다(en-sv06.5·en-me02). 안 좁히면 시크릿
+  //          값이 기본 카드에 붙는다(100줄이 엉뚱한 자리로 갈 뻔했다).
+  //       ② **우리 세트에 그 번호가 아예 없을 때만** — ①만으로도 2,403줄이 옮겨졌다.
+  //          저쪽은 같은 이름의 시크릿을 여러 장 두는데(125·130·109번 리자몽 ex),
+  //          그게 전부 우리 한 카드로 몰린다. 번호가 있으면 번호가 맞다.
+  const 이름벗기기 = (x: string) =>
+    x
+      .replace(/\s*-\s*[A-Za-z0-9/-]+\s*$/, '')
+      .replace(/\s*\([^()]*\)\s*$/, '')
+      .replace(/[^A-Za-z0-9가-힣]/g, '')
+      .toLowerCase()
+  const 열쇠뽑기 = (c: 저쪽카드): string => {
+    const 되 = slug ? 번호되돌리기(slug, String(c.cardNumber ?? ''), String(c.name ?? '')) : String(c.cardNumber ?? '')
+    const raw = 되 || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
+    return raw.trim() ? stripZeros(raw.split('/')[0].trim()) : ''
+  }
+  const 이름표 = (() => {
+    if (!slug) return null
+    try {
+      const 셈 = new Map<string, number>()
+      const m = new Map<string, string>()
+      const 있는번호 = new Set<string>()
+      for (const [n, v] of setCards(slug)) {
+        있는번호.add(stripZeros(n))
+        const k = String(v.name ?? '').replace(/[^A-Za-z0-9가-힣]/g, '').toLowerCase()
+        if (!k) continue
+        셈.set(k, (셈.get(k) ?? 0) + 1)
+        if (!m.has(k)) m.set(k, n)
+      }
+      for (const [k, c] of 셈) if (c > 1) m.delete(k)
+      const 번호별이름 = new Map<string, string>()
+      for (const [n, v] of setCards(slug)) 번호별이름.set(stripZeros(n), 이름벗기기(String(v.name ?? '')))
+      return m.size ? { 이름: m, 있는번호, 번호별이름 } : null
+    } catch {
+      return null
+    }
+  })()
   // ⚠️ **다 버리게 되면 아무것도 안 버린다.** 우리가 적어 둔 이름과 저쪽이 돌려주는
   //    이름이 대소문자 하나라도 다르면 그 세트가 통째로 값이 빈 채로 나갈 수 있다.
   //    거르는 것보다 세트가 통째로 비는 쪽이 훨씬 나쁘다.
@@ -6928,7 +6973,18 @@ function 담기(
     const 되돌림 = slug
       ? 번호되돌리기(slug, String(c.cardNumber ?? ''), String(c.name ?? ''))
       : String(c.cardNumber ?? '')
-    const rawNum = 되돌림 || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
+    // 이름이 우리 카드와 딱 맞으면 그 카드의 우리 번호를 쓴다(앞자리 겹침을 피한다).
+    //    저쪽 이름의 꼬리("- 174/086"·"(Prerelease)")는 떼고 견준다.
+    const 이름열쇠 = String(c.name ?? '')
+      .replace(/\s*-\s*[A-Za-z0-9/-]+\s*$/, '')
+      .replace(/\s*\([^()]*\)\s*$/, '')
+      .replace(/[^A-Za-z0-9가-힣]/g, '')
+      .toLowerCase()
+    // 저쪽 번호가 우리 세트에 있으면 번호가 맞다. 없을 때만 이름으로 찾는다.
+    const 저쪽앞 = stripZeros(String(되돌림 || '').split('/')[0].trim())
+    const 이름으로 =
+      이름열쇠 && 이름표 && (!저쪽앞 || !이름표.있는번호.has(저쪽앞)) ? 이름표.이름.get(이름열쇠) : undefined
+    const rawNum = 이름으로 || 되돌림 || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
     // ⚠️ **빈 번호를 stripZeros에 넘기면 안 된다** — "0"이 되어 없는 카드가 생긴다.
     if (!rawNum.trim()) return
     const num = stripZeros(rawNum.split('/')[0].trim())
@@ -6961,6 +7017,38 @@ function 담기(
   // ⚠️ **이름이 맞는 줄이 하나도 없으면 아무것도 안 버린다.** 우리가 적어 둔 이름과
   //    저쪽 이름이 언젠가 어긋나면, 거르는 바람에 그 세트가 통째로 빈 채로 나간다.
   const 본줄 = 우리것.length ? 우리것 : list
+  // ⚠️⚠️ **같은 앞자리에 여러 줄이 오면 이름이 맞는 줄만 쓴다.** 저쪽은 프로모 세트에
+  //    여러 시리즈를 같이 담는데 번호 분모가 다르다("01/64" · "41/53"). 우리는 앞자리만
+  //    열쇠로 쓰므로 서로 덮어쓴다 — 13개 세트 59칸이 그렇다(2026-08-08 실측):
+  //        en-basep 1번  Clefable(Prerelease) $999.95 · Aerodactyl $86.96 · Pikachu
+  //    그 칸에 이름이 우리 카드와 맞는 줄이 하나라도 있으면 **그것만** 쓴다.
+  //    하나도 안 맞으면 예전대로 다 쓴다(싼 값 고르기) — 함부로 버리지 않는다.
+  if (이름표) {
+    const 칸별 = new Map<string, 저쪽카드[]>()
+    for (const c of 본줄) {
+      const n = 열쇠뽑기(c)
+      if (!n) continue
+      칸별.set(n, [...(칸별.get(n) ?? []), c])
+    }
+    const 버릴것 = new Set<저쪽카드>()
+    for (const [n, 줄들] of 칸별) {
+      if (줄들.length < 2) continue
+      const 우리이름 = 이름표.번호별이름.get(n)
+      if (!우리이름) continue
+      const 맞는것 = 줄들.filter((c) => 이름벗기기(String(c.name ?? '')) === 우리이름)
+      if (!맞는것.length || 맞는것.length === 줄들.length) continue
+      for (const c of 줄들) if (!맞는것.includes(c)) 버릴것.add(c)
+    }
+    if (버릴것.size) {
+      console.log(`[pokegre] "${부른세트}" — 같은 번호에 딴 카드 ${버릴것.size}줄이 겹쳐 이름이 맞는 것만 썼습니다.`)
+      for (const c of 본줄) if (!버릴것.has(c)) 한줄(c, false)
+      for (const c of 딴것) 한줄(c, true)
+      if (버린수 || 메움) {
+        console.log(`[pokegre] "${부른세트}" — 딴 세트 ${버린수}장을 버리고, 속 세트 ${메움}장으로 빈 번호를 메웠습니다.`)
+      }
+      return
+    }
+  }
   for (const c of 본줄) 한줄(c, false)
   for (const c of 딴것) 한줄(c, true)
   if (버린수 || 메움) {
