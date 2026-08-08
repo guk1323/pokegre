@@ -2604,6 +2604,10 @@ interface ShapedEbayCard {
 // 등급 하나에 몇 건까지 보여 줄지. 사람이 훑어보는 데는 이 정도면 충분하고,
 // 더 보고 싶으면 등급 줄을 눌러 이베이 낙찰내역으로 갈 수 있다.
 const EBAY_SALES_PER_GRADE = 5
+// ⚠️ **뺀 기록도 몇 개는 보여준다.** 말없이 빼면 사람이 우리를 믿을 수밖에 없다 —
+//    사장님은 매물을 하나씩 눌러 사진을 보고서야 섞임을 찾아내셨다(2026-08-08).
+//    까닭을 붙여 보여주면 우리가 맞게 뺐는지 눈으로 확인할 수 있다.
+const EBAY_DROPPED_SHOWN = 3
 // 그래프에 보낼 날짜 수 상한(등급당). 낱개로 다시 그리면 점이 많아질 수 있어 막아 둔다 —
 // 낱개 2,151건짜리 카드도 있다. 넉넉히 잡아도 선 모양은 그대로다.
 const EBAY_HISTORY_MAX = 120
@@ -2734,6 +2738,8 @@ export function startCardNameStore(): void {
 //
 /**
  * 이 카드의 낙찰 기록 중 **딴 카드인 것**을 가려내는 검사를 만든다.
+ * 돌려주는 값은 **뺀 까닭**이다(빈 문자열이면 그 카드가 맞다). 까닭은 화면에도 그대로
+ * 적어 준다 — 말없이 빼면 사람이 우리를 믿을 수밖에 없다(사장님이 하나씩 눌러 확인하셨다).
  *
  * ⚠️⚠️⚠️ **잘못 빼는 쪽이 섞이는 쪽보다 나쁘다.** 진짜 거래를 지우면 값이 거꾸로 틀어진다.
  *    여기까지 오는 데 잘못된 규칙을 세 번 만들었다(2026-08-08, 전부 표본 119장·낙찰
@@ -2870,7 +2876,7 @@ function 긴형제(세트: string): string[] {
 function 딴카드거르기(
   soldListings: Record<string, { title?: string }[]> | undefined,
   setName?: string | null,
-): (x: { title?: string }) => boolean {
+): (x: { title?: string }) => string {
   const 전부 = Object.values(soldListings ?? {}).flat()
   const 형제 = setName ? 긴형제(setName) : []
   const 형제인가 = (t: string) => {
@@ -2878,7 +2884,8 @@ function 딴카드거르기(
     const s = 이름고르기(t)
     return 형제.some((n) => s.includes(n))
   }
-  if (전부.length < 8) return 형제.length ? (x) => 형제인가(String(x.title ?? '')) : () => false
+  if (전부.length < 8)
+    return 형제.length ? (x) => (형제인가(String(x.title ?? '')) ? '같은 이름의 다른 세트' : '') : () => ''
 
   const 셈하기 = (값들: string[]) => {
     const m = new Map<string, number>()
@@ -2938,17 +2945,17 @@ function 딴카드거르기(
 
   return (x) => {
     const t = String(x.title ?? '')
-    if (!t) return false
+    if (!t) return ''
     // 제목이 더 긴 형제 세트 이름을 통째로 적었으면 다수결을 볼 것도 없다.
-    if (형제인가(t)) return true
+    if (형제인가(t)) return '같은 이름의 다른 세트'
     if (D.믿나) {
       const d = 제목분모(t)
       // 0 채움은 무시하고 숫자로 견준다("232/91" = "232/091").
-      if (d && Number(d) !== Number(D.대표) && 떼인가(D.셈, d, D.대표, true)) return true
+      if (d && Number(d) !== Number(D.대표) && 떼인가(D.셈, d, D.대표, true)) return `번호가 다름(…/${d})`
     }
     if (N.믿나) {
       const n = 제목번호들(t)[0] ?? ''
-      if (n && n !== N.대표 && 떼인가(N.셈, n, N.대표, false)) return true
+      if (n && n !== N.대표 && 떼인가(N.셈, n, N.대표, false)) return `번호가 다름(${n})`
     }
     // ⚠️⚠️ **분모 없는 번호는 연도까지 함께 어긋날 때만 뺀다.**
     //    번호만 보고 자르면 안 된다 — 뮤는 도감번호 151을, LEGEND는 "#89 and #90"을
@@ -2966,16 +2973,16 @@ function 딴카드거르기(
         Number.isFinite(해) &&
         Math.abs(해 - Number(Y.대표)) >= 3
       )
-        return true
+        return `번호·연도가 다름(#${맨번호들(t)[0]} · ${제목연도(t)[0]}년)`
     }
     if (Y.믿나) {
       const y = 제목연도(t)
       if (y.length) {
         const k = String(Math.min(...y))
-        if (Math.abs(Number(k) - Number(Y.대표)) >= 3 && 떼인가(Y.셈, k, Y.대표, false)) return true
+        if (Math.abs(Number(k) - Number(Y.대표)) >= 3 && 떼인가(Y.셈, k, Y.대표, false)) return `연도가 다름(${k}년)`
       }
     }
-    return false
+    return ''
   }
 }
 
@@ -3328,10 +3335,15 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
                 .sort((a, b) => a.date.localeCompare(b.date))
                 .slice(-EBAY_HISTORY_MAX)
             })(),
-            sales: 남은
+            sales: [
               // 최근 것부터. 저쪽이 어떤 순서로 주는지 보장이 없어 우리가 정렬한다.
-              .sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate)))
-              .slice(0, EBAY_SALES_PER_GRADE)
+              ...남은.sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate))).slice(0, EBAY_SALES_PER_GRADE),
+              // 딴 카드로 보아 뺀 것도 몇 개 붙인다(까닭과 함께 화면에 밝힌다).
+              ...원래
+                .filter((x) => !!딴것(x))
+                .sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate)))
+                .slice(0, EBAY_DROPPED_SHOWN),
+            ]
               .map((x) => ({
                 price: x.price ?? 0,
                 date: String(x.soldDate).slice(0, 10),
@@ -3342,7 +3354,9 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
                 //    아무도 확인할 수 없다 — 내가 만든 점검 도구도 제목이 없어 헛돌았다
                 //    (2026-08-08). 사람이 눈으로 가리는 유일한 단서이기도 하다.
                 title: String(x.title ?? ''),
-                뺀까닭: 묶음인가(x.title)
+                뺀까닭: 딴것(x)
+                  ? 딴것(x)
+                  : 묶음인가(x.title)
                   ? '여러 장 묶음'
                   : (x.price ?? 0) > 값상한
                     ? '값이 너무 벗어남'

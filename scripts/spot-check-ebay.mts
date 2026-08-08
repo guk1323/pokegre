@@ -45,7 +45,7 @@ const 세트: [string, string][] = [
   ['japanese', 'Unnumbered Promotional cards'], ['english', 'Unnumbered Promotional cards'],
 ]
 
-type 낙찰 = { price: number; date: string; url: string; auction: boolean; title?: string }
+type 낙찰 = { price: number; date: string; url: string; auction: boolean; title?: string; 뺀까닭?: string }
 type 등급 = { grade: string; count: number; minPrice: number; maxPrice: number; sales?: 낙찰[] }
 type 카드 = {
   tcgPlayerId: string
@@ -101,6 +101,9 @@ for (const [lang, set] of 고른세트) {
       for (const s of g.sales ?? []) {
         const t = String(s.title ?? '')
         if (!t) continue
+        // ⚠️ **이미 뺀 기록은 문제가 아니다.** 목록에는 까닭과 함께 일부러 보여 주는 것이라
+        //    (사람이 우리가 맞게 뺐는지 눈으로 볼 수 있게), 여기서 또 세면 안 된다.
+        if (s.뺀까닭) continue
         if (g.grade === 'ungraded' && 제목등급칸(t)) 문제.push(`  [미감정에 등급] ${c.name}  ${t.slice(0, 60)}`)
         if (묶음인가(t)) 문제.push(`  [묶음 판매] ${c.name} ${g.grade} $${s.price}  ${t.slice(0, 54)}`)
         const 딴변형 = 변형표.filter(([, re]) => re.test(t)).map(([k]) => k).filter((k) => !내변형.includes(k))
