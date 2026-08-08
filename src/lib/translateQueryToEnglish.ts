@@ -457,6 +457,16 @@ export function translateSearchQueryToEnglish(
     if (found) return `${forPpt(found)} ${rarityTail[2].toUpperCase()}`;
   }
 
+  // ⚠️ **카드 접미사(ex·V·VMAX…)를 붙여 치면 통이름 일치가 깨진다.** 레어도와 같은
+  //    문제다. "히트로토무 ex"가 사전에 "히트로토무"로 있는데도 못 찾아, 조각 치환으로
+  //    **"히트Rotom ex"**가 되어 나갔다(2026-08-08 실측 — 저쪽은 0장을 준다).
+  //    접미사는 한국 카드에도 영문 그대로 인쇄되므로 떼었다가 그대로 붙인다.
+  const suffixTail = trimmed.match(/^(.+?)\s+(ex|EX|V|VMAX|VSTAR|V-UNION|GX|BREAK|LV\.?X)$/i);
+  if (suffixTail) {
+    const found = lookup(suffixTail[1].trim())?.replace(/\s*\([^)]*\)\s*$/, '');
+    if (found) return `${forPpt(found)} ${suffixTail[2]}`;
+  }
+
   let result = trimmed;
   // 팩 이름이 가장 구체적이라 제일 먼저 잡는다. 짧은 일반어를 먼저 바꾸면 팩 이름이
   // 조각나 안 걸린다. 일본판은 팩 코드로, 영문판은 영문 세트명으로 간다.
