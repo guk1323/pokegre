@@ -49,6 +49,13 @@ export function EbayCardTile({
         )}
       </div>
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.name}</p>
+      {/* ⚠️ 눌러 보기 전에 알아야 한다. 이 칸의 낙찰은 어느 카드인지 가릴 수 없어서
+          값이 그 카드 시세가 아니다(상세에서 까닭을 자세히 밝힌다). */}
+      {card.가릴수없음 && (
+        <p className="mb-1 inline-block rounded bg-amber-50 px-1.5 py-px text-[10px] text-amber-700">
+          값을 믿지 마세요 · 여러 카드가 섞임
+        </p>
+      )}
       <p className="text-xs text-neutral-400 mb-1 line-clamp-1">{card.setName}</p>
       {variant === 'tcgplayer'
         ? tcg && (
