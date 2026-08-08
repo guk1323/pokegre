@@ -177,7 +177,11 @@ export const STRUCTURAL_EN_TO_KO: [string, string][] = [
   ['Shadow Rider ', '흑마 '],
   ['Rapid Strike ', '연격 '],
   ['Single Strike ', '일격 '],
-  ['Origin Forme ', '오리진폼 '],
+  // ⚠️ **일본어 카드 이름에는 「フォルム」이 없다** — 「オリジンディアルガVSTAR」다.
+  //    한국 카드는 일본판을 따라가므로 "오리진디아루가"가 맞고, 일본어 쪽 길도 그렇게
+  //    낸다. 여기만 "오리진폼 디아루가"로 내면 같은 카드가 탭마다 다른 이름이 된다
+  //    (2026-08-08, 18장). 게임 쪽 표기는 "오리진폼"이지만 카드 이름은 아니다.
+  ['Origin Forme ', '오리진'],
   ['Special Delivery ', '스페셜 배달 '],
   ['Armor Fossil ', '방패의화석 '],
   ['Claw Fossil ', '발톱화석 '],
