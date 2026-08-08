@@ -4575,6 +4575,12 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
       res.end(JSON.stringify({ error: 'id required' }))
       return
     }
+    // 갈라 담은 카드는 저쪽에 그런 열쇠가 없다. 물어봐야 헛걸음이다(위 card-extra 설명).
+    if (id.includes('~')) {
+      res.statusCode = 200
+      res.end(JSON.stringify({ detail: null }))
+      return
+    }
     const 열쇠 = `${id}:${판 ?? ''}`
     const 있음 = 상세캐시.get(열쇠)
     if (있음) {
@@ -4597,6 +4603,17 @@ function mountEbayPrice(app: Mountable, apiKey: string) {
     if (!id) {
       res.statusCode = 400
       res.end(JSON.stringify({ error: 'id required' }))
+      return
+    }
+    // ⚠️⚠️ **갈라 담은 카드(617410~4-9)에는 감정 수량을 붙이지 않는다.**
+    //    저쪽의 그 값은 **여러 카드를 묶은 칸의 것**이라, 갈라 놓은 카드 하나에 붙이면
+    //    그게 곧 섞임이다(캡틴피카츄 한 칸에 다섯 카드가 들어 있었다).
+    //    뒤를 떼고 물어보면 다섯 카드가 **모두 같은 수량**을 달고 나온다 — 틀린 값이다.
+    //    저쪽에 헛되이 묻지도 않는다(크레딧만 나간다).
+    if (id.includes('~')) {
+      res.statusCode = 200
+      res.setHeader('cache-control', 'public, max-age=3600')
+      res.end(JSON.stringify({ population: null, grades: null, 받은날: exportDoneDay.population ?? null }))
       return
     }
     // 덤프에 있으면 그걸 쓴다(크레딧 0). 없을 때만 한 장 받아 온다 —
@@ -4767,7 +4784,11 @@ const 넘길것 = new Set([
           rememberCardName(c.tcgPlayerId, c.name)
         }
       }
-      const body = JSON.stringify({ cards: shapeEbayCards(rawJson, have), rawCount: rawList.length })
+      // ⚠️ **갈라 담은 카드를 콕 집어 물었으면 그 하나만 돌려준다.** 공유 링크(/e/617410~4-9)로
+      //    들어온 사람에게 다섯 장을 다 주면 어느 것이 그 카드인지 알 수 없다.
+      const 빚은것 = shapeEbayCards(rawJson, have)
+      const 고른것 = 갈래표시 ? 빚은것.filter((c) => String(c.tcgPlayerId).endsWith(`~${갈래표시}`)) : 빚은것
+      const body = JSON.stringify({ cards: 고른것.length ? 고른것 : 빚은것, rawCount: rawList.length })
       cache.set(cacheKey, body)
       rememberPrice(cacheKey, body)
       res.statusCode = 200
