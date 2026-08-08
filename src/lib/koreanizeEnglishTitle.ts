@@ -2089,7 +2089,18 @@ for (const table of [TRAINER_EN_TO_KO, ITEM_EN_TO_KO, USER_CONFIRMED_EN_TO_KO, U
   }
 }
 
-export function koreanizeEnglishCardName(name: string): string {
+export function koreanizeEnglishCardName(rawName: string): string {
+  // ⚠️ **꼬리를 붙임표로 붙인 이름을 띄어쓴 꼴로 맞춘다** — "Charizard-GX" → "Charizard GX".
+  //    원본 자료가 세트마다 달라서 **같은 카드가 두 이름으로 갈렸다**(2026-08-08):
+  //        en-sm2  "Alolan Ninetales GX"   ↔  en-sma  "Alolan Ninetales-GX"
+  //        en-xy5  "Groudon EX"            ↔  en-bw5  "Groudon-EX"
+  //    한글로 옮기면 그대로 "리자몽 GX"와 "리자몽-GX"로 갈려 나갔다 — 세트를 옮겨 다니면
+  //    같은 카드 이름이 달라 보이고, 검색·사전도 두 갈래로 쪼개진다.
+  //    두 꼴이 다 있는 카드가 63가지, 붙임표 쪽이 170장이다. 띄어쓴 쪽이 634가지
+  //    1,782장으로 훨씬 많고 한글로도 자연스러워 그쪽으로 맞춘다.
+  //    ⚠️ 맨 끝 꼬리만 본다. "Ho-Oh-EX"는 "Ho-Oh EX"가 되고 "Ho-Oh"는 안 건드린다.
+  //       "Mewtwo V-UNION"은 붙임표가 V **뒤**라 안 걸린다.
+  const name = rawName.replace(/-(GX|EX|V|VMAX|VSTAR)(?=$|\s)/g, ' $1');
   // 트레이너·인물·아이템 카드는 이름 전체가 일치할 때만 통째로 바꾼다(부분 치환 사고 방지).
   // 데이터마다 어포스트로피가 곧은(') / 굽은(’) 게 섞여 있어, 사전 키(곧은 ')에 맞게
   // 굽은 것을 곧은 것으로 바꿔 조회한다.
