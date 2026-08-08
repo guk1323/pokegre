@@ -2755,26 +2755,60 @@ export function startCardNameStore(): void {
  *    그건 세트를 알아보는 방법이 따로 있어야 한다 — 다음 회차에서 잇는다.
  */
 /**
- * **제목이 감정 등급을 대놓고 적었나.** 미감정 칸에 섞여 든 감정 카드를 가려낸다.
+ * **저쪽 카드 한 칸에 여러 카드가 뭉쳐 있나.**
  *
- * ⚠️ **숫자가 붙을 때만 등급으로 본다.** "Mint"·"NM"만으로는 맨 카드의 상태 설명이라
- *    빼면 안 된다. 숫자도 1~10(.5)만 보고 **뒤에 숫자가 더 오면 안 본다** — 안 그러면
- *    "Near Mint 1996"의 연도를 등급으로 읽는다.
- * 표본 932건에 걸어 본 95건을 전부 눈으로 봤다 — 잘못 걸린 것은 없었다(2026-08-08).
- *    "PSA Grade 3" · "BGS NM-MT 8" · "CGC grade 9.5 Mint+" · "Beckett Graded 8" ·
- *    "ARS 10" · "GEM MINT 10" · "Mint 9 Grade" · "Graded near mint 8"
+ * 저쪽은 카드에 번호가 없으면 **이름만으로 묶는다.** 사장님이 잡아 주신 캡틴피카츄가
+ * 그랬다(2026-08-08):
+ *     이름 "Captain Pikachu" · 세트 "Unnumbered Promotional cards" · 번호 ""
+ *     낙찰 34건 안에 **8종의 다른 카드**가 들어 있었다 —
+ *       CBB1C 07 03/09 · 04/09 · 09/09 · CBB5C-01 02/07 · 03/07 · 04/07 · 06/07 · 07/07
+ *     값이 $1.25 ~ $800으로 640배 벌어졌다. **걸러서 될 문제가 아니라 한 카드가 아니다.**
+ *
+ * ⚠️ **저쪽이 번호를 준 카드는 보지 않는다.** 번호가 있으면 그것으로 가릴 수 있다.
+ * ⚠️ **딴 카드를 뺀 뒤에 센다.** 안 그러면 이미 걸러내는 딴 세트 매물 때문에 멀쩡한
+ *    카드까지 뭉쳤다고 나온다(나인테일이 그랬다 — 거르기 전 2종, 거른 뒤 0종).
+ * ⚠️ **한 번호가 2건 이상 나올 때만 센다.** 판매자 오타 한 건으로 카드를 통째로
+ *    가리면 안 된다.
  */
-const 급 = '(?:10|[1-9](?:\\.5)?)'
-const 등급적힘 = new RegExp(
-  `\\b(?:psa|bgs|cgc|sgc|ace|tag|ars|beckett|rgr)\\s*-?\\s*(?:grade[ds]?\\s*)?${급}\\b(?!\\d)` +
-    `|\\bgem\\s*-?\\s*mt\\s*${급}\\b(?!\\d)` +
-    `|\\bnm\\s*[-/]\\s*(?:mt|mint)\\s*${급}\\b(?!\\d)` +
-    `|\\b(?:near\\s+)?mint\\+?\\s*${급}\\b(?!\\d)` +
-    `|\\bgrade[ds]?\\s*${급}\\b(?!\\d)`,
-  'i',
-)
-const 제목에등급 = (t: string | undefined): boolean => 등급적힘.test(String(t ?? ''))
+const 등급앞말 = /(psa|bgs|cgc|sgc|tag|ace|ars|grade|gem|mint|pgs|mpg)\s*$/i
+/**
+ * **제목에 적힌 감정 등급을 "칸 이름"으로 바꾼다**("PSA 10" → psa10 · "CGC 9.5" → cgc9_5).
+ *
+ * 왜 필요한가 — 저쪽이 제목에서 등급을 못 읽으면 그 매물을 **미감정 칸에 떨어뜨린다.**
+ * 사장님 지적(2026-08-08): "사진 보면 싱글카드가 아니라 등급 카드인데, 이름에 psa10이라
+ * 안 쓰여 있으니까 싱글카드로 들어 있는 게 있다."
+ * 잘 알려진 회사(PSA·BGS·CGC…)뿐 아니라 작은 회사도 잡는다 — 실제로 이런 것이 섞여 있다:
+ *     "PGS 10" · "MPG 10" · "Pokemon-Z gold 10" · "CCI 10"
+ * ⚠️ 작은 회사를 PSA 칸에 넣으면 **그게 또 섞임이다.** 회사 이름을 그대로 살려
+ *    자기 칸(pgs10 · mpg10)을 만든다. 화면의 등급 이름표는 아무 칸이나 받는다.
+ */
+const 회사말 = 'psa|bgs|beckett|cgc|sgc|ace|tag|ars|rgr|pgs|mpg|cci|gma|hga|isa|ags'
+const 제목등급칸 = (t: string): string => {
+  const s = String(t ?? '')
+  // ⚠️ 회사와 숫자 사이에 등급말이 끼는 꼴이 흔하다 — "PSA NM-MT 8" · "CGC NM/MINT 8" ·
+  //    "BGS GEM MT 9.5". 이걸 안 넣으면 그 매물이 미감정 칸에 그대로 남는다.
+  const 사이말 = '(?:grade[ds]?|gem\\s*-?\\s*mt|nm\\s*[-/]\\s*(?:mt|mint)|mint|pristine)?'
+  let m = s.match(new RegExp(`\\b(${회사말})\\s*-?\\s*${사이말}\\s*(10|[1-9](?:\\.5)?)\\b(?!\\d)`, 'i'))
+  if (!m) {
+    // 회사 이름이 뒤에 오는 꼴: "GEM MT 10 ... PSA" 는 위에서 잡히고, 여긴 "Z gold 10" 같은 것.
+    const z = s.match(new RegExp(`\\b(?:pokemon-?)?z\\s*gold\\s*(10|[1-9](?:\\.5)?)\\b(?!\\d)`, 'i'))
+    if (z) return `z${z[1].replace('.', '_')}`
+    return ''
+  }
+  const 회사 = m[1].toLowerCase() === 'beckett' ? 'bgs' : m[1].toLowerCase()
+  return `${회사}${m[2].replace('.', '_')}`
+}
+/** 그 칸의 회사 이름(ungraded면 빈값). "cgc8_5" → "cgc" */
+const 칸회사 = (칸: string): string => (칸 === 'ungraded' ? '' : (칸.match(/^[a-z]+/i)?.[0] ?? '').toLowerCase())
 
+const 제목번호들 = (t: string): string[] => {
+  const out = new Set<string>()
+  for (const m of String(t).matchAll(/(^|[^\d/])(\d{1,4})\s*\/\s*(\d{1,3})(?![\d/])/g)) {
+    if (등급앞말.test(String(t).slice(0, (m.index ?? 0) + m[1].length))) continue
+    out.add(`${Number(m[2])}/${Number(m[3])}`)
+  }
+  return [...out]
+}
 const 등급말앞 = /(psa|bgs|cgc|sgc|tag|ace|grade|gem|mint|black label)\s*$/i
 const 제목분모 = (t: string): string => {
   for (const m of t.matchAll(/(^|[^\d/])(\d{1,3})\s*\/\s*(\d{2,3})(?![\d/])/g)) {
@@ -2891,6 +2925,12 @@ function 딴카드거르기(
   const 성한것 = 전부.filter((x) => !형제인가(String(x.title ?? '')))
   const 잣대 = 성한것.length >= 5 ? 성한것 : 전부
   const D = 셈하기(잣대.map((x) => 제목분모(String(x.title ?? ''))))
+  // ⚠️ **분모만으로는 못 가르는 카드가 있다.** 사장님이 잡아 주신 캡틴피카츄가 그랬다
+  //    (2026-08-08): 저쪽이 번호 없는 프로모를 이름만으로 묶어, 한 칸에 03/09 · 04/09 ·
+  //    09/09가 같이 들어 있었다. 분모(09)가 같으니 분모 규칙으로는 하나도 못 뺀다.
+  //    그래서 **번호 전체**(앞/뒤)로도 잣대를 세운다. 문턱은 분모와 똑같이 둔다 —
+  //    번호를 적는 사람이 적어서, 느슨하게 하면 정확히 적은 소수가 잘린다(전에 겪었다).
+  const N = 셈하기(잣대.map((x) => 제목번호들(String(x.title ?? ''))[0] ?? ''))
   const Y = 셈하기(
     잣대.map((x) => {
       const y = 제목연도(String(x.title ?? ''))
@@ -2912,6 +2952,10 @@ function 딴카드거르기(
       const d = 제목분모(t)
       // 0 채움은 무시하고 숫자로 견준다("232/91" = "232/091").
       if (d && Number(d) !== Number(D.대표) && 떼인가(D.셈, d)) return true
+    }
+    if (N.믿나) {
+      const n = 제목번호들(t)[0] ?? ''
+      if (n && n !== N.대표 && 떼인가(N.셈, n)) return true
     }
     if (Y.믿나) {
       const y = 제목연도(t)
@@ -2947,6 +2991,38 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
       // ⚠️ **이 카드에 딴 카드가 섞였는지 가리는 검사**를 카드마다 한 번 만든다.
       //    낙찰 기록 전체를 봐야 "다수"를 알 수 있어서 등급별로 따로 만들면 안 된다.
       const 딴것 = 딴카드거르기(card.ebay?.soldListings, card.setName)
+      // ⚠️⚠️ **잘못 담긴 낙찰은 버리지 말고 제자리로 옮긴다**(사장님 지시 2026-08-08).
+      //    저쪽이 제목에서 등급을 못 읽으면 그 매물을 **미감정 칸에 떨어뜨린다** — 사진은
+      //    케이스인데 제목에 PSA라고 안 적혀 있는 것들이다. 카드 45장·미감정 낙찰 932건
+      //    중 **95건(10.2%)**이 그랬다. 그냥 빼면 그 거래가 통째로 사라지니, 제목이 밝힌
+      //    칸으로 옮긴다.
+      //    ⚠️ 작은 감정사(PGS·MPG·CCI·Z)를 PSA 칸에 넣으면 **그게 또 섞임이다.** 회사
+      //       이름을 살려 자기 칸(pgs10·z10)을 만든다. 화면 이름표는 아무 칸이나 받는다.
+      //    ⚠️ **이미 감정 칸에 있는 것은 회사가 다를 때만** 옮긴다. 등급 칸 낙찰 3,021건을
+      //       대조해 보니 회사가 어긋난 것은 2건뿐이었고, 그중 한 건은 제목에 두 회사가
+      //       같이 적혀 있어(“CGC 9 PSA”) 가릴 수 없다 — 그런 건 건드리지 않는다.
+      const 다시담은칸: Record<string, { price?: number; soldDate?: string; url?: string; listingType?: string; bestOfferAccepted?: boolean; title?: string }[]> = {}
+      for (const [칸, list] of Object.entries(card.ebay?.soldListings ?? {})) {
+        for (const x of list) {
+          const 진짜 = 제목등급칸(String(x.title ?? ''))
+          const 지금회사 = 칸회사(칸)
+          const 옮길까 =
+            진짜 !== '' &&
+            진짜 !== 칸 &&
+            (칸 === 'ungraded' ||
+              // 감정 칸끼리는 **자기 회사가 제목에 아예 없을 때만** 옮긴다.
+              (칸회사(진짜) !== 지금회사 && !new RegExp(`\\b${지금회사}\\b`, 'i').test(String(x.title ?? ''))))
+          const 갈곳 = 옮길까 ? 진짜 : 칸
+          ;(다시담은칸[갈곳] ??= []).push(x)
+        }
+      }
+      // 저쪽이 낱개를 **전부** 줬나. 카드 단위로 한 번만 본다 — 칸을 옮기면 칸별 건수는
+      // 달라지므로 칸끼리 견주면 안 된다.
+      const 낱개전부왔나 =
+        (card.ebay?.totalSales ?? 0) === Object.values(card.ebay?.soldListings ?? {}).flat().length &&
+        (card.ebay?.totalSales ?? 0) > 0
+      // 저쪽이 통계만 주고 낱개를 안 준 칸도 그대로 살린다(빈 배열로 두면 사라진다).
+      for (const 칸 of Object.keys(card.ebay?.salesByGrade ?? {})) 다시담은칸[칸] ??= card.ebay?.soldListings?.[칸] ?? []
       const history = card.ebay?.priceHistory ?? {}
       // TCGplayer 날짜별 추이는 상태(Near Mint·Lightly Played…)별로 나뉘어 온다.
       //
@@ -3042,23 +3118,21 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
         monthlySales:
           (card.ebay?.salesVelocity?.monthlyTotal ?? 0) > 0 ? (card.ebay?.salesVelocity?.monthlyTotal ?? null) : null,
         tcgplayer,
-        grades: Object.entries(card.ebay?.salesByGrade ?? {})
-          .map(([grade, stat]) => {
+        grades: Object.entries(다시담은칸)
+          .map(([grade, 담긴것]) => {
+            const stat = card.ebay?.salesByGrade?.[grade] ?? {}
             // ⚠️ **딴 카드가 섞인 낙찰을 먼저 뺀다**(위 딴카드거르기 설명).
-            const 원래 = (card.ebay?.soldListings?.[grade] ?? []).filter((x) => (x.price ?? 0) > 0 && x.soldDate)
-            // ⚠️ **미감정 칸에는 감정 카드가 섞여 있다.** 저쪽이 제목에서 등급을 못 읽으면
-            //    그 매물을 미감정으로 떨어뜨린다(그 칸의 gradingCompany·grade는 전부 null이다).
-            //    카드 45장·미감정 낙찰 932건을 훑어 보니 **95건(10.2%)이 감정 카드**였다
-            //    (2026-08-08). 값이 큰 카드일수록 타격이 크다:
-            //        리자몽 004/102 미감정에 "CGC grade 9.5" $2,350 · "CGC graded 9" $8,000
-            //    맨 카드를 가진 사람이 "미감정 시세"로 이 값을 보게 된다.
-            const 남은 = 원래.filter((x) => !딴것(x) && !(grade === 'ungraded' && 제목에등급(x.title)))
+            const 원래 = 담긴것.filter((x) => (x.price ?? 0) > 0 && x.soldDate)
+            const 남은 = 원래.filter((x) => !딴것(x))
             const 뺀수 = 원래.length - 남은.length
             // ⚠️ **저쪽이 미리 계산한 평균·중앙값은 섞인 것까지 넣고 낸 값이라 못 쓴다.**
             //    다만 저쪽 건수와 우리가 받은 낱개 수가 같을 때만 다시 센다 — 낱개가
             //    일부만 온 카드에서 다시 세면 오히려 값이 틀어진다.
-            const 전부왔나 = (stat.count ?? 0) === 원래.length && 원래.length > 0
-            const 다시셀까 = 뺀수 > 0 && 전부왔나
+            // ⚠️ **칸을 옮기면 그 칸 통계도 다시 세야 한다.** 안 그러면 머리글에는 저쪽이
+            //    준 옛 건수가 적히고, 아래 낱개 목록에는 옮겨 온 거래가 보여 서로 어긋난다.
+            //    다시 세도 되는 때는 **저쪽이 낱개를 전부 줬을 때**다(카드 단위로 본다).
+            const 새칸 = !card.ebay?.salesByGrade?.[grade]
+            const 다시셀까 = 새칸 || (낱개전부왔나 && (뺀수 > 0 || 원래.length !== (stat.count ?? 0)))
             // ⚠️⚠️ **저쪽이 이상값으로 빼 둔 것을 우리도 빼야 한다.** 저쪽 셈법을 뜯어보니
             //    이렇다 — **건수(count)는 전부 세고, 값(합·평균·중앙·최저·최고)은 최저~최고
             //    범위 안의 것만으로 낸다.** 등급칸 2,669개를 맞춰 보니 **2,669개 전부**
