@@ -5362,7 +5362,7 @@ type PackPriceEntry = {
 const packPriceCache = new Map<string, PackPriceEntry>()
 // ⚠️ 표는 **따로 파일로** 둔다. packPriceCache에 넣으면 세트 목록을 훑는 곳
 //    (통계·세트 고르기)이 이걸 세트로 세어 버린다.
-const MIX_FIX_MARK_FILE = dataFile('mix-fix-done.json')
+const MIX_FIX_MARK_FILE = dataFile('mix-fix-done-2.json')
 const PACK_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 // 캐시를 그대로 써도 되는지. partial(뒤 페이지를 못 받음)이거나 names(영문 카드명)가
 // 없으면 다시 받는다 — names는 나중에 추가한 항목이라, 이전에 저장된 캐시에는 없다.
@@ -6338,8 +6338,13 @@ async function loadPackPriceFile() {
     } catch {
       /* 아직 안 치웠다 */
     }
+    // ⚠️ 번호 별칭을 쓰는 세트도 같이 비운다. 옛 일본판은 저쪽에 번호가 없어서
+    //    라이브로 받은 값이 "0번" 한 칸에 몰려 있었다(확장팩 제1탄이 그랬다 —
+    //    1등 카드가 에너지 $0.44로 나갔다).
     let 비움 = 0
-    for (const slug of 딸려오는세트()) if (packPriceCache.delete(slug)) 비움++
+    for (const slug of [...딸려오는세트(), ...Object.keys(번호별칭)]) {
+      if (packPriceCache.delete(slug)) 비움++
+    }
     if (비움) {
       console.log(`[pokegre] 딴 세트가 섞여 있던 ${비움}개 세트의 시세를 비웠습니다 — 순번대로 다시 받습니다.`)
       await savePackPriceFile()
@@ -6809,6 +6814,7 @@ function 담기(
   names: Record<string, string>,
   basePriced: Set<string>,
   부른세트?: string,
+  slug?: string,
 ): void {
   // ⚠️ **다 버리게 되면 아무것도 안 버린다.** 우리가 적어 둔 이름과 저쪽이 돌려주는
   //    이름이 대소문자 하나라도 다르면 그 세트가 통째로 값이 빈 채로 나갈 수 있다.
@@ -6822,8 +6828,19 @@ function 담기(
   }
   for (const c of 버린수 && 쓸것.length ? 쓸것 : list) {
     // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
-    const rawNum = String(c.cardNumber ?? '') || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
-    const num = stripZeros(rawNum.split('/')[0])
+    // ⚠️⚠️ **옛 일본판은 저쪽에 번호가 아예 없다.** 확장팩 제1탄 102장이 전부 빈칸이다.
+    //    그래서 **이름으로** 우리 번호를 찾아야 한다(setCardNumberAlias의 "NAME:" 표).
+    //    덤프로 채우는 길은 이미 그렇게 하는데 여기(라이브)만 빠져 있었다. 그 결과
+    //    번호가 전부 빈칸 → stripZeros('')가 "0"을 돌려줘 **0번 한 칸에 102장이
+    //    몰리고, 그중 제일 싼 에너지 카드 $0.44가 그 세트의 1등 카드로 나갔다**
+    //    (2026-08-08, ja-PMCG1·ja-PMCG4에서 실제로 그랬다).
+    const 되돌림 = slug
+      ? 번호되돌리기(slug, String(c.cardNumber ?? ''), String(c.name ?? ''))
+      : String(c.cardNumber ?? '')
+    const rawNum = 되돌림 || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
+    // ⚠️ **빈 번호를 stripZeros에 넘기면 안 된다** — "0"이 되어 없는 카드가 생긴다.
+    if (!rawNum.trim()) continue
+    const num = stripZeros(rawNum.split('/')[0].trim())
     const market = c.prices?.market ?? 0
     if (!num || market <= 0) continue
     // 같은 번호가 "Machamp / Machamp (Poke Ball Pattern) / (Master Ball Pattern)"처럼
@@ -6879,7 +6896,7 @@ async function getSetPrices(
     const 통째 = await fetchWholeSet(setName, lang, apiKey)
     if (통째 && 통째.length) {
       noteFillSpend(통째.length)
-      담기(통째, prices, names, basePriced, setName)
+      담기(통째, prices, names, basePriced, setName, slug)
       complete = true
     }
 
@@ -6909,7 +6926,7 @@ async function getSetPrices(
         }
         break
       }
-      담기(list, prices, names, basePriced, setName)
+      담기(list, prices, names, basePriced, setName, slug)
       if (list.length < PPT_PAGE) {
         complete = true // 덜 찬 페이지 = 마지막 페이지까지 다 받았다
         break
