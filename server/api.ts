@@ -2491,7 +2491,15 @@ interface RawPriceTrackerCard {
     //    더 들지 않는다. "합계 202건"보다 "1월 18일 $160에 팔렸다"가 훨씬 쓸모 있다.
     soldListings?: Record<
       string,
-      { price?: number; soldDate?: string; url?: string; listingType?: string; bestOfferAccepted?: boolean }[]
+      {
+        price?: number
+        soldDate?: string
+        url?: string
+        listingType?: string
+        bestOfferAccepted?: boolean
+        // ⚠️ 매물 제목. **딴 카드가 섞였는지 가리는 유일한 단서**다(아래 딴카드거르기).
+        title?: string
+      }[]
     >
     // 요즘 얼마나 자주 팔리는지. 값이 진짜인지, 팔고 싶을 때 팔 수 있는지를 가른다 —
     // "낙찰 202건"은 다 합친 숫자라 1년 전에 몰려 팔린 카드와 지금도 잘 나가는 카드가
@@ -2543,6 +2551,8 @@ interface ShapedEbayCard {
     maxPrice: number
     marketTrend: string | null
     lastSaleDate: string | null
+    /** 딴 카드로 보여 뺀 낙찰 건수(0이면 없음). 화면이 "몇 건 뺐다"를 밝히는 데 쓴다. */
+    droppedOther?: number
     // 현재 적정가와 그 신뢰도. 없으면 null(그땐 화면이 중앙값으로 대체한다).
     smartPrice: number | null
     confidence: string | null
@@ -2667,6 +2677,63 @@ export function startCardNameStore(): void {
   ).unref()
 }
 
+
+// ── 딴 카드가 섞인 낙찰 기록 걸러내기 ────────────────────────────────────────
+//
+// ⚠️⚠️ **저쪽(PPT)이 이름이 겹치는 세트를 한 카드로 묶어 놓는다.** 사장님이 잡아 주셨다
+//    (2026-08-08, /e/575612):
+//      우리 카드   1996 일본판 「확장팩 제1탄」 나인테일
+//      저쪽 세트명 "Expansion Pack"
+//    그런데 그 이름에 걸리는 세트가 셋이다 — 확장팩 제1탄(1996) · 확장팩 20th
+//    Anniversary(2016, CP6) · 기본확장팩(2001). 저쪽은 이 셋의 낙찰을 **한 카드에** 담는다.
+//      PSA 10:  진짜 1996년 $650·$911   ↔   섞인 2016년 $79.99·$89.99·$96·$107.5
+//      그래서 화면에 **평균 $461 · 중앙 $379**가 나갔다. 실제로는 $781쯤이다.
+//    카드 39장·낙찰 13,771건을 훑어 보니 **10.8%가 딴 카드**였다. 한 장짜리 사고가 아니다.
+//
+// ⚠️ **우리 세트 자료로는 못 가린다** — 세 세트 이름이 다 겹치기 때문이다. 대신
+//    **그 카드의 낙찰 기록끼리 견준다.** 매물 제목에 적힌 ① 카드 번호의 분모("015/087")와
+//    ② 연도가, 다수와 다르면 딴 카드다. 바깥 자료가 필요 없고 어느 카드에나 통한다.
+//
+// ⚠️ **다수가 없으면 아무것도 안 뺀다.** 기록이 적으면 "다수"라는 말이 뜻이 없다.
+//    잘못 빼는 쪽이 섞이는 쪽보다 나쁘다 — 진짜 거래를 지우면 값이 거꾸로 틀어진다.
+const 제목분모 = (t: string) => t.match(/\b\d{1,3}\s*\/\s*(\d{2,3})\b/)?.[1] ?? ''
+const 제목연도 = (t: string) => (t.match(/\b(19[89]\d|20[0-2]\d)\b/g) ?? []).map(Number)
+
+/** 이 카드의 낙찰 기록 중 **딴 카드인 것**을 가려내는 검사를 만든다. */
+function 딴카드거르기(
+  soldListings: Record<string, { title?: string }[]> | undefined,
+): (x: { title?: string }) => boolean {
+  const 전부 = Object.values(soldListings ?? {}).flat()
+  // 다섯 건은 있어야 "다수"를 말할 수 있다.
+  if (전부.length < 5) return () => false
+  const 최빈 = (값들: string[]) => {
+    const 셈 = new Map<string, number>()
+    for (const v of 값들) 셈.set(v, (셈.get(v) ?? 0) + 1)
+    let 값 = '',
+      n = 0
+    for (const [k, m] of 셈) if (m > n) ((값 = k), (n = m))
+    return { 값, 몫: n / 값들.length }
+  }
+  const D = 최빈(전부.map((x) => 제목분모(String(x.title ?? ''))))
+  const Y = 최빈(
+    전부.map((x) => {
+      const y = 제목연도(String(x.title ?? ''))
+      return y.length ? String(Math.min(...y)) : ''
+    }),
+  )
+  return (x) => {
+    const t = String(x.title ?? '')
+    if (!t) return false // 제목이 없으면 판단하지 않는다
+    // ① 번호 분모가 다수와 다르면 딴 세트다("015/087" ↔ 분모 없음).
+    const d = 제목분모(t)
+    if (D.몫 >= 0.6 && d && d !== D.값) return true
+    // ② 연도가 다수와 한 해 넘게 벌어지면 딴 판이다(2016 ↔ 1996, 1999 영문판 ↔ 1996 일본판).
+    const y = 제목연도(t)
+    if (Y.몫 >= 0.5 && Y.값 && y.length && !y.some((v) => Math.abs(v - Number(Y.값)) <= 1)) return true
+    return false
+  }
+}
+
 function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): ShapedEbayCard[] {
   const body = raw as { data?: RawPriceTrackerCard | RawPriceTrackerCard[] }
   const list = Array.isArray(body.data) ? body.data : body.data ? [body.data] : []
@@ -2686,6 +2753,9 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
       have === 'tcgplayer' ? (card.prices?.market ?? 0) > 0 : (card.ebay?.totalSales ?? 0) > 0,
     )
     .map((card) => {
+      // ⚠️ **이 카드에 딴 카드가 섞였는지 가리는 검사**를 카드마다 한 번 만든다.
+      //    낙찰 기록 전체를 봐야 "다수"를 알 수 있어서 등급별로 따로 만들면 안 된다.
+      const 딴것 = 딴카드거르기(card.ebay?.soldListings)
       const history = card.ebay?.priceHistory ?? {}
       // TCGplayer 날짜별 추이는 상태(Near Mint·Lightly Played…)별로 나뉘어 온다.
       //
@@ -2765,13 +2835,31 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
           (card.ebay?.salesVelocity?.monthlyTotal ?? 0) > 0 ? (card.ebay?.salesVelocity?.monthlyTotal ?? null) : null,
         tcgplayer,
         grades: Object.entries(card.ebay?.salesByGrade ?? {})
-          .map(([grade, stat]) => ({
+          .map(([grade, stat]) => {
+            // ⚠️ **딴 카드가 섞인 낙찰을 먼저 뺀다**(위 딴카드거르기 설명).
+            const 원래 = (card.ebay?.soldListings?.[grade] ?? []).filter((x) => (x.price ?? 0) > 0 && x.soldDate)
+            const 남은 = 원래.filter((x) => !딴것(x))
+            const 뺀수 = 원래.length - 남은.length
+            // ⚠️ **저쪽이 미리 계산한 평균·중앙값은 섞인 것까지 넣고 낸 값이라 못 쓴다.**
+            //    다만 저쪽 건수와 우리가 받은 낱개 수가 같을 때만 다시 센다 — 낱개가
+            //    일부만 온 카드에서 다시 세면 오히려 값이 틀어진다.
+            const 전부왔나 = (stat.count ?? 0) === 원래.length && 원래.length > 0
+            const 다시셀까 = 뺀수 > 0 && 전부왔나
+            const 값 = 남은.map((x) => x.price ?? 0).sort((a, b) => a - b)
+            const 중앙 = 값.length
+              ? 값.length % 2
+                ? 값[(값.length - 1) / 2]
+                : (값[값.length / 2 - 1] + 값[값.length / 2]) / 2
+              : 0
+            return {
             grade,
-            count: stat.count ?? 0,
-            averagePrice: stat.averagePrice ?? 0,
-            medianPrice: stat.medianPrice ?? 0,
-            minPrice: stat.minPrice ?? 0,
-            maxPrice: stat.maxPrice ?? 0,
+            count: 다시셀까 ? 값.length : stat.count ?? 0,
+            averagePrice: 다시셀까 ? (값.length ? 값.reduce((a, b) => a + b, 0) / 값.length : 0) : stat.averagePrice ?? 0,
+            medianPrice: 다시셀까 ? 중앙 : stat.medianPrice ?? 0,
+            minPrice: 다시셀까 ? 값[0] ?? 0 : stat.minPrice ?? 0,
+            maxPrice: 다시셀까 ? 값[값.length - 1] ?? 0 : stat.maxPrice ?? 0,
+            // 몇 건을 왜 뺐는지 화면이 밝힐 수 있게 같이 준다(0이면 안 보낸다).
+            droppedOther: 뺀수 > 0 ? 뺀수 : undefined,
             marketTrend: stat.marketTrend ?? null,
             lastSaleDate: stat.lastSaleDate ?? null,
             // ⚠️ **대표값이 실제 낙찰 범위를 벗어나면 안 쓴다.** 저쪽은 대표값에
@@ -2786,15 +2874,16 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
             smartPrice: (() => {
               const sp = stat.smartMarketPrice?.price ?? null
               if (sp == null) return null
-              const lo = stat.minPrice ?? 0
-              const hi = stat.maxPrice ?? 0
+              // ⚠️ **다시 센 범위로 견준다.** 섞인 것을 뺀 뒤에는 저쪽 대표값이 범위 밖으로
+              //    나가는 일이 잦다(싼 딴 카드가 최저가를 끌어내리고 있었기 때문이다).
+              const lo = 다시셀까 ? 값[0] ?? 0 : stat.minPrice ?? 0
+              const hi = 다시셀까 ? 값[값.length - 1] ?? 0 : stat.maxPrice ?? 0
               if (lo > 0 && hi > 0 && (sp < lo || sp > hi)) return null
               return sp
             })(),
             confidence: stat.smartMarketPrice?.confidence ?? null,
             history: shapeGradeHistory(history[grade]),
-            sales: (card.ebay?.soldListings?.[grade] ?? [])
-              .filter((x) => (x.price ?? 0) > 0 && x.soldDate)
+            sales: 남은
               // 최근 것부터. 저쪽이 어떤 순서로 주는지 보장이 없어 우리가 정렬한다.
               .sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate)))
               .slice(0, EBAY_SALES_PER_GRADE)
@@ -2805,7 +2894,11 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
                 // 경매인지 즉시구매인지. 경매가는 "그날 시장이 매긴 값"이라 더 믿을 만하다.
                 auction: String(x.listingType ?? '').toLowerCase() === 'auction',
               })),
-          }))
+            }
+          })
+          // ⚠️ **낙찰이 통째로 딴 카드였던 등급은 아예 뺀다.** 남은 게 없는데 등급 줄만
+          //    남으면 "$0"이나 빈칸이 뜬다(이 카드의 CGC 10이 그랬다 — 두 건 다 2016년 것).
+          .filter((g) => g.count > 0)
           .sort((a, b) => 등급순서값(a.grade) - 등급순서값(b.grade) || b.count - a.count),
       }
     })
