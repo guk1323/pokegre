@@ -76,12 +76,10 @@ export const STRUCTURAL_EN_TO_KO: [string, string][] = [
   ['N’s ', 'N의 '],
   ['Iono’s ', '모야모의 '],
   ['Hop’s ', '호브의 '], // ホップ. 정식명은 호브다
-  ['Mega ', '메가'],
-  // ⚠️ 대문자 MEGA도 같이 잡는다. 스니커덩크 상세 API가 영문 이름을 대문자로 준다
-  //    ("MEGA Charizard X ex MA"). 이게 빠져 있어서 공유 링크 미리보기에는
-  //    "MEGA 리자몽"으로, 사이트 화면에는 "메가리자몽"으로 서로 다르게 떴다
-  //    (2026-08-05 점검에서 잡음 — 새로고침하면 탭 이름이 바뀌었다).
-  ['MEGA ', '메가'],
+  // ⚠️ **Mega·MEGA는 여기 두지 않는다.** 이 표는 포켓몬 이름보다 **먼저** 돌기 때문에,
+  //    뒤가 포켓몬이 아니면 한글이 영어에 그대로 붙어 버린다:
+  //        "Mega Tokyo's Pikachu" → **"메가Tokyo's 피카츄"** (2026-08-08 실측)
+  //    포켓몬 이름을 다 바꾼 **뒤에**, 뒤가 한글일 때만 바꾼다(아래 메가앞말 참고).
   ['Radiant ', '찬란한 '], // かがやく/輝く의 영문판. koreanizeTitle과 같은 표기로 맞춘다.
   // ⚠️ 방문자가 "캡틴피카츄"를 스무 번 넘게 쳤는데 우리 사전에 한 줄도 없었다
   //    (2026-08-08 검색 기록). 우리 세트 자료에는 아예 없는 카드이고(TCGdex에 없다),
@@ -1982,6 +1980,21 @@ function lookupExact(key: string): string | undefined {
   );
 }
 
+// ⚠️ **낱말 한가운데를 바꾸면 안 된다.** 예전엔 통짜 문자열 치환이라 " Friends"가
+//    " Friendship" 안에서 걸려 **"지우의 친구들hip"**이 화면에 나갔다(2026-08-08 실측).
+//    앞뒤가 영문자면 그건 다른 낱말의 일부다 — 양쪽에 경계를 세운다.
+//    (꼬리에 공백이 있는 앞말 항목은 그쪽 경계를 안 세운다. 이미 공백이 경계다.)
+const 정규식막기 = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const 구조패턴 = STRUCTURAL_EN_TO_KO.map(([en, ko]) => ({
+  re: new RegExp(
+    (/^[A-Za-z]/.test(en) ? '(?<![A-Za-z])' : '') +
+      정규식막기(en) +
+      (/[A-Za-z]$/.test(en) ? '(?![A-Za-z])' : ''),
+    'g',
+  ),
+  ko,
+}));
+
 const stripAccents = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC');
 
 // 악센트를 뗀 표기 → 사전에 든 정식 표기. PPT가 "Pokemon Catcher"처럼 악센트 없이
@@ -2036,9 +2049,11 @@ export function koreanizeEnglishCardName(name: string): string {
   // 그대로는 파오리·니드런이 안 잡힌다. 사전 표기에 맞춰 정규화한다.
   result = result.replace(/'/g, '’').replace(/\s+([♂♀])/g, '$1');
 
-  for (const [en, ko] of STRUCTURAL_EN_TO_KO) {
-    if (result.includes(en)) {
-      result = result.split(en).join(ko);
+  for (const { re, ko } of 구조패턴) {
+    re.lastIndex = 0;
+    if (re.test(result)) {
+      re.lastIndex = 0;
+      result = result.replace(re, ko);
     }
   }
   // 세트에 따라 "slowpoke"·"REMORAID"처럼 대소문자가 제각각이라, 대소문자를 무시하고 맞춘다.
@@ -2049,6 +2064,14 @@ export function koreanizeEnglishCardName(name: string): string {
       result = result.replace(entry.re, entry.ko);
     }
   }
+
+  // ⚠️ **Mega는 포켓몬 이름을 바꾼 뒤에** 처리한다(위 설명). 뒤가 한글일 때만 붙인다 —
+  //    "Mega Tokyo's Pikachu"처럼 뒤가 사람·지명이면 손대지 않는다. 손대면 "메가Tokyo's"
+  //    같은 글자가 화면에 나간다.
+  //    대문자 MEGA도 같이 잡는다. 스니커덩크 상세 API가 영문 이름을 대문자로 준다
+  //    ("MEGA Charizard X ex MA"). 이게 빠져 있어서 공유 링크 미리보기에는 "MEGA 리자몽",
+  //    사이트 화면에는 "메가리자몽"으로 서로 달랐다(2026-08-05).
+  result = result.replace(/\b(?:Mega|MEGA) (?=[가-힣])/g, '메가')
 
   // 앞말 사전에 꼬리 공백이 있어("Hisuian " → "히스이 ") 조사가 떨어져 나가거나
   // 공백이 겹치는 일이 있다("히스이 의 동료들", "히스이  블레이범").
