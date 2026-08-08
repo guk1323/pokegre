@@ -2754,6 +2754,27 @@ export function startCardNameStore(): void {
  *    섞인 쪽(2016년 CP6)이 **번호를 적은 기록 중에서는 다수**라 이 규칙으로 안 걸린다.
  *    그건 세트를 알아보는 방법이 따로 있어야 한다 — 다음 회차에서 잇는다.
  */
+/**
+ * **제목이 감정 등급을 대놓고 적었나.** 미감정 칸에 섞여 든 감정 카드를 가려낸다.
+ *
+ * ⚠️ **숫자가 붙을 때만 등급으로 본다.** "Mint"·"NM"만으로는 맨 카드의 상태 설명이라
+ *    빼면 안 된다. 숫자도 1~10(.5)만 보고 **뒤에 숫자가 더 오면 안 본다** — 안 그러면
+ *    "Near Mint 1996"의 연도를 등급으로 읽는다.
+ * 표본 932건에 걸어 본 95건을 전부 눈으로 봤다 — 잘못 걸린 것은 없었다(2026-08-08).
+ *    "PSA Grade 3" · "BGS NM-MT 8" · "CGC grade 9.5 Mint+" · "Beckett Graded 8" ·
+ *    "ARS 10" · "GEM MINT 10" · "Mint 9 Grade" · "Graded near mint 8"
+ */
+const 급 = '(?:10|[1-9](?:\\.5)?)'
+const 등급적힘 = new RegExp(
+  `\\b(?:psa|bgs|cgc|sgc|ace|tag|ars|beckett|rgr)\\s*-?\\s*(?:grade[ds]?\\s*)?${급}\\b(?!\\d)` +
+    `|\\bgem\\s*-?\\s*mt\\s*${급}\\b(?!\\d)` +
+    `|\\bnm\\s*[-/]\\s*(?:mt|mint)\\s*${급}\\b(?!\\d)` +
+    `|\\b(?:near\\s+)?mint\\+?\\s*${급}\\b(?!\\d)` +
+    `|\\bgrade[ds]?\\s*${급}\\b(?!\\d)`,
+  'i',
+)
+const 제목에등급 = (t: string | undefined): boolean => 등급적힘.test(String(t ?? ''))
+
 const 등급말앞 = /(psa|bgs|cgc|sgc|tag|ace|grade|gem|mint|black label)\s*$/i
 const 제목분모 = (t: string): string => {
   for (const m of t.matchAll(/(^|[^\d/])(\d{1,3})\s*\/\s*(\d{2,3})(?![\d/])/g)) {
@@ -3025,7 +3046,13 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
           .map(([grade, stat]) => {
             // ⚠️ **딴 카드가 섞인 낙찰을 먼저 뺀다**(위 딴카드거르기 설명).
             const 원래 = (card.ebay?.soldListings?.[grade] ?? []).filter((x) => (x.price ?? 0) > 0 && x.soldDate)
-            const 남은 = 원래.filter((x) => !딴것(x))
+            // ⚠️ **미감정 칸에는 감정 카드가 섞여 있다.** 저쪽이 제목에서 등급을 못 읽으면
+            //    그 매물을 미감정으로 떨어뜨린다(그 칸의 gradingCompany·grade는 전부 null이다).
+            //    카드 45장·미감정 낙찰 932건을 훑어 보니 **95건(10.2%)이 감정 카드**였다
+            //    (2026-08-08). 값이 큰 카드일수록 타격이 크다:
+            //        리자몽 004/102 미감정에 "CGC grade 9.5" $2,350 · "CGC graded 9" $8,000
+            //    맨 카드를 가진 사람이 "미감정 시세"로 이 값을 보게 된다.
+            const 남은 = 원래.filter((x) => !딴것(x) && !(grade === 'ungraded' && 제목에등급(x.title)))
             const 뺀수 = 원래.length - 남은.length
             // ⚠️ **저쪽이 미리 계산한 평균·중앙값은 섞인 것까지 넣고 낸 값이라 못 쓴다.**
             //    다만 저쪽 건수와 우리가 받은 낱개 수가 같을 때만 다시 센다 — 낱개가
