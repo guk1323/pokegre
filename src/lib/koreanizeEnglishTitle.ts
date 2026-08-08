@@ -8,17 +8,24 @@ import cardNameKoEn from '../data/cardNameKoEn.json' with { type: 'json' };
 // 그쪽은 포켓몬코리아 공식명과 계속 대조해 왔고, 이 영문 표는 그런 검증이 없었다.
 // 그래서 아래 손 사전보다 이걸 먼저 본다.
 // 같은 영문에 한글이 둘 이상 붙은 것은 어느 쪽인지 알 수 없으므로 뺀다.
-const AUTO_EN_TO_KO: Map<string, string> = (() => {
-  const count = new Map<string, number>();
-  for (const en of Object.values(cardNameKoEn as Record<string, string>)) {
-    count.set(en, (count.get(en) ?? 0) + 1);
-  }
-  const map = new Map<string, string>();
-  for (const [ko, en] of Object.entries(cardNameKoEn as Record<string, string>)) {
-    if (count.get(en) === 1) map.set(en, ko);
-  }
-  return map;
-})();
+// ⚠️ **늦게 만든다.** 아래 STRUCTURAL_EN_TO_KO를 봐야 하는데 그건 이 아래에 있다.
+//    처음 쓸 때 한 번만 만들고 그 뒤로는 그대로 쓴다.
+let AUTO_캐시: Map<string, string> | null = null;
+const AUTO_EN_TO_KO = {
+  get(key: string): string | undefined {
+    if (!AUTO_캐시) {
+      const count = new Map<string, number>();
+      for (const en of Object.values(cardNameKoEn as Record<string, string>)) {
+        count.set(en, (count.get(en) ?? 0) + 1);
+      }
+      AUTO_캐시 = new Map<string, string>();
+      for (const [ko, en] of Object.entries(cardNameKoEn as Record<string, string>)) {
+        if (count.get(en) === 1 && !규칙을덮나(en, ko)) AUTO_캐시.set(en, ko);
+      }
+    }
+    return AUTO_캐시.get(key);
+  },
+};
 
 interface PokemonName {
   id: number;
@@ -45,6 +52,60 @@ const packKoByCode = new Map(
 
 // 포켓몬 이름 앞에 붙는 수식어. "ex"/"V"/"VMAX"/"GX" 같은 접미사는 한국 공식 표기에서도
 // 영문 그대로 쓰기 때문에 건드리지 않는다.
+/**
+ * 자동 사전이 **손으로 정한 규칙을 덮는 짝인가.**
+ *
+ * ⚠️⚠️ 자동 사전은 이 표(STRUCTURAL_EN_TO_KO)보다 **먼저** 읽힌다. 그래서 사전에
+ *    다른 값이 있으면 규칙이 안 먹는다. 게다가 사전을 다시 만들 때 **화면에 나온
+ *    이름을 재료로 쓰기 때문에**, 한 번 잘못 들어간 값이 스스로를 되살린다.
+ *    2026-08-08에 이것 때문에 "Dark ___"이 세 갈래로 갈려 있었고(나쁜·어둠의·다크),
+ *    같은 카드가 일본판 탭과 북미판 탭에서 다른 이름으로 보였다.
+ *    화석·큐브·로켓단·독수(코가) 등 18개가 일본어 음역인 채로 굳어 있었다:
+ *        "츠메의 화석"(ツメの化石) ↔ 규칙 "발톱화석"
+ *        "코가의 크로뱃"           ↔ 규칙 "독수의 크로뱃"
+ *        "로켓의 라이코"           ↔ 규칙 "로켓단의 라이코"
+ *
+ * ⚠️ **막는 것은 "영문 → 한글"(화면 표시) 쪽뿐이다.** 반대쪽(한글 → 영문, 검색)에서는
+ *    그대로 둔다 — 사람이 옛 이름을 쳐도 카드를 찾을 수 있어야 하기 때문이다.
+ *
+ * 다시 훑어보려면: scripts/check-rule-override.mts
+ */
+// ⚠️ **규칙 전부에 걸면 안 된다.** 전부 걸어 봤더니 검증할 수 없는 이름까지 바뀌었다
+//    ("Dark Bell" → "나쁜 Bell", "Surfing Pikachu" → "파도타기 피카츄" 등 4개).
+//    그래서 **사전 값이 일본어를 그대로 읽은 것이 확실한 규칙만** 고른다:
+//        츠메의 화석(ツメ) · 타테의 화석(タテ) · 코우라의 화석(コウラ) · 카이의 화석(カイ)
+//        히미츠의 호박(ヒミツ) · 파이틴구큐부(ファイティング) · 코가의(コガ)
+//    이건 뜻을 옮긴 것이 아니라 소리를 옮긴 것이라, 어느 쪽이 맞는지 따질 일이 없다.
+//    ⚠️ **표에 적힌 그대로** 적어야 한다(꼬리 공백까지). 처음에 공백을 빼먹어서
+//       화석 규칙이 하나도 안 걸렸다.
+const 음역이굳은규칙 = new Set([
+  'Claw Fossil ', 'Armor Fossil ', 'Dome Fossil ', 'Helix Fossil ', 'Root Fossil ', 'Old Amber ',
+  'Fire Cube', 'Water Cube', 'Lightning Cube', 'Psychic Cube', 'Fighting Cube', 'Darkness Cube',
+  'Metal Cube', 'Grass Cube', 'Rocket’s ', 'Koga’s ', 'Origin Forme ',
+])
+
+function 규칙앞말(): [RegExp, string][] {
+  return STRUCTURAL_EN_TO_KO.filter(([en]) => 음역이굳은규칙.has(en)).map(([en, ko]) => [
+    new RegExp(
+      (/^[A-Za-z]/.test(en) ? '(?<![A-Za-z])' : '') +
+        en.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/['’]/g, "['’]") +
+        (/[A-Za-z]$/.test(en.trim()) ? '(?![A-Za-z])' : ''),
+      'i',
+    ),
+    ko.trim(),
+  ]);
+}
+let 규칙목록: [RegExp, string][] | null = null;
+function 규칙을덮나(en: string, ko: string): boolean {
+  규칙목록 ??= 규칙앞말();
+  const 벗김 = ko.replace(/[\s·]/g, '');
+  for (const [re, koPart] of 규칙목록) {
+    if (!koPart) continue;
+    if (re.test(en) && !벗김.includes(koPart.replace(/[\s·]/g, ''))) return true;
+  }
+  return false;
+}
+
 export const STRUCTURAL_EN_TO_KO: [string, string][] = [
   // 2020년 영국 축구협회(The FA) 한정 프로모 5종. 한국 정식 발매가 없어 공식명이 없다.
   // 일본판 원문 「ボールをかかえたピカチュウ」의 뜻대로 "공을 안은 <포켓몬>"으로 쓴다
