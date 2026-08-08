@@ -8640,19 +8640,23 @@ export function topPricedCards(slug: string, limit = 4): { n: string; usd: numbe
   //    빠졌고, 2등 카드가 1등처럼 보였다(2026-08-05). 같은 카드가 스니커덩크에는
   //    실거래 20건에 ￥185,000으로 쌓여 있었다 — 2등의 2.3배다.
   //    일본판은 일본 마켓이 진짜 시세이고, 사이트의 다른 화면도 이미 그렇게 보여준다.
-  if (saved?.src === 'snkrdunk' && saved.cards?.length) {
-    const names = setCardNames(slug)
-    return saved.cards
-      .slice(0, limit)
+  // ⚠️ **우리 세트에 없는 번호는 버린다.** 힛카드 파일은 저쪽 자료로 만든 것이라
+  //    우리에게 없는 번호가 섞인다 — VMAX 클라이맥스에 284번이 들어 있었는데
+  //    그 세트는 277번까지다(2026-08-08). 이름을 못 찾아 **빈 카드에 $51.23**만
+  //    붙어 나갔고, 자리를 차지해 진짜 8등이 밀려났다.
+  //    자르기(slice) **전에** 걸러야 밀려나지 않는다.
+  const 있는것만 = (list: { n: string; usd: number }[], names: Map<string, string>) =>
+    list
       .map((c) => ({ n: c.n, usd: c.usd, name: names.get(번호열쇠(c.n)) ?? '' }))
+      .filter((c) => c.name)
+      .slice(0, limit)
+  if (saved?.src === 'snkrdunk' && saved.cards?.length) {
+    return 있는것만(saved.cards, setCardNames(slug))
   }
   if (!hit) {
     // 앨범 시세가 없으면 미리 받아 둔 파일을 본다. 이름은 세트 파일에서 번호로 찾는다.
     if (!saved?.cards?.length) return []
-    const names = setCardNames(slug)
-    return saved.cards
-      .slice(0, limit)
-      .map((c) => ({ n: c.n, usd: c.usd, name: names.get(번호열쇠(c.n)) ?? '' }))
+    return 있는것만(saved.cards, setCardNames(slug))
   }
   return Object.entries(hit.prices)
     .filter(([n]) => !n.includes('~'))
