@@ -63,50 +63,22 @@ const 이름목록 = [...대표.values()].sort((a, b) => a.length - b.length || 
 
 // ── "포켓몬 + 레어도" ────────────────────────────────────────────────────────
 // 사람들은 카드 이름을 정확히 모르는 채로 "리자몽 SAR"처럼 **레어도로 좁혀서** 찾는다
-// (운영 인기 검색어에 "제크로무 ex SR"이 20회 올라 있다). 우리는 카드마다 레어도를
-// 갖고 있으면서 짧은 코드로 바꾸는 표가 없어 못 만들고 있었다 — 그 자리를 스니커덩크
-// 자동완성이 메우고 있었다.
-// ⚠️ **기본 포켓몬 이름일 때만** 붙인다. "리자몽 V RR"까지 넣으면 4,374가지가 되어
-//    목록 여덟 칸을 조합이 다 차지하고 진짜 카드 이름이 밀려난다. 지금은 1,390가지다.
-// ⚠️ 이 코드들은 **세 마켓에 다 통한다**(2026-08-08 실측: Charizard SAR → PPT 7장,
-//    스니커덩크도 좁혀진다). 마켓 하나에서만 통하는 말(MUR·구뒷면)은 안 만든다.
-// ⚠️ **여기 코드는 "우리 세트 자료"의 레어도 이름이다. 저쪽(PPT)과 다르다.**
-//    같은 카드를 두 자료가 다르게 부른다 —
-//      메가리자몽Xex M2 116/080 : 우리 "Ultra Rare"  ↔  저쪽 "Mega Ultra Rare"(MUR)
-//    그래서 MUR·CSR·CHR·MAR처럼 **저쪽에만 있는 코드는 여기서 만들 수 없다.**
-//    "리자몽"을 쳐도 "리자몽 MUR"이 자동완성에 안 뜨는 까닭이다(2026-08-08 확인).
-//    검색 자체는 된다 — 걸러 주는 표는 src/lib/rarityCode.ts에 양쪽 표기를 다 담았다.
+// (운영 인기 검색어에 "제크로무 ex SR"이 20회 올라 있다).
 //
-//    ▶ **할 일**: PPT의 카드 통째 받기(/export?type=cards)에 레어도 열이 있으면,
-//      그걸로 만들면 저쪽 코드까지 정확히 나온다. 하루 2번 제한이라 오전 9시(UTC 0시)
-//      이후에 한 번 받아 확인할 것. 2026-08-08 시도했으나 그날 몫을 이미 다 써서 429.
-const 레어도코드 = new Map([
-  ['Special illustration rare', 'SAR'],
-  ['Illustration rare', 'AR'],
-  ['Secret Rare', 'SR'],
-  ['Double rare', 'RR'],
-  ['Hyper rare', 'UR'],
-  ['Shiny Ultra Rare', 'SSR'],
-  ['Shiny rare', 'S'],
-  ['ACE SPEC Rare', 'ACE'],
-  ['Promo', '프로모'],
-])
-const 포켓몬이름 = new Set(
-  (JSON.parse(readFileSync(path.join(ROOT, 'src/data/pokemonNames.json'), 'utf8')) as { ko: string }[]).map((p) => p.ko),
-)
+// ⚠️ 재료는 **저쪽(PPT) 덤프에서 뽑은 대조표**(src/data/rarityByName.json)다.
+//    우리 세트 자료로 만들면 안 된다 — 두 자료가 같은 카드를 다르게 부른다.
+//      메가리자몽Xex M2 116/080 : 우리 "Ultra Rare" ↔ 저쪽 "Mega Ultra Rare"(MUR)
+//    그래서 예전엔 "리자몽 MUR"이 자동완성에 안 떴다(2026-08-08에 고침).
+//    대조표를 다시 만들려면 scripts/gen-rarity-from-dump.mts 를 볼 것.
+const 레어도표 = JSON.parse(readFileSync(path.join(ROOT, 'src/data/rarityByName.json'), 'utf8')) as Record<
+  string,
+  string[]
+>
 const 레어도짝 = new Set<string>()
-for (const s of idx) {
-  const d = JSON.parse(readFileSync(path.join(ROOT, `public/sets/${s.slug}.json`), 'utf8')) as {
-    cards?: { name: string; r?: string }[]
-  }
-  for (const c of d.cards ?? []) {
-    const code = c.r ? 레어도코드.get(c.r) : undefined
-    if (!code) continue
-    const n = koName(s.ed, c.name)
-    if (!포켓몬이름.has(n)) continue
-    레어도짝.add(`${n} ${code}`)
-  }
+for (const [이름, codes] of Object.entries(레어도표)) {
+  for (const code of codes) 레어도짝.add(`${이름} ${code}`)
 }
+
 // ⚠️ **카드 이름 뒤에 붙인다.** 앞에 두면 "리자몽 AR"이 "리자몽 V"보다 먼저 뜬다 —
 //    사람이 먼저 찾는 건 카드 이름이다.
 const 목록 = [

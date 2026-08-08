@@ -6332,6 +6332,8 @@ function mountAuth(
   //    배포마다 이 구멍으로 크레딧이 샜다(2026-08-02).
   void Promise.all([
     loadPptState(),
+    // 어제까지 받아 둔 스니커덩크 힛카드. 배포로 서버가 새로 떠도 이어받는다.
+    loadSnkrdunkHitCards(),
     loadPackPriceFile(),
     loadLastPrices(),
     loadJsonMap(POPULATION_FILE, populationCache as Map<string, unknown>, '감정 수량'),
@@ -6348,6 +6350,14 @@ function mountAuth(
       // 하루가 바뀌면(UTC 0시 = 한국시간 오전 9시) 다시 받을 차례가 온다. 함수 안에서
       // "오늘 이미 받았으면 건너뛴다"를 보므로 자주 불러도 한 번만 실제로 받는다.
       setInterval(() => void runDailyExports(pptApiKey), 60 * 60 * 1000)
+
+      // ⚠️ **신상 일본판 힛카드는 스니커덩크로 매일 받는다.** 저쪽(PPT)은 미국 마켓이라
+      //    갓 나온 일본판의 값이 비어 있다(스톰에메랄다 116줄 중 54줄이 값 0, 제일 비싼
+      //    113번은 $0 · 2026-08-08 덤프 확인). 스니커덩크는 무료라 크레딧이 안 든다.
+      //    기동 20초 뒤에 한 번(다른 일이 끝난 뒤), 그 뒤 1시간마다 확인한다 —
+      //    함수 안에서 "오늘 이미 받았으면 건너뛴다"를 보므로 실제로는 하루 한 번이다.
+      setTimeout(() => void refreshSnkrdunkHitCards(), 20_000)
+      setInterval(() => void refreshSnkrdunkHitCards(), 60 * 60 * 1000)
     }
   })
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
@@ -7380,15 +7390,201 @@ let hitCardFile: Record<
   // grade는 스니커덩크에서 받은 것만 있다. 'psa10'(감정 10등급) 또는 'a'(미감정 거의 미사용).
   { at: number; src?: string; grade?: string; cards: { n: string; usd: number }[] }
 > | null = null
-function loadHitCardFile() {
-  if (hitCardFile) return hitCardFile
+// ── 신상 일본판 힛카드를 스니커덩크로 매일 갱신 ─────────────────────────────
+//
+// 왜 필요한가: 힛카드는 원래 PPT(미국 마켓) 시세로 뽑는데, **갓 나온 일본판은 미국에
+// 자료가 얇다.** 스톰에메랄다(2026-07-31)를 재 보니 116줄 중 54줄(47%)이 값 0이고,
+// 제일 비싼 113번(MUR 메가레쿠쟈)은 카드는 있는데 값이 $0이었다(2026-08-08 덤프 확인).
+// 그래서 스니커덩크(일본 마켓 실거래)로 받아 두었는데, **한 번 받아 파일에 박아 둔 것**
+// 이라 사흘이 지나도 그대로였다. 홈 첫 화면에서 제일 큰 값이 사흘 묵은 값이었다.
+//
+// → 서버가 **하루 한 번** 다시 받는다. 스니커덩크는 무료라 크레딧이 안 든다.
+// ⚠️ 스니커덩크는 예전에 자동완성을 글자마다 부르다 **차단당한 적이 있다.** 그래서
+//    ① 하루 한 번만 ② 세트 하나만 ③ 요청 사이를 700ms 띄우고 ④ 후보 카드를 60장으로
+//    묶는다. 한 번 도는 데 1~2분이고 요청은 100번 안쪽이다.
+// ⚠️ 결과는 **/data에 적는다.** src/data/setHitCards.json은 배포 이미지 안이라 못 고치고,
+//    고쳐도 다음 배포에 덮인다. /data는 볼륨이라 배포해도 남는다.
+const HIT_SNKRDUNK_FILE = dataFile('hit-cards-snkrdunk.json')
+const SNKRDUNK_HOST = 'https://snkrdunk.com'
+const SNKRDUNK_UA = { accept: 'application/json', 'user-agent': 'Mozilla/5.0 (compatible; pokegre/0.1; personal use)' }
+// 미감정 "거의 미사용". 화면의 다른 값(TCGplayer 마켓가)과 잣대를 맞춘다.
+const SNKRDUNK_COND_A = 'trading_card_single_nearly_unused'
+// 값이 높은 카드는 특별 등급이다. 커먼까지 훑으면 시간만 걸리고 힛카드엔 못 든다.
+const HIT_RARITY = new Set([
+  'Double rare', 'Illustration rare', 'Ultra Rare', 'Special illustration rare',
+  'Hyper rare', 'Mega Ultra Rare', 'Mega Hyper Rare', 'ACE SPEC Rare',
+])
+const HIT_MAX_TARGETS = 60
+const HIT_SHOWN = 8
+const 쉬기 = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// 갱신될 때마다 1씩 는다. 홈(latest-hit-set)이 담아 둔 값이 옛것인지 이걸로 안다.
+let 힛카드판번호 = 0
+let 스니덩힛카드: Record<string, { at: number; src: string; grade: string; cards: { n: string; usd: number }[] }> = {}
+
+async function loadSnkrdunkHitCards(): Promise<void> {
   try {
-    // 빌드가 dist로 옮겨 주지 않는 파일이라 소스 경로에서 읽는다(Dockerfile이 복사한다).
-    hitCardFile = JSON.parse(readFileSync(path.resolve('src/data/setHitCards.json'), 'utf-8'))
+    스니덩힛카드 = JSON.parse(await readFile(HIT_SNKRDUNK_FILE, 'utf-8'))
+    const 몇 = Object.keys(스니덩힛카드).length
+    if (몇) console.log(`[pokegre] 스니커덩크 힛카드 ${몇}세트를 이어받았습니다.`)
   } catch {
-    hitCardFile = {}
+    스니덩힛카드 = {}
   }
-  return hitCardFile ?? {}
+}
+
+async function 스니덩찾기(keyword: string): Promise<{ title: string; link: string }[]> {
+  const params = new URLSearchParams({
+    func: 'all', refId: 'search', keyword, sortKey: 'default',
+    cardVersion: '2', brandIds: 'pokemon', perPage: '24', page: '1',
+  })
+  try {
+    const r = await fetch(`${SNKRDUNK_HOST}/v3/search?${params}`, { headers: SNKRDUNK_UA, signal: AbortSignal.timeout(15_000) })
+    if (!r.ok) return []
+    const d = (await r.json()) as { search?: { products?: { title?: string; link?: string }[]; rankingProducts?: { title?: string; link?: string }[] } }
+    const list = d.search?.products?.length ? d.search.products : (d.search?.rankingProducts ?? [])
+    return list.filter((p): p is { title: string; link: string } => Boolean(p.link && p.title))
+  } catch {
+    return []
+  }
+}
+
+/** 그 카드의 실거래가(엔). **최근 3건의 중앙값** — 1건만 쓰면 튄 거래 하나가 그대로 뜬다. */
+async function 스니덩실거래(apparelId: string): Promise<number | null> {
+  try {
+    const a = await fetch(`${SNKRDUNK_HOST}/v1/apparels/${apparelId}`, { headers: SNKRDUNK_UA, signal: AbortSignal.timeout(15_000) })
+    if (!a.ok) return null
+    const pid = ((await a.json()) as { productCatalogId?: string }).productCatalogId
+    if (!pid) return null
+    await 쉬기(400)
+    const t = await fetch(
+      `${SNKRDUNK_HOST}/v3/products/${pid}/trading-history?range=all&condition_code=${SNKRDUNK_COND_A}`,
+      { headers: SNKRDUNK_UA, signal: AbortSignal.timeout(15_000) },
+    )
+    if (!t.ok) return null
+    const trades = ((await t.json()) as { trades?: { price?: number }[] }).trades ?? []
+    const ok = trades.map((x) => Number(x.price)).filter((v) => Number.isFinite(v) && v > 0)
+    if (!ok.length) return null
+    const 셋 = ok.slice(0, 3).sort((x, y) => x - y)
+    return 셋[Math.floor(셋.length / 2)]
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 오늘 스니커덩크로 받아야 할 세트 하나를 고른다.
+ *
+ * 기준: **발매 6개월 이내 일본판** 중, PPT 시세로는 힛카드 3장을 못 채우는 것.
+ * 세트를 손으로 박지 않는다 — 새 팩이 나오면 저절로 그쪽으로 옮겨간다.
+ * ⚠️ 한 번에 하나만 고른다. 스니커덩크에 부담을 주지 않으려는 것이다.
+ */
+async function 오늘받을세트(): Promise<{ slug: string; name: string } | null> {
+  try {
+    const raw = await readFile(path.resolve(process.cwd(), 'dist/sets/index.json'), 'utf-8').catch(() =>
+      readFile(path.resolve(process.cwd(), 'public/sets/index.json'), 'utf-8'),
+    )
+    const idx = JSON.parse(raw) as { slug: string; ed?: string; name?: string; releaseDate?: string }[]
+    const 반년전 = new Date(Date.now() - 182 * DAY_MS).toISOString().slice(0, 10)
+    const 후보 = idx
+      .filter((s) => s.ed === 'ja' && s.releaseDate && s.releaseDate >= 반년전)
+      .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
+    for (const s of 후보) {
+      // PPT 쪽(packPriceCache)만으로 힛카드 3장이 되는지 본다. 되면 굳이 안 받는다.
+      const ppt = packPriceCache.get(s.slug)?.prices ?? {}
+      const 값있는것 = Object.values(ppt).filter((v) => Number(v) > 0).length
+      if (값있는것 >= 3) continue
+      return { slug: s.slug, name: String(s.name ?? '') }
+    }
+  } catch {
+    // 못 고르면 그냥 넘어간다.
+  }
+  return null
+}
+
+/** 그 세트의 힛카드를 스니커덩크에서 새로 받아 /data에 적는다. */
+async function refreshSnkrdunkHitCards(): Promise<void> {
+  const 세트 = await 오늘받을세트()
+  if (!세트) return
+  // 오늘 이미 받았으면 건너뛴다(배포로 서버가 여러 번 떠도 하루 한 번이다).
+  const 이전 = 스니덩힛카드[세트.slug]
+  if (이전 && kstDateStr(이전.at) === kstDateStr()) return
+
+  let cards: { n: string; name: string; r?: string }[] = []
+  try {
+    const raw = await readFile(path.resolve(process.cwd(), `dist/sets/${세트.slug}.json`), 'utf-8').catch(() =>
+      readFile(path.resolve(process.cwd(), `public/sets/${세트.slug}.json`), 'utf-8'),
+    )
+    cards = (JSON.parse(raw) as { cards?: typeof cards }).cards ?? []
+  } catch {
+    return
+  }
+  const 후보 = cards.filter((c) => c.r && HIT_RARITY.has(c.r)).slice(0, HIT_MAX_TARGETS)
+  if (후보.length < 3) return
+
+  const 코드 = 세트.slug.replace(/^ja-/, '')
+  // 세트 이름으로 한 번 찾으면 그 세트 상품이 한꺼번에 온다 — 카드마다 찾는 것보다 훨씬 적다.
+  const 찾음 = new Map<string, string>()
+  for (const kw of [세트.name, 코드].filter(Boolean)) {
+    for (const p of await 스니덩찾기(kw)) {
+      const m = p.title.match(new RegExp(`\\[${코드}\\s+(\\d+)/`))
+      const id = p.link.match(/apparels\/(\d+)/)?.[1]
+      if (m && id) 찾음.set(String(Number(m[1])), id)
+    }
+    await 쉬기(700)
+  }
+
+  const 값 = new Map<string, number>()
+  for (const c of 후보) {
+    const id = 찾음.get(String(Number(c.n)))
+    if (!id) continue
+    const jpy = await 스니덩실거래(id)
+    await 쉬기(700)
+    if (jpy) 값.set(c.n, jpy)
+  }
+  if (값.size < 3) {
+    console.log(`[pokegre] 힛카드 갱신(${세트.slug}): 실거래가 ${값.size}장뿐이라 그대로 둡니다.`)
+    return
+  }
+
+  // 저장은 달러 기준이다(화면이 원화로 바꿀 때 쓰는 환율과 같은 곳에서 받는다).
+  let usdJpy = 0
+  try {
+    const fx = (await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY', { signal: AbortSignal.timeout(10_000) }).then((r) => r.json())) as { rates?: { JPY?: number } }
+    usdJpy = Number(fx?.rates?.JPY ?? 0)
+  } catch {
+    usdJpy = 0
+  }
+  if (!usdJpy) {
+    console.log(`[pokegre] 힛카드 갱신(${세트.slug}): 환율을 못 받아 그대로 둡니다.`)
+    return
+  }
+  const 목록 = [...값.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, HIT_SHOWN)
+    .map(([n, jpy]) => ({ n, usd: Math.round((jpy / usdJpy) * 100) / 100 }))
+
+  스니덩힛카드[세트.slug] = { at: Date.now(), src: 'snkrdunk', grade: 'a', cards: 목록 }
+  await mkdir(path.dirname(HIT_SNKRDUNK_FILE), { recursive: true })
+  await writeJsonFile(HIT_SNKRDUNK_FILE, 스니덩힛카드)
+  힛카드판번호++ // 홈이 담아 둔 값을 버리게 한다
+  console.log(
+    `[pokegre] 힛카드 갱신(${세트.slug} ${세트.name}): ${목록.length}장 · 1등 $${목록[0]?.usd} (스니커덩크 A등급)`,
+  )
+}
+
+function loadHitCardFile() {
+  if (!hitCardFile) {
+    try {
+      // 빌드가 dist로 옮겨 주지 않는 파일이라 소스 경로에서 읽는다(Dockerfile이 복사한다).
+      hitCardFile = JSON.parse(readFileSync(path.resolve('src/data/setHitCards.json'), 'utf-8'))
+    } catch {
+      hitCardFile = {}
+    }
+  }
+  // ⚠️ **매일 받아 둔 것(/data)이 배포에 딸려온 파일을 이긴다.** 배포 이미지 안의
+  //    setHitCards.json은 사람이 스크립트를 돌린 날에 멈춰 있다 — 스톰에메랄다가
+  //    사흘 묵어 있었다(2026-08-08). /data 쪽은 서버가 하루 한 번 새로 받는다.
+  return { ...(hitCardFile ?? {}), ...스니덩힛카드 }
 }
 
 export function topPricedCards(slug: string, limit = 4): { n: string; usd: number; name: string }[] {
@@ -7538,10 +7734,12 @@ function mountSetHitCards(app: Mountable) {
   //    통째로 받지 않게 하려는 것이다 — 홈은 제일 많이 열리는 화면이다.
   // ⚠️ 카드 이름은 원어 그대로 준다. 한글로 바꾸는 사전이 화면 쪽에만 있고, 세트
   //    화면(SetsView)도 같은 방식으로 받아 화면에서 바꾼다.
-  let latestHit: { at: number; body: unknown } | null = null
+  let latestHit: { at: number; body: unknown; 판: number } | null = null
   app.use('/api/local/latest-hit-set', async (_req, res) => {
-    // 하루 한 번만 계산한다. 힛카드 파일은 배포할 때나 바뀐다.
-    if (latestHit && Date.now() - latestHit.at < 24 * 60 * 60 * 1000) {
+    // 하루 한 번만 계산한다. **다만 힛카드를 새로 받았으면 곧바로 버린다** —
+    // 서버가 하루 한 번 스니커덩크로 갱신하는데, 담아 둔 값을 24시간 들고 있으면
+    // 새로 받은 값이 하루 늦게 보인다(판번호로 알아챈다).
+    if (latestHit && latestHit.판 === 힛카드판번호 && Date.now() - latestHit.at < 24 * 60 * 60 * 1000) {
       sendJson(res, 200, latestHit.body)
       return
     }
@@ -7595,7 +7793,7 @@ function mountSetHitCards(app: Mountable) {
         img: byNum.get(String(Number(c.n)))?.img ?? '',
       })),
     }
-    latestHit = { at: Date.now(), body }
+    latestHit = { at: Date.now(), body, 판: 힛카드판번호 }
     sendJson(res, 200, body)
   })
 }
