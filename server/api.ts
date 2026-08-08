@@ -4225,6 +4225,16 @@ const LAST_PRICE_MAX = 400
 const STALE_PRICE_MAX_MS = 3 * 24 * 60 * 60 * 1000
 const lastPrice = new Map<string, { body: string; at: number }>()
 let lastPriceSaveAt = 0
+/**
+ * 저장된 지난 시세의 **모양 번호**.
+ *
+ * ⚠️ 여기 담기는 것은 저쪽 원본이 아니라 **우리가 다듬어 놓은 결과**다. 다듬는 규칙을
+ *    고치면 저장된 것은 옛 규칙대로 만들어진 값이라, 크레딧이 막힌 날 그 옛 값이
+ *    최대 사흘간 화면에 나간다. 2026-08-08에 딴 카드 거르기·이상값 셈법·낱개 다시
+ *    세기를 한꺼번에 바꿨는데, 그 전에 저장된 것에는 섞인 값이 그대로 들어 있다.
+ * **규칙을 고치면 이 번호를 올릴 것.** 번호가 다르면 저장된 것을 통째로 버린다.
+ */
+const SHAPE_VERSION = 2
 
 async function saveLastPrices() {
   // 10초에 한 번이면 배포 사이 상태를 지키기 충분하다(ppt-state와 같은 이유).
@@ -4232,7 +4242,7 @@ async function saveLastPrices() {
   lastPriceSaveAt = Date.now()
   try {
     const rows = [...lastPrice.entries()].slice(-LAST_PRICE_MAX).map(([k, v]) => [k, v.body, v.at])
-    await writeJsonFile(LAST_PRICE_FILE, rows)
+    await writeJsonFile(LAST_PRICE_FILE, { v: SHAPE_VERSION, rows })
   } catch {
     /* 못 적어도 서비스는 돌아간다 */
   }
@@ -4240,7 +4250,14 @@ async function saveLastPrices() {
 
 export async function loadLastPrices() {
   try {
-    const rows = JSON.parse(await readFile(LAST_PRICE_FILE, 'utf-8')) as [string, string, number][]
+    const 읽음 = JSON.parse(await readFile(LAST_PRICE_FILE, 'utf-8')) as
+      | [string, string, number][]
+      | { v?: number; rows?: [string, string, number][] }
+    // 예전 파일은 배열 그대로였다 — 그건 모양 번호가 없으므로 버린다.
+    const rows = Array.isArray(읽음) ? [] : 읽음.v === SHAPE_VERSION ? (읽음.rows ?? []) : []
+    if (Array.isArray(읽음) || (!Array.isArray(읽음) && 읽음.v !== SHAPE_VERSION)) {
+      console.log('[pokegre] 지난 시세는 다듬는 규칙이 바뀌기 전 것이라 버렸습니다 — 새로 받습니다.')
+    }
     for (const [k, body, at] of rows) {
       if (typeof k === 'string' && typeof body === 'string' && typeof at === 'number') {
         lastPrice.set(k, { body, at })
