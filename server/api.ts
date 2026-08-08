@@ -2664,7 +2664,10 @@ const SHARE_NAME_FETCH_DAILY_MAX = 500
 let shareNameFetchDay = ''
 let shareNameFetchCount = 0
 
-export async function fetchCardNameForShare(apiKey: string, id: string): Promise<string | null> {
+export async function fetchCardNameForShare(apiKey: string, id0: string): Promise<string | null> {
+  // ⚠️ 갈라 담은 카드의 열쇠는 "617410~4-9"다(위 갈라담기 설명). 공유 링크 미리보기는
+  //    이름 한 줄만 필요하므로 뒤의 번호를 떼고 원래 카드로 물어본다.
+  const id = String(id0).split('~')[0]
   if (!apiKey || !/^\d+$/.test(id)) return null
   const 이미 = cardNameById.get(id)
   if (이미) return 이미
@@ -2801,11 +2804,27 @@ const 제목등급칸 = (t: string): string => {
 /** 그 칸의 회사 이름(ungraded면 빈값). "cgc8_5" → "cgc" */
 const 칸회사 = (칸: string): string => (칸 === 'ungraded' ? '' : (칸.match(/^[a-z]+/i)?.[0] ?? '').toLowerCase())
 
+/**
+ * 제목의 번호에서 **앞에 붙은 세트 표시를 떼어** 같은 카드끼리 모이게 한다.
+ *
+ * 파는 사람이 "07 03/09"를 붙여 "0703/09"로 적는다. 그대로 세면 "0703/09"와 "03/09"가
+ * 딴 카드가 되어, 같은 카드가 두 갈래로 쪼개진다.
+ * ⚠️ **앞자리를 무턱대고 떼면 안 된다.**
+ *    · "104/128"의 104는 진짜 세 자리 번호다.
+ *    · "252/184"처럼 **앞 번호가 총 장수보다 큰 것도 진짜다**(시크릿 레어).
+ *      그래서 "앞이 뒤보다 크면 뗀다"로는 안 된다 — 실제로 252/184가 52/184로 깨졌다.
+ *    붙여 적은 것은 자릿수가 딱 **뒤 자릿수 + 2**가 된다("07"+"03"/"09" → 4자리 = 2+2).
+ *    그때만 앞 두 자리를 뗀다.
+ */
+const 번호맞추기 = (앞: string, 뒤: string): string => {
+  const a = 앞.length === 뒤.length + 2 ? 앞.slice(2) : 앞
+  return `${Number(a)}/${Number(뒤)}`
+}
 const 제목번호들 = (t: string): string[] => {
   const out = new Set<string>()
   for (const m of String(t).matchAll(/(^|[^\d/])(\d{1,4})\s*\/\s*(\d{1,3})(?![\d/])/g)) {
     if (등급앞말.test(String(t).slice(0, (m.index ?? 0) + m[1].length))) continue
-    out.add(`${Number(m[2])}/${Number(m[3])}`)
+    out.add(번호맞추기(m[2], m[3]))
   }
   return [...out]
 }
@@ -2983,7 +3002,68 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
       .sort((a, b) => a.date.localeCompare(b.date))
   }
 
-  return list
+  /**
+   * ⚠️⚠️ **저쪽이 여러 카드를 한 칸에 묶어 놓은 것을 갈라 담는다**(사장님 지시 2026-08-08:
+   * "빼고 다른 데 옮기는 과정에서 넣을 곳이 없으면 그와 대응하는 걸 만들어야 하지 않을까").
+   *
+   * 저쪽은 카드에 번호가 없으면 **이름만으로 묶는다.** 캡틴피카츄가 그랬다 —
+   *     이름 "Captain Pikachu" · 세트 "Unnumbered Promotional cards" · 번호 ""
+   *     낙찰 34건 안에 03/09 · 04/09 · 09/09 · 02/07 · 03/07 …이 같이 있었다($1.25~$800).
+   * 그냥 빼면 그 거래들이 통째로 사라진다. **번호마다 카드를 하나씩 만들어** 제자리를
+   * 준다. 열쇠는 "617410~3-9"처럼 뒤에 번호를 붙인다(화면이 카드마다 다른 열쇠를 쓴다).
+   *
+   * ⚠️ 저쪽이 번호를 준 카드는 건드리지 않는다 — 이미 한 카드다.
+   * ⚠️ 한 번호가 2건 이상일 때만 카드로 만든다. 판매자 오타 한 건으로 카드를 만들면 안 된다.
+   * ⚠️ 갈래가 하나뿐이면 가르지 않는다(그건 그냥 그 카드다).
+   * ⚠️⚠️ **번호를 안 적은 매물을 큰 갈래에 몰아넣으면 그게 또 섞임이다.** 우리는 그게 어느
+   *    카드인지 모른다. 번호 없는 것들만 모아 **번호를 안 적은 카드**로 따로 낸다(열쇠는
+   *    원래 것 그대로). 버리지도, 없는 사실을 지어내지도 않는다.
+   */
+  const 갈라담기 = (카드들: RawPriceTrackerCard[]): RawPriceTrackerCard[] => {
+    const 결과: RawPriceTrackerCard[] = []
+    for (const c of 카드들) {
+      const 칸들 = c.ebay?.soldListings ?? {}
+      const 낱개 = Object.values(칸들).flat()
+      if (String(c.cardNumber ?? '').trim() || 낱개.length < 6) {
+        결과.push(c)
+        continue
+      }
+      const 딴것 = 딴카드거르기(칸들, c.setName)
+      const 셈 = new Map<string, number>()
+      for (const x of 낱개) {
+        if (딴것(x)) continue
+        const n = 제목번호들(String(x.title ?? ''))[0]
+        if (n) 셈.set(n, (셈.get(n) ?? 0) + 1)
+      }
+      const 갈래 = [...셈].filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1])
+      if (갈래.length < 2) {
+        결과.push(c)
+        continue
+      }
+      const 갈래이름 = new Set(갈래.map(([n]) => n))
+      const 담을곳 = (x: { title?: string }) => {
+        const n = 제목번호들(String(x.title ?? ''))[0] ?? ''
+        return n && 갈래이름.has(n) ? n : ''
+      }
+      for (const 번호 of [...갈래.map(([n]) => n), '']) {
+        const 새칸: Record<string, typeof 낱개> = {}
+        for (const [k, l] of Object.entries(칸들))
+          for (const x of l) if (담을곳(x) === 번호) (새칸[k] ??= []).push(x)
+        const 수 = Object.values(새칸).flat().length
+        if (!수) continue
+        결과.push({
+          ...c,
+          tcgPlayerId: 번호 ? `${c.tcgPlayerId}~${번호.replace('/', '-')}` : c.tcgPlayerId,
+          cardNumber: 번호 || null,
+          name: 번호 ? `${c.name ?? ''} ${번호}`.trim() : `${c.name ?? ''} (번호 미상)`.trim(),
+          ebay: { ...c.ebay, soldListings: 새칸, salesByGrade: undefined, totalSales: 수 },
+        } as RawPriceTrackerCard)
+      }
+    }
+    return 결과
+  }
+
+  return 갈라담기(list)
     .filter((card) =>
       have === 'tcgplayer' ? (card.prices?.market ?? 0) > 0 : (card.ebay?.totalSales ?? 0) > 0,
     )
@@ -4624,6 +4704,12 @@ const 넘길것 = new Set([
       // 클라이언트 쿼리 기준이라 그대로 두면 된다.)
       const upstreamParams = new URLSearchParams()
       for (const [k, v] of url.searchParams) if (넘길것.has(k)) upstreamParams.append(k, v)
+      // ⚠️ **갈라 놓은 카드의 열쇠는 저쪽에 그대로 보내면 안 된다.** 저쪽이 여러 카드를
+      //    한 칸에 묶어 놓은 경우 우리가 번호로 갈라 "617410~0709" 같은 열쇠를 만든다
+      //    (아래 갈라담기 설명). 저쪽에는 앞의 숫자만 보내고, 받은 뒤 우리가 다시 가른다.
+      const 쪼갠열쇠 = String(url.searchParams.get('tcgPlayerId') ?? '')
+      const 갈래표시 = 쪼갠열쇠.includes('~') ? 쪼갠열쇠.split('~')[1] : ''
+      if (갈래표시) upstreamParams.set('tcgPlayerId', 쪼갠열쇠.split('~')[0])
       upstreamParams.set('includeHistory', 'true')
       // 이베이 날짜별 낙찰 히스토리는 includeEbay를 켜야 온다(등급별 그래프의 재료).
       upstreamParams.set('includeEbay', 'true')
