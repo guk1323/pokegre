@@ -3080,15 +3080,13 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
         if (sn) 세트셈.set(sn, (세트셈.get(sn) ?? 0) + 1)
       }
       const 갈래 = [...셈].filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1])
-      // ⚠️ **앞자리가 딱 하나의 갈래와 맞으면 그리로 합친다.** "#4"가 4/102 하나뿐이면
-      //    같은 카드로 본다. 4/102와 4/130 둘 다 있으면 가릴 수 없으니 따로 둔다.
-      const 맨갈래: [string, number][] = []
-      const 맨합칠곳 = new Map<string, string>()
-      for (const [b2, v] of [...맨셈].filter(([, v2]) => v2 >= 2).sort((x, y) => y[1] - x[1])) {
-        const 맞는것 = 갈래.filter(([k]) => k.split('/')[0] === b2)
-        if (맞는것.length === 1) 맨합칠곳.set(b2, 맞는것[0][0])
-        else 맨갈래.push([`#${b2}`, v])
-      }
+      // ⚠️⚠️ **분모 없는 번호를 분모 있는 갈래에 합치지 않는다.**
+      //    처음엔 "#4가 4/102 하나뿐이면 같은 카드"로 보고 합쳤는데, 그러다 **1996년
+      //    베이스셋 리자몽(#006, $2,150)이 2023년 151 리자몽(6/165) 칸에 들어갔다**
+      //    (2026-08-08). 같은 앞자리를 쓰는 카드가 세상에 널려 있고, 그 세트의 낙찰이
+      //    마침 하나도 안 보이면 막을 방법이 없다.
+      //    갈래가 쪼개지는 손해는 있지만, **넘겨짚어 합치면 그게 섞임이다.**
+      const 맨갈래: [string, number][] = [...맨셈].filter(([, v2]) => v2 >= 2).sort((x, y) => y[1] - x[1]).map(([b2, v]) => [`#${b2}`, v])
       const 세트갈래 = [...세트셈].filter(([, v]) => v >= 2).sort((x, y) => y[1] - x[1])
       if (갈래.length + 맨갈래.length + 세트갈래.length < 2) {
         결과.push(c)
@@ -3100,7 +3098,7 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
         const n = 제목번호들(String(x.title ?? ''))[0]
         if (n) { 모든번호.add(n); continue }
         const b2 = 맨번호들(String(x.title ?? ''))[0]
-        if (b2) { 모든번호.add(맨합칠곳.get(b2) ?? `#${b2}`); continue }
+        if (b2) { 모든번호.add(`#${b2}`); continue }
         const sn = 제목세트(String(x.title ?? ''))
         if (sn && 세트셈.get(sn)! >= 2) 모든번호.add(`@${sn}`)
       }
@@ -3108,7 +3106,7 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
         const n = 제목번호들(String(x.title ?? ''))[0]
         if (n) return n
         const b2 = 맨번호들(String(x.title ?? ''))[0]
-        if (b2) return 맨합칠곳.get(b2) ?? `#${b2}`
+        if (b2) return `#${b2}`
         const sn = 제목세트(String(x.title ?? ''))
         return sn && (세트셈.get(sn) ?? 0) >= 2 ? `@${sn}` : ''
       }

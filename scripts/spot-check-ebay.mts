@@ -96,8 +96,16 @@ for (const [lang, set] of 고른세트) {
       const 값 = (g.sales ?? [])
         .map((s) => s.price)
         .filter((v) => v > 0 && v >= (g.minPrice ?? 0) * 0.999 && v <= (g.maxPrice ?? Infinity) * 1.001)
-      if (값.length >= 3 && Math.max(...값) / Math.min(...값) > 50)
-        의심.push(`  [값 벌어짐] ${c.name} ${g.grade}  $${Math.min(...값)} ~ $${Math.max(...값)}`)
+      if (값.length >= 3 && Math.max(...값) / Math.min(...값) > 50) {
+        // ⚠️ 값만 적어 두면 매번 따로 뜯어봐야 한다. **제일 싼 것과 비싼 것의 제목**을
+        //    같이 적어 두면 그 자리에서 "같은 카드인가"를 판단할 수 있다.
+        const 센것 = (g.sales ?? []).filter((s) => !s.뺀까닭 && s.price > 0).sort((x, y) => x.price - y.price)
+        의심.push(
+          `  [값 벌어짐] ${c.name} ${g.grade}  $${Math.min(...값)} ~ $${Math.max(...값)}\n` +
+            `      싼 것 $${센것[0]?.price}  ${String(센것[0]?.title ?? '').slice(0, 58)}\n` +
+            `      비싼 것 $${센것[센것.length - 1]?.price}  ${String(센것[센것.length - 1]?.title ?? '').slice(0, 58)}`,
+        )
+      }
       for (const s of g.sales ?? []) {
         const t = String(s.title ?? '')
         if (!t) continue
