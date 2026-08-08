@@ -5928,16 +5928,7 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
       } else if (!이름맞나 && 것.이름맞음.has(num)) {
         continue // 이미 이름이 맞는 줄이 있다
       }
-      const isBase = !nm.includes('(')
-      if (nm && (isBase || !것.names[num])) 것.names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
-      if (isBase) {
-        것.prices[num] = 것.base.has(num) ? Math.min(것.prices[num], market) : market
-        것.base.add(num)
-      } else {
-        const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
-        if (vk) 것.prices[num + vk] = Math.min(것.prices[num + vk] ?? Infinity, market)
-        else if (!것.base.has(num)) 것.prices[num] = Math.min(것.prices[num] ?? Infinity, market)
-      }
+      값담기(것, num, nm, market)
       모음.set(slug, 것)
     }
   }
@@ -6930,6 +6921,39 @@ function 이름만벗기기(x: string): string {
     .toLowerCase()
 }
 
+/**
+ * 한 줄의 값을 번호 칸에 담는다. **덤프로 채우는 길과 세트별로 받는 길이 이 한 벌만 쓴다.**
+ *
+ * ⚠️⚠️ 예전엔 같은 코드가 두 군데 있었다. 오늘 하루에만 베껴 둔 규칙이 어긋나 사고가
+ *    세 번 났다(레어도표 3벌 · 카드 이름 규칙 · 번호 열쇠). 규칙이 둘이면 언젠가 한쪽만
+ *    고쳐 **같은 카드가 받는 길에 따라 다른 값을 갖는다.**
+ *
+ * 규칙:
+ *   · 같은 번호가 여러 줄로 온다("Machamp / Machamp (Poke Ball Pattern) / (Master Ball)").
+ *     팩에서 나오는 건 기본판이므로 괄호 없는 이름을 우선하고, 기본판이 없을 때만 제일
+ *     싼 값을 쓴다(덮어쓰기 순서에 맡겼더니 일반 괴력몬이 마스터볼 값 $18을 받았다).
+ *   · 변형판은 별도 열쇠로 담는다(앨범의 미러·리버스 시세용).
+ */
+function 값담기(
+  통: { prices: Record<string, number>; names: Record<string, string>; base: Set<string> },
+  num: string,
+  nm: string,
+  market: number,
+): void {
+  const isBase = !nm.includes('(')
+  // 검색어로 쓸 영문 이름. 저쪽은 "Team Rocket's Mewtwo ex - 231/182"처럼 번호를 꼬리에
+  // 붙여 주므로 떼어 낸다. 기본판 이름을 우선한다.
+  if (nm && (isBase || !통.names[num])) 통.names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
+  if (isBase) {
+    통.prices[num] = 통.base.has(num) ? Math.min(통.prices[num], market) : market
+    통.base.add(num)
+    return
+  }
+  const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
+  if (vk) 통.prices[num + vk] = Math.min(통.prices[num + vk] ?? Infinity, market)
+  else if (!통.base.has(num)) 통.prices[num] = Math.min(통.prices[num] ?? Infinity, market)
+}
+
 function 담기(
   list: 저쪽카드[],
   prices: Record<string, number>,
@@ -7039,19 +7063,7 @@ function 담기(
     // 기본판이 없을 때만 가장 싼 값을 쓴다. (덮어쓰기 순서에 맡겼더니 일반 괴력몬이
     // 마스터볼 값 $18를 받았던 문제)
     const nm = String(c.name ?? '')
-    const isBase = !nm.includes('(')
-    // 검색어로 쓸 영문 이름. PPT는 "Team Rocket's Mewtwo ex - 231/182"처럼 번호를
-    // 꼬리에 붙여 주므로 떼어 낸다. 기본판 이름을 우선한다.
-    if (nm && (isBase || !names[num])) names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
-    if (isBase) {
-      prices[num] = basePriced.has(num) ? Math.min(prices[num], market) : market
-      basePriced.add(num)
-    } else {
-      // 변형판은 별도 키로 저장(앨범의 미러/리버스 카드 시세용).
-      const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
-      if (vk) prices[num + vk] = Math.min(prices[num + vk] ?? Infinity, market)
-      else if (!basePriced.has(num)) prices[num] = Math.min(prices[num] ?? Infinity, market)
-    }
+    값담기({ prices, names, base: basePriced }, num, nm, market)
     if (보조) 메움++
     else 이미.add(num)
   }
