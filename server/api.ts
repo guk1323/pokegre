@@ -9,7 +9,7 @@ import path from 'node:path'
 //    지우면 안 된다(cardImg.ts 첫머리·PackShelfPromo 설명 참고). 서버에서는 공짜다.
 import { 등급순서값 } from '../src/lib/gradeOrder.ts'
 // ⚠️ 매물 제목에서 사실을 뽑는 규칙은 **한 벌만** 쓴다(점검 도구도 같은 것을 쓴다).
-import { 제목번호들, 제목등급칸, 칸회사, 묶음인가 } from '../src/lib/listingTitle.ts'
+import { 제목번호들, 제목등급칸, 칸회사, 묶음인가, 맨번호들 } from '../src/lib/listingTitle.ts'
 import { PPT레어도별코드 } from '../src/lib/rarityCode.ts'
 import { koName } from '../src/lib/koCardName.ts'
 // 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
@@ -2593,7 +2593,11 @@ interface ShapedEbayCard {
     // 실제 낙찰 몇 건(최근 순). 통계가 아니라 **낱개 거래**다.
     // ⚠️ 등급당 EBAY_SALES_PER_GRADE건까지만 넘긴다. 전부 넘기면 응답이 264KB까지
     //    부풀고(에브이 ex 663건), 화면에서 다 보여 줄 수도 없다.
-    sales: { price: number; date: string; url: string; auction: boolean; title: string }[]
+    /**
+     * ⚠️ `뺀까닭`이 있으면 **목록에는 보이지만 평균·중앙값·그래프에는 안 들어간 기록**이다.
+     * 표시가 없으면 "$3인데 중앙값이 $318"이라 사람이 혼란스럽다.
+     */
+    sales: { price: number; date: string; url: string; auction: boolean; title: string; 뺀까닭?: string }[]
   }[]
 }
 
@@ -2898,6 +2902,8 @@ function 딴카드거르기(
   //    그래서 **번호 전체**(앞/뒤)로도 잣대를 세운다. 문턱은 분모와 똑같이 둔다 —
   //    번호를 적는 사람이 적어서, 느슨하게 하면 정확히 적은 소수가 잘린다(전에 겪었다).
   const N = 셈하기(잣대.map((x) => 제목번호들(String(x.title ?? ''))[0] ?? ''))
+  // ⚠️ 분모 없이 "#38"이라고만 적은 것도 센다. 옛 카드 매물에 흔하다.
+  const B = 셈하기(잣대.map((x) => 맨번호들(String(x.title ?? ''))[0] ?? ''))
   const Y = 셈하기(
     잣대.map((x) => {
       const y = 제목연도(String(x.title ?? ''))
@@ -2943,6 +2949,24 @@ function 딴카드거르기(
     if (N.믿나) {
       const n = 제목번호들(t)[0] ?? ''
       if (n && n !== N.대표 && 떼인가(N.셈, n, N.대표, false)) return true
+    }
+    // ⚠️⚠️ **분모 없는 번호는 연도까지 함께 어긋날 때만 뺀다.**
+    //    번호만 보고 자르면 안 된다 — 뮤는 도감번호 151을, LEGEND는 "#89 and #90"을
+    //    제목에 쓴다(예전에 그렇게 12건을 잘못 잘랐다). 두 신호가 같이 어긋나면
+    //    딴 카드로 본다. 실제로 1996년 일본판 나인테일(#38)에 **1999년 영문 베이스셋
+    //    나인테일(#12)** 두 건이 그렇게 섞여 있었다(2026-08-08, 낙찰 목록에 제목을
+    //    보이게 하고 나서야 눈에 띄었다).
+    if (B.믿나 && Y.믿나) {
+      const b = 맨번호들(t)[0] ?? ''
+      const y = 제목연도(t)
+      const 해 = y.length ? Math.min(...y) : NaN
+      if (
+        b &&
+        Number(b) !== Number(B.대표) &&
+        Number.isFinite(해) &&
+        Math.abs(해 - Number(Y.대표)) >= 3
+      )
+        return true
     }
     if (Y.믿나) {
       const y = 제목연도(t)
@@ -3318,6 +3342,13 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
                 //    아무도 확인할 수 없다 — 내가 만든 점검 도구도 제목이 없어 헛돌았다
                 //    (2026-08-08). 사람이 눈으로 가리는 유일한 단서이기도 하다.
                 title: String(x.title ?? ''),
+                뺀까닭: 묶음인가(x.title)
+                  ? '여러 장 묶음'
+                  : (x.price ?? 0) > 값상한
+                    ? '값이 너무 벗어남'
+                    : (x.price ?? 0) < (stat.minPrice ?? 0) * 0.999 || (x.price ?? 0) > (stat.maxPrice ?? Infinity) * 1.001
+                      ? '저쪽이 셈에서 뺀 값'
+                      : undefined,
               })),
             }
           })

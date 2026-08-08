@@ -143,15 +143,35 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
                           href={s.url || undefined}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-baseline justify-between gap-2 py-0.5 text-[11px] hover:underline"
+                          className="block py-1 text-[11px] hover:bg-neutral-100/70"
                         >
-                          <span className="text-neutral-500">
-                            {s.date.slice(2).replace(/-/g, '.')}
-                            <span className="ml-1 text-neutral-400">{s.auction ? '경매' : '즉시구매'}</span>
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="text-neutral-500">
+                              {s.date.slice(2).replace(/-/g, '.')}
+                              <span className="ml-1 text-neutral-400">{s.auction ? '경매' : '즉시구매'}</span>
+                            </span>
+                            <span className="flex-shrink-0 font-semibold text-neutral-700">
+                              {/* ⚠️ 셈에 안 들어간 기록은 흐리게 하고 까닭을 붙인다. 표시가 없으면
+                                  "$3이 보이는데 중앙값은 $318"이라 사람이 우리를 못 믿는다. */}
+                              {s.뺀까닭 && (
+                                <span className="mr-1 rounded bg-neutral-200 px-1 py-px text-[9px] font-normal text-neutral-500">
+                                  셈 제외 · {s.뺀까닭}
+                                </span>
+                              )}
+                              <span className={s.뺀까닭 ? 'text-neutral-400 line-through' : undefined}>
+                                {krw(s.price, 'usd')}
+                              </span>
+                            </span>
                           </span>
-                          <span className="flex-shrink-0 font-semibold text-neutral-700">
-                            {krw(s.price, 'usd')}
-                          </span>
+                          {/* ⚠️ **매물 제목을 같이 보여준다.** 날짜와 값만 있으면 "이 낙찰이 정말
+                              그 카드인가"를 확인하려고 매물을 하나씩 눌러 봐야 한다. 사장님이
+                              실제로 그렇게 찾아내셨다(2026-08-08) — 사진은 다른 카드였다.
+                              제목은 판매자가 쓴 원문 그대로 둔다. 그게 증거다. */}
+                          {s.title && (
+                            <span className="mt-0.5 block truncate text-[10px] leading-tight text-neutral-400">
+                              {s.title}
+                            </span>
+                          )}
                         </a>
                       </li>
                     ))}
