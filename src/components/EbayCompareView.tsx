@@ -83,6 +83,13 @@ export function EbayCompareView({
                     </button>
                   </div>
                   <p className="mt-2 line-clamp-2 text-xs font-semibold text-black">{c.name}</p>
+                  {/* ⚠️ **비교표에서 특히 위험하다.** 값이 나란히 놓이면 다 같은 잣대로
+                      읽힌다. 이 칸의 낙찰은 어느 카드인지 가릴 수 없어서 시세가 아니다. */}
+                  {c.가릴수없음 && (
+                    <p className="mx-auto my-0.5 inline-block rounded bg-amber-50 px-1 py-px text-[10px] text-amber-700">
+                      값을 믿지 마세요
+                    </p>
+                  )}
                   <p className="line-clamp-1 text-[11px] text-neutral-400">{c.setName}</p>
                   <a
                     href={ebaySoldUrl(c.nameEn, c.cardNumber, 대표등급(c.grades)?.grade ?? '')}

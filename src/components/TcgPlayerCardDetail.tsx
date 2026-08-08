@@ -64,6 +64,14 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
         {card.imageUrl && <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" lazy={false} />}
       </div>
 
+      {/* ⚠️ 저쪽이 이름만으로 여러 카드를 묶어 둔 칸이면 마켓가도 그 뭉치의 값이다.
+          이베이 화면과 같은 말로 밝힌다 — 한쪽만 밝히면 다른 쪽에서 그대로 믿는다. */}
+      {card.가릴수없음 && (
+        <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-800">
+          이 칸에는 <b>어느 카드인지 가릴 수 없는 매물</b>이 섞여 있습니다. 매물 제목에 번호도 세트도
+          적혀 있지 않아 서로 다른 카드가 함께 잡힙니다. <b>값은 믿지 마세요.</b>
+        </p>
+      )}
       <div className="mb-1 flex items-start justify-between gap-2">
         <h2 className="text-base font-bold text-black">{card.name}</h2>
         <ShareButton path={`/t/${card.tcgPlayerId}`} name={card.name} />
