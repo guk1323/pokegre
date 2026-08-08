@@ -2518,6 +2518,8 @@ interface RawPriceTrackerCard {
 
 interface ShapedEbayCard {
   tcgPlayerId: string
+  /** 딴 카드로 보여 뺀 낙찰 건수(카드 전체 합). 없으면 안 보낸다. */
+  droppedOther?: number
   name: string
   setName: string
   cardNumber: string | null
@@ -2842,6 +2844,14 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
           const 남 = 낱개.filter((x) => !딴것(x)).length
           // 저쪽 총계와 낱개 수가 어긋나면(낱개가 일부만 온 경우) 저쪽 값을 믿는다.
           return (card.ebay?.totalSales ?? 0) === 낱개.length ? 남 : card.ebay?.totalSales ?? 0
+        })(),
+        // ⚠️ **뺀 건수를 화면에도 알린다.** 말없이 빼면 이베이에서 직접 세어 본 사람과
+        //    숫자가 달라 보여 "우리가 틀렸나" 싶어진다. 왜 다른지 한 줄로 밝힌다.
+        droppedOther: (() => {
+          const 낱개 = Object.values(card.ebay?.soldListings ?? {}).flat()
+          if ((card.ebay?.totalSales ?? 0) !== 낱개.length) return undefined
+          const 뺀 = 낱개.filter((x) => 딴것(x)).length
+          return 뺀 > 0 ? 뺀 : undefined
         })(),
         monthlySales:
           (card.ebay?.salesVelocity?.monthlyTotal ?? 0) > 0 ? (card.ebay?.salesVelocity?.monthlyTotal ?? null) : null,

@@ -42,6 +42,14 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
             "팔고 싶을 때 팔리는 카드인가"를 알 수 있다. 값이 없으면 안 띄운다. */}
         {card.monthlySales ? ` · 최근 한 달 ${card.monthlySales.toLocaleString()}건` : ''}
       </p>
+      {/* ⚠️ **뺐다는 걸 밝힌다.** 저쪽(PPT)은 이름이 겹치는 세트를 한 카드로 묶어 놔서,
+          1996년 카드 기록에 2016년 카드가 섞여 온다(사장님이 잡아 주심 2026-08-08).
+          말없이 빼면 이베이에서 직접 세어 본 사람과 숫자가 달라 보여 우리가 틀린 줄 안다. */}
+      {card.droppedOther ? (
+        <p className="mb-1 text-[11px] text-amber-600">
+          이름이 같은 다른 세트 카드 {card.droppedOther.toLocaleString()}건은 뺐습니다.
+        </p>
+      ) : null}
       {titleReported ? (
         <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사합니다. 이름을 고치겠습니다.</p>
       ) : (

@@ -65,6 +65,8 @@ export interface EbayCard {
   rarity: string;
   imageUrl: string;
   totalSales: number;
+  /** 딴 카드로 보여 뺀 낙찰 건수. 세트 이름이 겹쳐 저쪽이 섞어 놓은 것을 우리가 뺐다. */
+  droppedOther?: number;
   // 최근 한 달 낙찰 건수. 없으면 null(옛 캐시 응답 대비 옵션).
   monthlySales?: number | null;
   // 값이 있는 카드에만 붙는다(없으면 null → 화면에서 자동으로 숨김).
