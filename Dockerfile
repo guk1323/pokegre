@@ -28,7 +28,7 @@ COPY server ./server
 # 서버가 화면과 같이 쓰는 모듈(카드 뽑기 가격표·뽑기 로직). 이게 빠지면 서버가
 # 아예 안 뜬다 — 실제로 한 번 배포가 죽었다. server/api.ts가 src/에서 import하는
 # 파일이 늘어나면 여기에도 같이 있어야 한다.
-COPY src/lib/packSets.ts src/lib/packDraw.ts src/lib/koreanizeTitle.ts src/lib/koreanizeEnglishTitle.ts src/lib/kanaToHangul.ts src/lib/manualPackOverrides.ts src/lib/setNameKo.ts src/lib/cardImg.ts src/lib/gradeOrder.ts src/lib/koCardName.ts src/lib/kstDay.ts src/lib/punct.ts src/lib/rarityCode.ts src/lib/cardNo.ts ./src/lib/
+COPY src/lib/packSets.ts src/lib/packDraw.ts src/lib/koreanizeTitle.ts src/lib/koreanizeEnglishTitle.ts src/lib/kanaToHangul.ts src/lib/manualPackOverrides.ts src/lib/setNameKo.ts src/lib/cardImg.ts src/lib/gradeOrder.ts src/lib/koCardName.ts src/lib/kstDay.ts src/lib/punct.ts src/lib/rarityCode.ts src/lib/cardNo.ts src/lib/listingTitle.ts ./src/lib/
 # 카드 이름 한글화에 쓰는 사전들. 공유 링크 미리보기 제목을 서버가 직접 만들 때 쓴다.
 COPY src/data/pokemonNames.json src/data/pokemonNameAliases.json src/data/packNames.json src/data/cardNameKoEn.json ./src/data/
 # 세트별 힛카드(값이 제일 높은 카드). scripts/fetch-set-hit-cards.mjs가 미리 받아 둔 것.
