@@ -2956,7 +2956,10 @@ function 딴카드거르기(
 }
 
 
-function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): ShapedEbayCard[] {
+// ⚠️ 점검 도구가 **배포 없이** 같은 코드로 확인할 수 있게 내보낸다. 예전엔 운영 서버를
+//    거쳐야만 볼 수 있어서, 확인하려고 배포를 여섯 번 했다(2026-08-08 사장님 지적:
+//    "배포를 꼭 해야되는거야?"). 배포마다 방문자가 7초 멈춘다.
+export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): ShapedEbayCard[] {
   const body = raw as { data?: RawPriceTrackerCard | RawPriceTrackerCard[] }
   const list = Array.isArray(body.data) ? body.data : body.data ? [body.data] : []
 
@@ -3026,6 +3029,11 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
         if (!수) continue
         결과.push({
           ...c,
+          // ⚠️⚠️ **TCGplayer 값은 물려주지 않는다.** 저쪽의 그 값은 **묶인 칸 하나의 것**이라,
+          //    그대로 물려주면 갈라 놓은 카드가 **전부 같은 마켓가**를 달고 나온다
+          //    (캡틴피카츄 9장이 모두 $50이었다 · 2026-08-08). 그게 곧 섞임이다.
+          //    감정 수량을 안 붙이는 것과 같은 이유다.
+          prices: 번호 ? undefined : c.prices,
           tcgPlayerId: 번호 ? `${c.tcgPlayerId}~${번호.replace('/', '-')}` : c.tcgPlayerId,
           cardNumber: 번호 || null,
           name: 번호 ? `${c.name ?? ''} ${번호}`.trim() : `${c.name ?? ''} (번호 미상)`.trim(),

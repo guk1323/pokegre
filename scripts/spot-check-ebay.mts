@@ -3,7 +3,10 @@
  *
  * 왜: 규칙을 고칠 때마다 한두 장으로만 확인하면 다른 데가 깨진 걸 모른다
  * (사장님 지시 2026-08-08 "카드들 랜덤으로 골라서 계속 확인해봐야해").
- * **운영 서버(/api/local/card-prices)를 거쳐** 보므로 실제로 방문자에게 나가는 값이다.
+ *
+ * ⚠️ **배포하지 않고 본다.** 저쪽(PPT) 원본을 받아 **서버가 쓰는 그 함수(shapeEbayCards)**
+ *    를 그대로 돌린다. 예전엔 운영 서버를 거쳐야만 볼 수 있어서 확인하려고 배포를 여섯 번
+ *    했다 — 배포마다 방문자가 7초 멈춘다(2026-08-08 사장님 지적).
  *
  * ⚠️⚠️ **제목을 읽는 규칙은 서버와 같은 한 벌(src/lib/listingTitle.ts)만 쓴다.**
  *    따로 적었다가 세 번 헛발을 짚었다(2026-08-08):
@@ -21,7 +24,12 @@
  *
  * 실행: npx tsx scripts/spot-check-ebay.mts [세트수] [세트당 카드수]
  */
+import { readFileSync } from 'node:fs'
 import { 제목번호들, 제목등급칸, 묶음인가, 번호맞추기 } from '../src/lib/listingTitle.ts'
+import { shapeEbayCards } from '../server/api.ts'
+
+const key = (readFileSync(new URL('../.env', import.meta.url), 'utf8').match(/^POKEMON_PRICE_TRACKER_API_KEY=(.*)$/m) ?? [])[1]?.trim()
+if (!key) { console.log('.env에 PPT 키가 없습니다'); process.exit(1) }
 
 const 세트: [string, string][] = [
   ['japanese', 'Expansion Pack'], ['english', 'Base Set'], ['japanese', 'VMAX Climax'],
@@ -50,13 +58,13 @@ const 의심: string[] = []
 
 for (const [lang, set] of 고른세트) {
   const p = new URLSearchParams({ language: lang, setName: set, limit: String(M), includeEbay: 'true', sortBy: 'price', sortOrder: 'desc' })
-  const r = await fetch(`https://pokegre.com/api/local/card-prices?${p}`)
+  const r = await fetch(`https://www.pokemonpricetracker.com/api/v2/cards?${p}`, { headers: { authorization: `Bearer ${key}` } })
   if (!r.ok) {
-    문제.push(`  [${set}] 서버 ${r.status}`)
+    문제.push(`  [${set}] 저쪽 ${r.status}`)
     continue
   }
-  const j = (await r.json()) as { cards?: 카드[] }
-  for (const c of j.cards ?? []) {
+  // 서버가 쓰는 그 함수를 그대로 돌린다 — 배포 없이 실제로 나갈 값을 본다.
+  for (const c of shapeEbayCards(await r.json(), 'ebay') as unknown as 카드[]) {
     카드수++
     if (String(c.tcgPlayerId).includes('~')) 갈린것++
     // 카드 번호도 제목과 **같은 규칙**으로 맞춘 뒤 견준다.
