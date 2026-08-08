@@ -3026,8 +3026,28 @@ export function koreanizeTitle(title: string): string {
   //    분수는 붙임표가 없어 안 걸린다.
   result = result.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim();
 
-  return spaceCardSuffix(kanaToHangul(result));
+  return 다크를나쁜으로(spaceCardSuffix(kanaToHangul(result)));
 }
+
+/**
+ * "다크<포켓몬>" → "나쁜 <포켓몬>".
+ *
+ * ⚠️ **원본 자료가 옛 세트 13장의 이름을 영어 그대로 가타카나로 적어 놨다**
+ *    ("ダークジェンガー" — 진짜 일본어는 「わるいゲンガー」다. ja-neo4 10장·ja-web1 3장).
+ *    그대로 두면 같은 카드가 판에 따라 다른 이름으로 보인다(2026-08-08 실측):
+ *        일본판 ダークジェンガー → "다크팬텀"   ↔   북미판 Dark Gengar → "나쁜 팬텀"
+ *    영문판 쪽은 이미 'Dark ' → '나쁜 ' 규칙이 있으므로 그쪽에 맞춘다.
+ *
+ * ⚠️ **뒤가 포켓몬 이름일 때만 바꾼다.** 안 그러면 멀쩡한 이름이 깨진다 —
+ *    다크라이(포켓몬)·다크펫(팬텀의 진화형)·다크볼·다크패치·다크벨은 그대로 둬야 한다.
+ */
+const 포켓몬한글이름 = new Set((pokemonNames as { ko: string }[]).map((p) => p.ko).filter(Boolean));
+
+const 다크를나쁜으로 = (s: string): string => {
+  if (!s.startsWith('다크')) return s;
+  const 뒤 = s.slice(2);
+  return 포켓몬한글이름.has(뒤.replace(/\s+(ex|EX|GX|V|VMAX|VSTAR)$/, '').trim()) ? '나쁜 ' + 뒤 : s;
+};
 
 // 공식 한국 카드명은 꼬리표를 띄어 쓴다("리자몽 ex"·"리자몽 GX"·"리자몽 VSTAR" —
 // pokemoncard.co.kr 확인). 일본어 원문은 띄어쓰기가 없어 "리자몽ex"로 붙어 나왔는데,

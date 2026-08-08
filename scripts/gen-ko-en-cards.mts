@@ -86,6 +86,27 @@ const 표시가다른가 = (ko: string, en: string) => 표시들(ko) !== 표시�
 //    짝지어지면 "에너지를 높입니다 → Boost Energy" 같은 것이 생긴다(2026-08-08).
 const 문장인가 = (ko: string) => /(습니다|합니다|입니다|하세요|해요|한다|된다|이다)$/.test(ko.trim())
 
+// ⚠️⚠️ **이 사전은 거꾸로도 쓰여서, 한 번 잘못 들어간 값이 스스로를 되살린다.**
+//    옛 로켓단 세트의 "Dark <포켓몬>"은 우리 표기가 **"나쁜 <포켓몬>"**이다
+//    (koreanizeEnglishTitle에 'Dark ' → '나쁜 ' 규칙이 있다). 그런데 사전에
+//    "다크거북왕 → Dark Blastoise"가 한 번 들어가자 그쪽이 규칙을 이기고,
+//    다음 생성 때 그 값이 다시 재료가 되어 영영 안 없어졌다(2026-08-08).
+//        Dark Gengar → 나쁜 팬텀 (규칙대로)  ↔  Dark Blastoise → 다크거북왕 (사전이 이김)
+//    "다크" 뒤가 **포켓몬 이름이면** 그건 음역이 잘못 굳은 것이다. 안 넣는다.
+//    ⚠️ 다크라이·다크펫(팬텀 계열이 아니라 포켓몬 이름 자체)과 다크벨·다크패치 같은
+//       굿즈는 걸리지 않는다 — 뒤가 포켓몬 이름이 아니기 때문이다.
+//    ⚠️ "어둠의 ~"도 같이 막는다. 같은 "Dark ___"이 사전 안에서 세 갈래로 갈려 있었다 —
+//       나쁜 15개 · 어둠의 7개 · 다크 3개. 일본어 원문이 「わるい」(나쁜)이므로 나쁜이
+//       맞고, 나머지는 생성물이 굳은 것이다.
+const 포켓몬이름집 = new Set(KO_POKEMON)
+const 다크음역인가 = (ko: string, en: string) => {
+  if (!/^Dark\s/.test(en)) return false
+  for (const 앞말 of ['다크', '어둠의 ', '어둠의']) {
+    if (ko.startsWith(앞말) && 포켓몬이름집.has(ko.slice(앞말.length).trim())) return true
+  }
+  return false
+}
+
 const 남아도되는말 = /^([A-Za-z]|ex|EX|VMAX|VSTAR|VUNION|GX|BREAK|LV|AZ|MC|PRO|TM|SP|FA|SR|UR)$/
 const 반쪽인가 = (ko: string) =>
   (ko.match(/[A-Za-z]+/g) ?? []).some((w) => !남아도되는말.test(w))
@@ -156,7 +177,7 @@ for (const [code, byNo] of Object.entries(enBySet)) {
     // 포켓몬 이름은 별도 사전(pokemonNames)이 이미 양방향으로 처리한다. 여기서 또 넣으면
     // "리자몽 ex" 같은 조합까지 통째로 굳어 버려 다른 접미사가 붙은 카드를 못 찾는다.
     if (CARD_NAME_KO_TO_EN.has(k)) continue
-    if (반쪽인가(k) || 문장인가(k) || 표시가다른가(k, e2)) continue
+    if (반쪽인가(k) || 문장인가(k) || 다크음역인가(k, e2) || 표시가다른가(k, e2)) continue
     const prev = pairs.get(k)
     if (prev && prev !== e2) continue // 같은 한글에 영문이 둘이면 애매하니 안 넣는다
     pairs.set(k, e2)
@@ -183,7 +204,7 @@ if (WRITE) {
     const back = koreanizeEnglishCardName(v)
     const p1 = pokemonIn(k)
     const p2 = pokemonIn(back)
-    if (!v || 반쪽인가(k) || 문장인가(k) || 표시가다른가(k, v) || (p1 && p2 && p1 !== p2)) {
+    if (!v || 반쪽인가(k) || 문장인가(k) || 다크음역인가(k, v) || (p1 && p2 && p1 !== p2)) {
       rejected++
       continue
     }
