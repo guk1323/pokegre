@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
-import { koreanizeEnglishCardName, CARD_NAME_KO_TO_EN } from '../src/lib/koreanizeEnglishTitle.ts'
+import { koreanizeEnglishCardName, CARD_NAME_KO_TO_EN, 자동사전없이 } from '../src/lib/koreanizeEnglishTitle.ts'
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -120,7 +120,10 @@ const 반쪽인가 = (ko: string) =>
 const VARIANT =
   /\s*\((?:Mirror |Reverse |Cosmos |Poke Ball |Master Ball )?(?:Holofoil|Holo|Foil|Non ?-?Holo(?:foil)?)\)|\s*\([A-Za-z' ]+Pattern\)/gi
 const cleanVariant = (s: string) => s.replace(VARIANT, '').trim()
-const ko = (ja: string) => koreanizeEnglishCardName(koreanizeTitle(ja))
+// ⚠️ **자동 사전을 끄고 이름을 만든다.** 안 그러면 지난번 생성물이 이번 재료가 되어
+//    잘못된 값이 스스로를 되살린다(koreanizeEnglishTitle의 자동사전없이 설명 참고).
+const ko = (ja: string) => 자동사전없이(() => koreanizeEnglishCardName(koreanizeTitle(ja)))
+const 영문한글 = (en: string) => 자동사전없이(() => koreanizeEnglishCardName(en))
 
 const pairs = new Map<string, string>()
 const dropped: string[] = []
@@ -145,7 +148,7 @@ for (const [code, byNo] of Object.entries(enBySet)) {
     const e = byNo[c.n]
     if (!e) continue
     const p1 = pokemonIn(ko(c.name))
-    const p2 = pokemonIn(koreanizeEnglishCardName(e))
+    const p2 = pokemonIn(영문한글(e))
     if (!p1 || !p2) continue // 굿즈·트레이너는 포켓몬이 없어 이 잣대로 못 잰다
     cmp++
     if (p1 === p2) same++
@@ -170,7 +173,7 @@ for (const [code, byNo] of Object.entries(enBySet)) {
     // ⚠️ 한글이 다르다고 무조건 버리면 안 된다. 같은 카드인데 두 경로의 표기가 다른 경우가
     // 많다("오기조끼"(공식) vs "반격의 조끼"(영문 사전)) — 그건 정상이고 오히려 우리가
     // 채워야 할 쌍이다. 포켓몬 이름이 서로 다를 때만 다른 카드로 본다.
-    const back = koreanizeEnglishCardName(e2)
+    const back = 영문한글(e2)
     const p1 = pokemonIn(k)
     const p2 = pokemonIn(back)
     if (p1 && p2 && p1 !== p2) continue
@@ -201,7 +204,7 @@ if (WRITE) {
   for (const [k, raw] of Object.entries(prev)) {
     if (pairs.has(k)) continue
     const v = cleanVariant(raw)
-    const back = koreanizeEnglishCardName(v)
+    const back = 영문한글(v)
     const p1 = pokemonIn(k)
     const p2 = pokemonIn(back)
     if (!v || 반쪽인가(k) || 문장인가(k) || 다크음역인가(k, v) || (p1 && p2 && p1 !== p2)) {

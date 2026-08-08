@@ -2029,10 +2029,27 @@ const pokemonEnPatterns = sortedPokemonEnKo.map((entry) => ({
   ko: entry.ko,
 }));
 
+// ⚠️⚠️ **사전을 만들 때는 자동 사전을 안 본다.**
+//    사전(cardNameKoEn)은 **화면에 나온 이름을 재료로** 다시 만들어진다. 그런데 화면이
+//    그 사전을 먼저 보므로, 한 번 잘못 들어간 값이 다음 재료가 되어 스스로를 되살린다.
+//    2026-08-08에 이것 때문에 같은 카드가 판마다 다른 이름이었고("다크팬텀" ↔ "나쁜 팬텀"),
+//    일본어를 소리로 옮긴 이름 18개가 몇 달째 굳어 있었다.
+//    → 생성기(scripts/gen-ko-en-cards.mts)는 이 스위치를 켜고 이름을 만든다.
+//      그러면 재료가 **규칙과 손으로 적은 표에서만** 나와 고리가 끊긴다.
+let 자동사전끄기 = false
+export const 자동사전없이 = <T,>(일: () => T): T => {
+  자동사전끄기 = true
+  try {
+    return 일()
+  } finally {
+    자동사전끄기 = false
+  }
+}
+
 // 사전 여섯 곳을 정해진 순서로 뒤진다(앞에 쓴 표가 이긴다).
 function lookupExact(key: string): string | undefined {
   return (
-    AUTO_EN_TO_KO.get(key) ??
+    (자동사전끄기 ? undefined : AUTO_EN_TO_KO.get(key)) ??
     TRAINER_EN_TO_KO[key] ??
     ITEM_EN_TO_KO[key] ??
     USER_CONFIRMED_EN_TO_KO[key] ??
@@ -2084,14 +2101,14 @@ export function koreanizeEnglishCardName(name: string): string {
   // 번호를 뗀 뒤 찾고, 번호는 그대로 뒤에 다시 붙인다(안 그러면 영문 그대로 남는다).
   const numbered = exactKey.match(/^(.+?)\s+-\s+([A-Za-z0-9/-]+)$/);
   if (numbered) {
-    const found = AUTO_EN_TO_KO.get(numbered[1]) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]] ?? UNVERIFIED_EN_TO_KO[numbered[1]] ?? ENGLISH_CARD_EN_TO_KO[numbered[1]];
+    const found = (자동사전끄기 ? undefined : AUTO_EN_TO_KO.get(numbered[1])) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]] ?? UNVERIFIED_EN_TO_KO[numbered[1]] ?? ENGLISH_CARD_EN_TO_KO[numbered[1]];
     if (found) return `${found} - ${numbered[2]}`;
   }
   // "Judge (Mirror Holo)"처럼 괄호로 인쇄 방식이 붙는 것도 같은 방식으로 처리한다.
   const suffixed = exactKey.match(/^(.+?)\s+(\([^()]+\))$/);
   if (suffixed) {
     const found =
-      AUTO_EN_TO_KO.get(suffixed[1]) ??
+      (자동사전끄기 ? undefined : AUTO_EN_TO_KO.get(suffixed[1])) ??
       TRAINER_EN_TO_KO[suffixed[1]] ??
       ITEM_EN_TO_KO[suffixed[1]] ??
       USER_CONFIRMED_EN_TO_KO[suffixed[1]] ??
