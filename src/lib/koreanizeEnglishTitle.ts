@@ -1633,6 +1633,10 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Blaine's Quiz #2": "강연의 퀴즈 #2",
   "Blaine's Quiz #3": "강연의 퀴즈 #3",
   "Bounce Energy": "바운스 에너지",
+  // ⚠️ **일본판 쪽이 아는 값을 그대로 옮겼다** — 우리 ja 세트의 「マツバの確信」이
+  //    이미 "유빈의 확신"으로 나간다. 이 줄이 없으면 영문 카드만 "유빈의 Conviction"
+  //    으로 반만 옮겨져, 같은 카드가 탭마다 다른 이름이 된다(2026-08-08).
+  "Morty's Conviction": '유빈의 확신',
   "Brock's Protection": "웅의 보호",
   "Brock's Training Method": "웅의 육성법",
   "Broken Ground Gym": "갈라진 땅 체육관",
