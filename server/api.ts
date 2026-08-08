@@ -7790,13 +7790,16 @@ async function 오늘받을세트(): Promise<{ slug: string; name: string } | nu
     const 후보 = idx
       .filter((s) => s.ed === 'ja' && s.releaseDate && s.releaseDate >= 반년전)
       .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
-    for (const s of 후보) {
-      // PPT 쪽(packPriceCache)만으로 힛카드 3장이 되는지 본다. 되면 굳이 안 받는다.
-      const ppt = packPriceCache.get(s.slug)?.prices ?? {}
-      const 값있는것 = Object.values(ppt).filter((v) => Number(v) > 0).length
-      if (값있는것 >= 3) continue
-      return { slug: s.slug, name: String(s.name ?? '') }
-    }
+    // ⚠️ **"저쪽에 값이 몇 장 있나"로 가르면 안 된다.** 처음엔 "PPT로 힛카드 3장을 못
+    //    채우는 세트"만 받게 했는데, 배포하고 보니 **한 번도 안 돌았다**(2026-08-08).
+    //    스톰에메랄다에 저쪽 값이 **34장이나** 있어서 그 검사를 통과해 버린 것이다.
+    //    문제는 개수가 아니라 **어느 카드에 값이 없느냐**였다:
+    //      저쪽 1등  110번 $844      ← 이건 있다
+    //      실제 1등  113번 MUR       ← **저쪽은 $0**, 스니커덩크는 $1,351
+    //    갓 나온 일본판은 제일 비싼 카드일수록 미국 마켓에 안 팔려 값이 빈다.
+    //    → 개수를 안 본다. **발매 6개월 이내 일본판 중 가장 최근 것**을 매일 받는다.
+    //      스니커덩크는 무료라 크레딧이 0이고, 하루 한 세트뿐이라 부담도 없다.
+    if (후보[0]) return { slug: 후보[0].slug, name: String(후보[0].name ?? '') }
   } catch {
     // 못 고르면 그냥 넘어간다.
   }
