@@ -29,6 +29,7 @@ import {
 } from '../src/lib/packSets.ts'
 import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type PackCard } from '../src/lib/packDraw.ts'
 import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
+import pptSetList from '../src/data/pptSetList.json' with { type: 'json' }
 import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 import { kstDateStr, kstHourStr } from '../src/lib/kstDay.ts'
@@ -2799,8 +2800,17 @@ const 이름고르기 = (s: string) =>
   ' ' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' '
 // "pokemon jungle" 같은 것을 딴 세트로 오해하지 않게 한다. 여기 있는 말만 더 붙었으면
 // 같은 세트를 달리 적은 것으로 본다.
-const 흔한말 = new Set(['pokemon', 'pokémon', 'tcg', 'card', 'cards', 'the', 'and', 'of', 'a', 'japanese', 'english', 'jp', 'en'])
-const 세트이름들 = Object.values(pptSetNames as Record<string, string>)
+// 'ex'가 들어 있는 까닭 — 저쪽은 같은 세트를 "Hidden Legends"와 "EX Hidden Legends"
+// 둘 다로 부른다. ex만 더 붙은 것은 딴 세트가 아니다.
+const 흔한말 = new Set(['pokemon', 'pokémon', 'tcg', 'card', 'cards', 'the', 'and', 'of', 'a', 'japanese', 'english', 'jp', 'en', 'ex'])
+// ⚠️ **우리가 화면에 안 가진 세트까지 알아야 한다.** pptSetNames는 우리 세트 대조표라
+//    332개뿐인데, 저쪽 덤프에는 세트가 654개 있다. 그리고 덤프 카드의 **29%(16,962장)가
+//    대조표에 없는 세트**다(2026-08-08 실측). 섞여 들어오는 쪽은 대개 우리가 안 가진
+//    세트라("Expansion Pack"에 섞인 CP6가 그랬다), 대조표만 보면 못 알아본다.
+//    pptSetList.json은 덤프에서 뽑는다 — scripts/gen-ppt-set-list.mts.
+const 세트이름들 = [
+  ...new Set([...(pptSetList as string[]), ...Object.values(pptSetNames as Record<string, string>)]),
+]
 const 형제캐시 = new Map<string, string[]>()
 function 긴형제(세트: string): string[] {
   const 내이름 = 이름고르기(세트)
@@ -3021,7 +3031,22 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
             //    일부만 온 카드에서 다시 세면 오히려 값이 틀어진다.
             const 전부왔나 = (stat.count ?? 0) === 원래.length && 원래.length > 0
             const 다시셀까 = 뺀수 > 0 && 전부왔나
-            const 값 = 남은.map((x) => x.price ?? 0).sort((a, b) => a - b)
+            // ⚠️⚠️ **저쪽이 이상값으로 빼 둔 것을 우리도 빼야 한다.** 저쪽 셈법을 뜯어보니
+            //    이렇다 — **건수(count)는 전부 세고, 값(합·평균·중앙·최저·최고)은 최저~최고
+            //    범위 안의 것만으로 낸다.** 등급칸 2,669개를 맞춰 보니 **2,669개 전부**
+            //    이 규칙과 정확히 맞았다(2026-08-08).
+            //        리자몽 004/102 psa9 — 낱개 20건 중 $21,020·$19,462·$16,345 세 건은
+            //        범위($1,500~$4,000) 밖이다. 저쪽 합계 43,965.26은 나머지 17건의 합과
+            //        소수점까지 같다.
+            //    이걸 모르고 낱개 전부로 다시 셌더니 **평균이 $2,586에서 $5,226으로 뛰었다.**
+            //    한 건을 뺐는데 평균이 두 배가 되는, 있을 수 없는 값이었다.
+            //    등급칸의 18.2%에 이런 범위 밖 낱개가 있다 — 드문 일이 아니다.
+            const 안쪽 = 남은.filter(
+              (x) =>
+                (x.price ?? 0) >= (stat.minPrice ?? 0) * 0.999 &&
+                (x.price ?? 0) <= (stat.maxPrice ?? Infinity) * 1.001,
+            )
+            const 값 = 안쪽.map((x) => x.price ?? 0).sort((a, b) => a - b)
             const 중앙 = 값.length
               ? 값.length % 2
                 ? 값[(값.length - 1) / 2]
@@ -3029,7 +3054,10 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
               : 0
             return {
             grade,
-            count: 다시셀까 ? 값.length : stat.count ?? 0,
+            // ⚠️ **건수는 범위 밖까지 센다**(저쪽과 같은 뜻으로 맞춘다 — 위 설명).
+            //    다만 범위 안이 하나도 안 남으면 낼 값이 없으므로 0으로 두고,
+            //    아래 filter(count > 0)에서 그 등급칸을 아예 안 보여준다.
+            count: 다시셀까 ? (값.length ? 남은.length : 0) : stat.count ?? 0,
             averagePrice: 다시셀까 ? (값.length ? 값.reduce((a, b) => a + b, 0) / 값.length : 0) : stat.averagePrice ?? 0,
             medianPrice: 다시셀까 ? 중앙 : stat.medianPrice ?? 0,
             minPrice: 다시셀까 ? 값[0] ?? 0 : stat.minPrice ?? 0,
@@ -3069,10 +3097,12 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
             //    그러니 낱개로 그리면 오염도 없고 훨씬 촘촘하다.
             // ⚠️ 하루에 여러 건 팔리면 그날 평균을 쓴다(저쪽과 같은 뜻으로 맞춘다).
             // ⚠️ **최근 것부터 EBAY_HISTORY_MAX일까지만** 보낸다. 다 보내면 응답이 커진다.
+            // ⚠️ 그래프도 **범위 안의 것만** 쓴다. 이상값 한 건이 그래프를 통째로 눌러
+            //    나머지 점이 바닥에 붙어 버린다($21,020 한 건 옆에서 $2,500은 점이 아니다).
             history: (() => {
-              if (!남은.length) return shapeGradeHistory(history[grade])
+              if (!안쪽.length) return shapeGradeHistory(history[grade])
               const 날별 = new Map<string, { 합: number; 수: number }>()
-              for (const x of 남은) {
+              for (const x of 안쪽) {
                 const d = String(x.soldDate).slice(0, 10)
                 const v = 날별.get(d) ?? { 합: 0, 수: 0 }
                 v.합 += x.price ?? 0
