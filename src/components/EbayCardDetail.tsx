@@ -25,8 +25,16 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
-        {card.imageUrl && (
+        {card.imageUrl ? (
           <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" lazy={false} />
+        ) : (
+          // ⚠️ 갈라 담은 카드에는 사진을 안 붙인다(저쪽 사진은 묶인 칸 하나의 것이라
+          //    그대로 쓰면 갈라 놓은 카드가 전부 같은 사진이 된다). 왜 없는지 밝힌다.
+          <p className="flex h-full items-center justify-center px-4 text-center text-xs leading-snug text-neutral-400">
+            이 카드의 사진은 아직 없습니다.
+            <br />
+            같은 이름으로 묶여 있던 카드를 번호로 나눈 것이라, 사진을 붙이면 다른 카드 것이 됩니다.
+          </p>
         )}
       </div>
 

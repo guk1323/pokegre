@@ -36,8 +36,16 @@ export function EbayCardTile({
       <div className="h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
         {/* TCGplayer 이미지는 원본이 이미 400px로 작아서 축소(wsrv)를 거치지 않는다.
             거치면 wsrv가 tcgplayer CDN을 못 불러와 이미지가 깨진다. */}
-        {card.imageUrl && (
+        {card.imageUrl ? (
           <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" />
+        ) : (
+          // ⚠️ 빈 회색 상자만 두면 고장난 것처럼 보인다. 왜 없는지 한 줄로 밝힌다.
+          //    저쪽이 여러 카드를 한 칸에 묶어 둔 것을 우리가 번호로 갈랐는데, 그 사진은
+          //    묶인 칸 하나의 것이라 갈라 놓은 카드에 붙이면 전부 같은 사진이 된다.
+          //    이 리포의 원칙대로 **틀린 것보다 빈칸**이다.
+          <p className="flex h-full items-center justify-center px-2 text-center text-[11px] leading-snug text-neutral-400">
+            사진 없음
+          </p>
         )}
       </div>
       <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.name}</p>

@@ -3034,6 +3034,13 @@ export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'
           //    (캡틴피카츄 9장이 모두 $50이었다 · 2026-08-08). 그게 곧 섞임이다.
           //    감정 수량을 안 붙이는 것과 같은 이유다.
           prices: 번호 ? undefined : c.prices,
+          // ⚠️⚠️ **사진과 레어도도 물려주지 않는다.** 저쪽 사진은 묶인 칸 하나의 것이라,
+          //    갈라 놓은 카드에 그대로 붙이면 **아홉 장이 같은 사진**을 달고 나온다.
+          //    사장님이 처음 지적하신 게 바로 그것이다 — "사진 보면 다른 카드잖아".
+          //    이 리포의 원칙대로 **틀린 것보다 빈칸**이 낫다(CLAUDE.md).
+          imageCdnUrl400: 번호 ? undefined : c.imageCdnUrl400,
+          imageCdnUrl200: 번호 ? undefined : c.imageCdnUrl200,
+          rarity: 번호 ? undefined : c.rarity,
           tcgPlayerId: 번호 ? `${c.tcgPlayerId}~${번호.replace('/', '-')}` : c.tcgPlayerId,
           cardNumber: 번호 || null,
           name: 번호 ? `${c.name ?? ''} ${번호}`.trim() : `${c.name ?? ''} (번호 미상)`.trim(),
