@@ -5787,6 +5787,35 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
     if (것) 것.push(slug)
     else slug별.set(ppt, [slug])
   }
+  // ⚠️⚠️ **저쪽이 떼어 놓은 "속 세트"도 부모 세트에 넣어 준다.**
+  //    en-g1 제너레이션즈 117장 = 본편 85장 + RC1~RC32(래디언트 컬렉션)인데,
+  //    저쪽은 RC를 "Generations: Radiant Collection"이라는 딴 이름으로 둔다.
+  //    우리한테 그 이름의 슬러그가 **따로 없으면** 그건 부모 세트의 일부다 —
+  //    안 넣으면 그 세트에서 제일 비싼 카드가 통째로 값이 빈다
+  //    (RC5 리자몽·RC25 뮤EX가 그랬다. 2026-08-08 실측 57장).
+  //    ⚠️ 슬러그가 **있는** 이름은 안 넣는다("Base Set 2"는 엄연히 딴 세트다).
+  const 속세트: Map<string, string[]> = new Map()
+  {
+    const 아는이름 = new Set(Object.values(pptSetNames as Record<string, string>))
+    for (const 저쪽이름 of new Set(pptSetList as string[])) {
+      if (아는이름.has(저쪽이름)) continue
+      // ⚠️⚠️ **"부모 이름 + 콜론"만 속 세트로 본다.** 처음엔 "부모 이름을 품기만 하면"
+      //    으로 했다가 16개가 걸렸는데 **3개만 진짜였다**(2026-08-08). 나머지는 엄연히
+      //    딴 세트라, 그대로 뒀으면 아까 고친 섞임이 이 길로 되돌아올 뻔했다:
+      //        "ADV Expansion Pack"(2003) → ja-PMCG1 확장팩 제1탄(1996)
+      //        "sm1+: Enhanced Expansion Pack Sun & Moon" → 같은 곳
+      //        "Pt4: Advent of Arceus"·"Arceus LV.X Deck: …" → en-pl4
+      //    콜론 형태만 남기면 딱 둘이다 — 래디언트 컬렉션 두 개, 그게 원래 찾던 것이다.
+      //    괄호 형태("Base Set (Shadowless)")도 안 받는다 — 인쇄가 달라 값이 딴판이다.
+      for (const [부모이름, slugs] of slug별) {
+        if (!저쪽이름.startsWith(부모이름 + ':')) continue
+        속세트.set(저쪽이름, [...(속세트.get(저쪽이름) ?? []), ...slugs])
+      }
+    }
+    if (속세트.size) {
+      console.log(`[pokegre] 저쪽이 떼어 놓은 속 세트 ${속세트.size}개를 부모 세트에 같이 넣습니다.`)
+    }
+  }
 
   // 세트별로 모은다. 값 고르는 규칙은 세트별 받기와 같다.
   const 모음 = new Map<string, { prices: Record<string, number>; names: Record<string, string>; base: Set<string> }>()
@@ -5817,8 +5846,10 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
       const code = I.rarity === undefined ? null : RARITY_CODE.get(String(c[I.rarity] ?? '').trim())
       if (code) codes.add(code)
     }
-    const slugs = slug별.get(c[I.setName])
+    const slugs = slug별.get(c[I.setName]) ?? 속세트.get(c[I.setName])
     if (!slugs) continue
+    // 속 세트 줄은 **부모가 안 채운 번호에만** 쓴다(번호가 겹치면 부모가 이긴다).
+    const 속인가 = !slug별.has(c[I.setName])
     본이름.add(c[I.setName])
     const market = Number(c[I.marketPrice])
     if (!(market > 0)) continue
@@ -5831,6 +5862,7 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
       const num = stripZeros(되돌림.split('/')[0].trim())
       if (!num) continue
       const 것 = 모음.get(slug) ?? { prices: {}, names: {}, base: new Set<string>() }
+      if (속인가 && 것.prices[num] !== undefined) continue
       const isBase = !nm.includes('(')
       if (nm && (isBase || !것.names[num])) 것.names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
       if (isBase) {
@@ -6833,12 +6865,28 @@ function 담기(
   //    거르는 것보다 세트가 통째로 비는 쪽이 훨씬 나쁘다.
   const 같은세트 = (a?: string, b?: string) =>
     !a || !b || a.trim().toLowerCase() === b.trim().toLowerCase()
-  const 쓸것 = 부른세트 ? list.filter((c) => 같은세트(c.setName, 부른세트)) : list
-  const 버린수 = list.length - 쓸것.length
-  if (버린수 && !쓸것.length) {
+  const 우리것 = 부른세트 ? list.filter((c) => 같은세트(c.setName, 부른세트)) : list
+  // ⚠️ **속 세트만 메움감으로 쓴다 — "부른 이름 + 콜론"인 것.** 아무 딴 세트나 쓰면
+  //    아까 고친 섞임이 되돌아온다("EX Dragon"에 Dragon Frontiers의 98~101번이
+  //    없는 카드로 생긴다). 덤프로 채우는 길과 같은 규칙이다.
+  const 딴것 = 부른세트
+    ? list.filter((c) => !같은세트(c.setName, 부른세트) && String(c.setName ?? '').startsWith(부른세트 + ':'))
+    : []
+  const 버린수 = 부른세트 ? list.length - 우리것.length - 딴것.length : 0
+  if (list.length && !우리것.length) {
     console.log(`[pokegre] "${부른세트}" — 이름이 맞는 줄이 하나도 없어 그대로 씁니다(${list.length}장).`)
   }
-  for (const c of 버린수 && 쓸것.length ? 쓸것 : list) {
+  // ⚠️⚠️ **딴 세트 줄을 통째로 버리면 안 된다.** 저쪽이 딴 세트로 떼어 놓은 것을
+  //    우리는 한 세트로 묶어 두는 경우가 있다:
+  //        en-g1 제너레이션즈 117장 = 본편 85장 + **RC1~RC32(래디언트 컬렉션)**
+  //        저쪽은 RC를 "Generations: Radiant Collection"이라는 딴 세트로 둔다
+  //    처음엔 딴 세트 줄을 다 버렸더니 **RC5 리자몽**(그 세트에서 제일 비싼 카드)이
+  //    통째로 사라졌다(2026-08-08). 같은 일이 en-bw11·SWSH 트레이너갤러리에도 난다.
+  //    → **우리 세트가 못 채운 번호만** 딴 세트 줄로 메운다. 번호가 겹치는 곳
+  //      (EX Dragon 97 ↔ Dragon Frontiers 97)은 우리 세트가 이미 채웠으므로 안 밀린다.
+  const 이미 = new Set<string>()
+  let 메움 = 0
+  const 한줄 = (c: 저쪽카드, 보조: boolean): void => {
     // cardNumber가 빈 카드가 있어서 이름 꼬리("Zekrom ex - 174/086")로도 받아본다.
     // ⚠️⚠️ **옛 일본판은 저쪽에 번호가 아예 없다.** 확장팩 제1탄 102장이 전부 빈칸이다.
     //    그래서 **이름으로** 우리 번호를 찾아야 한다(setCardNumberAlias의 "NAME:" 표).
@@ -6851,10 +6899,12 @@ function 담기(
       : String(c.cardNumber ?? '')
     const rawNum = 되돌림 || (String(c.name ?? '').match(/ (\d+)\/\d+$/)?.[1] ?? '')
     // ⚠️ **빈 번호를 stripZeros에 넘기면 안 된다** — "0"이 되어 없는 카드가 생긴다.
-    if (!rawNum.trim()) continue
+    if (!rawNum.trim()) return
     const num = stripZeros(rawNum.split('/')[0].trim())
     const market = c.prices?.market ?? 0
-    if (!num || market <= 0) continue
+    if (!num || market <= 0) return
+    // 딴 세트 줄은 **우리 세트가 안 채운 번호에만** 쓴다.
+    if (보조 && 이미.has(num)) return
     // 같은 번호가 "Machamp / Machamp (Poke Ball Pattern) / (Master Ball Pattern)"처럼
     // 여러 줄로 온다. 팩에서 나오는 건 기본판이므로 괄호 없는 이름(기본판)을 우선하고,
     // 기본판이 없을 때만 가장 싼 값을 쓴다. (덮어쓰기 순서에 맡겼더니 일반 괴력몬이
@@ -6873,8 +6923,20 @@ function 담기(
       if (vk) prices[num + vk] = Math.min(prices[num + vk] ?? Infinity, market)
       else if (!basePriced.has(num)) prices[num] = Math.min(prices[num] ?? Infinity, market)
     }
+    if (보조) 메움++
+    else 이미.add(num)
   }
-  if (버린수 && 쓸것.length) console.log(`[pokegre] "${부른세트}"에 딸려 온 딴 세트 ${버린수}장을 버렸습니다.`)
+
+  // ⚠️ **이름이 맞는 줄이 하나도 없으면 아무것도 안 버린다.** 우리가 적어 둔 이름과
+  //    저쪽 이름이 언젠가 어긋나면, 거르는 바람에 그 세트가 통째로 빈 채로 나간다.
+  const 본줄 = 우리것.length ? 우리것 : list
+  for (const c of 본줄) 한줄(c, false)
+  for (const c of 딴것) 한줄(c, true)
+  if (버린수 || 메움) {
+    console.log(
+      `[pokegre] "${부른세트}" — 딴 세트 ${버린수}장을 버리고, 속 세트 ${메움}장으로 빈 번호를 메웠습니다.`,
+    )
+  }
 }
 
 // pages: 최대 몇 페이지까지 받을지. pauseMs: 페이지 사이 쉬는 시간 — 분당 크레딧이
