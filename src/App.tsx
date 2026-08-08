@@ -1913,9 +1913,22 @@ function App() {
           <p className="text-sm text-neutral-500">
             {isTcg ? 'TCGplayer에서 이 검색어로 찾지 못했습니다.' : 'eBay에서 이 검색어로 찾지 못했습니다.'}
           </p>
-          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
-            카드 번호 대신 카드 이름으로, 또는 영어 이름으로 바꿔 보시면 나올 수 있습니다.
-          </p>
+          {/* ⚠️ **영어로 못 옮긴 낱말이 있으면 그걸 짚어 준다.** 저쪽(PPT)은 영문
+              이름만 알아들어서, 우리가 모르는 한글이 섞이면 그대로 나가 0장이 된다.
+              "리자몽 구뒷면"의 '구뒷면'처럼 **스니커덩크에서만 쓰는 말**이 대부분이라
+              (2026-08-08 집계: 이런 검색이 16번) 아래 "스니커덩크에서 찾아보기"가
+              바로 답이다. 그냥 "영어로 바꿔 보라"고만 하면 있지도 않은 영어를 찾게 된다.
+              팝수 화면은 이미 이렇게 알려 주고 있었다 — 화면끼리 맞춘다. */}
+          {(() => {
+            const 남은한글 = (ebayQueryEn.match(/[가-힣]+/g) ?? []).join(' ');
+            return (
+              <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
+                {남은한글
+                  ? `'${남은한글}'의 영어 이름을 몰라 그대로 보냈습니다. 스니커덩크에서만 쓰는 말이면 아래에서 찾아보세요.`
+                  : '카드 번호 대신 카드 이름으로, 또는 영어 이름으로 바꿔 보시면 나올 수 있습니다.'}
+              </p>
+            );
+          })()}
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <button
               type="button"
