@@ -26,7 +26,8 @@ const SRC_DUMP = join(ROOT, 'scripts/en-card-names-dump.json')
 const OUT = join(ROOT, 'src/data/cardNameKoEn.json')
 const WRITE = process.argv.includes('--write')
 // 세트를 믿을지 정하는 기준. 번호가 어긋난 세트는 10%대로 떨어지고 맞는 세트는 85% 위다.
-const MIN_MATCH = 0.7
+// 포켓몬으로 재므로 기준을 높인다. 맞는 세트는 99~100%, 밀린 세트는 0%로 갈린다.
+const MIN_MATCH = 0.9
 const MIN_SAMPLE = 10
 
 if (!existsSync(SRC)) throw new Error('scripts/en-card-names.json이 없다 — fetch-en-card-names.mjs 먼저')
@@ -109,17 +110,24 @@ for (const [code, byNo] of Object.entries(enBySet)) {
   if (!existsSync(file) || !Object.keys(byNo).length) continue
   const cards: { n: string; name: string }[] = JSON.parse(readFileSync(file, 'utf8')).cards ?? []
 
-  // ① 세트가 믿을 만한지 본다. 양쪽 다 한글로 옮겨지는 카드(=이미 아는 카드)만 비교한다.
+  // ① 세트가 믿을 만한지 본다 — **번호가 같은 칸에 같은 포켓몬이 있는가.**
+  //
+  // ⚠️ 예전엔 "이름 전체가 같은가"로 쟀는데 **너무 빡빡했다.** 우리 두 변환기(일본어쪽·
+  //    영어쪽)가 같은 카드를 조금 다르게 적는 일이 흔해서(접미사 띄어쓰기 등), 번호가
+  //    완벽히 맞는 세트도 28~35%로 떨어져 통째로 버려졌다. 그렇게 버린 21세트 중
+  //    **19세트가 포켓몬으로 재면 100%**였다(2026-08-08 실측). 그만큼 사전이 비어 있었다.
+  //    포켓몬으로 재면 표기 차이에 안 흔들리면서 **번호가 밀린 세트는 그대로 잡힌다** —
+  //    SVLN·SVLS가 0%로 걸린다(001이 만타인↔식스테일로 서로 뒤바뀌어 있다).
   let same = 0
   let cmp = 0
   for (const c of cards) {
     const e = byNo[c.n]
     if (!e) continue
-    const a = ko(c.name)
-    const b = koreanizeEnglishCardName(e)
-    if (!/[가-힣]/.test(a) || !/[가-힣]/.test(b)) continue
+    const p1 = pokemonIn(ko(c.name))
+    const p2 = pokemonIn(koreanizeEnglishCardName(e))
+    if (!p1 || !p2) continue // 굿즈·트레이너는 포켓몬이 없어 이 잣대로 못 잰다
     cmp++
-    if (norm(a) === norm(b)) same++
+    if (p1 === p2) same++
   }
   if (cmp < MIN_SAMPLE || same / cmp < MIN_MATCH) {
     dropped.push(`${code}(${same}/${cmp})`)
