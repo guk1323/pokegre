@@ -162,6 +162,19 @@
 fly logs -a pokegre --no-tail | grep 통째
 ```
 
+**🔧 "오늘은 이것만 받아라" 스위치** — 안 써 본 종류를 확인할 때 쓴다.
+```
+fly secrets set EXPORT_TODAY=printings,sealed -a pokegre    # 켜기
+fly secrets unset EXPORT_TODAY -a pokegre                   # 끄기 ← 보고 나면 반드시
+```
+- 켜져 있으면 **평소 계획을 통째로 건너뛰고** 시킨 것만 받아 **해석 없이** `/data/export-<종류>.csv`로 적는다.
+- 열 이름을 로그에 찍는다 — **파일을 안 내려받아도** 생김새를 알 수 있다.
+- ⚠️ **그날은 시세가 안 들어온다.** 켜 둔 걸 잊으면 값이 계속 묵는다.
+- 서버에서 바로 뜯어보는 게 빠르다(9MB를 내려받을 필요가 없다):
+  ```
+  fly ssh console -a pokegre -C "/bin/sh -c 'head -c 400 /data/export-sealed.csv'"
+  ```
+
 ### ② 그 밖에 서버가 알아서 하는 것 — 컴퓨터가 꺼져 있어도 돈다
 ⚠️ **단, 배포된 것만 돈다.** 안 올린 코드는 아무리 잘 짜여 있어도 안 돈다.
 ⚠️ 아래 "언제"는 대부분 **기동 직후 + 매시간 확인**이고, 함수 안에서 "오늘 이미 했으면
