@@ -4645,6 +4645,8 @@ const 포켓몬이름표 = (pokemonNames as Array<{ en?: string }>)
   .sort((a, b) => b.length - a.length)
   .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
 const 이름더하기표시 = new RegExp(`\\b(${포켓몬이름표.join('|')})\\s+(?:${카드표시})\\b`, 'ig')
+// 카드 번호 바로 앞에 붙은 포켓몬 이름("MACHAMP 018/024"). 사이에 다른 낱말이 끼면 안 잡는다.
+const 번호앞이름 = new RegExp(`\\b(${포켓몬이름표.join('|')})\\s*[-–]?\\s*\\d{1,3}\\s*/\\s*\\d{1,3}\\b`, 'i')
 
 const 그카드가맞나 = (title: string, q: string): boolean => {
   const 첫낱말 = (q.trim().split(/\s+/)[0] ?? '').replace(/[^A-Za-z'-]/g, '')
@@ -4664,6 +4666,17 @@ const 그카드가맞나 = (title: string, q: string): boolean => {
     if (m[1].toLowerCase() === 첫낱말.toLowerCase()) continue
     if ((m.index ?? 0) < 우리위치) return false
   }
+  // ⚠️⚠️ **카드 번호 바로 앞에 붙은 포켓몬이 그 매물의 카드다.**
+  //    세트 이름이 포켓몬 이름인 경우를 이것으로 가른다(2026-08-08 실측):
+  //        "DETECTIVE PIKACHU SMP2 - MACHAMP 018/024 - KOREAN VERSION"
+  //    피카츄로 찾으면 이게 걸려서 **최저가 $1.34가 괴력몬 값**이 됐다. 제목에
+  //    "PIKACHU"가 있는 건 맞지만 그건 세트 이름이고, 파는 카드는 괴력몬이다.
+  //    앞의 검사들은 못 잡는다 — 피카츄 뒤에 세트를 뜻하는 말이 없고("SMP2"),
+  //    괴력몬 뒤에도 ex·V 같은 표시가 없기 때문이다.
+  //    ⚠️ 이름과 번호 **사이에 다른 말이 끼면 안 본다.** "Charizard EX 006/165"의
+  //       번호 앞말은 "EX"라서 걸리지 않는다 — 그건 리자몽 카드가 맞다.
+  const 번호앞 = 지움.match(번호앞이름)
+  if (번호앞 && 번호앞[1].toLowerCase() !== 첫낱말.toLowerCase()) return false
   return true
 }
 
