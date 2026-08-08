@@ -27,5 +27,9 @@ export const kstHourStr = (now = Date.now()): string => new Date(now + KST).toIS
 /**
  * 한국시간 기준 "며칠째"인지의 일련번호. 날짜 문자열이 아니라 숫자가 필요한 곳
  * (며칠에 한 바퀴 도는 순번제)에서 쓴다.
+ *
+ * ⚠️ 2026-08-08 현재 쓰는 곳이 없다 — 시세를 세트별로 며칠에 한 바퀴 돌던 순번제를
+ *    걷어냈기 때문이다(통째 받기가 매일 330개를 채운다). 규칙 자체는 멀쩡하니
+ *    남겨 둔다. 다시 순번제를 만들 일이 있으면 이걸 쓸 것.
  */
 export const kstDayNo = (now = Date.now()): number => Math.floor((now + KST) / 86_400_000);

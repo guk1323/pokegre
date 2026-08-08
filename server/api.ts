@@ -23,7 +23,6 @@ import {
   isLive,
   livePacks,
   packBySlug,
-  PACK_SETS,
   PPT_SET_NAMES,
   type PackSet,
 } from '../src/lib/packSets.ts'
@@ -31,7 +30,7 @@ import { drawBox, drawPack, RARITY_RANK, usableCards, type MirrorFlag, type Pack
 import pptSetNames from '../src/data/pptSetNames.json' with { type: 'json' }
 import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
-import { kstDateStr, kstHourStr, kstDayNo } from '../src/lib/kstDay.ts'
+import { kstDateStr, kstHourStr } from '../src/lib/kstDay.ts'
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -2223,8 +2222,15 @@ interface PptState {
   //    — 그날 네 번 배포해서 시세 덤프가 아예 안 들어왔다(left·fillSpent와 같은 실수를
   //    세 번째로 반복한 것이다). 날짜가 바뀌면 통째로 버린다.
   exportDays?: Record<string, string>
+  // 저쪽(PPT)이 값을 하나도 안 주는 세트. 덤프를 받을 때마다 다시 계산한다.
+  // ⚠️ 이건 **날짜와 상관없이 이어받는다**(아래 day 검사보다 먼저 읽는다). 안 그러면
+  //    날이 바뀐 직후 서버가 뜰 때 잠깐 비어서, 세트별 받기가 그 세트들을 또 두드린다.
+  noPriceSets?: string[]
 }
 const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
+
+// 저쪽에 값이 아예 없어서 세트별로 받아 봐야 소용없는 세트(ja-SM1+ 썬&문 등).
+const 값없는세트 = new Set<string>()
 
 // 통째 받기(/export)를 종류별로 마지막에 받은 날(UTC). 파일로 남겨 배포해도 이어진다.
 // 종류: cards(시세) · population(감정 수량) · ebay(등급별 낙찰)
@@ -2239,9 +2245,14 @@ const exportDoneDay: Record<string, string> = {}
 const pptLeftNow = () => (pptDailyLeftDay === utcDay() ? pptDailyLeft : Number.POSITIVE_INFINITY)
 
 let pptStateSaveAt = 0
-async function savePptState() {
+/**
+ * @param 지금바로 10초 잠금을 건너뛴다. **하루 한 번뿐인 일**(통째 받기 결과처럼)에만 쓸 것.
+ *   ⚠️ 이게 없어서 "저쪽에 값이 없는 세트" 목록이 파일에 안 적혔다 — 덤프 직후의 저장이
+ *      바로 앞 저장에 막혀 조용히 버려졌다(2026-08-08 시험에서 잡음).
+ */
+async function savePptState(지금바로 = false) {
   // 부를 때마다 쓰면 디스크가 아프다. 10초에 한 번이면 배포 사이 상태를 지키기 충분하다.
-  if (Date.now() - pptStateSaveAt < 10_000) return
+  if (!지금바로 && Date.now() - pptStateSaveAt < 10_000) return
   pptStateSaveAt = Date.now()
   try {
     await mkdir(path.dirname(PPT_STATE_FILE), { recursive: true })
@@ -2255,6 +2266,7 @@ async function savePptState() {
       dailyOut: pptDailyOut,
       fillSpent: fillSpentToday(),
       exportDays: exportDoneDay,
+      noPriceSets: [...값없는세트],
     } satisfies PptState)
   } catch {
     /* 못 적어도 서비스는 돌아간다 */
@@ -2264,6 +2276,12 @@ async function savePptState() {
 export async function loadPptState() {
   try {
     const s = JSON.parse(await readFile(PPT_STATE_FILE, 'utf-8')) as PptState
+    // ⚠️ **날짜 검사보다 먼저 읽는다.** 이건 크레딧이 아니라 "저쪽에 값이 없더라"는
+    //    사실이라 하루가 지나도 유효하다. 뒤에 두면 날이 바뀐 직후 잠깐 비어서
+    //    세트별 받기가 그 세트들을 헛되이 두드린다.
+    if (Array.isArray(s.noPriceSets)) {
+      for (const slug of s.noPriceSets) if (typeof slug === 'string') 값없는세트.add(slug)
+    }
     // 하루치는 UTC 자정에 새로 찬다. 어제 것이면 그대로 쓰면 안 된다.
     if (s.day !== utcDay()) return
     if (typeof s.left === 'number' && s.left >= 0) {
@@ -4988,8 +5006,15 @@ const CSV_EXPORT_URL = `${PRICE_TRACKER_ORIGIN}/export`
 // type=ebay·population 모두 같은 x-export-downloads-remaining을 보고 429가 났다).
 // 그래서 종류마다 "얼마나 자주 받아야 하는지"를 정해 두고 급한 것부터 쓴다.
 //   cards      매일  — 시세는 매일 바뀐다. 이걸로 세트 331개가 한 번에 찬다
-//   population 사흘  — 감정 수량. 감정은 몇 주 걸려서 하루 이틀엔 안 바뀐다
-//   ebay       나흘  — 등급별 낙찰. 천천히 쌓인다
+//   population 이틀  — 감정 수량
+//   ebay       이틀  — 등급별 낙찰
+//
+// ⚠️ **2칸을 꽉 채우려고 이틀로 맞췄다**(2026-08-08. 그전엔 3일·4일이라 일주일 14칸 중
+//    11칸만 쓰고 3칸이 놀았다). 1칸째는 매일 시세가 가져가므로 2칸째가 주당 7칸인데,
+//    이틀 간격 둘이면 3.5+3.5 = 딱 7이다. 하루씩 번갈아 가는 셈이다.
+//    받는 것 자체는 **크레딧이 0**이고, 덤프에 없는 카드는 열 때마다 2크레딧씩 나가므로
+//    칸을 놀리는 게 손해다. 더 자주 받을 이유는 없다 — 감정도 낙찰도 하루 이틀엔
+//    거의 안 바뀐다. **딱 채우는 것이 목표지 더 조이는 게 목표가 아니다.**
 //
 // 앞으로 넣을 것(2026-08-07 확정, 아직 읽어 들이는 코드가 없다):
 //   printings  매일  — **cards의 열을 전부 담고** 상태별(민트·플레이드…) 시세가 더 붙는다.
@@ -5001,7 +5026,7 @@ const CSV_EXPORT_URL = `${PRICE_TRACKER_ORIGIN}/export`
 // 시세가 매일 한 칸을 쓰고 **한 칸이 남는다**. 남는 칸을 팝수와 등급별 낙찰이
 // 번갈아 쓴다. 통째로 받으면 크레딧이 0이라, 그 칸을 놀리고 카드마다 2크레딧씩
 // 쓰는 건 손해다(2026-08-07 사장님 지적으로 되돌림).
-const EXPORT_EVERY_DAYS: Record<string, number> = { cards: 1, population: 3, ebay: 4 }
+const EXPORT_EVERY_DAYS: Record<string, number> = { cards: 1, population: 2, ebay: 2 }
 const EXPORT_DAILY_MAX = 2
 
 /** 그 종류를 오늘 받아야 하는가(마지막에 받은 날로부터 정해 둔 날수가 지났는가). */
@@ -5258,9 +5283,16 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
   }
 
   // PPT 세트 이름 → 우리 slug. 대응표를 뒤집어 쓴다(이미 331개를 전수 검증해 뒀다).
-  const slug별: Map<string, string> = new Map()
+  // ⚠️ **한 이름에 우리 슬러그가 둘일 수 있다.** 저쪽이 별책을 본편에 합쳐 두기 때문이다 —
+  //    "EX Unseen Forces"에 본편(en-ex10)과 언노운 모음집(en-exu)이 같이 들어 있다.
+  //    예전엔 앞의 것만 채워서 en-exu가 **영원히 빈 세트**로 남았고, 그 탓에 세트별로
+  //    받는 일이 매일 헛돌았다(2026-08-08). 번호가 안 겹치니(본편 1~117, 모음집 !·?·A~Z)
+  //    양쪽에 같은 값을 넣어도 서로 섞이지 않는다 — 쓸 데 없는 열쇠는 그냥 안 읽힌다.
+  const slug별: Map<string, string[]> = new Map()
   for (const [slug, ppt] of Object.entries(pptSetNames as Record<string, string>)) {
-    if (!slug별.has(ppt)) slug별.set(ppt, slug)
+    const 것 = slug별.get(ppt)
+    if (것) 것.push(slug)
+    else slug별.set(ppt, [slug])
   }
 
   // 세트별로 모은다. 값 고르는 규칙은 세트별 받기와 같다.
@@ -5272,6 +5304,8 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
   // ⚠️ 자른 줄(rows) 전체를 들고 있으면 안 된다 — 58,235줄 × 20칸이라 기계(여유 220MB)에
   //    부담이다. 레어도가 있는 13,295줄에서 **필요한 세 칸만** 남긴다.
   const 레어도재료: { ed: 'ja' | 'en'; name: string; code: string }[] = []
+  // 덤프에 실제로 나온 세트 이름. 아래에서 "저쪽에 값이 없는 세트"를 가려내는 데 쓴다.
+  const 본이름 = new Set<string>()
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i]
     if (!line.trim()) continue
@@ -5286,32 +5320,49 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
         })
       }
     }
-    const slug = slug별.get(c[I.setName])
-    if (!slug) continue
-    // ⚠️ 세트에 따라 저쪽이 **다른 번호 체계**를 쓴다. 셀레브레이션즈 클래식 컬렉션은
-    //    우리가 CC001~CC025로 두는데 저쪽은 원본 카드 번호(4/102)를 쓴다. 그대로 두면
-    //    그 25장은 시세가 통째로 안 붙는다(2026-08-07 덤프 대조로 확인).
-    const 되돌림 = 번호되돌리기(slug, String(c[I.cardNumber] ?? ''), String(c[I.name] ?? ''))
-    const num = stripZeros(되돌림.split('/')[0].trim())
+    const slugs = slug별.get(c[I.setName])
+    if (!slugs) continue
+    본이름.add(c[I.setName])
     const market = Number(c[I.marketPrice])
-    if (!num || !(market > 0)) continue
+    if (!(market > 0)) continue
     const nm = String(c[I.name] ?? '')
-    const 것 = 모음.get(slug) ?? { prices: {}, names: {}, base: new Set<string>() }
-    const isBase = !nm.includes('(')
-    if (nm && (isBase || !것.names[num])) 것.names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
-    if (isBase) {
-      것.prices[num] = 것.base.has(num) ? Math.min(것.prices[num], market) : market
-      것.base.add(num)
-    } else {
-      const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
-      if (vk) 것.prices[num + vk] = Math.min(것.prices[num + vk] ?? Infinity, market)
-      else if (!것.base.has(num)) 것.prices[num] = Math.min(것.prices[num] ?? Infinity, market)
+    for (const slug of slugs) {
+      // ⚠️ 세트에 따라 저쪽이 **다른 번호 체계**를 쓴다. 셀레브레이션즈 클래식 컬렉션은
+      //    우리가 CC001~CC025로 두는데 저쪽은 원본 카드 번호(4/102)를 쓴다. 그대로 두면
+      //    그 25장은 시세가 통째로 안 붙는다(2026-08-07 덤프 대조로 확인).
+      const 되돌림 = 번호되돌리기(slug, String(c[I.cardNumber] ?? ''), String(c[I.name] ?? ''))
+      const num = stripZeros(되돌림.split('/')[0].trim())
+      if (!num) continue
+      const 것 = 모음.get(slug) ?? { prices: {}, names: {}, base: new Set<string>() }
+      const isBase = !nm.includes('(')
+      if (nm && (isBase || !것.names[num])) 것.names[num] = nm.replace(/\s*-\s*\d+\/\d+\s*$/, '').trim()
+      if (isBase) {
+        것.prices[num] = 것.base.has(num) ? Math.min(것.prices[num], market) : market
+        것.base.add(num)
+      } else {
+        const vk = nm.includes('Master Ball') ? '~m' : nm.includes('Poke Ball') ? '~p' : nm.includes('Reverse') ? '~r' : null
+        if (vk) 것.prices[num + vk] = Math.min(것.prices[num + vk] ?? Infinity, market)
+        else if (!것.base.has(num)) 것.prices[num] = Math.min(것.prices[num] ?? Infinity, market)
+      }
+      모음.set(slug, 것)
     }
-    모음.set(slug, 것)
   }
 
   // 시세를 넣기 전에 레어도부터 적는다. 뒤에 두면 시세 저장에서 실패했을 때 같이 날아간다.
   await 레어도뽑기(레어도재료)
+
+  // ⚠️ **저쪽에 값이 없는 세트를 표시해 둔다.** 덤프에 세트 이름은 나왔는데 값이 하나도
+  //    안 붙은 것들이다(ja-SM1+ 썬&문은 덤프에 줄 1개, 값 0). 이걸 안 적어 두면 세트별
+  //    받기가 **6시간마다 영원히 다시 두드린다** — 아무리 두드려도 안 채워지는데도.
+  //    매번 덤프로 다시 계산하므로, 저쪽이 나중에 값을 넣어 주면 저절로 풀린다.
+  값없는세트.clear()
+  for (const [slug, ppt] of Object.entries(SET_NAMES)) {
+    if (본이름.has(ppt) && !Object.keys(모음.get(slug)?.prices ?? {}).length) 값없는세트.add(slug)
+  }
+  if (값없는세트.size) {
+    console.log(`[pokegre] 저쪽에 값이 없는 세트 ${값없는세트.size}개는 따로 안 받습니다: ${[...값없는세트].join(' ')}`)
+  }
+  void savePptState(true)
 
   const now = Date.now()
   let 채움 = 0
@@ -5763,7 +5814,6 @@ const SET_NAMES: Record<string, string> = { ...(pptSetNames as Record<string, st
 // ⚠️ 예산을 늘려도 실제로 더 쓰지는 않는다 — 채울 세트가 남았을 때만 쓴다.
 //    오늘도 5,600에서 멈췄다(거의 다 채웠다). 새 세트가 들어올 때 하루에 다 받으라고 늘린 것이다.
 const WARM_FILL_BUDGET = 100_000
-const WARM_SLOW_CYCLE_DAYS = 45
 
 // 오늘 채우기에 쓴 크레딧. 한국시간이 아니라 크레딧이 새로 차는 UTC 0시로 끊는다.
 let fillSpent = 0
@@ -5798,42 +5848,19 @@ function setReleaseDates(): Map<string, string> {
   return m
 }
 
-const WARM_CYCLE_DAYS = 7
-// 이 날짜(한국시간)까지는 순번제를 쉰다. 2026-08-03에 44개 시세를 한꺼번에 채우느라
-// 하루치를 많이 썼기 때문에, 그날은 더 받지 않고 다음 날부터 시작한다.
-// 지난 날짜라 아무 영향이 없어졌으면 이 줄과 아래 검사를 지우면 된다.
-const WARM_SKIP_UNTIL_KST = '2026-08-03'
-const kstDay = kstDateStr
-
+/**
+ * 세트별로 시세를 받아 올 대상.
+ *
+ * ⚠️ **덤프가 생긴 뒤로 이 일은 거의 남지 않았다.** 예전엔 세트를 하나씩 불러 채웠고,
+ *    카드 뽑기 42개를 7일에 나눠 도는 순번제와 나머지 세트를 45일에 도는 느린 순번제가
+ *    있었다. 지금은 **통째 받기 한 번이 매일 330개를 채운다** — 운영 실측으로 세트
+ *    332개 중 331개에 값이 있고 330개가 24시간 안에 갱신돼 있었다(2026-08-08).
+ *    그래서 두 순번제를 다 걷어냈다. **남은 일은 "덤프가 못 채운 것 줍기" 하나다.**
+ * ⚠️ 되살리고 싶어지면 먼저 세어 볼 것 — 덤프가 이미 채운 세트를 또 받으면
+ *    크레딧만 나가고 값은 그대로다.
+ */
 function warmTargets(): string[] {
-  // ⚠️ 여기는 일부러 좁게 잡는다(이름을 아는 330개가 아니라 카드 뽑기 42개).
-  //    이름 사전은 넓혔지만, 넓힌 만큼 다 받으면 하루치를 훌쩍 넘긴다.
-  //    범위를 넓힐 땐 한 바퀴 일수(WARM_CYCLE_DAYS)와 세트당 비용을 같이 봐야 한다.
-  // ⚠️ 뽑기 목록(PACK_SETS)을 직접 본다. 예전엔 이름 사전(PPT_SET_NAMES)을 셌는데,
-  //    그건 손으로 적어 둔 이름 모음이라 팩을 빼도 줄지 않는다. 실제로 팩을 44→42로
-  //    줄였을 때 미리받기만 44개를 계속 돌 뻔했다.
-  const all = PACK_SETS.map((p) => p.slug)
-    .filter((s) => SET_NAMES[s])
-    .sort() // 순서가 매일 같아야 한다
-  if (!all.length) return []
-  // 쉬는 날이라도 "시세가 아예 없는 세트"는 채운다 — 앨범에서 값이 통째로 비어 보이는
-  // 것은 크레딧을 아끼는 것보다 나쁘다.
-  if (kstDay() <= WARM_SKIP_UNTIL_KST) {
-    return all.filter((s) => !Object.keys(packPriceCache.get(s)?.prices ?? {}).length)
-  }
-  // 시세가 아예 없는 세트는 순번과 상관없이 먼저 채운다 — 앨범에서 값이 통째로 비어
-  // 보이는 것이 제일 나쁘다(새 팩을 추가한 날 그런 상태가 된다).
-  const never = all.filter((s) => !Object.keys(packPriceCache.get(s)?.prices ?? {}).length)
-  if (never.length) return never.slice(0, Math.ceil(all.length / WARM_CYCLE_DAYS))
-
-  // 오늘이 한 바퀴 중 몇 번째 날인지. 한국시간 기준으로 끊는다(진열도 한국시간 자정에 바뀐다).
-  const dayNo = kstDayNo()
-  const slot = dayNo % WARM_CYCLE_DAYS
-  const per = Math.floor(all.length / WARM_CYCLE_DAYS)
-  const extra = all.length % WARM_CYCLE_DAYS
-  // 앞 extra일은 한 개씩 더 맡는다. 시작 위치는 그걸 감안해 센다.
-  const start = slot * per + Math.min(slot, extra)
-  return [...all.slice(start, start + per + (slot < extra ? 1 : 0)), ...fillTargets(), ...slowTargets()]
+  return fillTargets()
 }
 
 const hasPrices = (slug: string) => !!Object.keys(packPriceCache.get(slug)?.prices ?? {}).length
@@ -5849,24 +5876,14 @@ function fillTargets(): string[] {
   if (fillSpentToday() >= WARM_FILL_BUDGET) return []
   const dates = setReleaseDates()
   return Object.keys(SET_NAMES)
-    .filter((s) => !hasPrices(s))
+    // ⚠️ 저쪽에 값이 아예 없는 세트는 뺀다. 안 빼면 6시간마다 영원히 두드린다.
+    .filter((s) => !hasPrices(s) && !값없는세트.has(s))
     .sort((a, b) => (dates.get(b) ?? '').localeCompare(dates.get(a) ?? '') || a.localeCompare(b))
 }
 
-// 다 채운 뒤 천천히 도는 몫 — 뽑기에 없는 세트를 45일에 한 바퀴.
-// 세트별 목록의 "값 높은 카드"에만 쓰이므로 한 달 반쯤 묵어도 괜찮다.
-// ⚠️ 아직 채울 게 남아 있으면 이쪽은 쉰다. 채우는 게 먼저다.
-function slowTargets(): string[] {
-  const packs = new Set(PACK_SETS.map((p) => p.slug))
-  const rest = Object.keys(SET_NAMES).filter((s) => !packs.has(s)).sort()
-  if (!rest.length || rest.some((s) => !hasPrices(s))) return []
-  const dayNo = kstDayNo()
-  const slot = dayNo % WARM_SLOW_CYCLE_DAYS
-  const per = Math.floor(rest.length / WARM_SLOW_CYCLE_DAYS)
-  const extra = rest.length % WARM_SLOW_CYCLE_DAYS
-  const from = slot * per + Math.min(slot, extra)
-  return rest.slice(from, from + per + (slot < extra ? 1 : 0))
-}
+// (걷어냄) 뽑기에 없는 세트를 45일에 한 바퀴 돌던 몫이 있었다. 덤프가 매일 330개를
+// 통째로 갱신하므로 할 일이 겹칠 뿐이다. 게다가 "아직 못 채운 세트가 있으면 쉰다"는
+// 조건 때문에 **한 번도 돈 적이 없었다** — 저쪽에 값이 없는 세트가 늘 하나 걸려 있었다.
 
 // 뽑은 카드에 지금 시세(USD)를 붙인다. 개봉 화면이 "값나가는 카드"를 빛나게 하는 데 쓴다.
 // 앨범 가치와 같은 규칙으로 찾는다 — 번호에서 앞의 0을 떼고, 미러·마스터볼 변형은
