@@ -2764,11 +2764,69 @@ const 제목연도 = (t: string) => {
     : (s.match(/\b(19[89]\d|20[0-2]\d)\b/g) ?? []).map(Number).filter((y) => y < new Date().getFullYear())
 }
 
+/**
+ * **제목이 다른 세트 이름을 대놓고 적은 것**을 잡는다. 위의 번호·연도 견주기와 달리
+ * 다수결이 아니라서, 딱 한 건이 섞여 있어도 잡힌다.
+ *
+ * 저쪽이 세트를 헷갈리는 까닭은 단순하다 — **세트 이름이 남의 이름 안에 통째로 들어간다.**
+ * 우리 대조표 332개 중 21개가 그렇다:
+ *      "Expansion Pack"  ⊂  "CP6: Expansion Pack 20th Anniversary" · "Base Expansion Pack"
+ *      "EX Dragon"       ⊂  "EX Dragon Frontiers"
+ *      "Celebrations"    ⊂  "Celebrations: Classic Collection"
+ * 그래서 제목에 **우리 이름보다 긴 형제 이름이 통째로** 적혀 있으면 딴 카드다.
+ *
+ * ⚠️ **긴 쪽이 적혔을 때만 뺀다.** 우리가 긴 쪽인데(CP6) 제목에 짧은 이름만("Expansion
+ *    Pack") 있는 경우는 그냥 줄여 쓴 것일 수 있어서 안 뺀다. 한쪽으로만 확실할 때 뺀다.
+ *
+ * ⚠️⚠️ **같은 세트를 저쪽이 두 이름으로 부르는 것이 있다.** 이걸 형제로 보면 멀쩡한
+ *    기록이 잘린다(표본에서 22건 — 아래 둘을 넣기 전 실측):
+ *      ① 앞에 코드만 붙은 것 — "XY-P: XY Promos"는 "XY Promos"와 같은 세트다.
+ *         포켓몬 판초 피카츄 203/XY-P가 통째로 잘렸다.
+ *         → **콜론 뒤가 우리 이름과 같으면** 형제로 안 본다.
+ *      ② 흔한 낱말만 더 붙은 것 — "Pokemon Jungle"은 "Jungle"과 같은 세트다.
+ *         → **더 붙은 낱말이 전부 흔한 말이면** 형제로 안 본다.
+ */
+const 이름고르기 = (s: string) =>
+  ' ' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' '
+// "pokemon jungle" 같은 것을 딴 세트로 오해하지 않게 한다. 여기 있는 말만 더 붙었으면
+// 같은 세트를 달리 적은 것으로 본다.
+const 흔한말 = new Set(['pokemon', 'pokémon', 'tcg', 'card', 'cards', 'the', 'and', 'of', 'a', 'japanese', 'english', 'jp', 'en'])
+const 세트이름들 = Object.values(pptSetNames as Record<string, string>)
+const 형제캐시 = new Map<string, string[]>()
+function 긴형제(세트: string): string[] {
+  const 내이름 = 이름고르기(세트)
+  if (내이름.trim().length < 5) return [] // 너무 짧은 이름은 아무 데나 걸린다
+  const 있는것 = 형제캐시.get(내이름)
+  if (있는것) return 있는것
+  const 내낱말 = new Set(내이름.trim().split(' '))
+  const 것 = 세트이름들
+    .filter((원본) => {
+      const n = 이름고르기(원본)
+      if (n === 내이름 || !n.includes(내이름)) return false
+      // ① 콜론 뒤가 우리 이름과 같으면 코드만 붙인 같은 세트다.
+      const 콜론뒤 = 원본.includes(':') ? 이름고르기(원본.slice(원본.lastIndexOf(':') + 1)) : ''
+      if (콜론뒤 === 내이름) return false
+      // ② 더 붙은 낱말이 전부 흔한 말이면 같은 세트를 달리 적은 것이다.
+      const 더붙은 = n.trim().split(' ').filter((w) => !내낱말.has(w))
+      return 더붙은.some((w) => !흔한말.has(w))
+    })
+    .map(이름고르기)
+  형제캐시.set(내이름, 것)
+  return 것
+}
+
 function 딴카드거르기(
   soldListings: Record<string, { title?: string }[]> | undefined,
+  setName?: string | null,
 ): (x: { title?: string }) => boolean {
   const 전부 = Object.values(soldListings ?? {}).flat()
-  if (전부.length < 8) return () => false
+  const 형제 = setName ? 긴형제(setName) : []
+  const 형제인가 = (t: string) => {
+    if (!형제.length) return false
+    const s = 이름고르기(t)
+    return 형제.some((n) => s.includes(n))
+  }
+  if (전부.length < 8) return 형제.length ? (x) => 형제인가(String(x.title ?? '')) : () => false
 
   const 셈하기 = (값들: string[]) => {
     const m = new Map<string, number>()
@@ -2780,9 +2838,14 @@ function 딴카드거르기(
     // 적은 게 5건 이상이고 그중 70% 이상이 한 값이어야 잣대로 삼는다.
     return { 셈: m, 대표, 믿나: 합 >= 5 && n / 합 >= 0.7 }
   }
-  const D = 셈하기(전부.map((x) => 제목분모(String(x.title ?? ''))))
+  // ⚠️ **잣대를 세울 땐 이미 딴 세트로 판명난 것을 빼고 센다.** 안 그러면 섞인 쪽이
+  //    다수가 되어 잣대가 거꾸로 선다(나인테일이 그랬다 — 진짜 1996년 기록은 "#38"이라
+  //    분모를 안 적고, 섞인 2016년 CP6가 "015/087"이라 분모 표에서 다수였다).
+  const 성한것 = 전부.filter((x) => !형제인가(String(x.title ?? '')))
+  const 잣대 = 성한것.length >= 5 ? 성한것 : 전부
+  const D = 셈하기(잣대.map((x) => 제목분모(String(x.title ?? ''))))
   const Y = 셈하기(
-    전부.map((x) => {
+    잣대.map((x) => {
       const y = 제목연도(String(x.title ?? ''))
       return y.length ? String(Math.min(...y)) : ''
     }),
@@ -2796,6 +2859,8 @@ function 딴카드거르기(
   return (x) => {
     const t = String(x.title ?? '')
     if (!t) return false
+    // 제목이 더 긴 형제 세트 이름을 통째로 적었으면 다수결을 볼 것도 없다.
+    if (형제인가(t)) return true
     if (D.믿나) {
       const d = 제목분모(t)
       // 0 채움은 무시하고 숫자로 견준다("232/91" = "232/091").
@@ -2834,7 +2899,7 @@ function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): Shap
     .map((card) => {
       // ⚠️ **이 카드에 딴 카드가 섞였는지 가리는 검사**를 카드마다 한 번 만든다.
       //    낙찰 기록 전체를 봐야 "다수"를 알 수 있어서 등급별로 따로 만들면 안 된다.
-      const 딴것 = 딴카드거르기(card.ebay?.soldListings)
+      const 딴것 = 딴카드거르기(card.ebay?.soldListings, card.setName)
       const history = card.ebay?.priceHistory ?? {}
       // TCGplayer 날짜별 추이는 상태(Near Mint·Lightly Played…)별로 나뉘어 온다.
       //
