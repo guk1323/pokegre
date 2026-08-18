@@ -199,7 +199,7 @@ async function main() {
 
   // setHitCards.json은 usd 기준이다. 환율은 서버가 화면에서 원화로 바꿀 때 쓰는 것과
   // 같은 곳(유럽중앙은행)에서 받아 쓴다.
-  const fx = await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY').then((r) => r.json()).catch(() => null)
+  const fx = await fetch('https://api.frankfurter.dev/v1/latest?from=USD&to=JPY').then((r) => r.json()).catch(() => null)
   const usdJpy = fx?.rates?.JPY
   if (!usdJpy) { console.error('환율을 못 받아 저장하지 않습니다.'); process.exit(1) }
   const file = JSON.parse(await readFile(OUT, 'utf8').catch(() => '{}'))

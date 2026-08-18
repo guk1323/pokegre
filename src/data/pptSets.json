@@ -1,0 +1,3021 @@
+[
+ {
+  "slug": "en-2011bw",
+  "setId": 1401
+ },
+ {
+  "slug": "en-2012bw",
+  "setId": 1427
+ },
+ {
+  "slug": "en-2014xy",
+  "setId": 1692
+ },
+ {
+  "slug": "en-2015xy",
+  "setId": 1694
+ },
+ {
+  "slug": "en-2016xy",
+  "setId": 3087
+ },
+ {
+  "slug": "en-2017sm",
+  "setId": 2148
+ },
+ {
+  "slug": "en-2018sm",
+  "setId": 2364
+ },
+ {
+  "slug": "en-2019sm",
+  "setId": 2555
+ },
+ {
+  "slug": "en-2021swsh",
+  "setId": 2782
+ },
+ {
+  "slug": "en-2022swsh",
+  "setId": 3150
+ },
+ {
+  "slug": "en-2023sv",
+  "setId": 23306
+ },
+ {
+  "slug": "en-2024sv",
+  "setId": 24163
+ },
+ {
+  "slug": "en-base1",
+  "setId": 604
+ },
+ {
+  "slug": "en-base2",
+  "setId": 635
+ },
+ {
+  "slug": "en-base3",
+  "setId": 630
+ },
+ {
+  "slug": "en-base4",
+  "setId": 605
+ },
+ {
+  "slug": "en-base5",
+  "setId": 1373
+ },
+ {
+  "slug": "en-basep",
+  "setId": 1418
+ },
+ {
+  "slug": "en-bog",
+  "setId": 1455
+ },
+ {
+  "slug": "en-bw1",
+  "setId": 1400
+ },
+ {
+  "slug": "en-bw10",
+  "setId": 1370
+ },
+ {
+  "slug": "en-bw11",
+  "setId": 1409
+ },
+ {
+  "slug": "en-bw11",
+  "setId": 1465,
+  "번호앞": "RC",
+  "메모": "Legendary Treasures: Radiant Collection"
+ },
+ {
+  "slug": "en-bw2",
+  "setId": 1424
+ },
+ {
+  "slug": "en-bw3",
+  "setId": 1385
+ },
+ {
+  "slug": "en-bw4",
+  "setId": 1412
+ },
+ {
+  "slug": "en-bw5",
+  "setId": 1386
+ },
+ {
+  "slug": "en-bw6",
+  "setId": 1394
+ },
+ {
+  "slug": "en-bw7",
+  "setId": 1408
+ },
+ {
+  "slug": "en-bw8",
+  "setId": 1413
+ },
+ {
+  "slug": "en-bw9",
+  "setId": 1382
+ },
+ {
+  "slug": "en-bwp",
+  "setId": 1407
+ },
+ {
+  "slug": "en-cel25",
+  "setId": 2867
+ },
+ {
+  "slug": "en-cel25cc",
+  "setId": 2931
+ },
+ {
+  "slug": "en-col1",
+  "setId": 1415
+ },
+ {
+  "slug": "en-dc1",
+  "setId": 1525
+ },
+ {
+  "slug": "en-det1",
+  "setId": 2409
+ },
+ {
+  "slug": "en-dp1",
+  "setId": 1430
+ },
+ {
+  "slug": "en-dp2",
+  "setId": 1368
+ },
+ {
+  "slug": "en-dp3",
+  "setId": 1380
+ },
+ {
+  "slug": "en-dp4",
+  "setId": 1405
+ },
+ {
+  "slug": "en-dp5",
+  "setId": 1390
+ },
+ {
+  "slug": "en-dp6",
+  "setId": 1417
+ },
+ {
+  "slug": "en-dp7",
+  "setId": 1369
+ },
+ {
+  "slug": "en-dpp",
+  "setId": 1421
+ },
+ {
+  "slug": "en-dv1",
+  "setId": 1426
+ },
+ {
+  "slug": "en-ecard1",
+  "setId": 1375
+ },
+ {
+  "slug": "en-ecard2",
+  "setId": 1397
+ },
+ {
+  "slug": "en-ecard3",
+  "setId": 1372
+ },
+ {
+  "slug": "en-ex1",
+  "setId": 1393
+ },
+ {
+  "slug": "en-ex10",
+  "setId": 1398
+ },
+ {
+  "slug": "en-ex11",
+  "setId": 1429
+ },
+ {
+  "slug": "en-ex12",
+  "setId": 1378
+ },
+ {
+  "slug": "en-ex13",
+  "setId": 1379
+ },
+ {
+  "slug": "en-ex14",
+  "setId": 1395
+ },
+ {
+  "slug": "en-ex15",
+  "setId": 1411
+ },
+ {
+  "slug": "en-ex16",
+  "setId": 1383
+ },
+ {
+  "slug": "en-ex2",
+  "setId": 1392
+ },
+ {
+  "slug": "en-ex3",
+  "setId": 1376
+ },
+ {
+  "slug": "en-ex4",
+  "setId": 1377
+ },
+ {
+  "slug": "en-ex5",
+  "setId": 1416
+ },
+ {
+  "slug": "en-ex6",
+  "setId": 1419
+ },
+ {
+  "slug": "en-ex7",
+  "setId": 1428
+ },
+ {
+  "slug": "en-ex8",
+  "setId": 1404
+ },
+ {
+  "slug": "en-ex9",
+  "setId": 1410
+ },
+ {
+  "slug": "en-exu",
+  "setId": 1398
+ },
+ {
+  "slug": "en-g1",
+  "setId": 1728
+ },
+ {
+  "slug": "en-g1",
+  "setId": 1729,
+  "번호앞": "RC",
+  "메모": "Generations의 RC칸은 저쪽에서 Radiant Collection이라는 딴 세트다"
+ },
+ {
+  "slug": "en-gym1",
+  "setId": 1441
+ },
+ {
+  "slug": "en-gym2",
+  "setId": 1440
+ },
+ {
+  "slug": "en-hgss1",
+  "setId": 1402
+ },
+ {
+  "slug": "en-hgss2",
+  "setId": 1399
+ },
+ {
+  "slug": "en-hgss3",
+  "setId": 1403
+ },
+ {
+  "slug": "en-hgss4",
+  "setId": 1381
+ },
+ {
+  "slug": "en-hgssp",
+  "setId": 1453
+ },
+ {
+  "slug": "en-lc",
+  "setId": 1374
+ },
+ {
+  "slug": "en-me01",
+  "setId": 24380
+ },
+ {
+  "slug": "en-me02",
+  "setId": 24448
+ },
+ {
+  "slug": "en-me02.5",
+  "setId": 24541
+ },
+ {
+  "slug": "en-me03",
+  "setId": 24587
+ },
+ {
+  "slug": "en-me04",
+  "setId": 24655
+ },
+ {
+  "slug": "en-me05",
+  "setId": 24688
+ },
+ {
+  "slug": "en-mee",
+  "setId": 24461
+ },
+ {
+  "slug": "en-mep",
+  "setId": 24451
+ },
+ {
+  "slug": "en-mfb",
+  "setId": 23330
+ },
+ {
+  "slug": "en-neo1",
+  "setId": 1396
+ },
+ {
+  "slug": "en-neo2",
+  "setId": 1434
+ },
+ {
+  "slug": "en-neo3",
+  "setId": 1389
+ },
+ {
+  "slug": "en-neo4",
+  "setId": 1444
+ },
+ {
+  "slug": "en-np",
+  "setId": 1423
+ },
+ {
+  "slug": "en-pl1",
+  "setId": 1406
+ },
+ {
+  "slug": "en-pl2",
+  "setId": 1367
+ },
+ {
+  "slug": "en-pl3",
+  "setId": 1384
+ },
+ {
+  "slug": "en-pl4",
+  "setId": 1391
+ },
+ {
+  "slug": "en-pop1",
+  "setId": 1422
+ },
+ {
+  "slug": "en-pop2",
+  "setId": 1447
+ },
+ {
+  "slug": "en-pop3",
+  "setId": 1442
+ },
+ {
+  "slug": "en-pop4",
+  "setId": 1452
+ },
+ {
+  "slug": "en-pop5",
+  "setId": 1439
+ },
+ {
+  "slug": "en-pop6",
+  "setId": 1432
+ },
+ {
+  "slug": "en-pop7",
+  "setId": 1414
+ },
+ {
+  "slug": "en-pop8",
+  "setId": 1450
+ },
+ {
+  "slug": "en-pop9",
+  "setId": 1446
+ },
+ {
+  "slug": "en-ru1",
+  "setId": 1433
+ },
+ {
+  "slug": "en-si1",
+  "setId": 648
+ },
+ {
+  "slug": "en-sm1",
+  "setId": 1863
+ },
+ {
+  "slug": "en-sm10",
+  "setId": 2420
+ },
+ {
+  "slug": "en-sm11",
+  "setId": 2464
+ },
+ {
+  "slug": "en-sm115",
+  "setId": 2480
+ },
+ {
+  "slug": "en-sm12",
+  "setId": 2534
+ },
+ {
+  "slug": "en-sm2",
+  "setId": 1919
+ },
+ {
+  "slug": "en-sm3",
+  "setId": 1957
+ },
+ {
+  "slug": "en-sm3.5",
+  "setId": 2054
+ },
+ {
+  "slug": "en-sm4",
+  "setId": 2071
+ },
+ {
+  "slug": "en-sm5",
+  "setId": 2178
+ },
+ {
+  "slug": "en-sm6",
+  "setId": 2209
+ },
+ {
+  "slug": "en-sm7",
+  "setId": 2278
+ },
+ {
+  "slug": "en-sm7.5",
+  "setId": 2295
+ },
+ {
+  "slug": "en-sm8",
+  "setId": 2328
+ },
+ {
+  "slug": "en-sm9",
+  "setId": 2377
+ },
+ {
+  "slug": "en-sma",
+  "setId": 2594
+ },
+ {
+  "slug": "en-smp",
+  "setId": 1861
+ },
+ {
+  "slug": "en-sv01",
+  "setId": 22873
+ },
+ {
+  "slug": "en-sv02",
+  "setId": 23120
+ },
+ {
+  "slug": "en-sv03",
+  "setId": 23228
+ },
+ {
+  "slug": "en-sv03.5",
+  "setId": 23237
+ },
+ {
+  "slug": "en-sv04",
+  "setId": 23286
+ },
+ {
+  "slug": "en-sv04.5",
+  "setId": 23353
+ },
+ {
+  "slug": "en-sv05",
+  "setId": 23381
+ },
+ {
+  "slug": "en-sv06",
+  "setId": 23473
+ },
+ {
+  "slug": "en-sv06.5",
+  "setId": 23529
+ },
+ {
+  "slug": "en-sv07",
+  "setId": 23537
+ },
+ {
+  "slug": "en-sv08",
+  "setId": 23651
+ },
+ {
+  "slug": "en-sv08.5",
+  "setId": 23821
+ },
+ {
+  "slug": "en-sv09",
+  "setId": 24073
+ },
+ {
+  "slug": "en-sv10",
+  "setId": 24269
+ },
+ {
+  "slug": "en-sv10.5b",
+  "setId": 24325
+ },
+ {
+  "slug": "en-sv10.5w",
+  "setId": 24326
+ },
+ {
+  "slug": "en-sve",
+  "setId": 24382
+ },
+ {
+  "slug": "en-svp",
+  "setId": 22872
+ },
+ {
+  "slug": "en-swsh1",
+  "setId": 2585
+ },
+ {
+  "slug": "en-swsh10",
+  "setId": 3040
+ },
+ {
+  "slug": "en-swsh10.5",
+  "setId": 3064
+ },
+ {
+  "slug": "en-swsh10.5tg",
+  "setId": 3068
+ },
+ {
+  "slug": "en-swsh11",
+  "setId": 3118
+ },
+ {
+  "slug": "en-swsh11.5tg",
+  "setId": 3172
+ },
+ {
+  "slug": "en-swsh12",
+  "setId": 3170
+ },
+ {
+  "slug": "en-swsh12.5",
+  "setId": 17688
+ },
+ {
+  "slug": "en-swsh12.5gg",
+  "setId": 17689
+ },
+ {
+  "slug": "en-swsh12.5tg",
+  "setId": 17674
+ },
+ {
+  "slug": "en-swsh2",
+  "setId": 2626
+ },
+ {
+  "slug": "en-swsh3",
+  "setId": 2675
+ },
+ {
+  "slug": "en-swsh3.5",
+  "setId": 2685
+ },
+ {
+  "slug": "en-swsh4",
+  "setId": 2701
+ },
+ {
+  "slug": "en-swsh4.5",
+  "setId": 2754
+ },
+ {
+  "slug": "en-swsh4.5sv",
+  "setId": 2781
+ },
+ {
+  "slug": "en-swsh5",
+  "setId": 2765
+ },
+ {
+  "slug": "en-swsh6",
+  "setId": 2807
+ },
+ {
+  "slug": "en-swsh7",
+  "setId": 2848
+ },
+ {
+  "slug": "en-swsh8",
+  "setId": 2906
+ },
+ {
+  "slug": "en-swsh9",
+  "setId": 2948
+ },
+ {
+  "slug": "en-swsh9.5tg",
+  "setId": 3020
+ },
+ {
+  "slug": "en-swshp",
+  "setId": 2545
+ },
+ {
+  "slug": "en-tk-bw-e",
+  "setId": 1538,
+  "메모": "BW Trainer Kit: Excadrill & Zoroark",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-bw-z",
+  "setId": 1538,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-dp-l",
+  "setId": 1541,
+  "메모": "DP Trainer Kit: Manaphy & Lucario",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-dp-m",
+  "setId": 1541,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-ex-latia",
+  "setId": 1543,
+  "메모": "EX Trainer Kit 1: Latias & Latios",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-ex-latio",
+  "setId": 1543,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-ex-m",
+  "setId": 1542,
+  "메모": "EX Trainer Kit 2: Plusle & Minun",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-ex-p",
+  "setId": 1542,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-hs-g",
+  "setId": 1540,
+  "메모": "HGSS Trainer Kit: Gyarados & Raichu",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-hs-r",
+  "setId": 1540,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-sm-l",
+  "setId": 2069,
+  "메모": "SM Trainer Kit: Lycanroc & Alolan Raichu — 저쪽은 두 덱이 한 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-sm-r",
+  "setId": 2069,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-b",
+  "setId": 1533,
+  "메모": "XY Trainer Kit: Bisharp & Wigglytuff",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-latia",
+  "setId": 1536,
+  "메모": "XY Trainer Kit: Latias & Latios",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-latio",
+  "setId": 1536,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-n",
+  "setId": 1532,
+  "메모": "XY Trainer Kit: Sylveon & Noivern",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-p",
+  "setId": 1796,
+  "메모": "XY Trainer Kit: Pikachu Libre & Suicune",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-su",
+  "setId": 1796,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-sy",
+  "setId": 1532,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-tk-xy-w",
+  "setId": 1533,
+  "메모": "위와 같은 세트",
+  "덱겹침": true
+ },
+ {
+  "slug": "en-xy0",
+  "setId": 1522
+ },
+ {
+  "slug": "en-xy1",
+  "setId": 1387
+ },
+ {
+  "slug": "en-xy10",
+  "setId": 1780
+ },
+ {
+  "slug": "en-xy11",
+  "setId": 1815
+ },
+ {
+  "slug": "en-xy12",
+  "setId": 1842
+ },
+ {
+  "slug": "en-xy2",
+  "setId": 1464
+ },
+ {
+  "slug": "en-xy3",
+  "setId": 1481
+ },
+ {
+  "slug": "en-xy4",
+  "setId": 1494
+ },
+ {
+  "slug": "en-xy5",
+  "setId": 1509
+ },
+ {
+  "slug": "en-xy6",
+  "setId": 1534
+ },
+ {
+  "slug": "en-xy7",
+  "setId": 1576
+ },
+ {
+  "slug": "en-xy8",
+  "setId": 1661
+ },
+ {
+  "slug": "en-xy9",
+  "setId": 1701
+ },
+ {
+  "slug": "en-xyp",
+  "setId": 1451
+ },
+ {
+  "slug": "ja-BWP",
+  "setId": 24342
+ },
+ {
+  "slug": "ja-CP1",
+  "setId": 23964
+ },
+ {
+  "slug": "ja-CP2",
+  "setId": 23966
+ },
+ {
+  "slug": "ja-CP3",
+  "setId": 23970
+ },
+ {
+  "slug": "ja-CP4",
+  "setId": 23972
+ },
+ {
+  "slug": "ja-CP5",
+  "setId": 23981
+ },
+ {
+  "slug": "ja-CP6",
+  "setId": 23982
+ },
+ {
+  "slug": "ja-E1",
+  "setId": 23730
+ },
+ {
+  "slug": "ja-E2",
+  "setId": 23731
+ },
+ {
+  "slug": "ja-E3",
+  "setId": 23732
+ },
+ {
+  "slug": "ja-E4",
+  "setId": 23733
+ },
+ {
+  "slug": "ja-E5",
+  "setId": 23734
+ },
+ {
+  "slug": "ja-M-P",
+  "setId": 24423
+ },
+ {
+  "slug": "ja-M1L",
+  "setId": 24399
+ },
+ {
+  "slug": "ja-M1S",
+  "setId": 24400
+ },
+ {
+  "slug": "ja-M2",
+  "setId": 24459
+ },
+ {
+  "slug": "ja-M2a",
+  "setId": 24499
+ },
+ {
+  "slug": "ja-M3",
+  "setId": 24600
+ },
+ {
+  "slug": "ja-M4",
+  "setId": 24653
+ },
+ {
+  "slug": "ja-M5",
+  "setId": 24711
+ },
+ {
+  "slug": "ja-M6",
+  "setId": 24791
+ },
+ {
+  "slug": "ja-MC",
+  "setId": 24567
+ },
+ {
+  "slug": "ja-neo1",
+  "setId": 23727
+ },
+ {
+  "slug": "ja-neo2",
+  "setId": 23728,
+  "메모": "유적/각성 확장팩. 예전엔 9장짜리 Neo Premium File을 잘못 짚고 있었다(2026-08-09)"
+ },
+ {
+  "slug": "ja-neo3",
+  "setId": 23720,
+  "메모": "유적/각성 확장팩. 예전엔 9장짜리 Neo Premium File을 잘못 짚고 있었다(2026-08-09)"
+ },
+ {
+  "slug": "ja-neo4",
+  "setId": 23729
+ },
+ {
+  "slug": "ja-PCG1",
+  "setId": 24117
+ },
+ {
+  "slug": "ja-PCG2",
+  "setId": 24114
+ },
+ {
+  "slug": "ja-PCG3",
+  "setId": 24135
+ },
+ {
+  "slug": "ja-PCG4",
+  "setId": 24103
+ },
+ {
+  "slug": "ja-PCG5",
+  "setId": 24101
+ },
+ {
+  "slug": "ja-PCG6",
+  "setId": 24085
+ },
+ {
+  "slug": "ja-PCG7",
+  "setId": 24084
+ },
+ {
+  "slug": "ja-PCG8",
+  "setId": 24099
+ },
+ {
+  "slug": "ja-PCG9",
+  "setId": 24090
+ },
+ {
+  "slug": "ja-PMCG1",
+  "setId": 23721,
+  "메모": "저쪽 이름이 \"Expansion Pack\"이라 형제 세트(ADV·CP6·sm1+)에 먹힌다 — 이름으로는 못 찾는다"
+ },
+ {
+  "slug": "ja-PMCG2",
+  "setId": 23722
+ },
+ {
+  "slug": "ja-PMCG3",
+  "setId": 23723
+ },
+ {
+  "slug": "ja-PMCG4",
+  "setId": 23724,
+  "메모": "저쪽 이름이 \"Rocket Gang\"이라 \"Rocket Gang Strikes Back\"에 먹힌다"
+ },
+ {
+  "slug": "ja-PMCG5",
+  "setId": 23725
+ },
+ {
+  "slug": "ja-PMCG6",
+  "setId": 23726
+ },
+ {
+  "slug": "ja-S10a",
+  "setId": 23640
+ },
+ {
+  "slug": "ja-S10b",
+  "setId": 23641
+ },
+ {
+  "slug": "ja-S10D",
+  "setId": 23629
+ },
+ {
+  "slug": "ja-S10P",
+  "setId": 23630
+ },
+ {
+  "slug": "ja-S11",
+  "setId": 23631
+ },
+ {
+  "slug": "ja-S11a",
+  "setId": 23642
+ },
+ {
+  "slug": "ja-S12",
+  "setId": 23632
+ },
+ {
+  "slug": "ja-S12a",
+  "setId": 23645
+ },
+ {
+  "slug": "ja-S1a",
+  "setId": 23633
+ },
+ {
+  "slug": "ja-S1H",
+  "setId": 23617
+ },
+ {
+  "slug": "ja-S1W",
+  "setId": 23616
+ },
+ {
+  "slug": "ja-S2",
+  "setId": 23618
+ },
+ {
+  "slug": "ja-S2a",
+  "setId": 23634
+ },
+ {
+  "slug": "ja-S3",
+  "setId": 23619
+ },
+ {
+  "slug": "ja-S3a",
+  "setId": 23635
+ },
+ {
+  "slug": "ja-S4",
+  "setId": 23620
+ },
+ {
+  "slug": "ja-S4a",
+  "setId": 23643
+ },
+ {
+  "slug": "ja-S5a",
+  "setId": 23636
+ },
+ {
+  "slug": "ja-S5I",
+  "setId": 23621
+ },
+ {
+  "slug": "ja-S5R",
+  "setId": 23622
+ },
+ {
+  "slug": "ja-S6a",
+  "setId": 23637
+ },
+ {
+  "slug": "ja-S6H",
+  "setId": 23623
+ },
+ {
+  "slug": "ja-S6K",
+  "setId": 23624
+ },
+ {
+  "slug": "ja-S7D",
+  "setId": 23625
+ },
+ {
+  "slug": "ja-S7R",
+  "setId": 23626
+ },
+ {
+  "slug": "ja-S8",
+  "setId": 23627
+ },
+ {
+  "slug": "ja-S8a",
+  "setId": 23638
+ },
+ {
+  "slug": "ja-S8b",
+  "setId": 23644
+ },
+ {
+  "slug": "ja-S9",
+  "setId": 23628
+ },
+ {
+  "slug": "ja-S9a",
+  "setId": 23639
+ },
+ {
+  "slug": "ja-SM0",
+  "setId": 23674
+ },
+ {
+  "slug": "ja-SM1+",
+  "setId": 23880
+ },
+ {
+  "slug": "ja-SM10",
+  "setId": 23689
+ },
+ {
+  "slug": "ja-SM10b",
+  "setId": 23704
+ },
+ {
+  "slug": "ja-SM11a",
+  "setId": 23705
+ },
+ {
+  "slug": "ja-SM11b",
+  "setId": 23706
+ },
+ {
+  "slug": "ja-SM12",
+  "setId": 23691
+ },
+ {
+  "slug": "ja-SM12a",
+  "setId": 23709
+ },
+ {
+  "slug": "ja-SM1M",
+  "setId": 23676
+ },
+ {
+  "slug": "ja-SM1S",
+  "setId": 23675
+ },
+ {
+  "slug": "ja-sm2+",
+  "setId": 23693
+ },
+ {
+  "slug": "ja-SM2K",
+  "setId": 23677
+ },
+ {
+  "slug": "ja-SM2L",
+  "setId": 23678
+ },
+ {
+  "slug": "ja-SM3+",
+  "setId": 23694
+ },
+ {
+  "slug": "ja-SM3H",
+  "setId": 23679
+ },
+ {
+  "slug": "ja-SM3N",
+  "setId": 23680
+ },
+ {
+  "slug": "ja-SM4+",
+  "setId": 23707
+ },
+ {
+  "slug": "ja-SM4A",
+  "setId": 23682
+ },
+ {
+  "slug": "ja-SM4S",
+  "setId": 23681
+ },
+ {
+  "slug": "ja-SM5+",
+  "setId": 23695
+ },
+ {
+  "slug": "ja-SM5M",
+  "setId": 23684
+ },
+ {
+  "slug": "ja-SM5S",
+  "setId": 23683
+ },
+ {
+  "slug": "ja-SM6",
+  "setId": 23685
+ },
+ {
+  "slug": "ja-SM6a",
+  "setId": 23696
+ },
+ {
+  "slug": "ja-SM6b",
+  "setId": 23697
+ },
+ {
+  "slug": "ja-SM7",
+  "setId": 23686
+ },
+ {
+  "slug": "ja-SM7a",
+  "setId": 23698
+ },
+ {
+  "slug": "ja-SM7b",
+  "setId": 23699
+ },
+ {
+  "slug": "ja-SM8",
+  "setId": 23687
+ },
+ {
+  "slug": "ja-SM8a",
+  "setId": 23700
+ },
+ {
+  "slug": "ja-SM8b",
+  "setId": 23708
+ },
+ {
+  "slug": "ja-SM9",
+  "setId": 23688
+ },
+ {
+  "slug": "ja-SM9a",
+  "setId": 23701
+ },
+ {
+  "slug": "ja-SM9b",
+  "setId": 23702
+ },
+ {
+  "slug": "ja-SMP",
+  "setId": 23881
+ },
+ {
+  "slug": "ja-SMP2",
+  "setId": 23869
+ },
+ {
+  "slug": "ja-sn10a",
+  "setId": 23703
+ },
+ {
+  "slug": "ja-sn11",
+  "setId": 23690
+ },
+ {
+  "slug": "ja-SP",
+  "setId": 23876
+ },
+ {
+  "slug": "ja-SV10",
+  "setId": 24310
+ },
+ {
+  "slug": "ja-SV11B",
+  "setId": 24349
+ },
+ {
+  "slug": "ja-SV11W",
+  "setId": 24350
+ },
+ {
+  "slug": "ja-SV1a",
+  "setId": 23598
+ },
+ {
+  "slug": "ja-SV1S",
+  "setId": 23605
+ },
+ {
+  "slug": "ja-SV1V",
+  "setId": 23606
+ },
+ {
+  "slug": "ja-SV2a",
+  "setId": 23599
+ },
+ {
+  "slug": "ja-SV2D",
+  "setId": 23608
+ },
+ {
+  "slug": "ja-SV2P",
+  "setId": 23607
+ },
+ {
+  "slug": "ja-SV3",
+  "setId": 23609
+ },
+ {
+  "slug": "ja-SV3a",
+  "setId": 23600
+ },
+ {
+  "slug": "ja-SV4a",
+  "setId": 23601
+ },
+ {
+  "slug": "ja-SV4K",
+  "setId": 23610
+ },
+ {
+  "slug": "ja-SV4M",
+  "setId": 23611
+ },
+ {
+  "slug": "ja-SV5a",
+  "setId": 23602
+ },
+ {
+  "slug": "ja-SV5K",
+  "setId": 23612
+ },
+ {
+  "slug": "ja-SV5M",
+  "setId": 23613
+ },
+ {
+  "slug": "ja-SV6",
+  "setId": 23614
+ },
+ {
+  "slug": "ja-SV6a",
+  "setId": 23603
+ },
+ {
+  "slug": "ja-SV7",
+  "setId": 23615
+ },
+ {
+  "slug": "ja-SV7a",
+  "setId": 23604
+ },
+ {
+  "slug": "ja-SV8",
+  "setId": 23777
+ },
+ {
+  "slug": "ja-SV8a",
+  "setId": 23909
+ },
+ {
+  "slug": "ja-SV9",
+  "setId": 24173
+ },
+ {
+  "slug": "ja-SV9a",
+  "setId": 24260
+ },
+ {
+  "slug": "ja-SVK",
+  "setId": 23794
+ },
+ {
+  "slug": "ja-SVLN",
+  "setId": 23798
+ },
+ {
+  "slug": "ja-SVLS",
+  "setId": 23793
+ },
+ {
+  "slug": "ja-SVP",
+  "setId": 23779
+ },
+ {
+  "slug": "ja-VS1",
+  "setId": 24180
+ },
+ {
+  "slug": "ja-web1",
+  "setId": 24141
+ },
+ {
+  "slug": "ja-XY10",
+  "setId": 23913
+ },
+ {
+  "slug": "ja-XY11a",
+  "setId": 23916
+ },
+ {
+  "slug": "ja-XY11b",
+  "setId": 23917
+ },
+ {
+  "slug": "ja-XY1a",
+  "setId": 23914
+ },
+ {
+  "slug": "ja-XY1b",
+  "setId": 23915
+ },
+ {
+  "slug": "ja-XY2",
+  "setId": 23918
+ },
+ {
+  "slug": "ja-XY3",
+  "setId": 23919
+ },
+ {
+  "slug": "ja-XY4",
+  "setId": 23920
+ },
+ {
+  "slug": "ja-XY5a",
+  "setId": 23921
+ },
+ {
+  "slug": "ja-XY5b",
+  "setId": 23922
+ },
+ {
+  "slug": "ja-XY6",
+  "setId": 23923
+ },
+ {
+  "slug": "ja-XY7",
+  "setId": 23924
+ },
+ {
+  "slug": "ja-XY8a",
+  "setId": 23925
+ },
+ {
+  "slug": "ja-XY8b",
+  "setId": 23926
+ },
+ {
+  "slug": "ja-XY9",
+  "setId": 23927
+ },
+ {
+  "slug": "ja-XYP",
+  "setId": 23908
+ },
+ {
+  "slug": "ja-SVM",
+  "setId": 24324,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-base-set-shadowless",
+  "setId": 1663,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-Pt3",
+  "setId": 24000,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-Pt1",
+  "setId": 23998,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-intense-fight-in-the-destr",
+  "setId": 24027,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-Pt4",
+  "setId": 24001,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-Pt2",
+  "setId": 23999,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW9",
+  "setId": 23906,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-undone-seal",
+  "setId": 24119,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-magma-vs-aqua-two-ambition",
+  "setId": 24124,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW7",
+  "setId": 23903,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-L-P",
+  "setId": 24023,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW4",
+  "setId": 23898,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW2",
+  "setId": 23895,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-L1",
+  "setId": 24025,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW6",
+  "setId": 23902,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW6-2",
+  "setId": 23901,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW8",
+  "setId": 23904,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW8-2",
+  "setId": 23905,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW3",
+  "setId": 23896,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW3-2",
+  "setId": 23897,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW1",
+  "setId": 23893,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW5",
+  "setId": 23899,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW5-2",
+  "setId": 23900,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW1-2",
+  "setId": 23894,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-rulers-of-the-heavens",
+  "setId": 24128,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-miracle-of-the-desert",
+  "setId": 24139,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV",
+  "setId": 23810,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-2",
+  "setId": 23811,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-everyone-s-exciting-battle",
+  "setId": 23939,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-master-deck-build-box-ex",
+  "setId": 23940,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SVN",
+  "setId": 24174,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smG",
+  "setId": 23886,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-LL",
+  "setId": 24022,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-xy-beginning-set",
+  "setId": 23983,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-3",
+  "setId": 23801,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smJ",
+  "setId": 23873,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sF",
+  "setId": 23864,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-play-promotional-cards",
+  "setId": 24155,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smM",
+  "setId": 23868,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-WCS23",
+  "setId": 23802,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-intro-pack-neo-chikorita",
+  "setId": 24160,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-intro-pack-neo-totodile",
+  "setId": 24161,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-pokemon-e-starter-deck",
+  "setId": 24167,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smN",
+  "setId": 23871,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-shiny-collection",
+  "setId": 23911,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-shockwave-tyranitar-ex-con",
+  "setId": 24092,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-imprison-gardevoir-ex-cons",
+  "setId": 24091,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-XYC",
+  "setId": 23960,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SS",
+  "setId": 23827,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-MP1",
+  "setId": 24607,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-movie-commemoration-random",
+  "setId": 24144,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-4",
+  "setId": 23796,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smE",
+  "setId": 23884,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smC",
+  "setId": 23882,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-movie-commemoration-vs-pac",
+  "setId": 24148,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-5",
+  "setId": 24231,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SS-2",
+  "setId": 23826,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-dragon-selection",
+  "setId": 23910,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-6",
+  "setId": 23799,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-7",
+  "setId": 23800,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-ME",
+  "setId": 24722,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-L2",
+  "setId": 24080,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-movie-commemoration-vs-pac-2",
+  "setId": 24149,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-torchic-constructed-starte",
+  "setId": 24132,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-mudkip-constructed-starter",
+  "setId": 24131,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-treecko-constructed-starte",
+  "setId": 24133,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-movie-commemoration-vs-pac-3",
+  "setId": 24147,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-metagross-constructed-star",
+  "setId": 24118,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-salamence-constructed-star",
+  "setId": 24126,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-8",
+  "setId": 24230,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-L2-2",
+  "setId": 24081,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-flygon-constructed-starter",
+  "setId": 24125,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-XYG",
+  "setId": 23968,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-XYB",
+  "setId": 23959,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-mcdonald-s-pokemon-e-minim",
+  "setId": 24156,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-theater-limited-vs-pack",
+  "setId": 24150,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-random-constructed-starter",
+  "setId": 24612,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-melee-pokemon-scramble",
+  "setId": 24151,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-blastoise-kyurem-ex-combo-",
+  "setId": 23938,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BKW",
+  "setId": 23947,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BKZ",
+  "setId": 23936,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BKR",
+  "setId": 23935,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BKB",
+  "setId": 23946,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-team-plasma-s-powered-half",
+  "setId": 23945,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-typhlosion-constructed-sta",
+  "setId": 24106,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-earth-s-groudon-ex-constru",
+  "setId": 24082,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-feraligatr-constructed-sta",
+  "setId": 24104,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-mirage-s-mew-constructed-s",
+  "setId": 24102,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-meganium-constructed-start",
+  "setId": 24105,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-ocean-s-kyogre-ex-construc",
+  "setId": 24083,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-XYF",
+  "setId": 23965,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-lightning-quick-constructi",
+  "setId": 24110,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-holon-research-tower-water",
+  "setId": 24088,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-rayquaza-constructed-start",
+  "setId": 24116,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-fire-quick-construction-pa",
+  "setId": 24108,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-psychic-quick-construction",
+  "setId": 24111,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-grass-quick-construction-p",
+  "setId": 24109,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-holon-research-tower-fire-",
+  "setId": 24086,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-fighting-quick-constructio",
+  "setId": 24107,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-deoxys-constructed-starter",
+  "setId": 24115,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-water-quick-construction-p",
+  "setId": 24112,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-leafeon-vs-metagross-exper",
+  "setId": 24028,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-keldeo-battle-strength-dec",
+  "setId": 23941,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-holon-research-tower-light",
+  "setId": 24087,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-leafeon-vs-metagross-exper-2",
+  "setId": 24029,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BK",
+  "setId": 23950,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BK-2",
+  "setId": 23952,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BK-3",
+  "setId": 23951,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smF",
+  "setId": 23885,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-BW",
+  "setId": 24514,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sPD",
+  "setId": 23832,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sPZ",
+  "setId": 23833,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SNP",
+  "setId": 23988,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SNP-2",
+  "setId": 23987,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-first-partner-collection-2",
+  "setId": 24584,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-11th-movie-commemoration-s",
+  "setId": 24145,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-pokepark-forest",
+  "setId": 24154,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-CS1",
+  "setId": 23933,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sN",
+  "setId": 23835,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-kids-wb-promos",
+  "setId": 2214,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sp4",
+  "setId": 23841,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-mega-evolution-unnumbered-",
+  "setId": 24781,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-e-reader-sample-cards",
+  "setId": 24493,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SI",
+  "setId": 23859,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-pcg-p-promotional-cards",
+  "setId": 24138,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-9",
+  "setId": 23803,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smH",
+  "setId": 23888,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-dp-p-promotional-cards",
+  "setId": 24137,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sD",
+  "setId": 23853,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-break-starter-pack",
+  "setId": 23963,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-adv-p-promotional-cards",
+  "setId": 24140,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smA",
+  "setId": 23879,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-adv-expansion-pack",
+  "setId": 24129,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-dpt-p-promotional-cards",
+  "setId": 24136,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-p-promotional-cards",
+  "setId": 24143,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smK",
+  "setId": 23872,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-10",
+  "setId": 23806,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-s8a-P",
+  "setId": 23847,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-t-promotional-cards",
+  "setId": 24157,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sA",
+  "setId": 23861,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sA-2",
+  "setId": 23857,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sB",
+  "setId": 23863,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sA-3",
+  "setId": 23858,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sA-4",
+  "setId": 23862,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sA-5",
+  "setId": 23860,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-s8a-G",
+  "setId": 23838,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sp5",
+  "setId": 23840,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-world-champions-pack",
+  "setId": 24053,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sK",
+  "setId": 23837,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-master-kit-side-deck",
+  "setId": 24159,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sp2",
+  "setId": 23852,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-ppp-promotional-cards",
+  "setId": 24152,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-11",
+  "setId": 23804,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sp6",
+  "setId": 23831,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-j-promotional-cards",
+  "setId": 24142,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smB",
+  "setId": 23878,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SM1+-2",
+  "setId": 23692,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-12",
+  "setId": 23812,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-intro-pack-squirtle",
+  "setId": 24169,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-intro-pack-bulbasaur",
+  "setId": 24168,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smI",
+  "setId": 23875,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-pokemon-tcg-classic-chariz",
+  "setId": 23818,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-pokemon-tcg-classic-blasto",
+  "setId": 23817,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-pokemon-tcg-classic-venusa",
+  "setId": 23819,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-XYH",
+  "setId": 23969,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-13",
+  "setId": 23807,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-14",
+  "setId": 23808,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-MBG",
+  "setId": 24444,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-MBD",
+  "setId": 24445,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-XYA",
+  "setId": 23958,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-battle-theme-deck-victini",
+  "setId": 23934,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sC",
+  "setId": 23854,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sC2",
+  "setId": 23843,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sEF",
+  "setId": 23844,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-15",
+  "setId": 23809,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sC-2",
+  "setId": 23855,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sEK",
+  "setId": 23842,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-MEE",
+  "setId": 24793,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-MEZ",
+  "setId": 24792,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-16",
+  "setId": 23795,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-MEM",
+  "setId": 24794,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-XYD",
+  "setId": 23961,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-pikachu-world-collection-p",
+  "setId": 2205,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-arceus-lv-x-deck-lightning",
+  "setId": 24055,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-s0",
+  "setId": 23830,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-arceus-lv-x-deck-grass-fir",
+  "setId": 24054,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sLD",
+  "setId": 23866,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-SV-17",
+  "setId": 23805,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-hydreigon-half-deck",
+  "setId": 23943,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sJ",
+  "setId": 23839,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-garchomp-half-deck",
+  "setId": 23942,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-yveltal-half-deck",
+  "setId": 23971,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-xerneas-half-deck",
+  "setId": 23980,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-entry-pack-dpt-giratina",
+  "setId": 24043,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-entry-pack-dpt-palkia",
+  "setId": 24044,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-entry-pack-dpt-dialga",
+  "setId": 24042,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smP1",
+  "setId": 23877,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-PtS",
+  "setId": 24006,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-PtM",
+  "setId": 24004,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-PtR",
+  "setId": 24005,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-battle-starter-deck-raichu",
+  "setId": 24058,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sLL",
+  "setId": 23836,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-battle-starter-deck-blasto",
+  "setId": 24056,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-battle-starter-deck-torter",
+  "setId": 24059,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-master-kit-bulbasaur",
+  "setId": 24100,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-battle-starter-deck-magmor",
+  "setId": 24057,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sp1",
+  "setId": 23856,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-battle-academy",
+  "setId": 23822,
+  "메모": "일본판. 예전엔 영문판 101장이 같이 섞여 있었다(2026-08-09에 갈랐다)"
+ },
+ {
+  "slug": "en-ba24",
+  "setId": 23520,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smL",
+  "setId": 23870,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sH",
+  "setId": 23865,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sun-moon-unnumbered-energi",
+  "setId": 24785,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-battle-academy",
+  "setId": 2686,
+  "메모": "ja-battle-academy에 섞여 있던 영문판 101장을 갈라낸 세트(2026-08-09)"
+ },
+ {
+  "slug": "en-world-championship-decks",
+  "setId": 2282,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-prize-pack-series-cards",
+  "setId": 22880,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-miscellaneous-cards-products",
+  "setId": 2374,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-league-championship-cards",
+  "setId": 1539,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-deck-exclusives",
+  "setId": 1840,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-jumbo-cards",
+  "setId": 1528,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-sm-the-best-of-xy",
+  "setId": 23887,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-ex-battle-boost",
+  "setId": 23912,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-l2-revival-legends",
+  "setId": 24021,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-l3-clash-at-the-summit",
+  "setId": 24024,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-l1-soulsilver-collection",
+  "setId": 24026,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-blister-exclusives",
+  "setId": 2289,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-battle-academy-2022",
+  "setId": 3051,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-trading-card-game-classic",
+  "setId": 23323,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-sm-trainer-kit-alolan-sandslash-al",
+  "setId": 2208,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-professor-program-promos",
+  "setId": 2332,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-alternate-art-promos",
+  "setId": 1938,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-vending-machine-cards-series-3-gre",
+  "setId": 24208,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-m-master-deck-build-box-power-styl",
+  "setId": 23985,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-m-master-deck-build-box-speed-styl",
+  "setId": 23986,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-ex-battle-stadium",
+  "setId": 1853,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-magma-deck-kit",
+  "setId": 24123,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-aqua-deck-kit",
+  "setId": 24122,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-trick-or-trade-booster-bundle-2024",
+  "setId": 23561,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-trick-or-trade-booster-bundle",
+  "setId": 3179,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-trick-or-trade-booster-bundle-2023",
+  "setId": 23266,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-smd-ash-vs-team-rocket-deck-kit",
+  "setId": 23883,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-countdown-calendar-promos",
+  "setId": 2155,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-burger-king-promos",
+  "setId": 2175,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-first-partner-pack",
+  "setId": 2776,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-xye-emboar-ex-vs-togekiss-ex-deck-",
+  "setId": 23962,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "en-ash-vs-team-rocket-deck-kit-jp-exc",
+  "setId": 23095,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-silver-deck-kit",
+  "setId": 24113,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-movie-commemoration-vs-pack-sky-sp",
+  "setId": 24503,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-black-deck-kit",
+  "setId": 24134,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-battle-gift-set-thundurus-vs-torna",
+  "setId": 23944,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-emerald-gift-box-deoxys",
+  "setId": 24127,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-infernape-vs-gallade-sp-deck-kit-i",
+  "setId": 24030,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-gift-box-latios",
+  "setId": 24121,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-gift-box-latias",
+  "setId": 24120,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-team-plasma-battle-gift-set",
+  "setId": 23949,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-mewtwo-vs-genesect-deck-kit-mewtwo",
+  "setId": 23937,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-garchomp-vs-charizard-sp-deck-kit-",
+  "setId": 24033,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-mewtwo-vs-genesect-deck-kit-genese",
+  "setId": 23955,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-scarlet-violet-unnumbered-energies",
+  "setId": 24420,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-gift-box-mew-lucario-mew-quarter-d",
+  "setId": 24093,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-emerald-gift-box-rayquaza",
+  "setId": 24130,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-gift-box-mew-lucario-lucario-quart",
+  "setId": 24094,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-gift-box-mew-lucario-mightyena-qua",
+  "setId": 24096,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-gift-box-mew-lucario-crawdaunt-qua",
+  "setId": 24095,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-giratina-vs-dialga-deck-kit-girati",
+  "setId": 24046,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-giratina-vs-dialga-deck-kit-dialga",
+  "setId": 24045,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-garchomp-vs-charizard-sp-deck-kit--2",
+  "setId": 24032,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-dpt-gift-box-chimchar",
+  "setId": 24035,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-dpt-gift-box-piplup",
+  "setId": 24037,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-infernape-vs-gallade-sp-deck-kit-g",
+  "setId": 24031,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-dpt-gift-box-turtwig",
+  "setId": 24038,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-master-kit-torchic",
+  "setId": 24158,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-dpt-gift-box-pikachu",
+  "setId": 24036,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-ss-silver-lance-jet-black-spirit-j",
+  "setId": 23829,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-gift-box-mew-lucario-pokemon-star",
+  "setId": 24098,
+  "메모": "덤프에서 만든 세트"
+ },
+ {
+  "slug": "ja-corocoro-promotional-cards",
+  "setId": 24194,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-japanese-cd-promo",
+  "setId": 24568,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-unnumbered-promotional-cards",
+  "setId": 24172,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-expansion-pack-no-rarity",
+  "setId": 23740,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-how-i-became-a-pokemon-card",
+  "setId": 24195,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-quick-starter-gift-set-red-deck",
+  "setId": 24598,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-quick-starter-gift-set-green-deck",
+  "setId": 24597,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-vending-machine-cards-series-1-blu",
+  "setId": 24206,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-gym-challenge-2",
+  "setId": 24202,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-neo-premium-file-2",
+  "setId": 24017,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-battle-road",
+  "setId": 24199,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-rampardos-the-attacker-constructed",
+  "setId": 24048,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-world-hobby-fair",
+  "setId": 24200,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-southern-island",
+  "setId": 24019,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-vending-machine-cards-series-2-red",
+  "setId": 24207,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dp4-dawn-dash",
+  "setId": 23976,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-10th-movie-commemoration-set",
+  "setId": 24146,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-city-gym-decks",
+  "setId": 24175,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dp5-cry-from-the-mysterious",
+  "setId": 23979,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dp3-shining-darkness",
+  "setId": 23975,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-pokemon-card-fan-club",
+  "setId": 24204,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-neo-premium-file-3",
+  "setId": 24018,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dp5-temple-of-anger",
+  "setId": 23978,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dp2-secret-of-the-lakes",
+  "setId": 23974,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-pokemon-card-information-promotion",
+  "setId": 24198,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dp1-space-time-creation",
+  "setId": 23973,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-heatran-vs-regigigas-deck-kit",
+  "setId": 24039,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dp4-moonlit-pursuit",
+  "setId": 23977,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-neo-premium-file-1",
+  "setId": 24013,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-dialga-lv-x-constructed-standard-d",
+  "setId": 24050,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-palkia-lv-x-constructed-standard-d",
+  "setId": 24051,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-entry-pack",
+  "setId": 24040,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-magmortar-vs-electivire-deck-kit",
+  "setId": 24052,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-entry-pack-08",
+  "setId": 24041,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-bastiodon-the-defender-half-deck",
+  "setId": 24047,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ },
+ {
+  "slug": "ja-champion-road",
+  "setId": 24201,
+  "메모": "2026-08-09 PPT로 도감을 갈아엎으며 새로 만든 세트"
+ }
+]

@@ -20,7 +20,7 @@ type Dict = {
   koreanizeEnglishSetName: (name: string) => string;
   translateSearchQuery: (q: string) => string;
   canonicalizeSearchTerm: (q: string) => string;
-  translateSearchQueryToEnglish: (q: string, edition?: 'japanese' | 'english' | 'korean') => string;
+  translateSearchQueryToEnglish: (q: string, edition?: 'japanese' | 'english') => string;
 };
 
 let cached: Dict | null = null;

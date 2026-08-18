@@ -3,6 +3,7 @@ import packNames from '../data/packNames.json';
 import cardNameKoEn from '../data/cardNameKoEn.json';
 import cardNamesKo from '../data/cardNamesKo.json';
 import cardNamesEn from '../data/cardNamesEn.json';
+import setNamesKo from '../data/setNamesKo.json';
 import { CARD_NAME_KO_TO_EN, STRUCTURAL_EN_TO_KO } from './koreanizeEnglishTitle';
 
 // ── 📏 고치기 전 기준값 (2026-08-08, 배포 직전) ──────────────────────────────
@@ -66,6 +67,11 @@ const 붙임열쇠 = (s: string) => 악센트빼기(s).replace(/[\s-]/g, '').rep
 const koTerms: string[] = [
   ...(pokemonNames as { ko: string }[]).map((e) => e.ko),
   ...(packNames as { ko: string }[]).map((e) => e.ko),
+  // ⚠️ **세트 이름도 한글로 찾을 수 있어야 한다.** 카드 이름은 되는데 세트는 안 됐다 —
+  //    「프론티어」·「메갈로」가 0건이었다(2026-08-09 사장님 지적: 방문자가 닿는 곳은
+  //    전부 한글로). 고르면 그 세트 화면으로 보낸다(App.tsx의 handleSelectSuggestion).
+  //    다시 만들기: scripts/gen-set-name-suggestions.mts
+  ...(setNamesKo as { ko: string }[]).map((e) => e.ko),
   ...Object.keys(cardNameKoEn as Record<string, string>),
   ...CARD_NAME_KO_TO_EN.keys(),
   // 굿즈·스타디움처럼 카드명 사전에 없고 영문 대조표에만 있는 이름.
@@ -192,8 +198,10 @@ export function getLocalSuggestions(query: string, limit = 8): string[] {
   };
   // 부분 일치는 "단어 시작"에서만 본다. 아무 데나 걸리게 두면 "이브"에 "드닐레이브",
   // "뮤"에 "줄뮤마"처럼 관계없는 이름이 올라와 목록이 미덥지 않아 보인다.
+  // ⚠️ 괄호·빗금 뒤도 낱말이 시작하는 자리다. 안 넣었더니 「베이스 세트 (섀도우리스)」를
+  //    "섀도우리스"로 못 찾았다(2026-08-09). 「시드라(델타종)」의 "델타종"도 같은 경우다.
   const wordStart = new RegExp(
-    `(^|[\\s:·-])${(따옴표섞임 ? 곧게(q) : q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+    `(^|[\\s:·\\-(\\[/])${(따옴표섞임 ? 곧게(q) : q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
     'i',
   );
   for (const term of koTerms) 담기(term, term, q);

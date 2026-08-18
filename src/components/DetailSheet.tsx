@@ -7,7 +7,18 @@ import { 시트가스스로닫힘 } from '../lib/sheetHistory';
 //
 // 목록은 시트 뒤에 그대로 남는다. 닫고 바로 옆 카드를 눌러 비교하는 게 시세 보는
 // 핵심 동작이라, 목록 위치를 잃지 않는 게 중요하다.
-export function DetailSheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+export function DetailSheet({
+  open,
+  onClose,
+  아래막힘 = 0,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** 화면 아래에 깔린 고정 띠의 높이(px). 그만큼 시트를 짧게 하고 위로 띄운다. */
+  아래막힘?: number;
+  children: React.ReactNode;
+}) {
   // 시트가 열리면 뒤 목록이 스크롤되지 않게 막는다. 안 막으면 시트 안에서 스크롤하다
   // 끝에 닿는 순간 뒤 목록이 밀려 올라가 위치를 잃는다.
   // onClose는 부모가 렌더할 때마다 새 함수라, 의존성에 넣으면 effect가 매 렌더
@@ -58,10 +69,29 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
     // 시트는 lg 이상에서 CSS(lg:hidden)로 감춰지지만 open은 그대로 true라, 이 effect는
     // 넓은 화면에서도 실행된다. 그때 body를 잠그면 화면엔 시트가 없는데 목록 스크롤만
     // 죽는다("PC 전체화면에서 스크롤 안 됨"). 시트가 실제로 뜨는 좁은 화면에서만 잠근다.
+    // ⚠️⚠️ **창이 넓어지면 잠금을 풀어야 한다.** 예전엔 열 때 한 번만 재고 끝이라,
+    //    좁은 화면에서 카드를 열어 잠근 뒤 창을 넓히면(또는 폰을 돌리면) **시트는
+    //    사라지는데 잠금만 남았다.** 화면엔 아무것도 안 뜬 채 스크롤만 죽는다
+    //    (사장님 지적 2026-08-15: "스크롤하기 너무 어려워" · 실측: 폭 1280 · 시트 안
+    //    보임 · body overflow hidden · 내용 3,160px 중 720px만 보임).
+    //    그래서 `change`를 듣고 넓어지면 바로 되돌린다.
     const narrow = window.matchMedia('(max-width: 1023px)');
-    if (!narrow.matches) return;
-
     const prev = document.body.style.overflow;
+    const 잠그기 = () => {
+      if (narrow.matches) {
+        document.body.style.overflow = 'hidden';
+        document.documentElement.dataset.sheet = 'open';
+      } else {
+        document.body.style.overflow = prev;
+        delete document.documentElement.dataset.sheet;
+      }
+    };
+    narrow.addEventListener('change', 잠그기);
+    if (!narrow.matches) {
+      // 넓은 화면에서는 잠그지 않지만, **넓어졌을 때 풀 수 있게** 듣기는 계속한다.
+      return () => narrow.removeEventListener('change', 잠그기);
+    }
+
     document.body.style.overflow = 'hidden';
     // 시트가 열린 동안 머리말의 로고·소개글을 접는다(index.css). 폰에서 머리말이
     // 812px 중 310px를 차지한 채 굳어 있어 "위가 통째로 멈춘" 것처럼 보였다.
@@ -76,6 +106,7 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
     window.addEventListener('keydown', onKey);
     return () => {
+      narrow.removeEventListener('change', 잠그기);
       document.body.style.overflow = prev;
       delete document.documentElement.dataset.sheet;
       window.removeEventListener('popstate', onPop);
@@ -103,15 +134,20 @@ export function DetailSheet({ open, onClose, children }: { open: boolean; onClos
         type="button"
         aria-label="닫기"
         onClick={onClose}
-        className="sheet-backdrop absolute inset-x-0 bottom-0 bg-black/40"
-        style={{ top: topGap }}
+        className="sheet-backdrop absolute inset-x-0 bg-black/40"
+        // ⚠️ 어두운 막도 띠 **위에서** 끝낸다. 막이 띠를 덮으면 「비교하기」가 안 눌린다.
+        style={{ top: topGap, bottom: 아래막힘 }}
       />
       {/* 폰에서는 화면 폭을 꽉 채우고, 태블릿·좁은 PC(768~1023px)에서는 가운데로 모아
           너무 옆으로 늘어지지 않게 한다 — 아래에서 올라오는 시트의 보편적인 모양이다.
           sm 이상에서는 아래쪽 모서리도 둥글리고 살짝 띄운다. */}
       <div
         className="sheet-panel relative mx-auto w-full overflow-y-auto rounded-t-2xl bg-white px-4 pb-8 shadow-xl sm:mb-3 sm:max-w-lg sm:rounded-2xl"
-        style={{ maxHeight: `calc(100dvh - ${topGap}px)` }}
+        // ⚠️⚠️ **아래에 깔린 띠(비교 담기 바)만큼 짧게 하고 그만큼 띄운다.**
+        //    처음엔 CSS로 `padding-bottom`만 더했는데, 그러면 **패널이 길어져 화면 밖으로
+        //    내려갈 뿐**이라 가려지는 양이 오히려 31px → 46px로 늘었다(실측).
+        //    높이를 줄이고(`max-height`) 위로 밀어야(`margin-bottom`) 실제로 자리가 난다.
+        style={{ maxHeight: `calc(100dvh - ${topGap}px - ${아래막힘}px)`, marginBottom: 아래막힘 || undefined }}
       >
         {/* 손잡이를 눌러 닫는다(배경 어두운 곳 탭·뒤로가기로도 닫힘). 회색 바만 두면
             눌리는지 알 수 없어서, 위아래 여백까지 품은 버튼으로 만들어 손가락으로 누를

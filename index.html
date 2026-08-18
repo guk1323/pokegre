@@ -9,9 +9,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>포켓몬 카드 시세 | pokegre — 포켓몬 카드의 모든 것</title>
+    <!-- ⚠️ **「한글판 시세」라고 적지 마라.** 2026-08-10에 이베이 한글판을 뺐고 판은
+         일본판·북미판 둘뿐이다. 여기 적힌 말이 그대로 구글·네이버 검색결과에 나가므로,
+         없는 기능을 적어 두면 그걸 보고 들어온 사람이 빈손으로 나간다. -->
     <meta
       name="description"
-      content="포켓몬 카드의 모든 것. 일본판·북미판·한글판 시세를 한국어로 보고, 카드 뽑기·센터링 측정·세트별·작가별 목록까지 씁니다."
+      content="포켓몬 카드의 모든 것. 일본판·북미판 시세를 한국어로 보고, 카드 뽑기·센터링 측정·세트별·작가별 목록까지 씁니다."
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://pokegre.com/" />
@@ -26,7 +29,7 @@
     <meta property="og:title" content="pokegre — 포켓몬 카드의 모든 것" />
     <meta
       property="og:description"
-      content="일본판·북미판·한글판 포켓몬 카드 시세를 한국어로 봅니다. 카드 뽑기·센터링 측정·세트별 목록까지."
+      content="일본판·북미판 포켓몬 카드 시세를 한국어로 봅니다. 카드 뽑기·센터링 측정·세트별 목록까지."
     />
     <meta property="og:url" content="https://pokegre.com/" />
     <meta property="og:image" content="https://pokegre.com/og.jpg" />
@@ -37,9 +40,18 @@
     <meta name="twitter:title" content="pokegre — 포켓몬 카드의 모든 것" />
     <meta
       name="twitter:description"
-      content="일본판·북미판·한글판 포켓몬 카드 시세를 한국어로 봅니다. 카드 뽑기·센터링 측정·세트별 목록까지."
+      content="일본판·북미판 포켓몬 카드 시세를 한국어로 봅니다. 카드 뽑기·센터링 측정·세트별 목록까지."
     />
     <meta name="twitter:image" content="https://pokegre.com/og.jpg" />
+    <!-- ⚠️⚠️ **첫 그림보다 먼저 발라야 한다.** 리액트가 뜬 뒤에 바르면 밝은 화면이 한 번
+         번쩍하고 어두워진다(FOUC). 그래서 여기서 한 번 바르고, 그 뒤는 src/lib/theme.ts가
+         맡는다. **열쇠 이름·값을 두 곳이 같게 둘 것.** -->
+    <script>
+      try {
+        var t = localStorage.getItem('pokegre_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

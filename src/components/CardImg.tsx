@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CARD_BACK, thumb } from '../lib/cardImg';
+import { CARD_BACK, cardImg, thumb } from '../lib/cardImg';
 
 /**
  * 카드 그림. 못 불러오면 뒷면으로 바꾼다.
@@ -20,19 +20,50 @@ export function CardImg({
   className,
   lazy = true,
   w = 320,
+  일반판그림,
 }: {
   src: string;
   alt: string;
   className?: string;
   lazy?: boolean;
   w?: number;
+  /**
+   * **이 그림은 그 카드 것이 아니라 같은 번호의 일반판 것**일 때 켠다.
+   * ⚠️ 저쪽 CDN에 무늬 변종 그림이 없어(403) 카드 뒷면이 나오던 자리를 메운 것이라,
+   *    **반드시 밝혀야 한다** — 마스터볼 미러는 그림 자체가 값어치라 말없이 일반판을
+   *    보여 주면 사는 사람이 헷갈린다(사장님 지시 2026-08-16).
+   */
+  일반판그림?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   // 다른 카드로 바뀌면 다시 시도한다(앞 카드가 실패했다고 계속 뒷면일 이유가 없다).
   useEffect(() => setFailed(false), [src]);
+
+  // ⚠️ 표시가 없을 때는 **감싸지 않고 <img>를 그대로** 돌려준다. 쓰는 쪽이 넘긴
+  //    className으로 크기를 잡고 있어서, 늘 감싸면 지금 화면들의 배치가 어긋난다.
+  if (일반판그림 && !failed) {
+    return (
+      <span className="relative block h-full w-full">
+        {안쪽()}
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/60 px-1 py-0.5 text-center text-[9px] font-bold leading-tight text-white">
+          일반판 그림
+        </span>
+      </span>
+    );
+  }
+  return 안쪽();
+
+  function 안쪽() {
   return (
     <img
-      src={failed ? CARD_BACK : thumb(src, w) || src}
+      // ⚠️⚠️ **`cardImg`를 꼭 거친다.** TCGdex 주소는 확장자가 없는 **베이스**라
+      //    (`…/ja/SV/SV2a/152`) 그대로 프록시에 넣으면 그림이 아니라 302가 온다 —
+      //    화면에는 카드 뒷면만 뜬다. `cardImg`가 `/high.webp`를 붙여 준다.
+      //    2026-08-13에 도감 전수 점검에서 잡았다: **62개 세트 3,783장**이 이렇게
+      //    뒷면으로 나가고 있었다(ja-SV2a·ja-SV8a·en-gym2·en-A1… 시세 화면 포함).
+      //    ⚠️ 이미 완성된 주소(.png/.jpg/.webp)는 `cardImg`가 그대로 돌려주므로,
+      //       여기서 한 번 더 걸어도 다른 소스는 안 다친다(스니커덩크·limitless 등).
+      src={failed ? CARD_BACK : thumb(cardImg(src), w) || src}
       alt={alt}
       className={className}
       loading={lazy ? 'lazy' : undefined}
@@ -40,4 +71,5 @@ export function CardImg({
       onError={() => setFailed(true)}
     />
   );
+  }
 }

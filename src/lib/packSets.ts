@@ -14,19 +14,19 @@ export const NA_REGULAR: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    { rolls: [['Hyper rare', 0.007], ['Special illustration rare', 0.0115], ['Illustration rare', 0.077]], fb: 'cu' },
+    { rolls: [['Hyper rare', 0.021], ['Special illustration rare', 0.0345], ['Illustration rare', 0.077]], fb: 'cu' },
     { rolls: [['Ultra Rare', 0.066], ['Double rare', 0.169], ['ACE SPEC Rare', 0.05]], fb: 'rare' },
   ],
 };
 // 영문판 메가 시리즈(Mega Evolution) 전용 — 세트 데이터로 직접 확인(2026-07-26):
 // 금색 HR·ACE가 없고, 대신 일본판 MUR에 해당하는 MHR(메가 하이퍼레어) 2장이 최상위다.
-// MHR 0.07%(약 1,430팩당 1장)는 사용자 검증 완료(2026-07-26) — 해외 실측 집계가
-// 1,200~1,500팩당 1장(0.067~0.083%)이라 이 값이 그 한가운데다.
+// ⚠️ 실물 MHR은 0.07%(약 1,430팩당 1장)지만, 위 JP_MEGA와 같은 이유로 시뮬레이터에서는
+// 올려 쓴다(2026-08-11) — 영문판은 하루 4팩뿐이라 실물 비율이면 영영 못 본다.
 export const NA_MEGA: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    { rolls: [['Mega Hyper Rare', 0.0007], ['Special illustration rare', 0.0115], ['Illustration rare', 0.077]], fb: 'cu' },
+    { rolls: [['Mega Hyper Rare', 0.019], ['Special illustration rare', 0.0345], ['Illustration rare', 0.077]], fb: 'cu' },
     { rolls: [['Ultra Rare', 0.066], ['Double rare', 0.169]], fb: 'rare' },
   ],
 };
@@ -40,7 +40,7 @@ export const NA_PRISMATIC: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    { rolls: [['Hyper rare', 0.00556], ['Special illustration rare', 0.0222]], fb: 'cu' },
+    { rolls: [['Hyper rare', 0.01668], ['Special illustration rare', 0.0666]], fb: 'cu' },
     { rolls: [['Ultra Rare', 0.0769], ['Double rare', 0.1667], ['ACE SPEC Rare', 0.0476]], fb: 'rare' },
   ],
 };
@@ -49,7 +49,7 @@ export const NA_151: RateProfile = {
   commons: 5,
   uncommons: 3,
   slots: [
-    { rolls: [['Hyper rare', 0.0196], ['Special illustration rare', 0.03125], ['Illustration rare', 0.0833]], fb: 'cu' },
+    { rolls: [['Hyper rare', 0.0588], ['Special illustration rare', 0.09375], ['Illustration rare', 0.0833]], fb: 'cu' },
     { rolls: [['Ultra Rare', 0.0625], ['Double rare', 0.1667]], fb: 'rare' },
   ],
 };
@@ -62,8 +62,8 @@ export const JP_REGULAR: RateProfile = {
   slots: [
     {
       rolls: [
-        ['Hyper rare', 0.0028],
-        ['Special illustration rare', 0.007],
+        ['Hyper rare', 0.0084],
+        ['Special illustration rare', 0.021],
         ['Ultra Rare', 0.0235],
         ['Illustration rare', 0.1],
         ['ACE SPEC Rare', 0.0333],
@@ -79,16 +79,18 @@ export const JP_REGULAR: RateProfile = {
 // MUR 봉입률: 사용자 조사 자료(2026-07) 기준 50~60박스당 1장, 전 세트 동일 →
 // 팩당 0.00033으로 박스 환산 약 1/50(박스 SR+ 보장 배분 포함, 시뮬레이션 검증).
 // ACE는 메가 세트에 수록이 없어 뺐다.
-// MUR 0.03%(약 3,333팩 = 박스 111개당 1장)는 사용자 검증 완료(2026-07-26).
-// 실물은 세트에 따라 50~60박스~100박스당 1장 수준이라 그 하한(가장 드문 쪽)을 쓴다.
+// ⚠️ **실물 봉입률(0.03% · 3,333팩)은 시뮬레이터에 그대로 못 쓴다**(2026-08-11 사장님 지시).
+// 실물 수치는 "박스를 몇 개씩 사는 사람" 기준이라, 하루 예산이 정해진 여기서는 **한 달을
+// 매일 해도 최상위를 한 번도 못 본다**(실측: 30일 540팩에 0.16장·볼 확률 16%).
+// 다른 세트의 최상위(일본 일반 HR 119팩)와 **비슷한 체감**이 되게 133팩당 1장으로 올렸다.
 export const JP_MEGA: RateProfile = {
   commons: 3,
   uncommons: 1,
   slots: [
     {
       rolls: [
-        ['Mega Ultra Rare', 0.0003],
-        ['Special illustration rare', 0.007],
+        ['Mega Ultra Rare', 0.0075],
+        ['Special illustration rare', 0.021],
         ['Ultra Rare', 0.0235],
         ['Illustration rare', 0.1],
         ['Double rare', 0.15],
@@ -108,8 +110,8 @@ export const JP_151: RateProfile = {
     { rolls: [['Illustration rare', 0.15]], fb: 'cu' },
     {
       rolls: [
-        ['Hyper rare', 0.004],
-        ['Special illustration rare', 0.009],
+        ['Hyper rare', 0.012],
+        ['Special illustration rare', 0.027],
         ['Ultra Rare', 0.037],
         ['Double rare', 0.225],
       ],
@@ -403,8 +405,12 @@ export const FIRST_BONUS = 50000; // 처음 출석하면 바로 여러 팩을 �
 export const STREAK_DAYS = 7; // 연속 출석 보너스 주기
 export const STREAK_BONUS = 30000;
 // 안 들어온 날짜만큼 무한정 쌓이면 어느 날 한 번에 털고 다시 안 온다. 상한을 두면
-// "모았으니 이제 쓰자"가 되고, 그래도 영문판 부스터 46개를 한 번에 지를 수 있다.
-export const MAX_BALANCE = 300000;
+// "모았으니 이제 쓰자"가 되고, 그래도 영문판 부스터를 수십 개 한 번에 지를 수 있다.
+// ⚠️ 2026-08-11에 30만 → 50만으로 올렸다(사장님 지시). 상한에 닿은 사람이 나왔는데,
+//    그때 출석해도 GP가 한 푼도 안 들어와 「출석할 이유가 없는」 상태가 됐다.
+//    ⚠️ 상한에 닿아도 **출석은 계속 할 수 있어야 한다** — 연속 기록이 끊기면 안 된다.
+//       화면의 출석 버튼을 상한 때문에 잠그지 말 것(PackSim.tsx).
+export const MAX_BALANCE = 500000;
 
 // 커뮤니티에 뽑기 자랑글을 올리면 주는 보상(하루 1번). 자랑 → 보상 → 팩 하나 더 →
 // 또 자랑…으로 뽑기와 커뮤니티가 서로 돌게 하는 장치다.

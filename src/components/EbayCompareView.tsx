@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { CardImg } from './CardImg';
-import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, 대표등급, 등급순서값, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
+import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, 대표등급, 등급순서값, 등급확인안됨, type EbayCard, type EbayGradeStat } from '../api/ebayPrices';
 import { KrwHint } from './KrwHint';
 
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -12,7 +12,9 @@ const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' 
 // 카드가 바뀌면 순서도 바뀌어, 같은 자료인데 화면마다 다르게 보였다.
 function gradeOrder(cards: EbayCard[]): string[] {
   const seen = new Set<string>();
-  for (const c of cards) for (const g of c.grades) seen.add(g.grade);
+  // ⚠️⚠️ **「등급 확인 안 됨」 줄은 비교표에서 아예 뺀다.** 이 표는 값을 나란히 놓고
+  //    견주는 곳인데 그 칸은 값을 안 보여 주므로(`등급확인안됨`) 빈 줄만 생긴다.
+  for (const c of cards) for (const g of c.grades) if (!등급확인안됨(g.grade)) seen.add(g.grade);
   return [...seen].sort((a, b) => 등급순서값(a) - 등급순서값(b));
 }
 
@@ -38,7 +40,10 @@ function Row({ label, cards, render }: { label: string; cards: EbayCard[]; rende
   );
 }
 
-// 운영자 전용(베타) 이베이 카드 비교. 담아둔 2장의 등급별 낙찰가를 나란히 본다.
+// 이베이 카드 비교. 담아둔 2장의 등급별 낙찰가를 나란히 본다.
+// ⚠️ **운영자 전용이 아니다.** 오래 「운영자 전용(베타)」라 적혀 있었는데 실제로는
+//    `showCompare = true`라 **누구에게나 보인다**(2026-08-13 확인). 적힌 것만 믿고
+//    「안 보이는 기능」으로 다루면 화면에 그대로 나가는 것을 손 안 대게 된다.
 export function EbayCompareView({
   cards,
   onClose,
@@ -58,7 +63,7 @@ export function EbayCompareView({
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-bold text-black">
-            카드 비교 · 이베이 <span className="ml-1 text-[10px] font-semibold text-amber-500">베타</span>
+            카드 비교 · 이베이 등급별 낙찰가
           </h2>
           <button type="button" onClick={onClose} className="text-neutral-400 hover:text-black" aria-label="닫기">
             ✕

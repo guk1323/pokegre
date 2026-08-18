@@ -36,7 +36,7 @@ export function CardTile({
         selected ? 'ring-2 ring-inset ring-black' : 'ring-1 ring-inset ring-neutral-200'
       }`}
     >
-      <div className="relative h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
+      <div className="card-dim relative h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
         {/* 스니덩크 원본은 1000x730 가로 캔버스 한가운데에 카드가 가로 44%·세로 84%만
             차지하도록 들어 있다(카드 6장 실측, 여백은 늘 같다). 그대로 두면 카드가 작게
             떠 있어서 예전에는 CSS로 1.55배 키웠는데, 그러면 이베이 탭보다 8% 작게 나오고

@@ -59,7 +59,23 @@ export const 레어도표 = new Map<string, string[]>([
   ['RADIANT', ['Radiant Rare']],
   ['찬란한', ['Kagayaku']],
   ['PROMO', ['Promo']],
+  // ── 여기부터는 **알아듣기만 하고 자동완성에는 안 내는** 코드다(아래 `자동완성안함`).
+  //    ⚠️ 왜 갈라 뒀나: 방문자 검색 기록을 다 재 보니 「플러시 C :1ED」가 **19번**으로
+  //       0건 2등이었다(2026-08-16). 스니커덩크·장터에서는 커먼을 「C」, 언커먼을 「U」로
+  //       적는데 우리는 그 글자를 몰라 이름의 일부로 보고 0건을 냈다.
+  //    ⚠️ **그렇다고 자동완성에 내면 안 된다.** 커먼만 14,000장이라 「○○ C」가 목록을
+  //       통째로 덮는다. 위 대표 코드들과 달리 이건 좁히는 데 도움이 안 되는 등급이다
+  //       (이 파일 첫머리에 적힌 「Common·Rare 같은 건 안 만든다」가 그 뜻이다).
+  ['C', ['Common', 'Common Holo']],
+  ['U', ['Uncommon']],
+  ['R', ['Rare', 'Holo Rare', 'Rare Holo']],
 ]);
+
+/**
+ * **알아듣기만 하고 자동완성 낱말로는 안 만드는 코드.**
+ * `PPT레어도별코드`(자동완성 재료)가 이걸 건너뛴다. `레어도떼기`·`레어도맞나`는 그대로 쓴다.
+ */
+export const 자동완성안함 = new Set(['C', 'U', 'R']);
 
 /**
  * 저쪽(PPT) 표기 → 우리 코드. 위 표를 뒤집은 것이다.
@@ -70,6 +86,9 @@ export const 레어도표 = new Map<string, string[]>([
 export const PPT레어도별코드: Map<string, string> = (() => {
   const m = new Map<string, string>();
   for (const [코드, 글자들] of 레어도표) {
+    // ⚠️ 알아듣기 전용 코드(C·U·R)는 자동완성 재료에서 뺀다. 넣으면 커먼 14,000장에
+    //    「○○ C」가 붙어 목록이 통째로 덮인다.
+    if (자동완성안함.has(코드)) continue;
     for (const 글자 of 글자들) if (!m.has(글자)) m.set(글자, 코드);
   }
   return m;
@@ -124,3 +143,75 @@ export const 레어도떼기 = (말: string): { 이름: string; 코드: string }
 /** 그 카드가 이 레어도 코드에 맞나. */
 export const 레어도맞나 = (코드: string, 카드레어도: string): boolean =>
   (레어도표.get(코드) ?? []).some((r) => r.toLowerCase() === String(카드레어도).trim().toLowerCase());
+
+/**
+ * 레어도를 **화면에 낼 한글**로. 카드 타일·상세가 이 한 벌만 쓴다.
+ *
+ * 왜 — 지금까지 레어도가 영문 그대로 나갔다("Holo Rare"·"Illustration rare").
+ * 카드마다 보이는 것이라 눈에 제일 많이 띈다(2026-08-09 사장님 지적).
+ *
+ * ⚠️ 표기가 저쪽에서 제각각이다 — 대소문자도 다르고("Double rare"/"Double Rare"),
+ *    같은 뜻을 다르게 적기도 한다("Secret Rare"/"Super Rare"). **소문자로 맞춰** 찾는다.
+ * ⚠️ 모르는 표기는 **그대로 내보낸다.** 억지로 옮기면 없는 등급을 만든다.
+ */
+const 레어도한글표: Record<string, string> = {
+  // ── 2026-08-09에 도감을 PPT로 갈아엎으며 새로 들어온 레어도 ──────────────────
+  // ⚠️ `ACE SPEC`·`LEGEND`처럼 **카드에 영문으로 찍힌 것**은 한글로 바꾸지 않는다.
+  'character rare': '캐릭터 레어',
+  'character super rare': '캐릭터 슈퍼 레어',
+  'code card': '코드 카드',
+  'prism rare': '프리즘 레어',
+  'rainbow rare': '레인보우 레어',
+  shining: '샤이닝',
+  'special art rare': '스페셜 아트 레어',
+  'trainer rare': '트레이너 레어',
+  'triple rare': '트리플 레어',
+  'mega attack rare': '메가 어택 레어',
+  'mega ultra rare': '메가 울트라 레어',
+  special: '스페셜',
+  common: '커먼',
+  uncommon: '언커먼',
+  none: '-',
+  rare: '레어',
+  'double rare': '더블 레어',
+  'ultra rare': '울트라 레어',
+  'illustration rare': '일러스트 레어',
+  'art rare': '일러스트 레어',
+  'special illustration rare': '스페셜 일러스트 레어',
+  'secret rare': '시크릿 레어',
+  'super rare': '시크릿 레어',
+  promo: '프로모',
+  'holo rare': '홀로 레어',
+  'rare holo': '홀로 레어',
+  'super rare holo': '홀로 레어',
+  'common holo': '홀로 레어',
+  'shiny rare': '샤이니 레어',
+  'shiny ultra rare': '샤이니 울트라 레어',
+  'hyper rare': '하이퍼 레어',
+  'mega hyper rare': '하이퍼 레어',
+  'rare holo lv.x': '홀로 레어 LV.X',
+  'holo rare v': '홀로 레어 V',
+  'holo rare vmax': '홀로 레어 VMAX',
+  'classic collection': '클래식 컬렉션',
+  'ace spec rare': 'ACE SPEC 레어',
+  'ace rare': 'ACE SPEC 레어',
+  'rare ace': 'ACE SPEC 레어',
+  'one diamond': '1 다이아몬드',
+  'three diamond': '3 다이아몬드',
+  'four diamond': '4 다이아몬드',
+  'full art trainer': '풀아트 트레이너',
+  'one star': '1 스타',
+  'two star': '2 스타',
+  'black white rare': '블랙&화이트 레어',
+  'rare holo legend': '홀로 레어 LEGEND',
+  'amazing rare': '어메이징 레어',
+  'futuristic rare': '미래 레어',
+  'ultra-rare common': '울트라 레어',
+  'ultra-rare uncommon': '울트라 레어',
+  unconfirmed: '미확인',
+}
+export const 레어도한글 = (r: string | null | undefined): string => {
+  const s = String(r ?? '').trim()
+  if (!s) return ''
+  return 레어도한글표[s.toLowerCase()] ?? s
+}

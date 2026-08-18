@@ -15,6 +15,7 @@ import { koreanizeTitle } from './koreanizeTitle.ts';
 import { koreanizeEnglishCardName } from './koreanizeEnglishTitle.ts';
 import { koSetName } from './setNameKo.ts';
 import { 전각부호펴기 } from './punct.ts';
+import { 이름다듬기 } from './nameFix.ts';
 
 const hasJapanese = (s: string) => /[ぁ-んァ-ヶ一-龯]/.test(s);
 
@@ -28,8 +29,12 @@ const 번호꼬리떼기 = (s: string) => s.replace(/\s*-\s*\d+\/\d+\s*$/, '').t
 // ⚠️ 한글이 하나도 없는 이름(번역이 안 된 일본어 원문)은 그대로 둔다 — 그쪽은 원문
 //    표기가 맞다.
 const 부호다듬기 = (s: string) => {
-  if (!/[가-힣]/.test(s)) return s;
-  return 전각부호펴기(s).replace(/\s+/g, ' ').trim();
+  // ⚠️ **사전이 못 잡는 것을 여기서 마지막으로 다듬는다**(소유격 지명·스탬프 표시·조각 위치).
+  //    한글이 하나도 없는 이름에도 걸어야 한다 — "Victory Medal"·"Soul Dew"처럼 통째로
+  //    영문인 것이 그 대상이다(2026-08-09에 545장이 그랬다).
+  const t = 이름다듬기(s);
+  if (!/[가-힣]/.test(t)) return t;
+  return 전각부호펴기(t).replace(/\s+/g, ' ').trim();
 };
 
 export const koName = (ed: 'ja' | 'en', name: string): string => {
@@ -48,6 +53,12 @@ export const koName = (ed: 'ja' | 'en', name: string): string => {
 // 영어 세트명 사전으로 한 번 더 시도한다.
 export const koSet = (ed: 'ja' | 'en', name: string): string => {
   if (ed !== 'ja') return koSetName(name);
+  // ⚠️⚠️ **사전에 원어 그대로 있으면 그것이 먼저다.** 예전엔 일본판을 무조건 `koreanizeTitle`에
+  //    먼저 태웠는데, 그게 이름을 **반만** 옮겨 놓으면(`SV10: The Glory of Team 로켓단`)
+  //    사전을 그 반쪽짜리로 뒤져서 **영영 못 찾았다**(2026-08-09에 이것 때문에 세트
+  //    수백 개가 영문으로 나갔다).
+  const 곧바로 = koSetName(name);
+  if (곧바로 !== name) return 곧바로;
   const ko = koreanizeTitle(name);
   return /[가-힣]/.test(ko) ? ko : koSetName(ko);
 };

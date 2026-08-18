@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { 을를 } from '../lib/josa';
 import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
 import { koSetName } from '../lib/setNameKo';
@@ -8,6 +9,8 @@ import { useSubScreen } from '../lib/useSubScreen';
 // 표지 주소가 죽은 작가가 있어 카드 뒷면으로 대체한다(세트 화면과 같은 그림).
 import { CARD_BACK } from '../lib/cardCatalog';
 import { cardImg } from '../lib/cardImg';
+import { SearchInput } from './SearchInput';
+import { 작가이름 } from '../lib/artistName';
 
 // 작가별 카드 모음. 스니커덩크엔 일러스트레이터 정보가 없어서, 작가 정보가 있는 해외
 // 카드 DB(pokemontcg.io)에서 미리 긁어 public/artists/에 저장해둔 데이터를 읽는다.
@@ -69,14 +72,6 @@ function thumb(url: string, w: number): string {
 //    Farfetch'd(U+0027). 안 맞추면 파오리·창파나이트가 통째로 안 나온다(실측 2026-08-04).
 const normName = (s: string) => s.toLowerCase().replace(/[‘’ʼ`´]/g, "'").trim();
 
-// 받침이 있으면 "을", 없으면 "를". "파오리을(를)"처럼 두 개를 다 적으면 읽기 나쁘다.
-// 한글이 아닌 이름(영문·숫자)은 판단할 수 없으니 "를"로 둔다.
-function objectParticle(word: string): string {
-  const last = word.trim().slice(-1);
-  const code = last.charCodeAt(0);
-  if (code < 0xac00 || code > 0xd7a3) return '를';
-  return (code - 0xac00) % 28 === 0 ? '를' : '을';
-}
 
 /** by-card.json — c: 카드이름(영어) → 작가번호, k: 한글 → 영어 대조표. */
 interface ByCard {
@@ -107,44 +102,6 @@ function artistsWhoDrew(
     label: raw.trim(),
     artists: index.filter((_, i) => hits.has(i)),
   };
-}
-
-// 일러스트레이터 화면 공용 검색 입력(🔍 + 지우기 X). 작가 찾기·작가 카드 안 검색 둘 다 씀.
-function SearchInput({
-  value,
-  onChange,
-  placeholder,
-  className = '',
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  className?: string;
-}) {
-  return (
-    <div className={`relative ${className}`}>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-full border border-neutral-200 bg-white py-2.5 pl-4 pr-9 text-sm outline-none focus:border-neutral-400"
-      />
-      {value && (
-        <button
-          type="button"
-          aria-label="검색어 지우기"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      )}
-    </div>
-  );
 }
 
 export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정보) => void }) {
@@ -242,7 +199,11 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
       document.title = '포켓몬 카드 일러스트레이터 | pokegre';
       return;
     }
-    const 이름 = (selected.ko || selected.en || '').trim();
+    // ⚠️⚠️ **여기가 서버 제목을 덮어쓴다.** 서버(`server/index.ts`)가 검색엔진용으로
+    //    「신지 칸다(Shinji Kanda) 일러스트 카드」를 내보내도, 앱이 뜨면서 이 줄이
+    //    다시 쓴다. **한쪽만 고치면 소용없다** — 구글은 자바스크립트를 돌린 뒤 화면을
+    //    보므로 결국 이쪽 제목을 읽는다. 두 곳을 같은 꼴로 맞춘다(`작가이름`).
+    const 이름 = 작가이름(selected.ko, selected.en);
     if (이름) document.title = `${이름} 일러스트 카드 | pokegre`;
   }, [selected]);
 
@@ -510,7 +471,7 @@ function ArtistList({
       {pokemonHit && pokemonHit.artists.length > 0 && (
         <p className="mb-3 text-sm text-neutral-600">
           <span className="font-bold text-black">{pokemonHit.label}</span>
-          {objectParticle(pokemonHit.label)} 그린 작가 {pokemonHit.artists.length}명입니다.
+          {을를(pokemonHit.label)} 그린 작가 {pokemonHit.artists.length}명입니다.
         </p>
       )}
       {filtered.length === 0 ? (

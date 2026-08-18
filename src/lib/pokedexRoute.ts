@@ -33,6 +33,13 @@ export interface 도감카드정보 {
   setNameKo: string;
   num: string;
   jp: boolean;
+  /**
+   * 이 카드의 **PPT 번호**(tcgPlayerId). 2026-08-09에 도감을 PPT로 갈아엎으면서
+   * 카드마다 박아 두었다(58,151장). 이게 있으면 이베이·TCGplayer 시세를 **이름으로
+   * 뒤지지 않고 콕 집어** 부를 수 있다 — 딴 카드가 안 섞이고 크레딧도 48분의 1이다.
+   * ⚠️ 없을 수도 있다(PPT에 없는 옛 카드·포켓). 그때는 예전처럼 이름으로 찾는다.
+   */
+  tcg?: string;
   /** 목록에서 누른 그 카드의 그림. 마켓에 값이 없으면 화면에 아무 그림도 안 남아,
    *  "내가 누른 카드가 맞나"를 확인할 방법이 없었다(2026-08-07 점검 중 발견).
    *  안내 문구 옆에 이 그림을 붙여 무엇을 찾고 있는지 보이게 한다. */
@@ -41,7 +48,8 @@ export interface 도감카드정보 {
 
 /** 마켓 한 칸. source·edition은 앱의 탭 상태 그대로다. */
 export interface 마켓 {
-  source: 'snkrdunk' | 'ebay' | 'tcgplayer';
+  // ⚠️ 옛 해외 시세('ebay'·'tcgplayer')는 2026-08-13에 지웠다. 되살리지 말 것.
+  source: 'snkrdunk' | 'cardboard';
   edition: 'japanese' | 'english';
   label: string;
 }
@@ -60,6 +68,8 @@ export interface 마켓 {
  */
 export const 값없음문구 = (source: 마켓['source'], 카드찾음: boolean): string => {
   if (source === 'snkrdunk') return '매물이 없습니다';
+  // 새 길은 **우리 도감에서 카드를 고르므로 카드는 늘 있다.** 없는 것은 거래뿐이다.
+  if (source === 'cardboard') return '거래 내역이 없습니다';
   if (source === 'ebay') return 카드찾음 ? '거래 내역이 없습니다' : '시세 데이터가 없습니다';
   return '시세 데이터가 없습니다';
 };
@@ -71,29 +81,42 @@ export const 값없음문구 = (source: 마켓['source'], 카드찾음: boolean)
  * 팔린 기록이 없는 건 사실이고, 스니커덩크는 어느 쪽이든 지금 물건이 없다.
  */
 export const 값없음이유 = (source: 마켓['source']): string =>
-  source === 'snkrdunk' ? '매물이 없어' : source === 'ebay' ? '거래 내역이 없어' : '시세 데이터가 없어';
+  source === 'snkrdunk' || source === 'cardboard'
+    ? source === 'snkrdunk'
+      ? '매물이 없어'
+      : '거래 내역이 없어'
+    : source === 'ebay'
+      ? '거래 내역이 없어'
+      : '시세 데이터가 없어';
 
 /**
  * 찾아갈 순서. 앞에서 못 찾으면 다음으로 넘어간다.
  *
  * 일본판을 스니커덩크부터 보는 이유는 하나뿐이다 — **공짜이고 실거래가라서**다.
- * PPT는 부를 때마다 크레딧을 쓴다. 그래서 무료인 곳을 먼저 두드린다.
+ *
+ * ⚠️⚠️ **새 시세 길(cardboard)이 마지막이고, 그 뒤는 없다**(2026-08-13에 옮김).
+ *    예전엔 「이베이 → TCGplayer」 둘이었고 저쪽에 물을 때마다 크레딧이 나가서,
+ *    값이 없으면 다음 마켓으로 넘겨 가며 찾아야 했다. 새 길은 **우리 도감에서 카드를
+ *    고르므로 카드가 늘 있다** — 넘길 데가 없고 넘길 이유도 없다.
+ *    그래서 `다음마켓으로`가 하는 일이 「스니커덩크에 매물이 없으면 새 길로」 하나로 준다.
+ * ⚠️ 새 길은 마켓이 둘(eBay 낙찰·TCGplayer 시세)이지만 **한 번에 둘 다 들고 온다** —
+ *    그래서 순서에는 하나만 둔다. 어느 쪽을 볼지는 화면의 칩이 정한다.
  */
 export const 마켓순서 = (jp: boolean): 마켓[] =>
   jp
     ? [
         { source: 'snkrdunk', edition: 'japanese', label: '스니커덩크' },
-        { source: 'ebay', edition: 'japanese', label: '이베이 낙찰(일본판)' },
-        { source: 'tcgplayer', edition: 'japanese', label: 'TCGplayer(일본판)' },
+        { source: 'cardboard', edition: 'japanese', label: '해외 시세(일본판)' },
       ]
-    : [
-        { source: 'ebay', edition: 'english', label: '이베이 낙찰(영문판)' },
-        { source: 'tcgplayer', edition: 'english', label: 'TCGplayer(영문판)' },
-      ];
+    : [{ source: 'cardboard', edition: 'english', label: '해외 시세(영문판)' }];
 
 /** 그 마켓에서 쓸 검색어. 빈 문자열이면 그 마켓은 건너뛴다. */
 export function 도감검색어(c: 도감카드정보, m: 마켓): string {
   if (m.source === 'snkrdunk') return [c.setCode, c.num].filter(Boolean).join(' ') || c.ko;
+  // ⚠️ 새 길은 **우리 도감을 한글 이름으로** 뒤진다. 영문으로 옮길 것도, 기호를 뗄 것도
+  //    없다 — 우리가 지은 이름을 우리가 찾는 것이라 그대로가 제일 잘 맞는다.
+  //    (어느 한 장인지는 세트·번호를 따로 넘겨 좁힌다.)
+  if (m.source === 'cardboard') return c.ko || c.en || c.speciesEn;
   // PPT는 영문 이름으로 찾는다. 영문판 카드면 카드 이름이 곧 영문이라 그대로 쓴다.
   //
   // 일본판은 카드 이름이 일본어라 그대로는 안 걸린다. 대신 **한글 카드 이름**을 넘긴다 —

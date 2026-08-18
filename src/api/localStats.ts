@@ -77,7 +77,77 @@ export function trackVisit(): void {
   } catch {
     // 저장이 막힌 환경(시크릿 등)에서는 매번 세더라도 그냥 진행한다.
   }
-  fetch('/api/local/track-visit', { method: 'POST' }).catch(() => undefined);
+  fetch('/api/local/track-visit', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ from: 어디서왔나() }),
+  }).catch(() => undefined);
+}
+
+/**
+ * 어디서 들어왔는지 **한 낱말로만** 알아낸다.
+ *
+ * ⚠️⚠️ **주소 전체를 보내지 않는다.** `document.referrer`에는 검색어가 통째로 붙어
+ *    오는 일이 있어서(`google.com/search?q=…`) 그대로 보내면 **남의 검색어를 우리가
+ *    저장하게 된다.** 호스트만 떼어 「구글·네이버·직접」 같은 낱말로 바꿔 보낸다.
+ *
+ * ⚠️ 2026-08-16에 붙였다. 방문자가 하루 만에 두 배(80→163)가 됐는데 **사람인지
+ *    크롤러인지 가릴 자료가 하나도 없어서** 못 밝힌 일이 있었다. 서치 콘솔은 2~3일
+ *    늦게 나와 그날 일을 그날 못 본다.
+ */
+function 어디서왔나(): string {
+  let host = '';
+  try {
+    const r = document.referrer;
+    if (!r) return '직접';
+    host = new URL(r).hostname.replace(/^www\./, '');
+  } catch {
+    return '알수없음';
+  }
+  if (host === location.hostname) return '사이트안';
+  // ⚠️ **한 낱말로 잘게 나눈다.** 2026-08-16에 「SNS」 한 칸에 인스타·페북·X를 묶어
+  //    놨더니 어디서 온 건지 알 수가 없었다(사장님 지적). 특히 **카카오톡이 「다음·카카오」에
+  //    섞여** 검색으로 온 것과 링크로 온 것이 구분이 안 됐다 — 한국에서는 그게 제일 큰 통로다.
+  // ⚠️ 위에서부터 차례로 보므로 **좁은 것을 먼저** 둔다(`cafe.naver`가 `naver`보다 앞).
+  const 표: [RegExp, string][] = [
+    // 검색
+    [/(^|\.)google\./, '구글'],
+    [/(^|\.)cafe\.naver\./, '네이버 카페'],
+    [/(^|\.)blog\.naver\./, '네이버 블로그'],
+    [/(^|\.)naver\./, '네이버'],
+    [/(^|\.)daum\.|(^|\.)search\.daum\./, '다음'],
+    [/(^|\.)bing\./, '빙'],
+    [/(^|\.)duckduckgo\./, '덕덕고'],
+    // 메신저 — 카카오톡은 링크를 눌러 들어오는 통로라 검색과 갈라야 한다
+    [/(^|\.)kakao\./, '카카오톡'],
+    [/(^|\.)line\.me$/, '라인'],
+    [/(^|\.)t\.me$/, '텔레그램'],
+    // SNS
+    [/(^|\.)instagram\./, '인스타그램'],
+    [/(^|\.)(x|twitter)\.com$/, 'X(트위터)'],
+    [/(^|\.)(facebook|fb)\./, '페이스북'],
+    [/(^|\.)threads\./, '스레드'],
+    [/(^|\.)tiktok\./, '틱톡'],
+    [/(^|\.)reddit\./, '레딧'],
+    // 영상
+    [/(^|\.)youtube\.|(^|\.)youtu\.be$/, '유튜브'],
+    // 커뮤니티
+    [/(^|\.)dcinside\./, '디시인사이드'],
+    [/(^|\.)fmkorea\./, '에펨코리아'],
+    [/(^|\.)ruliweb\./, '루리웹'],
+    [/(^|\.)inven\./, '인벤'],
+    [/(^|\.)theqoo\./, '더쿠'],
+    [/(^|\.)clien\./, '클리앙'],
+    [/(^|\.)arca\.live$/, '아카라이브'],
+    [/(^|\.)bunjang\.|(^|\.)joongna\./, '중고거래'],
+    // AI
+    [/(^|\.)(chatgpt|openai)\./, '챗GPT'],
+    [/(^|\.)perplexity\./, '퍼플렉시티'],
+    [/(^|\.)claude\./, '클로드'],
+    [/(^|\.)gemini\.google\./, '제미나이'],
+  ];
+  for (const [re, 이름] of 표) if (re.test(host)) return 이름;
+  return '그밖';
 }
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
@@ -94,10 +164,68 @@ export type TrackedEvent =
   | 'share'
   | 'snkrdunk_search'
   | 'ebay_search'
+  // 해외 시세 검색 횟수(2026-08-12). 옛 길(ebay_search)을 이어받은 줄이다 —
+  // 2026-08-13에 옛 탭을 떼면서 이쪽이 유일한 해외 시세 검색이 됐다.
+  | 'cardboard_search'
+  // 해외 시세 안에서 **TCGplayer 눈으로 바꾼** 횟수(2026-08-13). 옛 'tcgplayer'를
+  // 이어받은 줄이다.
+  // ⚠️ 이게 없으면 새 길에서 **eBay를 보는지 TCGplayer를 보는지 아예 알 수 없다** —
+  //    검색은 `cardboard_search` 하나로만 세어서, 마켓 칩이 통계에서 통째로 빠진다.
+  | 'cardboard_tcg'
+  // 포켓몬 대전쟁(2026-08-17 · 운영자 베타). 라벨은 스테이지 이름이다.
+  // start=한 판 시작 · clear=적 성을 부숨 · lose=내 성이 부서짐.
+  // ⚠️ 셋을 같이 봐야 **어느 스테이지에서 사람들이 그만두는지** 보인다 —
+  //    start만 세면 「많이 했다」밖에 모르고, clear만 세면 못 깬 판이 안 보인다.
+  | 'battle_start'
+  | 'battle_clear'
+  | 'battle_lose'
+  /**
+   * **왜 졌나**(2026-08-18). 라벨은 짧은 열쇠다(`벽없음`·`상성`·`지갑넘침`…).
+   *
+   * ⚠️ `battle_lose`와 따로 세는 까닭: 짐 라벨에 까닭을 덧붙이면
+   *    판 12 × 난이도 3 × 까닭 6 = 216칸이 되어 **하루 칸(150)을 넘어 조용히 잘린다.**
+   *    까닭만 따로 세면 여섯 칸이면 된다.
+   * ⚠️ 사람이 읽는 글이 아니라 **열쇠**를 보낸다 — 글을 다듬을 때마다 줄이 갈리면
+   *    지난 것과 못 견준다.
+   */
+  | 'battle_why'
+  /**
+   * **숫자키 1~8로 냈다**(2026-08-18). 라벨이 없다 — 「쓰는 사람이 있나」만 알면 된다.
+   *
+   * ⚠️ **한 판에 한 번만** 보낸다. 누를 때마다 보내면 한 판에 수십 번이라
+   *    시작(`battle_start`)과 견줄 수 없는 숫자가 된다 — 지금은 「몇 판에서 썼나」다.
+   * ⚠️ 라벨을 붙이면 서버가 판별 표(`<판> · <난이도>`)에 섞어 쌓으므로 붙이지 않는다.
+   */
+  | 'battle_key'
+  /**
+   * **첫 판 안내**(2026-08-18). 라벨이 없다 — 「몇 사람에게 떴나」만 알면 된다.
+   *
+   * - `battle_guide` … 안내가 처음 뜬 브라우저(=이 게임이 처음인 사람)
+   * - `battle_guide_done` … 그 안내를 따라 **첫 포켓몬을 낸** 브라우저
+   *
+   * ⚠️ **둘을 같이 봐야 뜻이 있다.** 뜬 수만 세면 「처음 온 사람이 몇인가」밖에 모르고,
+   *    끝낸 수만 세면 잘 되고 있는지 견줄 것이 없다. 둘의 비율이 곧 안내의 성적이다.
+   * ⚠️ 브라우저에 한 번씩만 보낸다(`pokegre_battle_guide`) — 새로고침마다 보내면
+   *    같은 사람이 여러 번 세어져 비율이 뜻을 잃는다.
+   */
+  | 'battle_guide'
+  | 'battle_guide_done'
+  /**
+   * - `battle_card_detail` … 카드를 **길게 눌러** 능력치를 펴 본 횟수(라벨=포켓몬 이름)
+   * ⚠️ 안 열어 보면 그 기능은 짐이다. 세어 둬야 뗄지 말지를 숫자로 정한다.
+   */
+  | 'battle_card_detail'
+  /**
+   * - `battle_quit` … 판을 **시작해 놓고 끝을 안 보고 나간** 것(라벨=`<판> · <난이도>`)
+   * ⚠️ 이게 없으면 「시작 100 · 깸 40 · 짐 20」에서 남은 40이 어디 갔는지 알 수 없다.
+   *    「다시」는 안 센다 — 그건 나간 게 아니라 더 하려는 것이다.
+   */
+  | 'battle_quit'
   | 'scan'
   | 'centering'
   | 'artist'
   | 'tcgplayer'
+  | 'sealed'
   | 'packsim_checkin'
   | 'packsim_godpack'
   | 'packsim_value'
@@ -161,14 +289,21 @@ export interface ArtistStat {
 
 // 기능별 사용 횟수(날짜별) + 작가별·세트별 조회 순위. 운영자만 부를 수 있다(아니면 서버가 404).
 export async function fetchEventStats(): Promise<{
+  /** 날짜별 작가·세트 순위(2026-08-16부터 쌓인다). 달력에서 하루를 고르면 쓴다. */
+  dayRanks?: Record<string, { artists: ArtistStat[]; sets: ArtistStat[]; battles?: ArtistStat[] }>;
   days: EventDayBuckets;
   artists: ArtistStat[];
   sets: ArtistStat[];
+  /** 대전쟁 스테이지별 시작/깸/짐. 「어느 판에서 막히나」를 보는 표다. */
+  battles?: ArtistStat[];
 }> {
   const res = await fetch('/api/local/track-event');
   if (!res.ok) throw new Error('기능 통계를 불러오지 못했습니다.');
-  const data = (await res.json()) as { days?: EventDayBuckets; artists?: ArtistStat[]; sets?: ArtistStat[] };
-  return { days: data.days ?? {}, artists: data.artists ?? [], sets: data.sets ?? [] };
+  const data = (await res.json()) as {
+    days?: EventDayBuckets; artists?: ArtistStat[]; sets?: ArtistStat[]; battles?: ArtistStat[];
+    dayRanks?: Record<string, { artists: ArtistStat[]; sets: ArtistStat[]; battles?: ArtistStat[] }>;
+  };
+  return { days: data.days ?? {}, artists: data.artists ?? [], sets: data.sets ?? [], battles: data.battles ?? [], dayRanks: data.dayRanks };
 }
 
 export interface VisitStat {
@@ -176,9 +311,29 @@ export interface VisitStat {
   count: number;
 }
 
+/**
+ * 회원 한 명의 이용 현황(운영자만). 닉네임은 오지만 **회원번호(kakao:1234…)는
+ * 서버가 아예 안 내려준다** — 로그인 식별자라서, 「누가 쓰나」를 보는 데는 필요 없다.
+ * 닉네임은 본인이 우리 사이트에서 정한 이름이고, 아직 안 정했으면 빈 문자열이다.
+ */
+export interface MemberStat {
+  닉네임: string;
+  가입일: string;
+  가입한지: number | null;
+  로그인수: number;
+  마지막출석: string;
+  안온지: number | null;
+  연속: number;
+  GP: number;
+  깐팩: number;
+  쓴GP: number;
+  앨범: number;
+}
+
 export interface VisitStatsResponse {
   items: VisitStat[];
   total: number;
+  members?: MemberStat[];
   // 가입 회원 수(개수만). 회원번호 등 개인정보는 서버가 내려주지 않는다.
   memberCount: number;
   // 오늘 시세 조회 크레딧. 이게 0이 되면 방문자에게 이베이·TCGplayer 시세가 안 보인다.
@@ -194,6 +349,19 @@ export interface VisitStatsResponse {
     //    다 썼다"는 실제로 429를 받아 본 이 값이 정확하다(2026-08-07).
     dailyOut?: boolean;
   };
+  /**
+   * 어디서 들어왔나 — 최근 14일, 날짜별로 낱말과 횟수뿐이다(2026-08-16).
+   * ⚠️ 주소도 IP도 안 담는다. 화면이 호스트를 「구글·네이버·직접」 같은 낱말로 바꿔
+   *    보내고 서버는 아는 낱말만 받는다.
+   */
+  from?: { date: string; counts: Record<string, number> }[];
+  /**
+   * 「그밖 로봇」으로 뭉뚱그려진 것이 **실제로 무슨 프로그램인지**. 날짜 → 이름 → 횟수.
+   * ⚠️ 칸(구글봇·네이버봇처럼)을 미리 안 만들어도 화면에서 바로 확인하려고 둔다.
+   *    개인을 알아볼 수 있는 값은 없다 — 프로그램이 스스로 밝힌 이름뿐이다.
+   * ⚠️ 2026-08-16 저녁부터 쌓인다. 그 전 것은 이름이 안 남아 있다.
+   */
+  botAgents?: Record<string, Record<string, number>>;
 }
 
 // 카드 제목·시리즈명 한글화가 이상할 때 사용자가 알려주는 신고. 화면에 보인 제목,

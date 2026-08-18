@@ -9,17 +9,20 @@ import {
   isAdminRequest,
   lookupCardName,
   fetchCardNameForShare,
+  도감에서카드이름,
   maintenanceOn,
   mountApi,
   startCardNameStore,
   startCoverWarmup,
   topPricedCards,
+  카드요약,
   topPricedBasis,
 } from './api.ts'
 import { 공유이름 } from '../src/lib/cardImg.ts'
 import { serieSlug } from '../src/lib/setNameKo.ts'
 import { koName, koSet } from '../src/lib/koCardName.ts'
 import { livePacks } from '../src/lib/packSets.ts'
+import { 작가이름 } from '../src/lib/artistName.ts'
 
 // 카드·세트 이름 한글화는 **화면과 같은 한 벌**을 쓴다(src/lib/koCardName.ts).
 // 예전엔 여기에 규칙을 베껴 뒀는데, 화면 쪽만 고쳐져 어긋났다 —
@@ -197,11 +200,16 @@ async function fetchShareCard(id: string): Promise<ShareCard | null> {
 function setMeta(html: string, key: string, value: string): string {
   const attr = key.startsWith('og:') ? 'property' : 'name'
   // content가 여러 줄로 쪼개져 있어도 잡히게 [\s\S]를 쓴다.
+  // ⚠️⚠️ **바꿀 값을 문자열로 넘기면 안 된다 — 함수로 넘긴다.**
+  //    `String.replace`는 바꿀 문자열 안의 `$1`·`$&`를 「괄호로 잡은 것」으로 해석한다.
+  //    카드 시세 설명에 **`$108`** 같은 값이 들어가면서 `$1`이 통째로 치환돼
+  //    `content="… psa10 <meta charset="UTF-8" …`처럼 **head가 깨졌다**(2026-08-14 실측).
+  //    값에 `$`가 들어간 게 이번이 처음이라 여태 안 드러났다. 함수 꼴이면 해석이 없다.
   const a = new RegExp(`(<meta[\\s\\S]*?${attr}="${key}"[\\s\\S]*?content=")[^"]*(")`)
-  if (a.test(html)) return html.replace(a, `$1${value}$2`)
+  if (a.test(html)) return html.replace(a, (_m, p1: string, p2: string) => p1 + value + p2)
   // 속성 순서가 반대(content가 먼저)인 경우.
   const b = new RegExp(`(<meta[\\s\\S]*?content=")[^"]*("[\\s\\S]*?${attr}="${key}")`)
-  return html.replace(b, `$1${value}$2`)
+  return html.replace(b, (_m, p1: string, p2: string) => p1 + value + p2)
 }
 
 // sharePath는 "/c/123"·"/e/456" 같은 공유 주소. 모듈 위쪽의 node:path와 헷갈리지 않게
@@ -212,16 +220,47 @@ function setMeta(html: string, key: string, value: string): string {
 // 두 벌로 두면 새로고침 전후로 탭 이름이 바뀐다 — 실제로 그 사고를 낸 적이 있다.
 const shareName = 공유이름
 
+/**
+ * 등급 칸 이름을 사람이 읽는 꼴로. `psa10` → `PSA 10` · `cgc9_5` → `CGC 9.5`.
+ * ⚠️ 칸 이름을 그대로 내보내면 검색 결과에 「psa10 낙찰가」라고 적힌다(실측).
+ */
+function 등급표기(칸: string): string {
+  // ⚠️ 감정 안 한 것은 이 리포에서 **「미감정」**이라 부른다(세트 화면·스니커덩크 칸과 같은 말).
+  //    그대로 두면 검색 결과에 「UNGRADED 낙찰가」라고 영문이 섞여 나간다.
+  if (/^ungraded$/i.test(칸)) return '미감정'
+  const m = /^([a-z]+)([\d_]*)$/.exec(칸)
+  if (!m) return 칸.toUpperCase()
+  const 숫자 = m[2].replace(/_/g, '.')
+  return 숫자 ? `${m[1].toUpperCase()} ${숫자}` : m[1].toUpperCase()
+}
+
 function buildCardHtml(
   sharePath: string,
   name: string | null,
   card: { image: string; price: number } | null,
+  요약?: Awaited<ReturnType<typeof 카드요약>>,
 ): string {
-  const title = name ? `${name} 시세 | pokegre` : '포켓몬 카드 시세 | pokegre'
+  // ⚠️⚠️ **제목에 세트·번호를 붙인다.** 「리자몽 시세」짜리 페이지가 도감에 수백 개라
+  //    구글이 보기에 다 같은 페이지다(실제로 리자몽만 122장). 세트와 번호가 붙어야
+  //    서로 다른 페이지가 된다.
+  const 꼬리 = 요약 ? [요약.세트, 요약.번호].filter(Boolean).join(' ') : ''
+  const title = name
+    ? `${name}${꼬리 ? ` [${꼬리}]` : ''} 시세 | pokegre`
+    : '포켓몬 카드 시세 | pokegre'
+  // ⚠️ **값이 있는 것만 적는다.** 없는 값을 「0원」으로 적으면 안 본 것만 못하다.
+  const 조각 = 요약
+    ? [
+        요약.티피 ? `TCGplayer $${요약.티피.toLocaleString()}` : '',
+        요약.등급 ? `${등급표기(요약.등급.이름)} $${요약.등급.값.toLocaleString()}(낙찰 ${요약.등급.건수}건)` : '',
+        요약.팝수 ? `감정 수량 ${요약.팝수.toLocaleString()}장` : '',
+      ].filter(Boolean)
+    : []
   const desc =
-    card && card.price > 0
-      ? `스니커덩크 최저가 ¥${yen.format(card.price)} · 등급별 시세는 pokegre에서`
-      : '일본판·영문판 시세를 한국어로 봅니다.'
+    조각.length && name
+      ? `${name}${꼬리 ? ` [${꼬리}]` : ''} 시세 — ${조각.join(' · ')}. 등급별 낙찰가와 감정 수량을 한국어로 봅니다.`
+      : card && card.price > 0
+        ? `스니커덩크 최저가 ¥${yen.format(card.price)} · 등급별 시세는 pokegre에서`
+        : '일본판·영문판 시세를 한국어로 봅니다.'
   const url = `https://pokegre.com${sharePath}`
 
   let html = TEMPLATE
@@ -237,6 +276,25 @@ function buildCardHtml(
     for (const k of ['og:image', 'twitter:image']) html = setMeta(html, k, esc(card.image))
     // 세로로 긴 카드라 1200x630을 그대로 두면 미리보기가 잘린다.
     html = html.replace(/\s*<meta property="og:image:(width|height)"[^>]*\/?>/g, '')
+  }
+
+  // ⚠️⚠️ **크롤러가 처음 받는 HTML에 글자를 넣는다.** 이 화면은 브라우저가 그리므로
+  //    안 넣으면 크롤러 눈에는 텅 빈 껍데기다 — 세트·작가 페이지가 이미 같은 방식이다.
+  //    사람이 들어오면 앱이 뜨면서 이 덩어리를 지운다(App.tsx의 `seo-fallback` 제거).
+  if (요약 && name) {
+    const 줄 = [
+      요약.티피 ? `<li>TCGplayer 마켓가 $${요약.티피.toLocaleString()}</li>` : '',
+      요약.등급
+        ? `<li>${esc(등급표기(요약.등급.이름))} 낙찰가 $${요약.등급.값.toLocaleString()} · 낙찰 ${요약.등급.건수}건</li>`
+        : '',
+      요약.팝수 ? `<li>감정 수량 ${요약.팝수.toLocaleString()}장</li>` : '',
+    ].filter(Boolean)
+    const 본문 =
+      `<div id="seo-fallback"><h1>${esc(name)}${꼬리 ? ` [${esc(꼬리)}]` : ''} 시세</h1>` +
+      `<p>${esc(요약.세트)} ${esc(요약.번호)} · ${요약.판 === 'ja' ? '일본판' : '영문판'}</p>` +
+      (줄.length ? `<ul>${줄.join('')}</ul>` : '') +
+      `<p>등급별(PSA·BGS·CGC·SGC) 낙찰가와 감정 수량, 시세 추이를 한국어로 봅니다.</p></div>`
+    html = html.replace('<div id="root"></div>', `<div id="root"></div>${본문}`)
   }
   return html
 }
@@ -255,7 +313,10 @@ app.get(['/e/:id', '/t/:id'], async (req, res) => {
   //    이제 번호로 그 한 장을 물어볼 수 있으므로(2026-08-07 확인) 받아 온다.
   //    크롤러가 두드릴 것을 생각해 하루 상한을 걸어 뒀고, 한 번 받은 이름은 남는다.
   const id = String(req.params.id ?? '')
-  const known = lookupCardName(id) ?? (await fetchCardNameForShare(pptKeyForShare, id))
+  // ⚠️ **우리 도감에서 먼저 찾는다**(크레딧 0). 저쪽에 묻는 것은 도감에 없는 번호일
+  //    때만 남겨 둔 물러설 길이다 — 예전엔 이게 먼저라 링크를 열 때마다 크레딧이 나갔다.
+  const known =
+    lookupCardName(id) ?? (await 도감에서카드이름(id)) ?? (await fetchCardNameForShare(pptKeyForShare, id))
   const name = known
     // ⚠️ **koName 한 벌만 쓴다.** 예전엔 koreanizeEnglishCardName만 써서 저쪽 이름의
     //    번호 꼬리가 남았다 — 화면은 "M 리자몽 EX"인데 카톡 미리보기는
@@ -270,7 +331,9 @@ app.get(['/e/:id', '/t/:id'], async (req, res) => {
     return
   }
   res.set('content-type', 'text/html; charset=utf-8')
-  res.set('Cache-Control', HTML_CACHE).send(buildCardHtml(req.path, name, null))
+  // ⚠️ 크레딧 0 — 받아 둔 도감·덤프만 읽는다(`카드요약`).
+  const 요약 = await 카드요약(id).catch(() => null)
+  res.set('Cache-Control', HTML_CACHE).send(buildCardHtml(req.path, name, null, 요약))
 })
 
 app.get('/c/:id', async (req, res) => {
@@ -291,6 +354,38 @@ app.get('/c/:id', async (req, res) => {
     res.sendFile(path.join(DIST, 'index.html'))
   }
 })
+
+// ── 세트 색인 (안쪽 링크를 만드는 재료) ────────────────────────────────────
+//
+// ⚠️⚠️ **안쪽 링크가 0이었다**(2026-08-18 서치콘솔 확인). 구글은 링크를 따라다니며
+//    페이지를 찾고 **중요도를 매기는데**, 우리는 사이트맵으로 주소만 알려 주고 페이지끼리
+//    이어 두지 않았다. 그래서 구글 눈에는 977쪽이 서로 아무 상관 없는 낱장이었고,
+//    「발견은 됐는데 방문 안 함」이 38쪽, 평균 순위가 9.3이었다.
+//    → 세트·작가 페이지에 서로 가는 `<a href>`를 넣는다. 아래 색인이 그 재료다.
+// ⚠️ 파일을 매번 읽지 않는다 — 세트 371개짜리 index.json을 크롤러가 두드릴 때마다
+//    읽으면 낭비다. 10분 동안 memory에 들고 있는다.
+type 세트줄 = { slug: string; ed?: 'ja' | 'en'; name: string; count?: number; serie?: string; releaseDate?: string }
+let 세트색인: 세트줄[] | null = null
+let 세트색인시각 = 0
+async function 세트색인읽기(): Promise<세트줄[]> {
+  if (세트색인 && Date.now() - 세트색인시각 < 10 * 60 * 1000) return 세트색인
+  try {
+    세트색인 = JSON.parse(await readFile(path.join(DIST, 'sets', 'index.json'), 'utf-8')) as 세트줄[]
+    세트색인시각 = Date.now()
+  } catch {
+    세트색인 = 세트색인 ?? []
+  }
+  return 세트색인
+}
+
+/** 안쪽 링크 묶음. 크롤러가 읽고, 앱이 뜨면 App.tsx가 seo-fallback째 지운다. */
+function 링크묶음(제목: string, 항목: { href: string; text: string; 덧?: string }[]): string {
+  if (!항목.length) return ''
+  const li = 항목
+    .map((x) => `<li><a href="${esc(x.href)}">${esc(x.text)}</a>${x.덧 ? ` ${esc(x.덧)}` : ''}</li>`)
+    .join('')
+  return `<h2>${esc(제목)}</h2><ul>${li}</ul>`
+}
 
 // ── 세트별 힛카드 페이지(검색 노출용) ──────────────────────────────────────
 // "초전브레이커 힛카드"로 검색해서 우리 사이트가 나오게 하는 자리다.
@@ -359,11 +454,32 @@ app.get('/set/:slug', async (req, res) => {
         `<li>${esc(r.name)} <span>${esc(String(r.n))}번</span> <span>$${r.usd.toFixed(0)}</span></li>`,
     )
     .join('')
+  // ⚠️ 예전엔 여기 링크가 **자기 자신**(/set/<이 슬러그>) 하나뿐이었다 — 안쪽 링크로는
+  //    아무 값도 없다. 같은 시리즈의 이웃 세트로 잇는다.
+  const 색인 = await 세트색인읽기()
+  const 나 = 색인.find((s) => s.slug === slug)
+  const 이웃 = 나?.serie
+    ? 색인
+        .filter((s) => s.serie === 나.serie && s.slug !== slug)
+        .sort((a, b) => String(b.releaseDate ?? '').localeCompare(String(a.releaseDate ?? '')))
+        .slice(0, 8)
+    : []
+  const 시리즈이름 = 나?.serie ? koSet(나.ed ?? 'ja', 나.serie) : ''
+
   const body = `<div id="seo-fallback"><h1>${esc(setName)} 힛카드</h1>${
     rows.length
       ? `<p>${esc(setName)}에서 값이 높은 카드 ${rows.length}장입니다. ${esc(basis)} 기준입니다.</p><ol>${list}</ol>`
       : `<p>${esc(setName)} 수록 카드 ${cards.length}장.</p>`
-  }<p><a href="/set/${esc(slug)}">${esc(setName)} 전체 카드 보기</a></p></div>`
+  }${링크묶음(
+    시리즈이름 ? `${시리즈이름} 시리즈의 다른 세트` : '다른 세트',
+    이웃.map((s) => ({
+      href: `/set/${s.slug}`,
+      text: koSet(s.ed ?? 'ja', s.name),
+      덧: s.count ? `${s.count}종` : '',
+    })),
+  )}<p>${
+    나?.serie ? `<a href="/series/${esc(serieSlug(나.serie))}">${esc(시리즈이름)} 시리즈 전체</a> · ` : ''
+  }<a href="/sets">세트 목록</a> · <a href="/artists">일러스트레이터</a></p></div>`
   html = html.replace('<body>', `<body>${body}`)
   res.set('Cache-Control', HTML_CACHE).send(html)
 })
@@ -378,14 +494,18 @@ app.get('/artist/:slug', async (req, res) => {
     res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
-  let a: { en?: string; ko?: string; note?: string; era?: string; count?: number; cards?: { name: string; set?: string }[] }
+  // ⚠️ `s`가 그 카드가 실린 **세트 슬러그**다. 안쪽 링크를 만드는 재료라 타입에 넣어 둔다.
+  let a: { en?: string; ko?: string; note?: string; era?: string; count?: number; cards?: { name: string; set?: string; s?: string }[] }
   try {
     a = JSON.parse(await readFile(path.join(DIST, 'artists', `${slug}.json`), 'utf-8'))
   } catch {
     res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
   }
+  // ⚠️ 조사(이/가)는 **한글 이름**에 맞춘다 — 「신지 칸다(Shinji Kanda)가」에서 앞의
+  //    한글을 기준으로 해야 맞는다. 그래서 표기용 이름과 조사용 이름을 따로 둔다.
   const name = (a.ko || a.en || '').trim()
+  const 표기 = 작가이름(a.ko, a.en)
   if (!name) {
     res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
     return
@@ -402,8 +522,8 @@ app.get('/artist/:slug', async (req, res) => {
     const n = koName('en', c.name)
     if (n && !shown.includes(n)) shown.push(n)
   }
-  const title = `${name} 일러스트 카드 | pokegre`
-  const desc = `${name}${subjectParticle(name)} 그린 포켓몬 카드 ${a.count ?? shown.length}장${
+  const title = `${표기} 일러스트 카드 | pokegre`
+  const desc = `${표기}${subjectParticle(name)} 그린 포켓몬 카드 ${a.count ?? shown.length}장${
     a.note ? ` — ${a.note}` : ''
   }. ${shown.slice(0, 3).join(' · ')} 등.`
   const url = `https://pokegre.com/artist/${slug}`
@@ -414,11 +534,33 @@ app.get('/artist/:slug', async (req, res) => {
   for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
   html = setMeta(html, 'og:url', esc(url))
   html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+  // ⚠️ 이 페이지엔 안쪽 링크가 **하나도** 없었다. 구글에서 작가 이름으로 들어오는 사람이
+  //    제일 많은데(2026-08-18 서치콘솔), 들어와도 다음 쪽으로 가는 길이 없었다.
+  //    그 작가가 많이 그린 세트로 잇는다 — 세트 쪽에서도 이 작가에게 되돌아온다.
+  const 세트수 = new Map<string, number>()
+  for (const c of a.cards ?? []) if (c.s) 세트수.set(c.s, (세트수.get(c.s) ?? 0) + 1)
+  const 색인 = await 세트색인읽기()
+  const 슬러그맵 = new Map(색인.map((s) => [s.slug, s]))
+  const 세트들 = [...세트수.entries()]
+    .sort((x, y) => y[1] - x[1])
+    .slice(0, 8)
+    .map(([sl, n]) => ({ n, s: 슬러그맵.get(sl) }))
+    .filter((x): x is { n: number; s: 세트줄 } => !!x.s)
+
   const list = shown.map((n) => `<li>${esc(n)}</li>`).join('')
   const body = `<div id="seo-fallback"><h1>${esc(name)} 일러스트 카드</h1>` +
     `<p>${esc(name)}${subjectParticle(name)} 그린 포켓몬 카드 ${a.count ?? shown.length}장입니다.` +
     `${a.era ? ` 활동 시기 ${esc(a.era)}.` : ''}${a.note ? ` ${esc(a.note)}.` : ''}</p>` +
-    `<ul>${list}</ul></div>`
+    `<ul>${list}</ul>` +
+    링크묶음(
+      `${표기}${subjectParticle(name)} 그린 세트`,
+      세트들.map((x) => ({
+        href: `/set/${x.s.slug}`,
+        text: koSet(x.s.ed ?? 'ja', x.s.name),
+        덧: `${x.n}장`,
+      })),
+    ) +
+    `<p><a href="/artists">일러스트레이터 전체</a> · <a href="/sets">세트 목록</a></p></div>`
   html = html.replace('<body>', `<body>${body}`)
   res.set('Cache-Control', HTML_CACHE).send(html)
 })
@@ -490,7 +632,7 @@ app.get('/centering', (_req, res) => {
     '<div id="seo-fallback"><h1>포켓몬 카드 센터링 측정</h1>' +
     '<p>카드 사진을 올리면 상하좌우 여백을 재서 센터링 비율을 알려줍니다. ' +
     'PSA·CGC 감정에서 센터링은 등급을 가르는 큰 기준이라, 보내기 전에 미리 가늠해 볼 수 있습니다.</p>' +
-    '<p>사진은 브라우저 안에서만 처리하고 서버에 저장하지 않습니다.</p></div>'
+    '<p>사진은 브라우저 안에서만 처리하고 서버에 저장하지 않습니다.</p>' + 꼬리링크(url) + '</div>'
   html = html.replace('<body>', `<body>${body}`)
   res.set('Cache-Control', HTML_CACHE).send(html)
 })
@@ -499,6 +641,25 @@ app.get('/centering', (_req, res) => {
 //
 // 카드 상세의 "감정 수량"을 누르면 /population?id=… 로 온다. 주소를 그대로 복사해
 // 다시 들어와도 열려야 하므로 서버가 아는 주소여야 한다(App의 VIEW_PATH와 한 쌍).
+app.get('/sealed', (_req, res) => {
+  const title = '포켓몬 카드 미개봉 시세 — 박스·팩 | pokegre'
+  const desc =
+    '세트별 부스터 박스·부스터 팩·엘리트 트레이너 박스의 현재 시세를 한눈에 봅니다. TCGplayer(미국) 마켓 기준입니다.'
+  const url = 'https://pokegre.com/sealed'
+  let html = TEMPLATE
+  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+  for (const k of ['og:title', 'twitter:title']) html = setMeta(html, k, esc(title))
+  for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(desc))
+  html = setMeta(html, 'og:url', esc(url))
+  html = html.replace('href="https://pokegre.com/"', `href="${esc(url)}"`)
+  const body =
+    '<div id="seo-fallback"><h1>포켓몬 카드 미개봉 시세</h1>' +
+    '<p>세트별 부스터 박스·부스터 팩·엘리트 트레이너 박스의 현재 시세를 한 화면에 모아 보여 드립니다.</p>' + 꼬리링크(url) + '</div>'
+  html = html.replace('<div id="root"></div>', `<div id="root">${body}</div>`)
+  res.setHeader('content-type', 'text/html; charset=utf-8')
+  res.end(html)
+})
+
 app.get('/population', (_req, res) => {
   const title = '포켓몬 카드 감정 수량(팝수) 조회 | pokegre'
   const desc =
@@ -514,7 +675,7 @@ app.get('/population', (_req, res) => {
     '<div id="seo-fallback"><h1>포켓몬 카드 감정 수량(팝수) 조회</h1>' +
     '<p>PSA·BGS·CGC·SGC가 지금까지 그 카드에 매긴 등급이 각각 몇 장인지 보여 드립니다. ' +
     '반칸(9.5 등)까지 빠짐없이 나오고, 등급 없이 진품 확인만 받은 장수도 함께 나옵니다.</p>' +
-    '<p>미개봉 시세가 싸도 10등급이 몇 장 없는 카드는 값이 전혀 다릅니다. 감정을 맡기기 전에 가늠해 볼 수 있습니다.</p></div>'
+    '<p>미개봉 시세가 싸도 10등급이 몇 장 없는 카드는 값이 전혀 다릅니다. 감정을 맡기기 전에 가늠해 볼 수 있습니다.</p>' + 꼬리링크(url) + '</div>'
   html = html.replace('<body>', `<body>${body}`)
   res.set('Cache-Control', HTML_CACHE).send(html)
 })
@@ -529,6 +690,26 @@ app.get('/population', (_req, res) => {
 // ⚠️ 이 네 줄은 반드시 express.static보다 **위**에 있어야 한다. dist 안에 sets·
 //    artists·packsim 폴더가 실제로 있어서, 아래에 두면 static이 먼저 잡아 폴더
 //    목록으로 301을 보낸다(실제로 /sets가 그렇게 동작하고 있었다).
+/**
+ * 큰 화면들로 가는 꼬리 링크. **모든 seoPage에 자동으로 붙는다.**
+ *
+ * ⚠️ 이걸 넣기 전에는 `/centering`·`/pokedex`·`/sealed`에 안쪽 링크가 **0개**였다.
+ *    센터링은 검색 유입 1위 페이지인데, 들어온 사람도 크롤러도 다음 쪽으로 갈 길이 없었다.
+ * ⚠️ 자기 자신은 뺀다 — 제 페이지를 가리키는 링크는 안쪽 링크로 값이 없다.
+ */
+function 꼬리링크(url: string): string {
+  const 여기 = url.replace('https://pokegre.com', '') || '/'
+  const 자리 = [
+    { href: '/', text: '홈' },
+    { href: '/sets', text: '세트별 카드' },
+    { href: '/artists', text: '일러스트레이터' },
+    { href: '/pokedex', text: '포켓몬별 카드' },
+    { href: '/centering', text: '센터링' },
+    { href: '/sealed', text: '미개봉 시세' },
+  ].filter((x) => x.href !== 여기)
+  return `<p>${자리.map((x) => `<a href="${x.href}">${esc(x.text)}</a>`).join(' · ')}</p>`
+}
+
 function seoPage(opts: { title: string; desc: string; url: string; body: string }): string {
   let html = TEMPLATE
   html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(opts.title)}</title>`)
@@ -536,8 +717,57 @@ function seoPage(opts: { title: string; desc: string; url: string; body: string 
   for (const k of ['og:description', 'twitter:description', 'description']) html = setMeta(html, k, esc(opts.desc))
   html = setMeta(html, 'og:url', esc(opts.url))
   html = html.replace('href="https://pokegre.com/"', `href="${esc(opts.url)}"`)
-  return html.replace('<body>', `<body><div id="seo-fallback">${opts.body}</div>`)
+  return html.replace('<body>', `<body><div id="seo-fallback">${opts.body}${꼬리링크(opts.url)}</div>`)
 }
+
+// ── 홈 ─────────────────────────────────────────────────────────────────────
+// ⚠️⚠️ **홈에도 안쪽 링크가 0이었다.** 홈은 밖에서 링크를 제일 많이 받는 쪽인데
+//    거기서 뻗어 나가는 길이 없으면 그 값이 안쪽으로 안 흐른다. 여기서 큰 화면들과
+//    최근 세트·많이 그린 작가로 뿌려 준다. 사람 눈에는 안 보인다 —
+//    앱이 뜨면 App.tsx가 seo-fallback째 지운다.
+// ⚠️ 이 줄은 반드시 express.static보다 **위**에 있어야 한다. 아래에 두면 static이
+//    index.html을 먼저 내보내 이 조각이 통째로 빠진다.
+app.get('/', async (_req, res) => {
+  const 색인 = await 세트색인읽기()
+  const 최근 = 색인
+    .filter((s) => s.releaseDate)
+    .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
+    .slice(0, 12)
+  let 작가: { slug: string; ko?: string; en: string; count?: number }[] = []
+  try {
+    작가 = JSON.parse(await readFile(path.join(DIST, 'artists', 'index.json'), 'utf-8'))
+  } catch { /* 없으면 작가 줄만 빠진다 */ }
+  const 많이그린 = [...작가].sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).slice(0, 12)
+
+  const body =
+    '<div id="seo-fallback"><h1>포켓몬 카드 시세</h1>' +
+    '<p>일본판·북미판에서 실제로 팔린 값을 한국어 카드 이름으로 봅니다.</p>' +
+    링크묶음('둘러보기', [
+      { href: '/sets', text: '세트별 카드 목록' },
+      { href: '/artists', text: '일러스트레이터' },
+      { href: '/pokedex', text: '포켓몬별 카드' },
+      { href: '/centering', text: '카드 센터링 측정' },
+      { href: '/sealed', text: '미개봉 박스·팩 시세' },
+    ]) +
+    링크묶음(
+      '최근 나온 세트',
+      최근.map((s) => ({
+        href: `/set/${s.slug}`,
+        text: koSet(s.ed ?? 'ja', s.name),
+        덧: s.releaseDate ?? '',
+      })),
+    ) +
+    링크묶음(
+      '카드를 많이 그린 일러스트레이터',
+      많이그린.map((a) => ({
+        href: `/artist/${a.slug}`,
+        text: 작가이름(a.ko, a.en),
+        덧: a.count ? `${a.count.toLocaleString()}장` : '',
+      })),
+    ) +
+    '</div>'
+  res.set('Cache-Control', HTML_CACHE).send(TEMPLATE.replace('<body>', `<body>${body}`))
+})
 
 app.get('/sets', async (_req, res) => {
   let sets: { slug: string; ed?: 'ja' | 'en'; name: string; count?: number; serie?: string }[] = []
@@ -589,7 +819,7 @@ app.get('/artists', async (_req, res) => {
   const 장수 = artists.reduce((n, a) => n + (a.count ?? 0), 0)
   const li = artists
     .map((a) => {
-      const 이름 = a.ko || a.en
+      const 이름 = 작가이름(a.ko, a.en)
       const 덧 = [a.era, a.count ? `${a.count.toLocaleString()}장` : ''].filter(Boolean).join(' · ')
       return `<li><a href="/artist/${esc(a.slug)}">${esc(이름)}</a>${덧 ? ` ${esc(덧)}` : ''}</li>`
     })

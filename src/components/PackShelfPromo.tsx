@@ -39,11 +39,28 @@ const TIER_KO: Record<string, [string, string]> = {
 
 // 1·2·3등 메달 색. 숫자만으로는 눈에 안 들어온다(사용자 지적 2026-08-04).
 // 이모지는 안 쓴다(사이트 지침) — 배경색으로만 구분한다.
+//
+// ⚠️⚠️ **은메달만 `neutral`을 쓰면 다크모드에서 죽는다**(사장님 지적 2026-08-16:
+//    "2등이 은메달인데 4,5등이랑 차이가 없는거같아"). 이 리포는 다크모드를 **색 변수만
+//    뒤집어** 만드는데, `neutral`은 그 뒤집히는 무리라 `neutral-300`이 어두운 회색이 된다.
+//    실측(다크모드): 은 RGB(58,58,58) ↔ 4·5등 RGB(44,44,44) — **색 차이 24**로 눈에
+//    구분이 안 갔다. 금(255,185,0)과 은의 차이가 241인 것과 견주면 사실상 같은 색이다.
+//    금·동이 멀쩡했던 건 `amber`·`orange`가 **안 뒤집히는 무리**라서다.
+//    → 은도 **고정 은색**을 박아 넣는다. 메달은 「금·은·동」이라는 뜻이 곧 색이라,
+//      화면 밝기에 따라 변하면 안 된다(마켓 색을 안 뒤집는 것과 같은 판단).
+// ⚠️ Tailwind v4는 안 쓴 색을 아예 안 내보낸다 — `slate`·`zinc`·`gray`는 이 빌드에
+//    없어서(실측 0,0,0) 쓸 수 없다. 그래서 대괄호로 값을 직접 적는다.
 const MEDAL = [
   'bg-amber-400 text-amber-900', // 금
-  'bg-neutral-300 text-neutral-700', // 은
+  'bg-[#C3CAD2] text-[#39414A]', // 은 — 고정값(다크모드에서도 그대로)
   'bg-orange-300 text-orange-900', // 동
 ];
+
+// ⚠️ 4·5등은 **메달이 아니다.** 예전엔 `bg-neutral-200`으로 은메달과 한 단계 차이라
+//    같은 것으로 보였다. 바탕을 화면색(`bg-white`)에 맞춰 **안 채운 것처럼** 보이게 하고
+//    테두리로만 동그라미를 그린다 — 「메달권 셋」과 「나머지」가 한눈에 갈린다.
+//    ⚠️ 투명으로 두면 안 된다. 이 표는 카드 그림 위에 얹히므로 숫자가 안 읽힌다.
+const NO_MEDAL = 'bg-white text-neutral-500 ring-1 ring-neutral-300';
 
 interface Highlight {
   /** 뽑은 시각. 화면에 "오늘"·"어제"·"8.3"처럼 날짜를 적는 데 쓴다. */
@@ -79,7 +96,14 @@ function pulledOn(at: number): string {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-function PullBanner({ onEnter }: { onEnter: () => void }) {
+/**
+ * 「이번 주 TOP 5」 — 이번 주에 뽑힌 카드 중 시세가 높은 순.
+ *
+ * ⚠️ 홈에서도 쓰라고 **밖으로 내보낸다**(사장님 지시 2026-08-12). 오늘의 상점을 홈에서
+ *    「도구 ▾」로 옮기면서 이 칸까지 같이 사라졌는데, 이건 남기라고 하셨다 —
+ *    "다른 사람이 뭘 뽑았나"는 뽑기를 안 하는 사람도 재미있어 하는 자리다.
+ */
+export function PullBanner({ onEnter }: { onEnter: () => void }) {
   const [items, setItems] = useState<Highlight[]>([]);
   // 시세를 원화로 적는다(사이트 다른 곳과 같은 표기·같은 환율).
   const krw = useKrw();
@@ -100,8 +124,12 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
 
   return (
     <section className="mt-3">
+      {/* ⚠️⚠️ **홈 구역 제목은 셋이 똑같아야 한다**(사장님 지시 2026-08-12 "굵기랑 크기 다 다르잖아").
+          인기 검색어 · 이번 주 TOP 5 · 힛카드 목록 — 셋 다 text-lg + font-extrabold + 검정.
+          예전엔 "시세 쪽은 크게, 곁다리는 작게"로 두 단을 뒀는데(2026-08-08), 오늘의 상점을
+          「도구 ▾」로 옮기면서 TOP 5가 홈의 주요 구역이 됐다. 크기가 갈리면 어긋나 보인다. */}
       <div className="mb-2 flex items-baseline gap-2">
-        <p className="text-sm font-bold text-neutral-500">이번 주 TOP 5</p>
+        <p className="text-lg font-extrabold tracking-tight text-black">이번 주 TOP 5</p>
         <p className="text-[11px] text-neutral-400">시세가 높은 순</p>
       </div>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-5 sm:gap-3">
@@ -142,7 +170,7 @@ function PullBanner({ onEnter }: { onEnter: () => void }) {
                 {/* 1·2·3등은 금·은·동으로 나눈다. 숫자만으로는 눈에 안 들어온다.
                     이모지는 안 쓴다(사이트 지침) — 배경색으로만 구분한다. */}
                 <span
-                  className={`absolute -left-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full text-[10px] font-black shadow-sm ${MEDAL[i] ?? 'bg-neutral-200 text-neutral-600'}`}
+                  className={`absolute -left-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full text-[10px] font-black shadow-sm ${MEDAL[i] ?? NO_MEDAL}`}
                 >
                   {i + 1}
                 </span>

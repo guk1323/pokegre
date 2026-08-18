@@ -7,11 +7,11 @@ import path from 'node:path'
 // ⚠️ 카드 이름을 **서버에서** 한글로 바꾸려고 가져온다. 화면에서 바꾸면 이름 사전
 //    109KB를 홈에서 통째로 받아야 한다 — 홈은 제일 많이 열리는 화면이라 그 무게를
 //    지우면 안 된다(cardImg.ts 첫머리·PackShelfPromo 설명 참고). 서버에서는 공짜다.
-import { 등급순서값 } from '../src/lib/gradeOrder.ts'
-// ⚠️ 매물 제목에서 사실을 뽑는 규칙은 **한 벌만** 쓴다(점검 도구도 같은 것을 쓴다).
-import { 제목번호들, 제목등급칸, 칸회사, 묶음인가, 맨번호들 } from '../src/lib/listingTitle.ts'
-import { PPT레어도별코드 } from '../src/lib/rarityCode.ts'
-import { koName } from '../src/lib/koCardName.ts'
+import { PPT레어도별코드, 레어도떼기, 레어도맞나, 레어도표, 마켓전용말떼기 } from '../src/lib/rarityCode.ts'
+import { 별명찾기 } from '../src/lib/searchAliases.ts'
+import { koName, koSet } from '../src/lib/koCardName.ts'
+import { FLEA_EDITION_LABEL, FLEA_SET_SET } from '../src/lib/fleaSets.ts'
+import cardValue from '../src/data/cardValue.json' with { type: 'json' }
 // 카드 뽑기: 가격표와 뽑기 로직을 화면과 같은 파일에서 읽는다(가격을 클라이언트 말대로
 // 믿으면 예산을 속일 수 있어서, 서버도 같은 표로 차감하고 뽑기도 서버가 한다).
 import {
@@ -36,6 +36,7 @@ import pptSetList from '../src/data/pptSetList.json' with { type: 'json' }
 import setCardNumberAlias from '../src/data/setCardNumberAlias.json' with { type: 'json' }
 import pokemonNames from '../src/data/pokemonNames.json' with { type: 'json' }
 import { kstDateStr, kstHourStr } from '../src/lib/kstDay.ts'
+import { 제목등급칸, 회사말 } from '../src/lib/listingTitle.ts'
 
 // 이 파일은 pokegre의 백엔드 전부다. vite에 딸려 있으면 개발 서버에서만 살아있고
 // (configureServer는 dev 전용) 프로덕션 빌드에는 API가 한 줄도 안 들어간다. 그래서
@@ -53,13 +54,18 @@ export interface Mountable {
 export interface ApiEnv {
   POKEMON_PRICE_TRACKER_API_KEY?: string
   ANTHROPIC_API_KEY?: string
+  /**
+   * 이베이 Browse API 열쇠. **매물 번호로 사진 주소를 받는 데만** 쓴다(무료 · 하루 5,000).
+   * ⚠️ 2026-08-10에 「이베이 한글판 호가」 기능을 뺄 때 이 키를 지우지 않고 남겨 뒀는데,
+   *    2026-08-14에 미감정 낙찰의 사진을 읽으려고 다시 쓰게 됐다. **지우지 말 것.**
+   */
+  EBAY_APP_ID?: string
+  EBAY_CERT_ID?: string
   KAKAO_REST_API_KEY?: string
   KAKAO_CLIENT_SECRET?: string
   NAVER_CLIENT_ID?: string
   NAVER_CLIENT_SECRET?: string
   // 이베이 Browse API(한글판 시세, 호가). App ID(Client ID) / Cert ID(Client Secret).
-  EBAY_APP_ID?: string
-  EBAY_CERT_ID?: string
   // 운영자의 카카오 회원번호. 쉼표로 여럿 넣을 수 있다.
   ADMIN_KAKAO_IDS?: string
   // 피드백을 받을 카카오 오픈톡 링크. 비어 있으면 화면에 버튼이 안 뜬다.
@@ -394,6 +400,11 @@ const IMG_ALLOWED_HOSTS = new Set([
   'www.artofpkm.com', // 옛 일본판(e-Card·PCG) 공식 스캔. cdn.artofpkm.com으로 302됨
   'cdn.artofpkm.com',
   'i.ebayimg.com', // 이베이 한글판 매물 사진(Browse API)
+  // ⚠️⚠️ 대전쟁 도트(PokéAPI 스프라이트). **반드시 이 프록시를 거쳐야 한다** —
+  //    `raw.githubusercontent.com`을 화면에서 직접 부르면 **429로 막힌다**(2026-08-17 실측:
+  //    8장 중 7장이 안 떴다). 한 판에 수십 장을 계속 부르는데 GitHub은 속도 제한이 빡빡하다.
+  //    프록시를 거치면 서버가 한 번만 받아 캐시하고, 브라우저에도 장기 캐시가 걸린다.
+  'raw.githubusercontent.com',
 ])
 // 썸네일은 320px webp라 장당 20KB 안팎이다.
 // 800장은 너무 빠듯했다 — 세트 하나가 100~300장이라 서너 개만 훑어도 캐시가 다 밀리고,
@@ -745,8 +756,16 @@ interface ExchangeRates {
   date: string
 }
 
+// ⚠️ 환율 캐시는 **함수 밖**에 둔다. 화면에 내려 주는 것 말고도 서버가 직접 쓸 데가
+//    있어서다 — 뽑기 자랑글은 **그때 값이 얼마였는지**를 글에 박아 둬야 하므로
+//    올리는 시점의 환율이 필요하다(사장님 요청 2026-08-11). 안에 두면 못 꺼낸다.
+const 환율캐시 = new TtlCache<ExchangeRates>(EXCHANGE_CACHE_TTL_MS, 1)
+
+/** 지금 환율. 아직 한 번도 못 받았으면 null(그럴 땐 값을 안 적는다 — 틀린 값보다 빈칸). */
+const 지금환율 = (): ExchangeRates | null => 환율캐시.get('latest') ?? null
+
 function mountExchangeRate(app: Mountable) {
-  const cache = new TtlCache<ExchangeRates>(EXCHANGE_CACHE_TTL_MS, 1)
+  const cache = 환율캐시
 
   app.use('/api/local/exchange-rate', async (_req, res) => {
     const cached = cache.get('latest')
@@ -758,7 +777,12 @@ function mountExchangeRate(app: Mountable) {
     try {
       // 달러 기준으로 한 번만 부르고 엔→원은 나눠서 구한다. 따로 부른 값과 소수점
       // 넷째 자리까지 같은 걸 확인했다.
-      const upstream = await fetch(`${EXCHANGE_ORIGIN}/latest?base=USD&symbols=KRW,JPY`, {
+      // ⚠️⚠️ **파라미터 이름이 `from`/`to`다.** 옛 주소(api.frankfurter.app)는 `base`/`symbols`
+      //    였는데, 새 주소(api.frankfurter.dev/v1)로 옮겨지며 이름이 바뀌었다. 우리는 주소만
+      //    바꾸고 이름을 안 바꿔서 **522가 오고 환율이 통째로 안 나왔다**(2026-08-10 발견 —
+      //    미개봉 시세가 원화 대신 달러로 나오는 걸 보고 찾았다. 사이트의 모든 원화 표시가
+      //    이 한 줄에 걸려 있다).
+      const upstream = await fetch(`${EXCHANGE_ORIGIN}/latest?from=USD&to=KRW,JPY`, {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       })
       if (!upstream.ok) {
@@ -974,7 +998,16 @@ interface CommunityPost {
   // 팩 개봉 자랑글에만 붙는 카드 목록. 커뮤니티 화면이 이걸로 실제 카드 이미지를
   // 그려 준다(스크린샷 업로드 없이도 "그 뽑은 화면"이 그대로 보인다).
   // q는 같은 카드가 몇 장 나왔는지. 1장이면 안 붙인다(화면도 1이면 안 적는다).
-  pull?: { pack: string; god: boolean; total?: number; cards: { img: string; name: string; r: string; q?: number }[] }
+  // ⚠️ krw는 **글을 올린 그때의 값**이다(사장님 요청 2026-08-11 "뽑았을 당시 얼마짜린지").
+  //    나중에 다시 계산하면 안 된다 — 시세도 환율도 움직여서, 반년 뒤에 열어 보면
+  //    그때 자랑한 금액과 달라진다. 자랑글은 그 순간의 기록이라 박아 둬야 맞다.
+  //    시세를 아직 못 받은 세트는 값이 없다(빈칸으로 둔다 — 0원이라고 적으면 틀린 말이다).
+  pull?: {
+    pack: string
+    god: boolean
+    total?: number
+    cards: { img: string; name: string; r: string; q?: number; krw?: number }[]
+  }
   // 운영자가 가린 시각. 지우지 않고 가리는 이유는 두 가지다. 신고가 장난일 수 있어
   // 되돌릴 수 있어야 하고, "왜 내 글 지웠냐"는 항의에 보여줄 원문이 남아야 한다.
   // (정보통신망법이 요구하는 것도 삭제가 아니라 임시조치다.)
@@ -1344,10 +1377,11 @@ function mountCommunity(app: Mountable) {
           sendJson(res, 404, { error: 'not found' })
           return
         }
-        // 운영자·집계 제외(notrack) 조회는 빼서 조회수가 부풀지 않게 한다.
-        // 같은 사람이 다시 봐도 세지 않는다 — 안 그러면 새로고침만으로 조회수가 오른다.
+        // ⚠️ **운영자 조회도 센다**(사장님 지시 2026-08-10 — 전엔 운영자를 빼서, 사장님이
+        //    본 글의 조회수가 안 올랐다). 부풀림 걱정은 아래 "같은 사람은 한 번만"이 막는다.
+        //    notrack(집계 제외 주소)만 빼고 다 센다.
         const notrack = url.searchParams.get('notrack') === '1'
-        if (!isAdmin(viewer) && !notrack) {
+        if (!notrack) {
           let first: boolean
           if (viewer) {
             const seen = (post.viewedBy ??= [])
@@ -1813,6 +1847,53 @@ const SET_STATS_FILE = dataFile('set-stats.json')
 // 404개**로 옛 상한 500에 96개밖에 안 남아 있었다(주석에는 "250여 개"라 적혀 있었다).
 // 세트는 해마다 40개쯤 늘어 몇 해 뒤엔 새 세트가 순위에 못 들게 된다. 넉넉히 잡는다.
 const MAX_SET_KEYS = 1200
+
+// ── 작가·세트를 **날짜별로도** 쌓는다 (2026-08-16) ─────────────────────────
+//
+// ⚠️ 위 두 파일은 **누적만** 센다. 그래서 「8월 16일에 어느 작가를 많이 봤나」를 물으면
+//    답할 수가 없었다(사장님이 달력 통계를 요청하시면서 드러남). 누적 파일은 그대로
+//    두고 — 순위표가 그걸 쓴다 — 날짜별 칸을 따로 만든다.
+// ⚠️ **지난 것은 못 되살린다.** 오늘부터 쌓인다.
+// ⚠️ 하루에 남길 이름은 상위 40개로 자른다. 안 자르면 세트 583개 × 400일이 쌓여
+//    파일이 몇 MB가 된다. 순위표에 40위 아래는 어차피 안 보인다.
+const DAY_RANK_FILE = dataFile('day-ranks.json')
+const 하루이름최대 = 40
+/**
+ * ⚠️⚠️ **대전쟁만 칸을 더 준다.** 판 12 × 난이도 3 × (시작·깸·짐) 3 = **108칸**이라
+ *    40(정리 문턱 80)으로는 **적게 한 판이 조용히 잘린다** — 통계에서 사라지는데
+ *    화면엔 오류가 아니라 그냥 「그 판은 아무도 안 했다」로 보인다(2026-08-18에 미리 잡음).
+ *    칸 하나가 작은 숫자라 150을 둬도 파일이 거의 안 커진다.
+ */
+const 하루이름최대별: Partial<Record<'artist' | 'set' | 'battle', number>> = { battle: 150 }
+const 날짜순위보관 = 400
+let 날짜순위: Record<string, { artist?: Record<string, number>; set?: Record<string, number>; battle?: Record<string, number> }> | null = null
+async function 날짜별쌓기(무엇: 'artist' | 'set' | 'battle', 이름: string) {
+  try {
+    if (!날짜순위) {
+      try { 날짜순위 = JSON.parse(await readFile(DAY_RANK_FILE, 'utf-8')) } catch { 날짜순위 = {} }
+    }
+    const 날 = kstDateStr()
+    const 칸 = (날짜순위![날] ??= {})
+    const 표 = (칸[무엇] ??= {})
+    표[이름] = (표[이름] ?? 0) + 1
+    // 하루가 너무 커지면 적게 본 것부터 버린다.
+    const 이름들 = Object.keys(표)
+    const 최대 = 하루이름최대별[무엇] ?? 하루이름최대
+    if (이름들.length > 최대 * 2) {
+      const 남길 = 이름들.sort((a, b) => 표[b] - 표[a]).slice(0, 최대)
+      const 새: Record<string, number> = {}
+      for (const k of 남길) 새[k] = 표[k]
+      칸[무엇] = 새
+    }
+    const 날들 = Object.keys(날짜순위!).sort()
+    if (날들.length > 날짜순위보관) {
+      for (const d of 날들.slice(0, 날들.length - 날짜순위보관)) delete 날짜순위![d]
+    }
+    await writeJsonFile(DAY_RANK_FILE, 날짜순위)
+  } catch {
+    /* 곁다리다 — 실패해도 본 집계를 막지 않는다 */
+  }
+}
 // 기능별 사용 횟수만 센다. 허용된 이벤트 이름 외에는 받지 않는다(임의 키 방지).
 // sets=세트별 목록에서 세트 열람, ebay_korean=이베이 한글판 시세 조회.
 // search_* 는 "인기 검색어에 한 표가 들어갈 때 그 검색어를 어떻게 확정했나"를 센다.
@@ -1821,7 +1902,7 @@ const MAX_SET_KEYS = 1200
 // 애매하다는 지적이 있었다. typed 비중이 낮으면 그 경로를 떼도 순위가 안 무너진다.
 const ALLOWED_EVENTS = new Set([
   'snkrdunk_search', 'ebay_search', 'scan', 'centering', 'artist', 'tcgplayer', 'sets', 'series',
-  'ebay_korean', 'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value',
+  'ebay_korean', 'sealed', 'packsim', 'scantest', 'packsim_checkin', 'packsim_godpack', 'packsim_value',
   'packsim_share', 'share',
   'search_scan', 'search_pick', 'search_popular', 'search_enter', 'search_typed',
   'packsim_banner', 'artist_by_pokemon',
@@ -1836,6 +1917,23 @@ const ALLOWED_EVENTS = new Set([
   // 센터링 화면을 연 횟수(2026-08-08). 'centering'은 사진이 들어온 횟수라 둘이 다르다 —
   // 같이 봐야 "안 들어온 것"과 "들어왔는데 안 쓴 것"이 갈린다.
   'centering_open',
+  // 해외 시세(2026-08-12). 옛 길(ebay_search·tcgplayer)을 **이어받은** 줄들이다 —
+  // 2026-08-13에 옛 탭을 떼면서 이쪽이 유일한 해외 시세가 됐다.
+  // search=검색한 횟수 · tcg=TCGplayer 눈으로 바꾼 횟수.
+  'cardboard_search', 'cardboard_tcg',
+  // 포켓몬 대전쟁(2026-08-17 · 운영자 베타). 라벨은 스테이지 이름이다.
+  // 시작·깸·짐을 따로 세야 어느 스테이지에서 막히는지 보인다.
+  'battle_start', 'battle_clear', 'battle_lose',
+  // 왜 졌나(2026-08-18). 라벨은 짧은 열쇠라 여섯 칸이면 된다 — 짐 라벨에 덧붙이면
+  // 12판 × 3난이도 × 6까닭 = 216칸이라 하루 칸(150)을 넘어 조용히 잘린다.
+  'battle_why',
+  // 숫자키 1~8로 낸 판(2026-08-18). **라벨이 없다** — 붙이면 아래에서 판별 표에 섞여 쌓인다.
+  // 한 판에 한 번만 오므로 `battle_start`와 나눠 「몇 판에서 숫자키를 썼나」로 읽는다.
+  'battle_key',
+  // 첫 판 안내(2026-08-18). **라벨이 없다** — 붙이면 아래에서 판별 표에 섞여 쌓인다.
+  // guide=안내가 처음 뜬 브라우저 · guide_done=그 안내를 따라 첫 포켓몬을 낸 브라우저.
+  // 둘의 비율이 곧 안내의 성적이라 **같이 봐야** 뜻이 있다.
+  'battle_guide', 'battle_guide_done', 'battle_card_detail', 'battle_quit',
 ])
 // 날짜별 칸을 이만큼만 유지한다(그보다 오래된 날은 합계 보존용 legacy 칸으로 접는다).
 const EVENT_KEEP_DAYS = 60
@@ -2249,6 +2347,8 @@ interface PptState {
   //    — 그날 네 번 배포해서 시세 덤프가 아예 안 들어왔다(left·fillSpent와 같은 실수를
   //    세 번째로 반복한 것이다). 날짜가 바뀌면 통째로 버린다.
   exportDays?: Record<string, string>
+  /** 종류별로 **성공적으로 받아 해석까지 끝낸** 마지막 날(UTC). */
+  exportOkDays?: Record<string, string>
   // 저쪽(PPT)이 값을 하나도 안 주는 세트. 덤프를 받을 때마다 다시 계산한다.
   // ⚠️ 이건 **날짜와 상관없이 이어받는다**(아래 day 검사보다 먼저 읽는다). 안 그러면
   //    날이 바뀐 직후 서버가 뜰 때 잠깐 비어서, 세트별 받기가 그 세트들을 또 두드린다.
@@ -2259,9 +2359,23 @@ const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10)
 // 저쪽에 값이 아예 없어서 세트별로 받아 봐야 소용없는 세트(ja-SM1+ 썬&문 등).
 const 값없는세트 = new Set<string>()
 
-// 통째 받기(/export)를 종류별로 마지막에 받은 날(UTC). 파일로 남겨 배포해도 이어진다.
-// 종류: cards(시세) · population(감정 수량) · ebay(등급별 낙찰)
+// 통째 받기(/export)를 종류별로 **마지막에 두드린 날**(UTC). 파일로 남겨 배포해도 이어진다.
+// 종류: cards(시세) · printings · sealed · population(감정 수량) · ebay(등급별 낙찰)
+//
+// ⚠️⚠️ **이 칸은 「성공」이 아니라 「오늘은 더 두드리지 마라」는 표시다.** 429(몫 소진)나
+//    파일이 너무 클 때도 여기 적힌다. 그래서 이 값만 보면 **받은 줄로 착각한다** —
+//    실제로 2026-08-08에 `population`이 그렇게 적혔는데, 백업을 보니 그날 자료는
+//    2KB(약 30장)뿐이었고 그 뒤로도 방문자가 낱장으로 받은 것만 하루 1~3KB씩 쌓였다.
+//    사흘 동안 「받았는데 왜 없지?」를 헤맨 원인이다(사장님 지적 2026-08-11).
+//    → **진짜로 받아서 해석까지 끝낸 날**은 아래 `exportOkDay`에 따로 적는다.
 const exportDoneDay: Record<string, string> = {}
+/** 그 종류를 **성공적으로 받아 해석까지 끝낸** 마지막 날(UTC). 화면·점검이 믿을 값이다. */
+const exportOkDay: Record<string, string> = {}
+/** 받아서 해석까지 끝났을 때만 부른다 — 429·용량초과로 못 받은 날과 갈라 적기 위한 것이다. */
+const 기록성공 = (종류: string) => {
+  exportOkDay[종류] = utcDay()
+  void savePptState()
+}
 
 // 지금 기준으로 쓸 수 있는 "남은 크레딧".
 //
@@ -2293,6 +2407,7 @@ async function savePptState(지금바로 = false) {
       dailyOut: pptDailyOut,
       fillSpent: fillSpentToday(),
       exportDays: exportDoneDay,
+      exportOkDays: exportOkDay,
       noPriceSets: [...값없는세트],
     } satisfies PptState)
   } catch {
@@ -2344,14 +2459,30 @@ export async function loadPptState() {
         if (typeof 날 === 'string') exportDoneDay[종류] = 날
       }
     }
-    const 오늘받은것 = Object.entries(exportDoneDay)
+    // ⚠️ **성공한 날은 하루가 지나도 지우지 않는다.** 「마지막으로 제대로 받은 날」은
+    //    어제 것이든 그제 것이든 그대로 값어치가 있다(위 day 검사와 다른 성격이다).
+    if (s.exportOkDays && typeof s.exportOkDays === 'object') {
+      for (const [종류, 날] of Object.entries(s.exportOkDays)) {
+        if (typeof 날 === 'string') exportOkDay[종류] = 날
+      }
+    }
+    // ⚠️ 기동 로그에는 **진짜로 받아 해석까지 끝낸 것**만 적는다. 예전엔 `exportDoneDay`를
+    //    썼는데 그건 429로 못 받은 것까지 세어 「오늘 받아 뒀다」로 보이게 했다.
+    const 오늘받은것 = Object.entries(exportOkDay)
       .filter(([, 날]) => 날 === utcDay())
       .map(([종류]) => 종류)
+    const 마지막성공 = Object.entries(exportOkDay)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([종류, 날]) => `${종류}=${날}`)
     console.log(
       `[pokegre] PPT 상태를 이어받았습니다: 남은 크레딧 ${Number.isFinite(pptLeftNow()) ? pptLeftNow() : '모름'}` +
         ` · 오늘 채우기에 쓴 것 ${fillSpentToday().toLocaleString()}/${WARM_FILL_BUDGET.toLocaleString()}` +
         (오늘받은것.length ? ` · 오늘 통째로 받아 둔 것 [${오늘받은것.join(', ')}]` : '') +
         (pptBlockedUntil > Date.now() ? ` · ${new Date(pptBlockedUntil).toISOString()}까지 쉽니다` : ''),
+    )
+    // 종류별로 **마지막에 제대로 받은 날**. 「받은 줄 알았는데 아니었다」를 눈으로 잡는 줄이다.
+    console.log(
+      `[pokegre] 통째 받기 마지막 성공: ${마지막성공.length ? 마지막성공.join(' · ') : '(아직 한 번도 없음)'}`,
     )
   } catch {
     /* 처음 뜨는 것 */
@@ -2447,28 +2578,6 @@ function notePptInner(status: number, headers: Headers) {
   pptBlockedUntil = pptDailyOut ? nextUtcMidnight() : now + (wait || 60_000)
 }
 
-// ⚠️ 여기 "무료 티어가 하루 100건이라 24시간"이라고 적혀 있었다. **무료 시절 설정이
-//    그대로 남아 있던 것**이다(2026-08-07에 발견). Pro를 거쳐 Business(하루 200,000)가
-//    됐는데 캐시만 그대로라, 아낄 이유가 없는데도 방문자가 **하루 지난 값**을 봤다.
-//
-//    저쪽 시세는 하루 한 번 갱신된다(lastPriceUpdate가 UTC 0시 무렵 = 한국시간 오전 9시).
-//    24시간으로 두면 오전에 갱신된 값을 저녁에 들어온 사람이 못 본다. 6시간이면
-//    그날 값이 늦어도 여섯 시간 안에 들어온다.
-const PRICE_TRACKER_CACHE_TTL_MS = 6 * 60 * 60 * 1000
-// 서로 다른 검색이 그만큼 캐시에 남는다.
-// ⚠️ **한 칸이 작지 않다.** 12장짜리 검색 하나가 157KB다(2026-08-07 실측) — 시세 추이를
-//    등급마다 365점씩 담기 때문이고, 낙찰 기록은 그중 24KB(15%)뿐이다.
-//    기계가 512MB라 500칸이면 최악 77MB가 캐시로만 나간다. 300칸(46MB)으로 줄인다.
-//    위 TTL도 6시간으로 짧아져서, 300칸이면 그 시간 안의 서로 다른 검색을 담기 충분하다.
-const PRICE_TRACKER_MAX_ENTRIES = 300
-// 무료 요금제가 하루 100건이다. 한 사람이 시간당 20건이면 정상 사용에는 걸릴 일이
-// 없으면서, 혼자서 하루치를 태우려면 다섯 시간이 걸린다.
-// 한 사람이 시간당 몇 번까지 새로 조회할 수 있는지(캐시 적중은 안 센다).
-// Business로 올려 하루치가 200,000이 됐으니(2026-08-07) 시간당 1,000이어도
-// 한 사람이 하루에 쓸 수 있는 건 36,000 남짓 — 방문자 몫 40,000 안에 든다.
-// 목적은 정상 사용자를 막는 게 아니라 한 사람이 하루치를 태우지 못하게 하는 것이다.
-const PRICE_TRACKER_RATE_LIMIT = 1000
-const PRICE_TRACKER_RATE_WINDOW_MS = 60 * 60 * 1000
 
 // 등급 목록을 세우는 순서는 **화면과 같은 한 벌**을 쓴다(src/lib/gradeOrder.ts).
 // 두 벌로 두면 같은 자료를 화면마다 다르게 세우게 된다 — 오늘 그 사고를 여러 번 냈다.
@@ -2530,6 +2639,15 @@ interface RawPriceTrackerCard {
         bestOfferAccepted?: boolean
         // ⚠️ 매물 제목. **딴 카드가 섞였는지 가리는 유일한 단서**다(아래 딴카드거르기).
         title?: string
+        /**
+         * **딴 카드 칸에서 옮겨 온 낙찰**이라는 표시(값은 원래 있던 카드의 저쪽 번호).
+         * 저쪽이 준 것이 아니라 `쌓인것붙이기`가 얹은 것이다. 두 가지에 쓴다:
+         *   ① 화면에 "어디서 옮겨 왔는지" 밝힌다 — 말없이 섞으면 그것도 속이는 것이다.
+         *   ② **이건 다시 옮기지 않는다.** 안 그러면 두 카드가 서로 떠넘겨 파일만 는다.
+         */
+        옮겨옴?: string
+        /** 어느 카드에서 왔는지 사람 말로("Charizard · Expansion Pack"). */
+        옮겨온곳?: string
       }[]
     >
     // 요즘 얼마나 자주 팔리는지. 값이 진짜인지, 팔고 싶을 때 팔 수 있는지를 가른다 —
@@ -2547,78 +2665,7 @@ interface RawPriceTrackerCard {
   }
 }
 
-interface ShapedEbayCard {
-  tcgPlayerId: string
-  /** 딴 카드로 보여 뺀 낙찰 건수(카드 전체 합). 없으면 안 보낸다. */
-  droppedOther?: number
-  name: string
-  setName: string
-  cardNumber: string | null
-  rarity: string
-  imageUrl: string
-  totalSales: number
-  // 최근 한 달 낙찰 건수. 모르면 null(화면에서 자동으로 숨김).
-  monthlySales: number | null
-  // TCGplayer 미국 마켓 시세(미감정 카드). 없으면 null.
-  tcgplayer: {
-    market: number
-    low: number
-    sellers: number
-    printing: string | null
-    // 이 값이 잡힌 매물의 상태("Near Mint"·"Moderately Played"…). 모르면 null.
-    condition: string | null
-    // 아래 history가 **어느 상태의** 추이인지. 큰 숫자와 다를 수 있어(그 상태 추이가
-    // 없는 카드가 있다) 화면에서 밝히려고 같이 넘긴다.
-    historyCondition: string | null
-    lastUpdated: string | null
-    url: string
-    // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
-    history: { date: string; price: number }[]
-  } | null
-  grades: {
-    grade: string
-    count: number
-    averagePrice: number
-    medianPrice: number
-    minPrice: number
-    maxPrice: number
-    marketTrend: string | null
-    lastSaleDate: string | null
-    /**
-   * **어느 카드인지 가릴 수 없는 낙찰만 모인 칸.** 저쪽이 이름만으로 묶어 둔 것을 번호·세트로
-   * 갈랐는데, 제목에 아무 단서도 없어 어디에도 못 넣은 것들이다("GRADED LUGIA! GREAT GIFT!").
-   * 수십 년에 걸친 다른 카드가 섞여 있으므로 **대표 시세를 내놓으면 안 된다** — 화면이
-   * 이 값을 보고 "참고만 하라"고 밝힌다.
-   */
-  가릴수없음?: boolean
-  /** 딴 카드로 보여 뺀 낙찰 건수(0이면 없음). 화면이 "몇 건 뺐다"를 밝히는 데 쓴다. */
-    droppedOther?: number
-    // 현재 적정가와 그 신뢰도. 없으면 null(그땐 화면이 중앙값으로 대체한다).
-    smartPrice: number | null
-    confidence: string | null
-    // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
-    history: { date: string; price: number }[]
-    // 실제 낙찰 몇 건(최근 순). 통계가 아니라 **낱개 거래**다.
-    // ⚠️ 등급당 EBAY_SALES_PER_GRADE건까지만 넘긴다. 전부 넘기면 응답이 264KB까지
-    //    부풀고(에브이 ex 663건), 화면에서 다 보여 줄 수도 없다.
-    /**
-     * ⚠️ `뺀까닭`이 있으면 **목록에는 보이지만 평균·중앙값·그래프에는 안 들어간 기록**이다.
-     * 표시가 없으면 "$3인데 중앙값이 $318"이라 사람이 혼란스럽다.
-     */
-    sales: { price: number; date: string; url: string; auction: boolean; title: string; 뺀까닭?: string }[]
-  }[]
-}
 
-// 등급 하나에 몇 건까지 보여 줄지. 사람이 훑어보는 데는 이 정도면 충분하고,
-// 더 보고 싶으면 등급 줄을 눌러 이베이 낙찰내역으로 갈 수 있다.
-const EBAY_SALES_PER_GRADE = 5
-// ⚠️ **뺀 기록도 몇 개는 보여준다.** 말없이 빼면 사람이 우리를 믿을 수밖에 없다 —
-//    사장님은 매물을 하나씩 눌러 사진을 보고서야 섞임을 찾아내셨다(2026-08-08).
-//    까닭을 붙여 보여주면 우리가 맞게 뺐는지 눈으로 확인할 수 있다.
-const EBAY_DROPPED_SHOWN = 3
-// 그래프에 보낼 날짜 수 상한(등급당). 낱개로 다시 그리면 점이 많아질 수 있어 막아 둔다 —
-// 낱개 2,151건짜리 카드도 있다. 넉넉히 잡아도 선 모양은 그대로다.
-const EBAY_HISTORY_MAX = 120
 
 // PokemonPriceTracker 원본 응답에는 화면에 안 쓰는 정보(개별 낙찰 목록, 전체 가격
 // 히스토리, smartMarketPrice 등)까지 들어 있다. 원본을 그대로 프록시로 흘리면 이
@@ -2667,6 +2714,31 @@ export function rememberCardName(id: string, name: string): void {
 
 export function lookupCardName(id: string): string | null {
   return cardNameById.get(id) ?? null
+}
+
+/**
+ * 저쪽 번호로 **우리 도감에서** 카드 이름을 찾는다(공유 링크 미리보기용). **크레딧 0.**
+ *
+ * ⚠️ 예전에는 이 자리에서 저쪽에 물어봤다(`fetchCardNameForShare`) — 크레딧이 나가서
+ *    하루 500번 상한을 걸어 뒀고, 크롤러가 그걸 다 쓰면 그 뒤 링크는 카톡 미리보기에
+ *    카드 이름이 안 떴다. 색인에 저쪽 번호가 57,344장 있으니 우리가 찾으면 된다.
+ * ⚠️ 이름은 **화면에 보이는 한글 이름 그대로**다 — 미리보기와 화면이 다른 이름이면
+ *    누른 사람이 딴 카드로 온 줄 안다.
+ */
+let 공유이름표: Map<string, string> | null = null
+export async function 도감에서카드이름(id0: string): Promise<string | null> {
+  const id = String(id0 ?? '').split('~')[0]
+  if (!/^\d+$/.test(id)) return null
+  if (!공유이름표) {
+    const idx = await loadCardIndex()
+    if (!idx) return null
+    공유이름표 = new Map()
+    for (const r of idx.rows) {
+      const tcg = (r as unknown as string[])[7]
+      if (tcg && !공유이름표.has(tcg)) 공유이름표.set(tcg, (r as unknown as string[])[2])
+    }
+  }
+  return 공유이름표.get(id) ?? null
 }
 
 // ── 공유 링크 미리보기용 이름 받아오기 (2026-08-07) ─────────────────────────
@@ -2732,802 +2804,374 @@ export function startCardNameStore(): void {
 }
 
 
-// ── 딴 카드가 섞인 낙찰 기록 걸러내기 ────────────────────────────────────────
+// ── 카드 번호 다듬기 ────────────────────────────────────────────────────────
 //
-// ⚠️⚠️ **저쪽(PPT)이 이름이 겹치는 세트를 한 카드로 묶어 놓는다.** 사장님이 잡아 주셨다
-//    (2026-08-08, /e/575612):
-//      우리 카드   1996 일본판 「확장팩 제1탄」 나인테일
-//      저쪽 세트명 "Expansion Pack"
-//    그런데 그 이름에 걸리는 세트가 셋이다 — 확장팩 제1탄(1996) · 확장팩 20th
-//    Anniversary(2016, CP6) · 기본확장팩(2001). 저쪽은 이 셋의 낙찰을 **한 카드에** 담는다.
-//      PSA 10:  진짜 1996년 $650·$911   ↔   섞인 2016년 $79.99·$89.99·$96·$107.5
-//      그래서 화면에 **평균 $461 · 중앙 $379**가 나갔다. 실제로는 $781쯤이다.
-//    카드 39장·낙찰 13,771건을 훑어 보니 **10.8%가 딴 카드**였다. 한 장짜리 사고가 아니다.
+// ⚠️ 예전에는 이 함수가 「제목 뜯기」 구역 한가운데 있었다. 그 구역은 **옛 시세 길**의
+//    것이라 2026-08-13에 통째로 걷어냈는데, 이 하나만은 **새 길이 쓴다** — 그래서
+//    여기로 옮겨 왔다. 지울 때 딸려 가지 않도록 자리를 따로 준다.
+/**
+ * 도감 카드의 `n`을 **화면에 낼 번호**로 바꾼다. 없으면 null(빈칸).
+ *
+ * ⚠️ `#577029`처럼 `#`+숫자만 있는 것은 **번호가 아니라 저쪽(PPT) 내부번호**다.
+ *    옛 일본 카드는 번호가 인쇄돼 있지 않아 도감에도 없고, 도감을 PPT 덤프로 만들 때
+ *    자리표로 그 번호가 들어갔다. 화면에 내면 방문자에게 아무 뜻도 없는 여섯 자리
+ *    숫자가 카드 번호인 척 붙는다 — **틀린 것보다 빈칸**이다(2026-08-11 이베이 검색
+ *    타일에서 「Blastoise #577029」로 새고 있던 것을 잡았다. 도감 화면은 이미 비웠다).
+ */
+const 도감번호 = (n?: string): string | null => {
+  const s = String(n ?? '').trim()
+  if (!s || /^#\d+$/.test(s)) return null
+  return s.split('~')[0]
+}
+
+
+
+// ── 팝수 조회 화면 · 미개봉 시세 ─────────────────────────────────────────────
 //
-/**
- * 이 카드의 낙찰 기록 중 **딴 카드인 것**을 가려내는 검사를 만든다.
- * 돌려주는 값은 **뺀 까닭**이다(빈 문자열이면 그 카드가 맞다). 까닭은 화면에도 그대로
- * 적어 준다 — 말없이 빼면 사람이 우리를 믿을 수밖에 없다(사장님이 하나씩 눌러 확인하셨다).
- *
- * ⚠️⚠️⚠️ **잘못 빼는 쪽이 섞이는 쪽보다 나쁘다.** 진짜 거래를 지우면 값이 거꾸로 틀어진다.
- *    여기까지 오는 데 잘못된 규칙을 세 번 만들었다(2026-08-08, 전부 표본 119장·낙찰
- *    20,682건 전수 대조로 잡았다):
- *      ① "제목 번호가 **다수**와 다르면 딴 카드" → **거꾸로 잘랐다.** 번호를 안 적는
- *         사람이 더 많아서, 정확히 적은 진짜 기록이 소수가 된다.
- *         (Pikachu Star 104/110 — 맞게 적은 52건이 통째로 잘렸다.)
- *      ② 글자로 견주기 → "232/91"과 "232/091"이 다른 것이 됐다(0 채움 차이).
- *      ③ **연도만 어긋나면 뺀다**(건수 문턱 없이) → 표본에서 **30건 넘게 잘못 잘렸다.**
- *         감정 라벨의 연도 오기가 아주 흔하다 — "2003 EX DRAGON FRONTIERS #97"(진짜는
- *         2006) · "2021 PALDEAN FATES #232"(진짜는 2024) · "2004 PALDEAN FATES".
- *         제목에 박힌 판매일("Sold Nov 9, 2025")도 카드 연도로 읽혔다.
- *      ④ **번호 앞자리**로 견주기 → 표본에서 12건이 잘못 잘렸다. 앞자리는 카드 번호가
- *         아닌 것이 너무 많다. LEGEND는 상·하 두 장이라 제목이 "#89 and #90"이고,
- *         뮤는 **도감번호 151**을 제목에 쓴다(진짜 번호는 1/18).
- *
- * ⚠️ **저쪽이 준 카드 번호는 잣대로 안 쓴다.** 틀린 것이 있다("Mew"의 번호가 빈칸,
- *    나인테일도 빈칸). 그래서 **그 카드의 낙찰 기록끼리만** 견준다.
- *
- * 지금 규칙: **번호를 적은 기록끼리만** 견주고, **떼로 어긋난 것만** 뺀다.
- *   · 번호를 적은 게 5건 이상이고 그중 70% 이상이 한 분모여야 그 분모를 잣대로 삼는다
- *   · 어긋난 분모가 **3건 이상이고 전체의 5% 이상**일 때만 뺀다
- *     (판매자 오타는 한두 건이다 — "232/232"·"#1/17" 같은 것을 지우면 안 된다)
- *   · 연도도 같은 방식. **기간 표기("2003-06")와 올해(=팔린 해)는 안 본다.**
- *
- * ⚠️ **아직 못 잡는 것이 있다.** 사장님이 잡아 주신 /e/575612(1996 일본판 나인테일)는
- *    섞인 쪽(2016년 CP6)이 **번호를 적은 기록 중에서는 다수**라 이 규칙으로 안 걸린다.
- *    그건 세트를 알아보는 방법이 따로 있어야 한다 — 다음 회차에서 잇는다.
- */
-/**
- * **저쪽 카드 한 칸에 여러 카드가 뭉쳐 있나.**
- *
- * 저쪽은 카드에 번호가 없으면 **이름만으로 묶는다.** 사장님이 잡아 주신 캡틴피카츄가
- * 그랬다(2026-08-08):
- *     이름 "Captain Pikachu" · 세트 "Unnumbered Promotional cards" · 번호 ""
- *     낙찰 34건 안에 **8종의 다른 카드**가 들어 있었다 —
- *       CBB1C 07 03/09 · 04/09 · 09/09 · CBB5C-01 02/07 · 03/07 · 04/07 · 06/07 · 07/07
- *     값이 $1.25 ~ $800으로 640배 벌어졌다. **걸러서 될 문제가 아니라 한 카드가 아니다.**
- *
- * ⚠️ **저쪽이 번호를 준 카드는 보지 않는다.** 번호가 있으면 그것으로 가릴 수 있다.
- * ⚠️ **딴 카드를 뺀 뒤에 센다.** 안 그러면 이미 걸러내는 딴 세트 매물 때문에 멀쩡한
- *    카드까지 뭉쳤다고 나온다(나인테일이 그랬다 — 거르기 전 2종, 거른 뒤 0종).
- * ⚠️ **한 번호가 2건 이상 나올 때만 센다.** 판매자 오타 한 건으로 카드를 통째로
- *    가리면 안 된다.
- */
-/**
- * **한 제목에 서로 다른 포켓몬이 둘 이상 나오면 여러 장을 같이 판 것이다.**
- *   "PSA 9 Pikachu 227/S-P **&** Cramorant 226 Stamp Box"  $3,185
- * 번호가 하나뿐이라 번호로는 못 잡는다(2026-08-08, 방문자가 자주 찾는 피카츄에서 나왔다).
- *
- * ⚠️⚠️ **태그팀 카드를 잘못 잡으면 안 된다.** "Umbreon & Espeon GX"는 이름 자체가 둘이다.
- *    그래서 **우리 카드 이름에 이미 여러 포켓몬이 들어 있으면 이 검사를 건너뛴다.**
- * ⚠️ 진화 라인이 한 제목에 나오는 것도 흔하다("Charizard Charmeleon Charmander"). 그건
- *    실제로 세 장 묶음이라 잡는 게 맞다.
- */
-const 제목속포켓몬 = (t: string): string[] => {
-  const s2 = String(t)
-  const 본것: string[] = []
-  for (const n of 포켓몬이름표) {
-    if (!new RegExp(`\\b${n}\\b`, 'i').test(s2)) continue
-    // 이미 잡은 긴 이름 안에 든 것은 세지 않는다(Mew ⊂ Mewtwo).
-    if (본것.some((x) => x.toLowerCase().includes(n.toLowerCase()))) continue
-    본것.push(n)
-    if (본것.length >= 3) break
-  }
-  return 본것
-}
-const 두장묶음인가 = (제목: string, 카드이름: string): boolean => {
-  if (제목속포켓몬(카드이름).length >= 2) return false // 태그팀 등 이름이 원래 둘인 카드
-  return 제목속포켓몬(제목).length >= 2
-}
-
-const 등급말앞 = /(psa|bgs|cgc|sgc|tag|ace|grade|gem|mint|black label)\s*$/i
-const 제목분모 = (t: string): string => {
-  // ⚠️ 소수점 뒤는 번호가 아니다(BGS 부점수 "9.5/9.5/10/9.5" → ".5/9"). listingTitle.ts와 같은 이유.
-  for (const m of t.matchAll(/(^|[^\d/.])(\d{1,3})\s*\/\s*(\d{2,3})(?![\d/])/g)) {
-    if (등급말앞.test(t.slice(0, (m.index ?? 0) + m[1].length))) continue
-    return m[3]
-  }
-  return ''
-}
-const 기간표기 = /\b(19|20)\d{2}\s*-\s*\d{2,4}\b/
-// ⚠️ **제목 맨 앞에 판 날짜가 붙어 오는 것이 있다** — "Sold  Nov 9, 2025- PSA 10 - Pikachu
-//    058/102 Base Set"처럼. 이걸 안 떼면 **2025가 카드 연도로 읽혀** 1999년 카드에서
-//    멀쩡한 기록이 잘린다(표본에서 실제로 3건 잘렸다). 뒤 글자에 붙어 있기도 하다
-//    ("Sold  Sep 10, 20252005 Pokemon EX Deoxys…") — 그래서 연도까지만 떼어 낸다.
-const 판날짜앞 = /^\s*Sold\s+[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}/i
-const 제목연도 = (t: string) => {
-  const s = t.replace(판날짜앞, ' ')
-  return 기간표기.test(s)
-    ? []
-    : (s.match(/\b(19[89]\d|20[0-2]\d)\b/g) ?? []).map(Number).filter((y) => y < new Date().getFullYear())
-}
-
-/**
- * **제목이 다른 세트 이름을 대놓고 적은 것**을 잡는다. 위의 번호·연도 견주기와 달리
- * 다수결이 아니라서, 딱 한 건이 섞여 있어도 잡힌다.
- *
- * 저쪽이 세트를 헷갈리는 까닭은 단순하다 — **세트 이름이 남의 이름 안에 통째로 들어간다.**
- * 우리 대조표 332개 중 21개가 그렇다:
- *      "Expansion Pack"  ⊂  "CP6: Expansion Pack 20th Anniversary" · "Base Expansion Pack"
- *      "EX Dragon"       ⊂  "EX Dragon Frontiers"
- *      "Celebrations"    ⊂  "Celebrations: Classic Collection"
- * 그래서 제목에 **우리 이름보다 긴 형제 이름이 통째로** 적혀 있으면 딴 카드다.
- *
- * ⚠️ **긴 쪽이 적혔을 때만 뺀다.** 우리가 긴 쪽인데(CP6) 제목에 짧은 이름만("Expansion
- *    Pack") 있는 경우는 그냥 줄여 쓴 것일 수 있어서 안 뺀다. 한쪽으로만 확실할 때 뺀다.
- *
- * ⚠️⚠️ **같은 세트를 저쪽이 두 이름으로 부르는 것이 있다.** 이걸 형제로 보면 멀쩡한
- *    기록이 잘린다(표본에서 22건 — 아래 둘을 넣기 전 실측):
- *      ① 앞에 코드만 붙은 것 — "XY-P: XY Promos"는 "XY Promos"와 같은 세트다.
- *         포켓몬 판초 피카츄 203/XY-P가 통째로 잘렸다.
- *         → **콜론 뒤가 우리 이름과 같으면** 형제로 안 본다.
- *      ② 흔한 낱말만 더 붙은 것 — "Pokemon Jungle"은 "Jungle"과 같은 세트다.
- *         → **더 붙은 낱말이 전부 흔한 말이면** 형제로 안 본다.
- */
-const 이름고르기 = (s: string) =>
-  ' ' + String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() + ' '
-// "pokemon jungle" 같은 것을 딴 세트로 오해하지 않게 한다. 여기 있는 말만 더 붙었으면
-// 같은 세트를 달리 적은 것으로 본다.
-// 'ex'가 들어 있는 까닭 — 저쪽은 같은 세트를 "Hidden Legends"와 "EX Hidden Legends"
-// 둘 다로 부른다. ex만 더 붙은 것은 딴 세트가 아니다.
-const 흔한말 = new Set(['pokemon', 'pokémon', 'tcg', 'card', 'cards', 'the', 'and', 'of', 'a', 'japanese', 'english', 'jp', 'en', 'ex'])
-// ⚠️ **우리가 화면에 안 가진 세트까지 알아야 한다.** pptSetNames는 우리 세트 대조표라
-//    332개뿐인데, 저쪽 덤프에는 세트가 654개 있다. 그리고 덤프 카드의 **29%(16,962장)가
-//    대조표에 없는 세트**다(2026-08-08 실측). 섞여 들어오는 쪽은 대개 우리가 안 가진
-//    세트라("Expansion Pack"에 섞인 CP6가 그랬다), 대조표만 보면 못 알아본다.
-//    pptSetList.json은 덤프에서 뽑는다 — scripts/gen-ppt-set-list.mts.
-const 세트이름들 = [
-  ...new Set([...(pptSetList as string[]), ...Object.values(pptSetNames as Record<string, string>)]),
-]
-const 형제캐시 = new Map<string, string[]>()
-function 긴형제(세트: string): string[] {
-  const 내이름 = 이름고르기(세트)
-  if (내이름.trim().length < 5) return [] // 너무 짧은 이름은 아무 데나 걸린다
-  const 있는것 = 형제캐시.get(내이름)
-  if (있는것) return 있는것
-  const 내낱말 = new Set(내이름.trim().split(' '))
-  const 것: string[] = []
-  for (const 원본 of 세트이름들) {
-    // ⚠️ **앞의 코드를 안 붙이고 적는 사람이 많다.** "CP6: Expansion Pack 20th
-    //    Anniversary"를 그냥 "Expansion Pack 20th Anniversary"라고 쓴다. 전체 이름만
-    //    보면 이런 것이 빠져나간다(나인테일 PSA 10에서 실제로 $96짜리 하나가 남았다).
-    //    그래서 콜론 뒤 토막도 같이 본다 — 그래도 우리 이름보다 길어야 통과한다.
-    const 후보 = 원본.includes(':') ? [원본, 원본.slice(원본.lastIndexOf(':') + 1)] : [원본]
-    for (const 조각 of 후보) {
-      const n = 이름고르기(조각)
-      if (n === 내이름 || !n.includes(내이름) || 것.includes(n)) continue
-      // ① 콜론 뒤가 우리 이름과 같으면 코드만 붙인 같은 세트다("XY-P: XY Promos").
-      const 콜론뒤 = 원본.includes(':') ? 이름고르기(원본.slice(원본.lastIndexOf(':') + 1)) : ''
-      if (콜론뒤 === 내이름) break
-      // ② 더 붙은 낱말이 전부 흔한 말이면 같은 세트를 달리 적은 것이다("Pokemon Jungle").
-      const 더붙은 = n.trim().split(' ').filter((w) => !내낱말.has(w))
-      if (더붙은.some((w) => !흔한말.has(w))) 것.push(n)
-    }
-  }
-  형제캐시.set(내이름, 것)
-  return 것
-}
-
-function 딴카드거르기(
-  soldListings: Record<string, { title?: string }[]> | undefined,
-  setName?: string | null,
-): (x: { title?: string }) => string {
-  const 전부 = Object.values(soldListings ?? {}).flat()
-  const 형제 = setName ? 긴형제(setName) : []
-  const 형제인가 = (t: string) => {
-    if (!형제.length) return false
-    const s = 이름고르기(t)
-    return 형제.some((n) => s.includes(n))
-  }
-  if (전부.length < 8)
-    return 형제.length ? (x) => (형제인가(String(x.title ?? '')) ? '같은 이름의 다른 세트' : '') : () => ''
-
-  const 셈하기 = (값들: string[]) => {
-    const m = new Map<string, number>()
-    for (const v of 값들) if (v) m.set(v, (m.get(v) ?? 0) + 1)
-    let 대표 = '',
-      n = 0
-    for (const [k, c] of m) if (c > n) ((대표 = k), (n = c))
-    const 합 = [...m.values()].reduce((a, b) => a + b, 0)
-    // 적은 게 5건 이상이고 그중 70% 이상이 한 값이어야 잣대로 삼는다.
-    return { 셈: m, 대표, 믿나: 합 >= 5 && n / 합 >= 0.7 }
-  }
-  // ⚠️ **잣대를 세울 땐 이미 딴 세트로 판명난 것을 빼고 센다.** 안 그러면 섞인 쪽이
-  //    다수가 되어 잣대가 거꾸로 선다(나인테일이 그랬다 — 진짜 1996년 기록은 "#38"이라
-  //    분모를 안 적고, 섞인 2016년 CP6가 "015/087"이라 분모 표에서 다수였다).
-  /**
-   * ⚠️ **제목이 딴 세트 이름을 대놓고 적었나.** 재판(리메이크) 카드가 원본과 **같은 번호**를
-   *    쓰는 일이 있어 번호로는 못 가른다:
-   *        네오 레벨레이션 66/64 「빛나는 잉어킹」(2001)  ↔  셀레브레이션즈 66/64(2021)
-   *    실제로 2001년 카드 시세에 2021년 재판이 섞여 $15~$1,500이 한 칸에 있었다.
-   * ⚠️ 한 집안 이름은 안 본다("Celebrations" ⊂ "Celebrations: Classic Collection").
-   *    이걸 빼먹으면 걸리는 것이 2.8%에서 18.6%로 뛴다 — 제 세트를 딴 세트로 읽는 것이다.
-   * ⚠️ **12글자 이상**인 이름만 본다. 짧으면 아무 데나 걸린다.
-   * ⚠️ 번호 없는 프로모 뭉치 칸에는 안 건다 — 거긴 **가르는 쪽**이 맞다(갈라담기 참고).
-   * 실측(2026-08-08): 낙찰 19,274건 중 231건(1.2%)이 걸리고 **전부 재판↔원본 짝**이었다.
-   */
-  // 견줄 때 쓰는 꼴: 소문자·글자와 숫자만 남기고 빈칸 하나로.
-  const 벗김 = (x: string) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
-  const 내세트벗김 = 벗김(String(setName ?? ''))
-  const 프로모뭉치 = /unnumbered|promotional/i.test(String(setName ?? ''))
-  const 딴세트이름 = 프로모뭉치 || !내세트벗김
-    ? []
-    : (pptSetList as string[])
-        .filter((n) => n.length >= 12 && !/promo/i.test(n))
-        .map((n) => 벗김(n))
-        .filter((v) => v && v !== 내세트벗김 && !내세트벗김.includes(v) && !v.includes(내세트벗김))
-  const 딴세트적힘 = (t: string): string => {
-    if (!딴세트이름.length) return ''
-    const s2 = 벗김(t)
-    if (s2.includes(내세트벗김)) return '' // 우리 세트 이름이 적혀 있으면 그 카드다
-    let 긴것 = ''
-    for (const v of 딴세트이름) if (s2.includes(v) && v.length > 긴것.length) 긴것 = v
-    return 긴것
-  }
-  const 성한것 = 전부.filter((x) => !형제인가(String(x.title ?? '')))
-  const 잣대 = 성한것.length >= 5 ? 성한것 : 전부
-  const D = 셈하기(잣대.map((x) => 제목분모(String(x.title ?? ''))))
-  // ⚠️ **분모만으로는 못 가르는 카드가 있다.** 사장님이 잡아 주신 캡틴피카츄가 그랬다
-  //    (2026-08-08): 저쪽이 번호 없는 프로모를 이름만으로 묶어, 한 칸에 03/09 · 04/09 ·
-  //    09/09가 같이 들어 있었다. 분모(09)가 같으니 분모 규칙으로는 하나도 못 뺀다.
-  //    그래서 **번호 전체**(앞/뒤)로도 잣대를 세운다. 문턱은 분모와 똑같이 둔다 —
-  //    번호를 적는 사람이 적어서, 느슨하게 하면 정확히 적은 소수가 잘린다(전에 겪었다).
-  const N = 셈하기(잣대.map((x) => 제목번호들(String(x.title ?? ''))[0] ?? ''))
-  // ⚠️ 분모 없이 "#38"이라고만 적은 것도 센다. 옛 카드 매물에 흔하다.
-  const B = 셈하기(잣대.map((x) => 맨번호들(String(x.title ?? ''))[0] ?? ''))
-  const Y = 셈하기(
-    잣대.map((x) => {
-      const y = 제목연도(String(x.title ?? ''))
-      return y.length ? String(Math.min(...y)) : ''
-    }),
-  )
-  // **떼로 어긋난 것만** 뺀다. 한두 건은 판매자 오타다.
-  // ⚠️ **"전체의 5% 이상"은 뺐다**(2026-08-08). 형제 세트 이름이 적힌 것이 먼저 빠지고 나면
-  //    남은 것이 몇 건뿐이라 5%에 못 미쳐 그대로 통과했다. 실제로 베이스셋 리자몽(4/102)에
-  //    베이스셋2(4/130) 낙찰 3건이 그렇게 남아 있었다 — 89건은 이름으로 걸러졌는데
-  //    "Set 2"라고만 적었거나 "Base Set"이라 적은 것들이 샜다.
-  //    ⚠️ 대신 **비슷한 숫자는 여전히 안 뺀다.** 102↔103처럼 한두 끗 차이는 오타일 수 있다.
-  /**
-   * ⚠️ **오타와 딴 카드를 가른다.** 분모가 어긋난 이유는 둘 중 하나다.
-   *   · 오타 — 우리 것과 **한두 끗 차이**거나(189↔188), **앞부분이 같다**(111↔11, 자리 빠뜨림).
-   *     이건 진짜 낙찰일 수 있으니 예전처럼 빡빡하게 본다(3건 이상 + 전체의 5% 이상).
-   *   · 딴 카드 — 아예 다른 세트 크기다(102↔130 베이스셋↔베이스셋2, 111↔115 네오↔언신포시스).
-   *     이건 **한 건이라도 뺀다.** 진짜 다른 카드이기 때문이다.
-   * 2026-08-08 무작위 점검에서 이 셋이 그대로 남아 있었다:
-   *     Blastoise 2/102 ← "Base Set 2 … 2/130"   ·   Slowking 14/111 ← "14/115 Unseen Forces"
-   */
-  const 떼인가 = (m: Map<string, number>, k: string, 대표: string, 느슨: boolean) => {
-    const c = m.get(k) ?? 0
-    if (c < 1) return false
-    // 번호 전체("4/130")·연도는 숫자 하나로 견줄 수 없다 — 예전처럼 빡빡하게.
-    const 숫자끼리 = Number.isFinite(Number(k)) && Number.isFinite(Number(대표))
-    const 차 = 숫자끼리 ? Math.abs(Number(k) - Number(대표)) : Infinity
-    const 오타꼴 = !숫자끼리 || 차 <= 2 || 대표.startsWith(k) || k.startsWith(대표)
-    if (!느슨 || 오타꼴) return c >= 3 && (차 > 2 || c / 전부.length >= 0.05)
-    return true
-  }
-
-  return (x) => {
-    const t = String(x.title ?? '')
-    if (!t) return ''
-    // 제목이 더 긴 형제 세트 이름을 통째로 적었으면 다수결을 볼 것도 없다.
-    if (형제인가(t)) return '같은 이름의 다른 세트'
-    const 딴세트 = 딴세트적힘(t)
-    if (딴세트) return `제목에 다른 세트가 적힘(${딴세트})`
-    if (D.믿나) {
-      const d = 제목분모(t)
-      // 0 채움은 무시하고 숫자로 견준다("232/91" = "232/091").
-      if (d && Number(d) !== Number(D.대표) && 떼인가(D.셈, d, D.대표, true)) return `번호가 다름(…/${d})`
-    }
-    if (N.믿나) {
-      const n = 제목번호들(t)[0] ?? ''
-      if (n && n !== N.대표 && 떼인가(N.셈, n, N.대표, false)) return `번호가 다름(${n})`
-    }
-    // ⚠️⚠️ **분모 없는 번호는 연도까지 함께 어긋날 때만 뺀다.**
-    //    번호만 보고 자르면 안 된다 — 뮤는 도감번호 151을, LEGEND는 "#89 and #90"을
-    //    제목에 쓴다(예전에 그렇게 12건을 잘못 잘랐다). 두 신호가 같이 어긋나면
-    //    딴 카드로 본다. 실제로 1996년 일본판 나인테일(#38)에 **1999년 영문 베이스셋
-    //    나인테일(#12)** 두 건이 그렇게 섞여 있었다(2026-08-08, 낙찰 목록에 제목을
-    //    보이게 하고 나서야 눈에 띄었다).
-    if (B.믿나 && Y.믿나) {
-      const b = 맨번호들(t)[0] ?? ''
-      const y = 제목연도(t)
-      const 해 = y.length ? Math.min(...y) : NaN
-      if (
-        b &&
-        Number(b) !== Number(B.대표) &&
-        Number.isFinite(해) &&
-        Math.abs(해 - Number(Y.대표)) >= 3
-      )
-        return `번호·연도가 다름(#${맨번호들(t)[0]} · ${제목연도(t)[0]}년)`
-    }
-    if (Y.믿나) {
-      const y = 제목연도(t)
-      if (y.length) {
-        const k = String(Math.min(...y))
-        if (Math.abs(Number(k) - Number(Y.대표)) >= 3 && 떼인가(Y.셈, k, Y.대표, false)) return `연도가 다름(${k}년)`
-      }
-    }
-    return ''
-  }
-}
-
-
-// ⚠️ 점검 도구가 **배포 없이** 같은 코드로 확인할 수 있게 내보낸다. 예전엔 운영 서버를
-//    거쳐야만 볼 수 있어서, 확인하려고 배포를 여섯 번 했다(2026-08-08 사장님 지적:
-//    "배포를 꼭 해야되는거야?"). 배포마다 방문자가 7초 멈춘다.
-export function shapeEbayCards(raw: unknown, have: 'ebay' | 'tcgplayer' = 'ebay'): ShapedEbayCard[] {
-  const body = raw as { data?: RawPriceTrackerCard | RawPriceTrackerCard[] }
-  const list = Array.isArray(body.data) ? body.data : body.data ? [body.data] : []
-
-  // 한 등급의 날짜별 히스토리(객체)를 그래프용 배열로 편다. 날짜 오름차순 정렬하고,
-  // 평균가가 없는 날은 버린다.
-  function shapeGradeHistory(byDate: Record<string, { average?: number } | null> | undefined) {
-    if (!byDate) return []
-    return Object.entries(byDate)
-      .map(([date, v]) => ({ date, price: v?.average ?? 0 }))
-      .filter((p) => p.price > 0)
-      .sort((a, b) => a.date.localeCompare(b.date))
-  }
+// ⚠️⚠️ **이 다섯은 원래 옛 시세 길()에 얹혀 살았다.** 2026-08-13에 옛
+//    길을 걷어내면서 통째로 딸려 갈 뻔했다 — 시세와 아무 상관이 없는데 한 함수 안에
+//    있었을 뿐이다. 그래서 제 이름을 가진 자리로 옮겼다.
+//     ·  ·  ·
+//     · 
+// ⚠️ 가 필요한 것은 와  둘뿐이다(장당 1~2크레딧).
+//    나머지 셋은 받아 둔 것을 읽기만 하므로 **크레딧을 안 쓴다.**
+function mountPopulationAndSealed(app: Mountable, apiKey: string) {
 
   /**
-   * ⚠️⚠️ **저쪽이 여러 카드를 한 칸에 묶어 놓은 것을 갈라 담는다**(사장님 지시 2026-08-08:
-   * "빼고 다른 데 옮기는 과정에서 넣을 곳이 없으면 그와 대응하는 걸 만들어야 하지 않을까").
+   * 저쪽 번호 → 우리 도감 카드. 팝수 맛보기(`population-samples`)가 쓴다.
    *
-   * 저쪽은 카드에 번호가 없으면 **이름만으로 묶는다.** 캡틴피카츄가 그랬다 —
-   *     이름 "Captain Pikachu" · 세트 "Unnumbered Promotional cards" · 번호 ""
-   *     낙찰 34건 안에 03/09 · 04/09 · 09/09 · 02/07 · 03/07 …이 같이 있었다($1.25~$800).
-   * 그냥 빼면 그 거래들이 통째로 사라진다. **번호마다 카드를 하나씩 만들어** 제자리를
-   * 준다. 열쇠는 "617410~3-9"처럼 뒤에 번호를 붙인다(화면이 카드마다 다른 열쇠를 쓴다).
-   *
-   * ⚠️ 저쪽이 번호를 준 카드는 건드리지 않는다 — 이미 한 카드다.
-   * ⚠️ **가를지 말지**는 조심해서 정한다 — 두 번호 이상이 각각 2건 넘게 있을 때만 가른다.
-   *    판매자 오타 한 건으로 멀쩡한 카드를 쪼개면 안 된다.
-   * ⚠️ 하지만 **가르기로 정한 뒤에는 번호가 적힌 것을 모두 제자리로** 보낸다. 문턱을
-   *    그대로 두면 1건짜리가 "번호 미상"에 남는데, 그건 우리가 아는 사실을 버리는 것이다
-   *    (캡틴피카츄 09/09 PSA 10 $700이 그렇게 남아 있었다 — 제목에 번호가 또렷하다).
-   * ⚠️⚠️ **번호를 안 적은 매물을 큰 갈래에 몰아넣으면 그게 또 섞임이다.** 우리는 그게 어느
-   *    카드인지 모른다. 번호 없는 것들만 모아 **번호를 안 적은 카드**로 따로 낸다(열쇠는
-   *    원래 것 그대로). 버리지도, 없는 사실을 지어내지도 않는다.
+   * ⚠️ 예전에는 옛 길의 `옮길곳색인`(도감 전체를 이름으로 뒤집은 16.8MB짜리)을 빌려
+   *    썼는데, 그건 **매물 제목을 카드에 잇느라** 만든 것이라 여기엔 과했다. 여기 필요한
+   *    것은 「저쪽 번호로 카드 하나 찾기」뿐이라 그만큼만 만든다.
+   * ⚠️ 한 번 만들면 들고 있는다. 팝수 화면은 자주 열리지 않으니 **처음 열 때만** 만든다.
    */
-  // 저쪽이 아는 세트 이름 중 **길고 뚜렷한 것**만. 짧거나 흔한 말("Promo")은 아무 데나 걸린다.
-  const 긴세트이름 = (pptSetList as string[]).filter((n) => n.length >= 8 && !/promo/i.test(n))
-  const 갈라담기 = (카드들: RawPriceTrackerCard[]): RawPriceTrackerCard[] => {
-    const 결과: RawPriceTrackerCard[] = []
-    for (const c of 카드들) {
-      const 칸들 = c.ebay?.soldListings ?? {}
-      const 낱개 = Object.values(칸들).flat()
-      if (String(c.cardNumber ?? '').trim() || 낱개.length < 6) {
-        결과.push(c)
-        continue
-      }
-      const 딴것 = 딴카드거르기(칸들, c.setName)
-      const 셈 = new Map<string, number>()
-      // ⚠️ **분모 없이 "#249"라고만 적은 것도 갈래로 센다.** 옛 프로모는 그렇게 적는 사람이
-      //    많아서, 이걸 안 보면 전부 "번호 미상" 한 칸에 뭉친다. 실제로 리자몽 한 칸에
-      //    1997 로켓단 #6($5,000) · 1999 베이스셋($10,000) · 2024 프로모($229)가 같이
-      //    들어 있었다(2026-08-08).
-      const 맨셈 = new Map<string, number>()
-      for (const x of 낱개) {
-        if (딴것(x)) continue
-        const n = 제목번호들(String(x.title ?? ''))[0]
-        if (n) 셈.set(n, (셈.get(n) ?? 0) + 1)
-        else {
-          const b2 = 맨번호들(String(x.title ?? ''))[0]
-          if (b2) 맨셈.set(b2, (맨셈.get(b2) ?? 0) + 1)
-        }
-      }
-      // ⚠️ 번호가 아예 없는 매물도 제목에 **세트 이름**을 적은 것이 있다
-      //    ("2011 Pokemon Call of Legends #15" 같은 것 말고, 번호 없이 "Call of Legends"만).
-      //    그것도 갈래로 쓴다 — 안 그러면 전부 "번호 미상"에 남는다.
-      const 세트셈 = new Map<string, number>()
-      const 내세트 = String(c.setName ?? '').toLowerCase()
-      const 제목세트 = (t: string): string => {
-        const s2 = t.toLowerCase()
-        let 긴것 = ''
-        for (const n of 긴세트이름) {
-          if (n.toLowerCase() === 내세트) continue
-          if (s2.includes(n.toLowerCase()) && n.length > 긴것.length) 긴것 = n
-        }
-        return 긴것
-      }
-      for (const x of 낱개) {
-        if (딴것(x)) continue
-        const t = String(x.title ?? '')
-        if (제목번호들(t).length || 맨번호들(t).length) continue
-        const sn = 제목세트(t)
-        if (sn) 세트셈.set(sn, (세트셈.get(sn) ?? 0) + 1)
-      }
-      const 갈래 = [...셈].filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1])
-      // ⚠️⚠️ **분모 없는 번호를 분모 있는 갈래에 합치지 않는다.**
-      //    처음엔 "#4가 4/102 하나뿐이면 같은 카드"로 보고 합쳤는데, 그러다 **1996년
-      //    베이스셋 리자몽(#006, $2,150)이 2023년 151 리자몽(6/165) 칸에 들어갔다**
-      //    (2026-08-08). 같은 앞자리를 쓰는 카드가 세상에 널려 있고, 그 세트의 낙찰이
-      //    마침 하나도 안 보이면 막을 방법이 없다.
-      //    갈래가 쪼개지는 손해는 있지만, **넘겨짚어 합치면 그게 섞임이다.**
-      const 맨갈래: [string, number][] = [...맨셈].filter(([, v2]) => v2 >= 2).sort((x, y) => y[1] - x[1]).map(([b2, v]) => [`#${b2}`, v])
-      const 세트갈래 = [...세트셈].filter(([, v]) => v >= 2).sort((x, y) => y[1] - x[1])
-      if (갈래.length + 맨갈래.length + 세트갈래.length < 2) {
-        결과.push(c)
-        continue
-      }
-      // 가르기로 정했으니, 번호가 적힌 것은 1건짜리라도 제 번호로 보낸다.
-      const 모든번호 = new Set<string>()
-      for (const x of 낱개) {
-        const n = 제목번호들(String(x.title ?? ''))[0]
-        if (n) { 모든번호.add(n); continue }
-        const b2 = 맨번호들(String(x.title ?? ''))[0]
-        if (b2) { 모든번호.add(`#${b2}`); continue }
-        const sn = 제목세트(String(x.title ?? ''))
-        if (sn && 세트셈.get(sn)! >= 2) 모든번호.add(`@${sn}`)
-      }
-      const 담을곳 = (x: { title?: string }) => {
-        const n = 제목번호들(String(x.title ?? ''))[0]
-        if (n) return n
-        const b2 = 맨번호들(String(x.title ?? ''))[0]
-        if (b2) return `#${b2}`
-        const sn = 제목세트(String(x.title ?? ''))
-        return sn && (세트셈.get(sn) ?? 0) >= 2 ? `@${sn}` : ''
-      }
-      for (const 번호 of [...모든번호, '']) {
-        const 새칸: Record<string, typeof 낱개> = {}
-        for (const [k, l] of Object.entries(칸들))
-          for (const x of l) if (담을곳(x) === 번호) (새칸[k] ??= []).push(x)
-        const 수 = Object.values(새칸).flat().length
-        if (!수) continue
-        결과.push({
-          ...c,
-          // ⚠️⚠️ **TCGplayer 값은 물려주지 않는다.** 저쪽의 그 값은 **묶인 칸 하나의 것**이라,
-          //    그대로 물려주면 갈라 놓은 카드가 **전부 같은 마켓가**를 달고 나온다
-          //    (캡틴피카츄 9장이 모두 $50이었다 · 2026-08-08). 그게 곧 섞임이다.
-          //    감정 수량을 안 붙이는 것과 같은 이유다.
-          prices: 번호 ? undefined : c.prices,
-          // ⚠️⚠️ **사진과 레어도도 물려주지 않는다.** 저쪽 사진은 묶인 칸 하나의 것이라,
-          //    갈라 놓은 카드에 그대로 붙이면 **아홉 장이 같은 사진**을 달고 나온다.
-          //    사장님이 처음 지적하신 게 바로 그것이다 — "사진 보면 다른 카드잖아".
-          //    이 리포의 원칙대로 **틀린 것보다 빈칸**이 낫다(CLAUDE.md).
-          imageCdnUrl400: 번호 ? undefined : c.imageCdnUrl400,
-          imageCdnUrl200: 번호 ? undefined : c.imageCdnUrl200,
-          rarity: 번호 ? undefined : c.rarity,
-          tcgPlayerId: 번호 ? `${c.tcgPlayerId}~${번호.replace(/[/ ]/g, '-')}` : c.tcgPlayerId,
-          // "@Call of Legends"는 번호가 아니라 세트 이름이다 — 번호 칸에 넣지 않는다.
-          cardNumber: 번호.startsWith('@') ? null : 번호 || null,
-          가릴수없음: !번호 || undefined,
-          name: !번호
-            ? `${c.name ?? ''} (번호 미상)`.trim()
-            : 번호.startsWith('@')
-              ? `${c.name ?? ''} (${번호.slice(1)})`.trim()
-              : `${c.name ?? ''} ${번호}`.trim(),
-          ebay: { ...c.ebay, soldListings: 새칸, salesByGrade: undefined, totalSales: 수 },
-        } as RawPriceTrackerCard)
-      }
+  let 번호표: Map<string, { slug: string; n: string; 이름: string; img: string; 세트: string }> | null = null
+  const 번호로카드 = async () => {
+    if (번호표) return 번호표
+    const idx = await loadCardIndex()
+    번호표 = new Map()
+    if (!idx) return 번호표
+    for (const r of idx.rows) {
+      const [slug, n, 이름, img, , , , tcg] = r as unknown as string[]
+      if (!tcg || !img || 번호표.has(tcg)) continue
+      번호표.set(tcg, { slug, n, 이름, img, 세트: idx.sets[slug]?.[0] ?? slug })
     }
-    return 결과
+    return 번호표
   }
 
-  return 갈라담기(list)
-    .filter((card) =>
-      have === 'tcgplayer' ? (card.prices?.market ?? 0) > 0 : (card.ebay?.totalSales ?? 0) > 0,
-    )
-    .map((card) => {
-      // ⚠️ **이 카드에 딴 카드가 섞였는지 가리는 검사**를 카드마다 한 번 만든다.
-      //    낙찰 기록 전체를 봐야 "다수"를 알 수 있어서 등급별로 따로 만들면 안 된다.
-      const 딴것 = 딴카드거르기(card.ebay?.soldListings, card.setName)
-      // ⚠️⚠️ **잘못 담긴 낙찰은 버리지 말고 제자리로 옮긴다**(사장님 지시 2026-08-08).
-      //    저쪽이 제목에서 등급을 못 읽으면 그 매물을 **미감정 칸에 떨어뜨린다** — 사진은
-      //    케이스인데 제목에 PSA라고 안 적혀 있는 것들이다. 카드 45장·미감정 낙찰 932건
-      //    중 **95건(10.2%)**이 그랬다. 그냥 빼면 그 거래가 통째로 사라지니, 제목이 밝힌
-      //    칸으로 옮긴다.
-      //    ⚠️ 작은 감정사(PGS·MPG·CCI·Z)를 PSA 칸에 넣으면 **그게 또 섞임이다.** 회사
-      //       이름을 살려 자기 칸(pgs10·z10)을 만든다. 화면 이름표는 아무 칸이나 받는다.
-      //    ⚠️ **이미 감정 칸에 있는 것은 회사가 다를 때만** 옮긴다. 등급 칸 낙찰 3,021건을
-      //       대조해 보니 회사가 어긋난 것은 2건뿐이었고, 그중 한 건은 제목에 두 회사가
-      //       같이 적혀 있어(“CGC 9 PSA”) 가릴 수 없다 — 그런 건 건드리지 않는다.
-      const 다시담은칸: Record<string, { price?: number; soldDate?: string; url?: string; listingType?: string; bestOfferAccepted?: boolean; title?: string }[]> = {}
-      for (const [칸, list] of Object.entries(card.ebay?.soldListings ?? {})) {
-        for (const x of list) {
-          const 진짜 = 제목등급칸(String(x.title ?? ''))
-          const 지금회사 = 칸회사(칸)
-          const 옮길까 =
-            진짜 !== '' &&
-            진짜 !== 칸 &&
-            (칸 === 'ungraded' ||
-              // 감정 칸끼리는 **자기 회사가 제목에 아예 없을 때만** 옮긴다.
-              (칸회사(진짜) !== 지금회사 && !new RegExp(`\\b${지금회사}\\b`, 'i').test(String(x.title ?? ''))))
-          const 갈곳 = 옮길까 ? 진짜 : 칸
-          ;(다시담은칸[갈곳] ??= []).push(x)
+  // ⚠️ (없앰) **저쪽 번호 → 우리 카드 「되찾기」 표.** 옛 `card-find`가 저쪽 검색 결과에서
+  //    「우리가 아는 카드」를 위로 올리려고 쓰던 것이다. 2026-08-13에 팝수 찾기를
+  //    **우리 도감에서 찾기**로 바꾸면서 저쪽 결과 자체가 없어져 쓸 데가 사라졌다.
+  //    서버가 뜰 때 세트 파일 666개를 통째로 읽던 자리라, 지우면서 그 비용도 없어졌다.
+
+  // ── 우리 도감에서 카드 찾기 (크레딧 0) ──────────────────────────────────────
+  //
+  // 왜 — 방문자가 해외 시세 탭에 이름을 치면 지금은 **PPT에 이름으로 뒤진다.** 저쪽
+  // `search`는 카드 이름뿐 아니라 세트 이름까지 보므로 딴 카드가 섞이고, 12장을 받느라
+  // 크레딧을 144씩 쓴다.
+  // 2026-08-09에 도감을 PPT로 갈아엎으며 **카드마다 PPT 번호가 생겼다**(58,151장).
+  // 그러니 **우리가 먼저 찾아 번호를 고르고**, 시세는 그 번호로만 부르면 된다.
+  //
+  // ⚠️ 값 순서는 `cardValue.json`(덤프에서 미리 만든 것)으로 매긴다. 운영 서버에는
+  //    덤프가 없고(하루 쓰고 지운다), 값을 알자고 PPT를 부르면 크레딧이 든다.
+  //    **그 값을 화면에 쓰면 안 된다 — 묵은 값이라 정렬에만 쓴다.**
+  const 찾기색인 = (() => {
+    type 색인줄 = { 열쇠: string; tcg: string; slug: string; n: string; date: string; 값: number; ko: string; img: string; setKo: string }
+    let 만든것: 색인줄[] | null = null
+    return () => {
+      if (만든것) return 만든것
+      const 값표 = cardValue as Record<string, number>
+      const 읽기 = (p: string): string | null => {
+        for (const base of ['dist/sets', 'public/sets']) {
+          try {
+            return readFileSync(path.resolve(base, p), 'utf-8')
+          } catch {
+            /* 다음 경로 */
+          }
         }
+        return null
       }
-      // 저쪽이 낱개를 **전부** 줬나. 카드 단위로 한 번만 본다 — 칸을 옮기면 칸별 건수는
-      // 달라지므로 칸끼리 견주면 안 된다.
-      // ⚠️⚠️ **터무니없는 값 한둘이 그 등급의 시세를 통째로 뒤집는다.**
-      //    Mew ex 232/091의 BGS 10 칸에 "$250,000"·"$181,000" 두 건이 있었고, 저쪽이 정한
-      //    범위가 하필 그 둘만 남겨 **중앙값이 $215,500**으로 나갔다(2026-08-08).
-      //    같은 카드의 다른 등급은 전부 $500~$4,900다. 제목은 "POP 1 … BGS 10 BLACK LABEL"
-      //    인데, POP 1(세상에 한 장)이 같은 날 두 번 팔릴 수는 없다.
-      //    → 그 카드 낙찰값의 **상위 10%(p90)의 30배**를 넘으면 셈에서 뺀다. 목록에는
-      //      그대로 보여 주고 **평균·중앙값·그래프에서만** 뺀다(저쪽이 범위 밖을 다루는 것과 같다).
-      //    ⚠️ 30배는 넉넉히 잡은 것이다. 10배로 하면 베이스셋 리자몽의 진짜 $21,020 낙찰까지
-      //       잘린다(표본으로 확인). 낱개가 20건 넘는 카드에만 건다 — 적으면 p90이 못 미덥다.
-      const 카드값들 = Object.values(card.ebay?.soldListings ?? {})
-        .flat()
-        .map((x) => x.price ?? 0)
-        .filter((v) => v > 0)
-        .sort((a, b) => a - b)
-      const 백분 = (p2: number) => 카드값들[Math.min(카드값들.length - 1, Math.floor((카드값들.length - 1) * p2))]
-      const 값상한 = 카드값들.length >= 20 ? 백분(0.9) * 30 : Infinity
-      // ⚠️ **낮은 쪽도 막아야 한다.** 높은 쪽만 막고 있었더니 이런 것이 그대로 셈에 들어갔다:
-      //    "2021 Evolving Skies Secret #218 FA Rayquaza VMAX PSA 10" **$2**
-      //    (같은 카드·같은 등급인데 실제 시세는 $2,700이다. 저쪽이 정한 최저가도 $2였다.)
-      //    잘못 적힌 값이거나 배송비만 결제된 것으로 보인다. 그대로 두면 "최저 $2"가 나가고
-      //    그래프 바닥도 눌린다.
-      //    상위 10%의 30배를 상한으로 쓰는 것과 대칭으로, **하위 10%의 1/30**을 하한으로 쓴다.
-      //    ⚠️ 1/10로 하면 싼 카드의 진짜 낙찰($12~$30)까지 잘린다(표본으로 확인). 1/30이다.
-      const 값하한 = 카드값들.length >= 20 ? 백분(0.1) / 30 : 0
-      const 낱개전부왔나 =
-        (card.ebay?.totalSales ?? 0) === Object.values(card.ebay?.soldListings ?? {}).flat().length &&
-        (card.ebay?.totalSales ?? 0) > 0
-      // 저쪽이 통계만 주고 낱개를 안 준 칸도 그대로 살린다(빈 배열로 두면 사라진다).
-      for (const 칸 of Object.keys(card.ebay?.salesByGrade ?? {})) 다시담은칸[칸] ??= card.ebay?.soldListings?.[칸] ?? []
-      const history = card.ebay?.priceHistory ?? {}
-      // TCGplayer 날짜별 추이는 상태(Near Mint·Lightly Played…)별로 나뉘어 온다.
-      //
-      // ⚠️ **큰 숫자와 같은 상태를 그려야 한다.** 예전엔 무조건 Near Mint를 우선했는데,
-      //    마켓가는 Near Mint가 아닌 매물로 잡히는 일이 흔하다(옛 일본판은 60%).
-      //    그러면 큰 숫자와 그래프가 서로 다른 상태를 말하게 된다 — 추이가 있는 카드
-      //    83장 중 12장(14%)이 그랬다(2026-08-07 실측).
-      //        뮤츠 118/128  큰 숫자 $109.99(많이 사용된)  ↔  그래프는 민트 $159
-      //    같은 화면에서 값이 안 맞으니 어느 쪽을 믿어야 할지 알 수 없다.
-      //    conditionUsed("Moderately Played 1st Edition - Japanese")에서 상태 부분만
-      //    떼어 그 상태의 추이를 고른다. 없으면 예전처럼 Near Mint → 점 많은 순.
-      const conditions = card.priceHistory?.conditions ?? {}
-      // ⚠️ 큰 숫자에 붙이는 상태(아래 condition)와 **똑같은 것**을 골라야 한다. 다르게
-      //    고르면 방금 맞춰 놓은 것이 다시 어긋난다. 그래서 한 변수로 둔다.
-      const 쓴상태 =
-        (card.prices?.primaryPrinting ? card.variants?.[card.prices.primaryPrinting]?.conditionUsed : null) ??
-        Object.values(card.variants ?? {})[0]?.conditionUsed ??
-        null
-      // 좋은 상태부터 나쁜 상태 순. "가장 가까운 상태"를 고를 때 이 순서로 잰다.
-      const 상태순서 = ['Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']
-      const 상태이름 = 상태순서.find((c) => (쓴상태 ?? '').includes(c))
-      // ⚠️ 딱 그 상태의 추이가 **없는 카드가 있다.** 뮤츠 118/128은 큰 숫자가 "많이
-      //    사용된" $109.99인데 추이는 민트·조금·손상만 있다. 그때 예전처럼 민트로
-      //    넘어가면 $159를 그려 큰 숫자와 50달러가 벌어진다. 순서상 **가장 가까운
-      //    상태**를 고른다 — 여기서는 손상($95)이 민트($159)보다 훨씬 가깝다.
-      const 있는것 = Object.keys(conditions).filter((k) => (conditions[k].history?.length ?? 0) > 0)
-      const conditionKey =
-        (상태이름 && 있는것.includes(상태이름) ? 상태이름 : null) ??
-        (상태이름
-          ? 있는것
-              .filter((k) => 상태순서.includes(k))
-              .sort(
-                (a, b) =>
-                  Math.abs(상태순서.indexOf(a) - 상태순서.indexOf(상태이름)) -
-                  Math.abs(상태순서.indexOf(b) - 상태순서.indexOf(상태이름)),
-              )[0]
-          : null) ??
-        (있는것.includes('Near Mint')
-          ? 'Near Mint'
-          : 있는것.sort(
-              (a, b) => (conditions[b].history?.length ?? 0) - (conditions[a].history?.length ?? 0),
-            )[0])
-      const tcgHistory = (conditionKey ? conditions[conditionKey]?.history ?? [] : [])
-        .map((h) => ({ date: h.date ?? '', price: h.market ?? 0 }))
-        .filter((h) => h.date && h.price > 0)
-        .sort((a, b) => a.date.localeCompare(b.date))
-      // TCGplayer 시세: 마켓가가 있을 때만 담는다(없으면 화면에서 아예 안 보인다).
-      const p = card.prices
-      const tcgplayer =
-        p && (p.market ?? 0) > 0
-          ? {
-              market: p.market ?? 0,
-              low: p.low ?? 0,
-              sellers: p.sellers ?? 0,
-              printing: p.primaryPrinting ?? null,
-              // 위에서 고른 것을 그대로 쓴다(추이 그래프와 같은 상태여야 한다).
-              condition: 쓴상태,
-              historyCondition: conditionKey ?? null,
-              lastUpdated: p.lastUpdated ?? null,
-              url: card.tcgPlayerUrl ?? '',
-              history: tcgHistory,
-            }
-          : null
-      return {
-        tcgPlayerId: card.tcgPlayerId ?? '',
-        name: card.name ?? '',
-        setName: card.setName ?? '',
-        cardNumber: card.cardNumber ?? null,
-        // 갈라 담을 때 붙인 표시(위 갈라담기 설명). 갈리지 않은 카드에는 없다.
-        가릴수없음: (card as { 가릴수없음?: boolean }).가릴수없음 || undefined,
-        // ⚠️ **레어도를 같이 내보낸다.** 저쪽의 search는 카드 이름만 보므로
-        //    "리자몽 MUR"을 그대로 보내면 0장이 오고, "리자몽 SAR"은 **SAR가 아닌 카드
-        //    7장**이 온다(2026-08-08 실측 — 저쪽이 모르는 낱말을 흘려버린다).
-        //    이 값이 있어야 화면에서 진짜 그 레어도만 걸러낼 수 있다(팝수 화면과 같은 방식).
-        rarity: card.rarity ?? '',
-        imageUrl: card.imageCdnUrl400 ?? card.imageCdnUrl200 ?? '',
-        // ⚠️ **총 낙찰 건수도 딴 카드를 빼고 센다.** 저쪽 값을 그대로 쓰면 "총 53건"이라
-        //    적히는데 그중 14건이 딴 카드다(2026-08-08). 낱개가 늘 전부 오므로
-        //    (카드 40장 전수 확인) 거른 낱개를 세는 쪽이 맞다.
-        totalSales: (() => {
-          const 낱개 = Object.values(card.ebay?.soldListings ?? {}).flat()
-          if (!낱개.length) return card.ebay?.totalSales ?? 0
-          const 남 = 낱개.filter((x) => !딴것(x)).length
-          // 저쪽 총계와 낱개 수가 어긋나면(낱개가 일부만 온 경우) 저쪽 값을 믿는다.
-          return (card.ebay?.totalSales ?? 0) === 낱개.length ? 남 : card.ebay?.totalSales ?? 0
-        })(),
-        // ⚠️ **뺀 건수를 화면에도 알린다.** 말없이 빼면 이베이에서 직접 세어 본 사람과
-        //    숫자가 달라 보여 "우리가 틀렸나" 싶어진다. 왜 다른지 한 줄로 밝힌다.
-        droppedOther: (() => {
-          const 낱개 = Object.values(card.ebay?.soldListings ?? {}).flat()
-          if ((card.ebay?.totalSales ?? 0) !== 낱개.length) return undefined
-          const 뺀 = 낱개.filter((x) => 딴것(x)).length
-          return 뺀 > 0 ? 뺀 : undefined
-        })(),
-        monthlySales:
-          (card.ebay?.salesVelocity?.monthlyTotal ?? 0) > 0 ? (card.ebay?.salesVelocity?.monthlyTotal ?? null) : null,
-        tcgplayer,
-        grades: Object.entries(다시담은칸)
-          .map(([grade, 담긴것]) => {
-            const stat = card.ebay?.salesByGrade?.[grade] ?? {}
-            // ⚠️ **딴 카드가 섞인 낙찰을 먼저 뺀다**(위 딴카드거르기 설명).
-            // ⚠️ **같은 매물이 두 번 들어 있다.** 저쪽 자료에 같은 매물번호(listingId)가
-            //    제목만 다르게 두 번 오는 일이 있다 — 낙찰 17,267건에 13건(0.08%)이었다
-            //    (2026-08-08). 그대로 두면 건수도 값도 부풀려진다:
-            //        리자몽 psa5 $1,750 한 건이 **세 줄**로 들어 있었다.
-            //    매물번호가 있는 것만 겹치는지 본다(없는 것끼리는 가릴 수 없다).
-            const 본매물 = new Set<string>()
-            const 원래 = 담긴것.filter((x) => {
-              if (!((x.price ?? 0) > 0 && x.soldDate)) return false
-              const id = String((x as { listingId?: string }).listingId ?? '') || String(x.url ?? '').split('?')[0]
-              if (!id) return true
-              if (본매물.has(id)) return false
-              본매물.add(id)
-              return true
+      const idxRaw = 읽기('index.json')
+      const out: 색인줄[] = []
+      if (!idxRaw) {
+        만든것 = out
+        return 만든것
+      }
+      for (const s of JSON.parse(idxRaw) as { slug: string; ed?: string; releaseDate?: string }[]) {
+        const raw = 읽기(`${s.slug}.json`)
+        if (!raw) continue
+        const cards = (JSON.parse(raw).cards ?? []) as { n?: string; name?: string; tcg?: string; img?: string }[]
+        const setKo = koSet(s.ed === 'ja' ? 'ja' : 'en', String((JSON.parse(raw) as { name?: string }).name ?? ''))
+        for (const c of cards) {
+          if (!c.tcg) continue
+          const ed = s.ed === 'ja' ? 'ja' : 'en'
+          // 원문·한글 둘 다로 찾히게 한다. 방문자는 "리자몽"도 "Charizard"도 친다.
+          const ko = koName(ed, String(c.name ?? ''))
+          const 이름들 = [String(c.name ?? ''), ko]
+          for (const nm of new Set(이름들.filter(Boolean)))
+            out.push({
+              열쇠: nm.toLowerCase().replace(/[\s·]/g, ''),
+              tcg: String(c.tcg),
+              slug: s.slug,
+              n: String(c.n ?? ''),
+              date: String(s.releaseDate ?? ''),
+              값: 값표[String(c.tcg)] ?? 0,
+              // ⚠️ **이름·그림은 우리 것이 낫다.** PPT는 옛 일본판 그림을 안 주고
+              //    이름에 번호를 붙여 준다("Charizard #6"). 우리 도감은 한글 이름과
+              //    그림을 갖고 있다(64,170장) — 화면은 이쪽을 먼저 쓴다.
+              ko,
+              img: String(c.img ?? ''),
+              setKo,
             })
-            const 남은 = 원래.filter((x) => !딴것(x))
-            const 뺀수 = 원래.length - 남은.length
-            // ⚠️ **저쪽이 미리 계산한 평균·중앙값은 섞인 것까지 넣고 낸 값이라 못 쓴다.**
-            //    다만 저쪽 건수와 우리가 받은 낱개 수가 같을 때만 다시 센다 — 낱개가
-            //    일부만 온 카드에서 다시 세면 오히려 값이 틀어진다.
-            // ⚠️ **칸을 옮기면 그 칸 통계도 다시 세야 한다.** 안 그러면 머리글에는 저쪽이
-            //    준 옛 건수가 적히고, 아래 낱개 목록에는 옮겨 온 거래가 보여 서로 어긋난다.
-            //    다시 세도 되는 때는 **저쪽이 낱개를 전부 줬을 때**다(카드 단위로 본다).
-            const 새칸 = !card.ebay?.salesByGrade?.[grade]
-            // ⚠️⚠️ **저쪽이 이상값으로 빼 둔 것을 우리도 빼야 한다.** 저쪽 셈법을 뜯어보니
-            //    이렇다 — **건수(count)는 전부 세고, 값(합·평균·중앙·최저·최고)은 최저~최고
-            //    범위 안의 것만으로 낸다.** 등급칸 2,669개를 맞춰 보니 **2,669개 전부**
-            //    이 규칙과 정확히 맞았다(2026-08-08).
-            //        리자몽 004/102 psa9 — 낱개 20건 중 $21,020·$19,462·$16,345 세 건은
-            //        범위($1,500~$4,000) 밖이다. 저쪽 합계 43,965.26은 나머지 17건의 합과
-            //        소수점까지 같다.
-            //    이걸 모르고 낱개 전부로 다시 셌더니 **평균이 $2,586에서 $5,226으로 뛰었다.**
-            //    한 건을 뺐는데 평균이 두 배가 되는, 있을 수 없는 값이었다.
-            //    등급칸의 18.2%에 이런 범위 밖 낱개가 있다 — 드문 일이 아니다.
-            const 안쪽 = 남은.filter(
-              (x) =>
-                (x.price ?? 0) >= (stat.minPrice ?? 0) * 0.999 &&
-                (x.price ?? 0) <= (stat.maxPrice ?? Infinity) * 1.001 &&
-                (x.price ?? 0) <= 값상한 &&
-                (x.price ?? 0) >= 값하한 &&
-                !묶음인가(x.title) &&
-                !두장묶음인가(String(x.title ?? ''), String(card.name ?? '')),
-            )
-            // ⚠️ **우리가 뺀 것이 있으면 반드시 다시 센다.** 예전엔 "딴 카드"를 뺐을 때만
-            //    다시 셌더니, 값 하한·상한·묶음으로 뺀 것이 머리글에 그대로 남았다 —
-            //    레쿠쟈 VMAX psa10이 목록에서는 $2를 "뺌"이라 적어 놓고 머리글에는
-            //    "최저 $2"라고 적고 있었다(2026-08-08).
-            const 다시셀까 =
-              새칸 || (낱개전부왔나 && (뺀수 > 0 || 원래.length !== (stat.count ?? 0) || 안쪽.length !== 남은.length))
-            const 값 = 안쪽.map((x) => x.price ?? 0).sort((a, b) => a - b)
-            const 중앙 = 값.length
-              ? 값.length % 2
-                ? 값[(값.length - 1) / 2]
-                : (값[값.length / 2 - 1] + 값[값.length / 2]) / 2
-              : 0
-            return {
-            grade,
-            // ⚠️ **건수는 범위 밖까지 센다**(저쪽과 같은 뜻으로 맞춘다 — 위 설명).
-            //    다만 범위 안이 하나도 안 남으면 낼 값이 없으므로 0으로 두고,
-            //    아래 filter(count > 0)에서 그 등급칸을 아예 안 보여준다.
-            count: 다시셀까 ? (값.length ? 남은.length : 0) : stat.count ?? 0,
-            averagePrice: 다시셀까 ? (값.length ? 값.reduce((a, b) => a + b, 0) / 값.length : 0) : stat.averagePrice ?? 0,
-            medianPrice: 다시셀까 ? 중앙 : stat.medianPrice ?? 0,
-            minPrice: 다시셀까 ? 값[0] ?? 0 : stat.minPrice ?? 0,
-            maxPrice: 다시셀까 ? 값[값.length - 1] ?? 0 : stat.maxPrice ?? 0,
-            // 몇 건을 왜 뺐는지 화면이 밝힐 수 있게 같이 준다(0이면 안 보낸다).
-            droppedOther: 뺀수 > 0 ? 뺀수 : undefined,
-            marketTrend: stat.marketTrend ?? null,
-            lastSaleDate: stat.lastSaleDate ?? null,
-            // ⚠️ **대표값이 실제 낙찰 범위를 벗어나면 안 쓴다.** 저쪽은 대표값에
-            //    15%를 깎는데(실측: 벗어난 값이 전부 정확히 최저가의 0.85배였다),
-            //    거래가 한두 건뿐인 등급에서는 그 결과가 **실제로 팔린 어떤 값보다도
-            //    낮아진다**. 등급칸 630개 중 85개(13%)가 그랬다(2026-08-07).
-            //        차리조드 V cgc10  대표 $23.8  ↔  실거래 $28~$289.99
-            //    "$23.8"을 보고 온 사람은 그 값에 살 수 있다고 믿는데 그런 매물이 없다.
-            //    낱개 낙찰을 화면에 붙이고 나서야 눈에 띈 문제다 — 전에는 숫자 하나뿐이라
-            //    틀린 줄도 몰랐다. 범위 밖이면 null을 주고, 화면은 중앙값으로 넘어간다
-            //    (중앙값은 실제 거래에서 뽑으므로 범위 안에 있는 것이 보장된다).
-            smartPrice: (() => {
-              const sp = stat.smartMarketPrice?.price ?? null
-              if (sp == null) return null
-              // ⚠️ **다시 센 범위로 견준다.** 섞인 것을 뺀 뒤에는 저쪽 대표값이 범위 밖으로
-              //    나가는 일이 잦다(싼 딴 카드가 최저가를 끌어내리고 있었기 때문이다).
-              const lo = 다시셀까 ? 값[0] ?? 0 : stat.minPrice ?? 0
-              const hi = 다시셀까 ? 값[값.length - 1] ?? 0 : stat.maxPrice ?? 0
-              if (lo > 0 && hi > 0 && (sp < lo || sp > hi)) return null
-              return sp
-            })(),
-            confidence: stat.smartMarketPrice?.confidence ?? null,
-            // ⚠️ **그래프도 우리가 다시 그린다.** 두 가지 때문이다:
-            //    ① 저쪽 그래프는 **날짜별 평균에 딴 카드까지 넣어** 계산한 값이다.
-            //       (2026-08-01 psa10을 보면 sevenDayAverage가 $433인데, 그날 실제로
-            //        팔린 진짜 카드는 $911 하나다 — 나머지는 2016년 카드다.)
-            //    ② 저쪽 그래프는 **최근 며칠치뿐**이라 거의 비어 있다. 이 카드는
-            //       미감정이 12건 팔렸는데 **점이 0개**여서 그래프가 아예 안 떴다.
-            //       낱개 2,151건짜리 카드도 점은 89개뿐이었다.
-            //    낱개는 **늘 전부 온다**(카드 40장 전수 확인: 낱개 수 = 등급별 건수 합).
-            //    그러니 낱개로 그리면 오염도 없고 훨씬 촘촘하다.
-            // ⚠️ 하루에 여러 건 팔리면 그날 평균을 쓴다(저쪽과 같은 뜻으로 맞춘다).
-            // ⚠️ **최근 것부터 EBAY_HISTORY_MAX일까지만** 보낸다. 다 보내면 응답이 커진다.
-            // ⚠️ 그래프도 **범위 안의 것만** 쓴다. 이상값 한 건이 그래프를 통째로 눌러
-            //    나머지 점이 바닥에 붙어 버린다($21,020 한 건 옆에서 $2,500은 점이 아니다).
-            history: (() => {
-              if (!안쪽.length) return shapeGradeHistory(history[grade])
-              const 날별 = new Map<string, { 합: number; 수: number }>()
-              for (const x of 안쪽) {
-                const d = String(x.soldDate).slice(0, 10)
-                const v = 날별.get(d) ?? { 합: 0, 수: 0 }
-                v.합 += x.price ?? 0
-                v.수 += 1
-                날별.set(d, v)
-              }
-              return [...날별.entries()]
-                .map(([date, v]) => ({ date, price: Math.round((v.합 / v.수) * 100) / 100 }))
-                .sort((a, b) => a.date.localeCompare(b.date))
-                .slice(-EBAY_HISTORY_MAX)
-            })(),
-            sales: [
-              // 최근 것부터. 저쪽이 어떤 순서로 주는지 보장이 없어 우리가 정렬한다.
-              ...남은.sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate))).slice(0, EBAY_SALES_PER_GRADE),
-              // 딴 카드로 보아 뺀 것도 몇 개 붙인다(까닭과 함께 화면에 밝힌다).
-              ...원래
-                .filter((x) => !!딴것(x))
-                .sort((a, b) => String(b.soldDate).localeCompare(String(a.soldDate)))
-                .slice(0, EBAY_DROPPED_SHOWN),
-            ]
-              .map((x) => ({
-                price: x.price ?? 0,
-                date: String(x.soldDate).slice(0, 10),
-                url: x.url ?? '',
-                // 경매인지 즉시구매인지. 경매가는 "그날 시장이 매긴 값"이라 더 믿을 만하다.
-                auction: String(x.listingType ?? '').toLowerCase() === 'auction',
-                // ⚠️ **매물 제목도 같이 보낸다.** 이게 없으면 "이 낙찰이 정말 그 카드인가"를
-                //    아무도 확인할 수 없다 — 내가 만든 점검 도구도 제목이 없어 헛돌았다
-                //    (2026-08-08). 사람이 눈으로 가리는 유일한 단서이기도 하다.
-                title: String(x.title ?? ''),
-                뺀까닭: 딴것(x)
-                  ? 딴것(x)
-                  : 묶음인가(x.title) || 두장묶음인가(String(x.title ?? ''), String(card.name ?? ''))
-                  ? '여러 장 묶음'
-                  : (x.price ?? 0) > 값상한 || (x.price ?? 0) < 값하한
-                    ? '값이 너무 벗어남'
-                    : (x.price ?? 0) < (stat.minPrice ?? 0) * 0.999 || (x.price ?? 0) > (stat.maxPrice ?? Infinity) * 1.001
-                      ? '저쪽이 셈에서 뺀 값'
-                      : undefined,
-              })),
-            }
-          })
-          // ⚠️ **낙찰이 통째로 딴 카드였던 등급은 아예 뺀다.** 남은 게 없는데 등급 줄만
-          //    남으면 "$0"이나 빈칸이 뜬다(이 카드의 CGC 10이 그랬다 — 두 건 다 2016년 것).
-          .filter((g) => g.count > 0)
-          .sort((a, b) => 등급순서값(a.grade) - 등급순서값(b.grade) || b.count - a.count),
+        }
       }
+      만든것 = out
+      console.log(`[card-lookup] 우리 도감 검색 색인 ${out.length.toLocaleString()}줄`)
+      return 만든것
+    }
+  })()
+
+  // 세트 상세의 「미개봉 시세」. 덤프에서 접어 둔 것만 주므로 크레딧 0.
+  app.use('/api/local/sealed-prices', (req, res) => {
+    const slug = (new URL(req.url ?? '', 'http://x').searchParams.get('slug') ?? '').trim()
+    // slug가 없으면 통째로 — 「미개봉 시세」 모아보기 화면이 쓴다(200세트 남짓이라 가볍다).
+    if (!slug) {
+      sendJson(res, 200, Object.fromEntries(sealedPriceCache))
+      return
+    }
+    sendJson(res, 200, sealedPriceCache.get(slug) ?? {})
+  })
+
+  app.use('/api/local/card-lookup', (req, res) => {
+    const u = new URL(req.url ?? '', 'http://x')
+    const q = (u.searchParams.get('q') ?? '').trim().toLowerCase().replace(/[\s·]/g, '')
+    const 판 = u.searchParams.get('lang') === 'english' ? 'en' : 'ja'
+    const 몇 = Math.min(24, Math.max(1, Number(u.searchParams.get('limit')) || 12))
+    // ⚠️⚠️ **몇 번째부터 줄지도 받는다.** 이걸 안 두고 앞 12장만 주면서 "더 없다"고 했더니,
+    //    영문판 리자몽 **240장 중 12장**만 보이고 「더 보기」도 안 떴다(사장님 지적 2026-08-10:
+    //    "리자몽 영문판을 검색했는데 데이터가 12개만 나오는게 말이 되냐").
+    //    예전 길(저쪽 이름 검색)은 쪽 넘기기가 됐으므로 이건 **되던 것을 깬 것**이다.
+    const 건너뛸것 = Math.max(0, Number(u.searchParams.get('offset')) || 0)
+    res.setHeader('content-type', 'application/json')
+    if (q.length < 2) {
+      res.end(JSON.stringify({ cards: [], total: 0 }))
+      return
+    }
+    const 앞 = 판 === 'ja' ? 'ja-' : 'en-'
+    const 걸린것 = 찾기색인().filter((x) => x.slug.startsWith(앞) && x.열쇠.includes(q))
+    // ⚠️ 같은 카드가 원문·한글 두 줄로 들어 있다. 번호로 한 번만 남긴다.
+    const 본것 = new Set<string>()
+    const 고른것 = 걸린것
+      .sort(
+        (a, b) =>
+          // ① 이름이 그 말로 시작하는 것 ② 값이 높은 것 ③ 최근 발매
+          Number(b.열쇠.startsWith(q)) - Number(a.열쇠.startsWith(q)) ||
+          b.값 - a.값 ||
+          (b.date || '').localeCompare(a.date || ''),
+      )
+      .filter((x) => (본것.has(x.tcg) ? false : (본것.add(x.tcg), true)))
+    sendJson(res, 200, {
+      cards: 고른것
+        .slice(건너뛸것, 건너뛸것 + 몇)
+        .map((x) => ({ tcg: x.tcg, slug: x.slug, n: x.n, ko: x.ko, img: x.img, setKo: x.setKo })),
+      // 화면이 "더 보기"를 띄울지 정하는 데 쓴다. 크레딧이 안 드는 값이라 통째로 준다.
+      total: 고른것.length,
     })
+  })
+
+  // 등급표 전부. 요약은 통째로 받아 둔 것에 있지만 **등급 하나하나는 여기서 받는다**
+  // (메모리가 512MB뿐이라 전 카드 상세를 들고 있을 수 없다).
+  const 상세캐시 = new TtlCache<string>(POP_DETAIL_TTL_MS, POP_DETAIL_MAX)
+  /**
+   * **팝수 화면의 「맛보기」에 쓸 카드**를 준다 — 감정 수량이 **실제로 있는** 카드만.
+   *
+   * ⚠️⚠️ 예전엔 화면이 「최근 1년 지난 세트의 비싼 카드」를 골랐다. 그런데 그건 **시세**
+   *    기준이라 **감정 수량과 아무 상관이 없다** — 사장님 지적(2026-08-11)대로 12장
+   *    전부 「등급 매물 없음」이 떴다(실측: 2025년 8월 신상 세트라 감정된 물량 자체가
+   *    없었다). 팝수 화면의 맛보기가 팝수 없는 카드를 보여 주는 것은 앞뒤가 안 맞는다.
+   *    여기서는 **우리가 가진 팝수 자료에서** 감정 수량이 많은 순으로 고른다.
+   * ⚠️ 그림이 없는 카드는 뺀다 — 회색 상자를 맛보기로 낼 이유가 없다.
+   */
+  app.use('/api/local/population-samples', async (req, res) => {
+    res.setHeader('content-type', 'application/json')
+    const q = new URL(req.url ?? '', 'http://x').searchParams
+    const 몇장 = Math.min(24, Math.max(1, Number(q.get('limit')) || 12))
+    const 표 = await 번호로카드()
+    const 모음: { id: string; n: string; 이름: string; img: string; 세트: string; slug: string; 감정: number }[] = []
+    for (const [id, v] of populationCache) {
+      const 전체 = Number((v as { all?: number }).all ?? 0)
+      if (!(전체 > 0)) continue
+      const 카드 = 표.get(String(id))
+      if (!카드) continue
+      모음.push({ id: String(id), n: 카드.n, 이름: 카드.이름, img: 카드.img, 세트: 카드.세트, slug: 카드.slug, 감정: 전체 })
+    }
+    모음.sort((a, b) => b.감정 - a.감정)
+    res.statusCode = 200
+    res.end(JSON.stringify({ cards: 모음.slice(0, 몇장), 전체: 모음.length }))
+  })
+
+  app.use('/api/local/population-detail', async (req, res) => {
+    const q = new URL(req.url ?? '', 'http://x').searchParams
+    const id = q.get('id')?.trim() ?? ''
+    const 판 = q.get('lang')?.trim() || undefined
+    res.setHeader('content-type', 'application/json')
+    if (!id) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: 'id required' }))
+      return
+    }
+    // 갈라 담은 카드는 저쪽에 그런 열쇠가 없다. 물어봐야 헛걸음이다(위 card-extra 설명).
+    if (id.includes('~')) {
+      res.statusCode = 200
+      res.end(JSON.stringify({ detail: null }))
+      return
+    }
+    const 열쇠 = `${id}:${판 ?? ''}`
+    const 있음 = 상세캐시.get(열쇠)
+    if (있음) {
+      res.statusCode = 200
+      res.end(있음)
+      return
+    }
+    const d = await fetchPopulationDetail(apiKey, id, 판)
+    // ⚠️⚠️ **어느 카드의 표인지 같이 보낸다.** 카드 상세의 「자세히 →」로 들어오면
+    //    화면은 번호만 알아서, 표는 열리는데 **무슨 카드인지 한 줄도 안 적혔다**
+    //    (사장님 지적 2026-08-13: "딱 그 카드를 찾아주는게 낫지않아?").
+    //    받아 둔 색인에서 꺼내는 것이라 **크레딧 0**이고 새로 부르는 것도 없다.
+    // ⚠️ 감정 기록이 없어도(`detail`이 null) 카드는 보낸다 — 「○○는 감정 기록이
+    //    없습니다」라고 이름을 밝혀야 방문자가 헛다리를 안 짚는다.
+    const 것 = (await 번호로카드()).get(id)
+    const body = JSON.stringify({
+      detail: d,
+      card: 것 ? { tcgPlayerId: id, name: 것.이름, setName: 것.세트, cardNumber: 도감번호(것.n) ?? '', imageUrl: 것.img } : null,
+    })
+    if (d) 상세캐시.set(열쇠, body)
+    res.statusCode = 200
+    res.end(body)
+  })
 }
 
 // 날짜별 방문 수만 센다(운영자가 홍보 효과를 보려는 용도). IP·기기·회원 정보는 저장하지
 // 않는다. 같은 브라우저가 하루에 한 번만 세도록 집계는 클라이언트의 localStorage로
 // 거르고, 서버는 그저 그날 숫자를 1 올린다.
+// ── 유입경로 ──────────────────────────────────────────────────────────────
+// 「어디서 들어왔나」를 **낱말 하나로만** 날짜별로 센다(2026-08-16).
+//
+// ⚠️ 붙인 까닭: 방문자가 하루 만에 80 → 163으로 뛰었는데 **사람인지 크롤러인지 가릴
+//    자료가 하나도 없어서** 끝내 못 밝혔다. 서치 콘솔은 2~3일 늦게 나와 그날 일을
+//    그날 못 본다.
+// ⚠️⚠️ **주소도 IP도 안 남긴다.** 화면(`어디서왔나`)이 호스트를 낱말로 바꿔 보내고,
+//    서버는 그중 **아는 낱말만** 받는다. `google.com/search?q=…`처럼 남의 검색어가
+//    붙어 오는 일이 있어서 주소를 그대로 받으면 그게 곧 개인정보 저장이다.
+const VISIT_FROM_FILE = dataFile('visit-referrers.json')
+// ⚠️ 화면(`어디서왔나`)이 보내는 낱말과 **한 글자도 틀리면 안 된다.** 여기 없는 말은
+//    조용히 버려지므로, 화면 쪽 표를 고치면 이 목록도 같이 고칠 것.
+const 유입낱말 = new Set([
+  '직접(사람)', '사이트안', '알수없음', '그밖',
+  // 로봇 — 프로그램 이름으로 가린 것(`로봇인가`)
+  '구글봇', '빙봇', '네이버봇', '다음봇', 'AI 수집기', 'SEO 수집기', '링크 미리보기',
+  '그밖 검색로봇', '그밖 로봇',
+  '구글', '네이버', '네이버 카페', '네이버 블로그', '다음', '빙', '덕덕고',
+  '카카오톡', '라인', '텔레그램',
+  '인스타그램', 'X(트위터)', '페이스북', '스레드', '틱톡', '레딧',
+  '유튜브',
+  '디시인사이드', '에펨코리아', '루리웹', '인벤', '더쿠', '클리앙', '아카라이브', '중고거래',
+  '챗GPT', '퍼플렉시티', '클로드', '제미나이',
+  // 옛 낱말 — 2026-08-16에 잘게 나누기 전 것. 그날 쌓인 것이 사라지지 않게 남겨 둔다.
+  '다음·카카오', 'SNS', '커뮤니티', 'AI 답변', '직접',
+])
+let 유입표: Record<string, Record<string, number>> | null = null
+/**
+ * 접속한 프로그램 이름으로 **로봇인지** 가린다. 이름이 있으면 그걸로, 없으면 빈 문자열.
+ *
+ * ⚠️ 왜 필요한가: 「직접」은 **브라우저가 어디서 왔는지 안 알려 준 것 전부**라
+ *    ①주소 직접 입력 ②즐겨찾기 ③검색로봇 ④카톡 링크가 한 칸에 섞인다. 2026-08-16에
+ *    방문이 하루 만에 80 → 163으로 뛰었는데 **사람인지 로봇인지 가릴 자료가 없어**
+ *    끝내 못 밝혔다. 로봇은 자기 이름을 프로그램 이름에 적어 두므로 그것만 갈라낸다.
+ * ⚠️ **로봇 대부분은 자바스크립트를 안 돌려서 여기까지 안 온다.** 그래서 0으로 나올
+ *    수 있는데, 그것 자체가 「직접은 사람이다」라는 답이라 쓸모가 있다.
+ * ⚠️ 프로그램 이름은 **누구나 바꿔 적을 수 있다.** 정확한 잣대가 아니라 참고다.
+ */
+const 로봇들: [RegExp, string][] = [
+  [/googlebot|google-inspectiontool|storebot-google/i, '구글봇'],
+  [/bingbot|adidxbot/i, '빙봇'],
+  [/yeti\//i, '네이버봇'],
+  [/daumoa/i, '다음봇'],
+  [/gptbot|oai-searchbot|chatgpt-user|claudebot|claude-web|anthropic-ai|ccbot|perplexitybot|google-extended|bytespider/i, 'AI 수집기'],
+  [/ahrefsbot|semrushbot|mj12bot|dotbot|dataforseo|petalbot|barkrowler/i, 'SEO 수집기'],
+  [/facebookexternalhit|twitterbot|slackbot|discordbot|telegrambot|kakaotalk-scrap/i, '링크 미리보기'],
+  [/applebot|yandexbot|baiduspider|duckduckbot|amazonbot|slurp/i, '그밖 검색로봇'],
+  [/\bbot\b|crawler|spider|crawling|headless/i, '그밖 로봇'],
+]
+function 로봇인가(req: import('node:http').IncomingMessage): string {
+  const ua = String(req.headers['user-agent'] ?? '')
+  if (!ua) return '그밖 로봇' // 프로그램 이름을 아예 안 보내는 것은 사람 브라우저가 아니다
+  for (const [re, 이름] of 로봇들) if (re.test(ua)) return 이름
+  return ''
+}
+
+// ⚠️ 「그밖 로봇」이 무엇인지 **이름을 남겨 둔다.** 칸 이름만 세면 27번이 찍혀도 그게
+//    무슨 프로그램인지 알 길이 없다(사장님 물음 2026-08-16: "그밖 로봇이 27번이라는데
+//    이건 뭐야?"). 이름을 알아야 ①진짜 로봇이면 위 표에 제 칸을 만들어 주고
+//    ②사람인데 잘못 걸린 것이면 규칙을 고칠 수 있다.
+// ⚠️ **가짓수를 막아 둔다**(하루 40가지). 프로그램 이름은 누구나 아무렇게나 적을 수 있어
+//    막지 않으면 그 자체가 파일을 부풀리는 구멍이 된다.
+// ⚠️ 사람을 가리는 값이 아니다 — 프로그램 이름일 뿐이고, 개인을 알아볼 수 없다.
+const 로봇이름표: Record<string, Record<string, number>> = {}
+const 로봇이름파일 = dataFile('bot-agents.json')
+let 로봇이름읽음 = false
+/** 남겨 둔 로봇 이름표를 그대로 준다(운영 화면이 읽는다). */
+async function 로봇이름읽기(): Promise<Record<string, Record<string, number>>> {
+  try { return JSON.parse(await readFile(로봇이름파일, 'utf-8')) } catch { return {} }
+}
+
+async function 로봇이름남기기(req: import('node:http').IncomingMessage, 날: string) {
+  try {
+    if (!로봇이름읽음) {
+      로봇이름읽음 = true
+      try { Object.assign(로봇이름표, JSON.parse(await readFile(로봇이름파일, 'utf-8'))) } catch { /* 처음이면 빈 채로 */ }
+    }
+    const 칸 = (로봇이름표[날] ??= {})
+    const ua = String(req.headers['user-agent'] ?? '').slice(0, 160) || '(이름 없음)'
+    if (!(ua in 칸) && Object.keys(칸).length >= 40) return
+    칸[ua] = (칸[ua] ?? 0) + 1
+    for (const k of Object.keys(로봇이름표).sort().slice(0, -14)) delete 로봇이름표[k] // 두 주만
+    await writeJsonFile(로봇이름파일, 로봇이름표)
+  } catch { /* 적다 실패해도 방문 집계는 계속돼야 한다 */ }
+}
+
+async function 유입기록(req: import('node:http').IncomingMessage, 날: string) {
+  try {
+    const 몸 = await readBody(req, 2_000).catch(() => '')
+    let 말 = String((JSON.parse(몸 || '{}') as { from?: unknown }).from ?? '')
+    // ⚠️ **로봇 판정이 「직접」보다 먼저다.** 구글봇이 구글 검색에서 왔다고 적어 보내는
+    //    일은 없지만, 참고 주소 없이 오는 것은 대부분 로봇이라 그 칸을 갈라 준다.
+    const 로봇 = 로봇인가(req)
+    if (로봇) {
+      말 = 로봇
+      // 「그밖」으로 뭉뚱그려진 것만 이름을 남긴다 — 이름이 붙은 로봇은 이미 안다.
+      if (로봇.startsWith('그밖')) await 로봇이름남기기(req, 날)
+    }
+    else if (말 === '직접') 말 = '직접(사람)'
+    if (!유입낱말.has(말)) return
+    if (!유입표) {
+      try { 유입표 = JSON.parse(await readFile(VISIT_FROM_FILE, 'utf-8')) } catch { 유입표 = {} }
+    }
+    const 칸 = (유입표![날] ??= {})
+    칸[말] = (칸[말] ?? 0) + 1
+    // 방문 숫자와 같은 기간(400일)만 남긴다.
+    const 남길 = Object.keys(유입표!).sort().slice(-400)
+    if (남길.length < Object.keys(유입표!).length) {
+      const 새: typeof 유입표 = {}
+      for (const d of 남길) 새[d] = 유입표![d]
+      유입표 = 새
+    }
+    await writeJsonFile(VISIT_FROM_FILE, 유입표)
+  } catch {
+    /* 유입경로는 곁다리다 — 실패해도 방문 세기를 막지 않는다 */
+  }
+}
+
 function mountVisitStats(app: Mountable) {
   let visits: Record<string, number> | null = null
   const allow = rateLimiter(20, 60 * 1000)
@@ -3595,6 +3239,10 @@ function mountVisitStats(app: Mountable) {
     all[today] = (all[today] ?? 0) + 1
     prune()
     await persist()
+    // ⚠️ 유입경로는 **방문 숫자와 따로** 담는다. 방문 파일에 섞으면 날짜 칸과 낱말 칸이
+    //    한 객체에 뒤섞여 `prune`이 낱말까지 지운다.
+    // ⚠️ 화면이 보낸 낱말만 받는다(허용목록). 아무 글이나 받으면 그게 곧 저장 구멍이다.
+    await 유입기록(req, today)
     res.statusCode = 204
     res.end()
   })
@@ -3617,6 +3265,12 @@ function mountVisitStats(app: Mountable) {
       .sort((a, b) => a.date.localeCompare(b.date))
     // 가입 회원 수(개수만). 회원번호 등 내용은 절대 안 내보낸다.
     const memberCount = (await loadUsers()).length
+    // 유입경로 — 최근 14일치만. 낱말과 횟수뿐이라 개인정보가 아니다.
+    if (!유입표) {
+      try { 유입표 = JSON.parse(await readFile(VISIT_FROM_FILE, 'utf-8')) } catch { 유입표 = {} }
+    }
+    const 최근 = Object.keys(유입표!).sort().slice(-14)
+    const from = 최근.map((date) => ({ date, counts: 유입표![date] }))
     // 오늘 시세 조회 크레딧이 얼마나 남았는지. 이게 0이 되면 방문자에게 이베이·
     // TCGplayer 시세가 안 보이므로, 운영자가 서버 로그를 뒤지지 않고 바로 보게 한다.
     const left = pptLeftNow()
@@ -3634,9 +3288,63 @@ function mountVisitStats(app: Mountable) {
       //    "하루치를 다 썼다"는 판단은 429를 받아 본 이 값이 정확하므로 같이 내보낸다.
       dailyOut: pptDailyOut,
     }
+    // ── 회원별 이용 현황 ────────────────────────────────────────────────────
+    // 사장님 요청(2026-08-11): "가입한지 얼마나 됐는지와 사이트 사용 얼마나 했는지".
+    // ⚠️⚠️ **회원번호(kakao:1234…)는 절대 안 내보낸다.** 그건 로그인 식별자라 밖으로
+    //    나가면 안 되고, 「누가 쓰나」를 보는 데는 닉네임이면 충분하다.
+    //    닉네임은 사장님 요청(2026-08-11 "넣어줘")으로 낸다 — 그 전에는 이것도 뺐는데,
+    //    「일주일 넘게 안 온 8명」이 누구인지 알 수가 없어 쓸모가 없었다.
+    //    운영자만 부를 수 있는 경로다(위에서 isAdmin이 아니면 404).
+    // ⚠️ 닉네임은 **본인이 우리 사이트에서 직접 정한 이름**이다. 카카오·네이버에서
+    //    받아오는 게 아니다(동의항목에서 이름·이메일을 아예 요청하지 않는다).
+    //    아직 안 정한 사람은 null이므로 화면에서 빈칸으로 나온다.
+    // ⚠️ 뽑기를 한 번도 안 한 회원도 세어야 한다 — 「가입만 하고 안 쓰는 사람」이
+    //    몇 명인지가 이 표에서 제일 중요한 숫자다.
+    const 회원 = await loadUsers()
+    const 뽑기전체 = await loadPacksim()
+    const 오늘 = kstDateStr()
+    const 며칠전 = (날: string) => {
+      const t = Date.parse(`${날}T00:00:00Z`)
+      return Number.isFinite(t) ? Math.floor((Date.parse(`${오늘}T00:00:00Z`) - t) / 86_400_000) : null
+    }
+    const members = 회원
+      .map((u) => {
+        const p = 뽑기전체[u.id]
+        // ⚠️ 가입일은 **한국시간**으로 끊는다. UTC로 자르면 오전 0~9시에 가입한 사람이
+        //    하루 전날로 찍혀 "가입한지 며칠"이 하루씩 어긋난다.
+        const 가입 = u.createdAt ? kstDateStr(u.createdAt) : ''
+        return {
+          닉네임: (u.nickname ?? '').trim(),
+          가입일: 가입,
+          가입한지: 가입 ? 며칠전(가입) : null,
+          로그인수: Array.isArray(u.logins) ? u.logins.length : 0,
+          마지막출석: p?.lastCheckIn || '',
+          안온지: p?.lastCheckIn ? 며칠전(p.lastCheckIn) : null,
+          연속: p?.streak ?? 0,
+          GP: p?.balance ?? 0,
+          깐팩: p?.opened ?? 0,
+          쓴GP: p?.spent ?? 0,
+          앨범: Array.isArray(p?.album) ? p.album.length : 0,
+        }
+      })
+      .sort((a, b) => (b.깐팩 || 0) - (a.깐팩 || 0))
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ items, total: legacy + items.reduce((s, i) => s + i.count, 0), memberCount, credits }))
+    res.end(
+      JSON.stringify({
+        items,
+        total: legacy + items.reduce((s, i) => s + i.count, 0),
+        memberCount,
+        credits,
+        members,
+        from,
+        // ⚠️ 「그밖 로봇」이 무엇인지 **이름 그대로** 같이 내려준다. 칸(구글봇·네이버봇처럼)을
+        //    미리 만들어 두지 않아도 사장님이 화면에서 바로 확인하실 수 있게 하려는 것이다
+        //    (사장님 물음 2026-08-16: "지금 바로 안만들어도 어디 봇인지 판별이 돼?").
+        //    운영자만 부를 수 있는 경로이고, 담긴 것은 프로그램 이름뿐이다.
+        botAgents: await 로봇이름읽기(),
+      }),
+    )
   })
 }
 
@@ -3860,6 +3568,28 @@ function mountEventStats(app: Mountable) {
             tally[label] = (tally[label] ?? 0) + 1
             await writeJsonFile(ARTIST_STATS_FILE, tally)
           }
+          await 날짜별쌓기('artist', label)
+        }
+        // ⚠️⚠️ **대전쟁은 어느 판인지가 알맹이다.** 라벨을 안 쌓으면 「몇 번 했나」만 알고
+        //    **어느 스테이지에서 막히는지**를 못 본다 — 라벨을 붙여 놓고 서버가 버리고 있었다
+        //    (2026-08-17에 잡음). 시작/깸/짐을 한 표에 넣되 이름 앞에 무엇인지 붙인다.
+        // ⚠️⚠️ **왜 졌나는 「짐까닭:」을 앞에 붙여 같은 표에 넣는다.** ' · '가 한 번도
+        //    없으므로 판별·난이도별 셈(`전투줄읽기`)은 이 줄을 그냥 건너뛴다 — 표를
+        //    나누지 않고도 안 섞인다.
+        // ⚠️ 이 갈래를 **아래 `battle_`보다 먼저** 둔다. 안 그러면 clear·lose가 아니라는
+        //    이유로 「시작」으로 세어진다.
+        // ⚠️⚠️⚠️ **`battle_`로 시작한다고 다 판 표에 넣으면 안 된다.** `startsWith('battle_')`로
+        //    받았더니 `battle_card_detail`의 라벨(포켓몬 이름)이 **스테이지인 척** 들어와
+        //    「이상해씨 · 시작 1」 같은 유령 줄이 생기고 시작 수까지 부풀었다(2026-08-18 실측).
+        //    ⚠️ **판 표에 들어갈 이벤트를 이름으로 못 박는다.** 대전쟁에 새 이벤트를 더할 때
+        //       이 목록을 안 건드리면 저절로 안 섞인다 — 그게 맞는 기본값이다.
+        if (ev === 'battle_why' && label) {
+          await 날짜별쌓기('battle', `짐까닭:${label}`)
+        } else if ((ev === 'battle_start' || ev === 'battle_clear' || ev === 'battle_lose'
+                    || ev === 'battle_quit') && label) {
+          const 말 = ev === 'battle_clear' ? '깸' : ev === 'battle_lose' ? '짐'
+            : ev === 'battle_quit' ? '그만둠' : '시작'
+          await 날짜별쌓기('battle', `${label} · ${말}`)
         }
         // 세트별 목록도 어떤 세트를 열었는지 라벨(세트 한글명)로 따로 센다.
         // 시리즈는 세트와 같은 순위표에 넣는다. 세트별 목록 화면의 한 축이라 나눠 두면
@@ -3871,6 +3601,7 @@ function mountEventStats(app: Mountable) {
             tally[key] = (tally[key] ?? 0) + 1
             await writeJsonFile(SET_STATS_FILE, tally)
           }
+          await 날짜별쌓기('set', key)
         }
         res.statusCode = 204
         res.end()
@@ -3903,7 +3634,26 @@ function mountEventStats(app: Mountable) {
       .slice(0, 100)
     res.statusCode = 200
     res.setHeader('content-type', 'application/json')
-    res.end(JSON.stringify({ days: all, artists: artistRanking, sets: setRanking }))
+    // 날짜별 작가·세트 순위(2026-08-16부터 쌓인다). 달력에서 하루를 고르면 이걸 쓴다.
+    if (!날짜순위) {
+      try { 날짜순위 = JSON.parse(await readFile(DAY_RANK_FILE, 'utf-8')) } catch { 날짜순위 = {} }
+    }
+    const dayRanks: Record<string, {
+      artists: { name: string; count: number }[]
+      sets: { name: string; count: number }[]
+      battles: { name: string; count: number }[]
+    }> = {}
+    for (const [날, 칸] of Object.entries(날짜순위!)) {
+      const 줄세우기 = (o?: Record<string, number>) =>
+        Object.entries(o ?? {}).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20)
+      dayRanks[날] = { artists: 줄세우기(칸.artist), sets: 줄세우기(칸.set), battles: 줄세우기(칸.battle) }
+    }
+    // 대전쟁은 **누적 순위도** 낸다 — 하루치만 보면 「이 판이 어렵다」가 안 보인다.
+    const 전투누적: Record<string, number> = {}
+    for (const 칸 of Object.values(날짜순위!)) for (const [k, v] of Object.entries(칸.battle ?? {})) 전투누적[k] = (전투누적[k] ?? 0) + v
+    const battleRanking = Object.entries(전투누적)
+      .map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 60)
+    res.end(JSON.stringify({ days: all, artists: artistRanking, sets: setRanking, battles: battleRanking, dayRanks }))
   })
 }
 
@@ -4061,7 +3811,8 @@ export const FLEA_SLAB_GRADES = [
   '기타 감정품',
 ] as const
 const FLEA_ALL_GRADES: string[] = [...FLEA_RAW_GRADES, ...FLEA_SLAB_GRADES]
-const FLEA_EDITIONS = ['jp', 'na', 'kr'] as const
+// 다루는 판과 확장팩은 **화면과 같은 한 벌**을 쓴다(src/lib/fleaSets.ts).
+const FLEA_EDITIONS = Object.keys(FLEA_EDITION_LABEL) as (keyof typeof FLEA_EDITION_LABEL)[]
 
 export type FleaListing = {
   id: number
@@ -4203,6 +3954,12 @@ function mountFleaMarket(app: Mountable) {
           sendJson(res, 400, { error: '카드를 골라 주세요.' })
           return
         }
+        // ⚠️ **정해 둔 세트 밖은 올릴 수 없다**(FLEA_SET_SLUGS 설명 참고).
+        //    검색에서도 안 보이지만, 주소로 직접 찔러 넣는 것을 여기서 막는다.
+        if (!FLEA_SET_SET.has(cardSlug)) {
+          sendJson(res, 400, { error: '지금은 정해진 확장팩의 카드만 올릴 수 있습니다.' })
+          return
+        }
         if (!FLEA_ALL_GRADES.includes(grade)) {
           sendJson(res, 400, { error: '등급을 골라 주세요.' })
           return
@@ -4295,36 +4052,6 @@ function mountFleaMarket(app: Mountable) {
     sendJson(res, 200, rows)
   })
 
-  // 카드 이름으로 세트를 가리지 않고 찾는다("개굴닌자" → 어느 세트에 있든 다 나온다).
-  //
-  // 색인(dist/card-index.json)은 scripts/gen-card-index.mts 가 미리 만들어 둔 것이다.
-  // 3MB라 클라이언트로 통째로 내려주면 무겁다 — 서버가 한 번 읽어 두고 결과만 준다.
-  // 한글 이름도 색인에 이미 들어 있어 서버가 변환기를 들고 있을 필요가 없다.
-  type CardIndex = {
-    sets: Record<string, [string, string, string]> // slug → [한글 세트명, ed, 발매일]
-    rows: [string, string, string, string, string, string, string][]
-  }
-  let cardIndex: CardIndex | null = null
-  let cardIndexTried = false
-
-  async function loadCardIndex(): Promise<CardIndex | null> {
-    if (cardIndex || cardIndexTried) return cardIndex
-    return firstReadOnce('card-index', async () => {
-      if (cardIndex) return cardIndex
-      cardIndexTried = true
-      // 리포 루트(개발)와 이미지 루트(배포) 모두 같은 자리다. public/ 에 두지 않는 이유는
-      // 거기 있으면 정적 파일로 공개돼 누구나 3MB를 내려받게 되기 때문이다.
-      try {
-        cardIndex = JSON.parse(await readFile(path.resolve('card-index.json'), 'utf-8'))
-        return cardIndex
-      } catch {
-        /* 아래에서 알린다 */
-      }
-      console.warn('[flea] card-index.json 을 못 찾았습니다. npx tsx scripts/gen-card-index.mts 로 만드세요.')
-      return null
-    })
-  }
-
   const SEARCH_LIMIT = 60
 
   app.use('/api/local/flea/search', async (req, res) => {
@@ -4359,14 +4086,17 @@ function mountFleaMarket(app: Mountable) {
       stat.set(key, cur)
     }
 
-    const wantEd = ed === 'na' ? 'en' : 'ja'
     const out: unknown[] = []
     let total = 0
     for (const r of idx.rows) {
       const [slug, n, name, img, koName, koImg, koNo] = r
+      // ⚠️ **정해 둔 세트 밖은 아예 안 보여 준다**(FLEA_SET_SLUGS 설명 참고).
+      //    검색에서 나오면 올릴 수 있다고 읽히므로, 올리기를 막기 전에 여기서 먼저 막는다.
+      if (!FLEA_SET_SET.has(slug)) continue
       const set = idx.sets[slug]
       if (!set) continue
-      if (ed === 'kr' ? !koImg : set[1] !== wantEd) continue
+      // 한글판은 한글 이미지가 붙은 카드만(아직 한글로 안 나온 카드가 섞이면 빈 칸이 된다).
+      if (ed === 'kr' && !koImg) continue
       const label = ed === 'kr' ? koName || name : name
       if (!label.toLowerCase().includes(q)) continue
       total++
@@ -4602,646 +4332,17 @@ function mountFleaMarket(app: Mountable) {
 // 이베이 등급별(PSA/CGC/BGS) 실거래가를 PokemonPriceTracker API에서 대신 받아온다.
 // API 키는 서버에서만 붙이고 클라이언트에는 절대 내려주지 않는다.
 // (캐시 시간은 PRICE_TRACKER_CACHE_TTL_MS에 있다 — 무료 시절 기준이 오래 남아 있었다.)
-// 마지막으로 받아 둔 시세. 위 TtlCache와 따로 두는 이유가 둘이다.
-//
-// ① 크레딧이 바닥나면 방문자에게 시세가 통째로 안 보였다(2026-08-03에 실제로 그랬다).
-//    하루가 지난 값이라도 "언제 기준인지" 밝히고 보여주는 게 아무것도 안 보이는 것보다 낫다.
-// ② 메모리에만 두면 배포할 때마다 지워져서, 이미 받아 둔 카드를 방문자가 다시 열 때
-//    크레딧을 또 쓴다. 하루에 여러 번 배포하는 날엔 이게 크다.
-const LAST_PRICE_FILE = dataFile('card-prices-last.json')
-const LAST_PRICE_MAX = 400
-// 지난 시세를 보여줄 최대 나이. 이보다 오래된 것은 안 보여주고 예전처럼 안내만 뜬다.
-const STALE_PRICE_MAX_MS = 3 * 24 * 60 * 60 * 1000
-const lastPrice = new Map<string, { body: string; at: number }>()
-let lastPriceSaveAt = 0
-/**
- * 저장된 지난 시세의 **모양 번호**.
- *
- * ⚠️ 여기 담기는 것은 저쪽 원본이 아니라 **우리가 다듬어 놓은 결과**다. 다듬는 규칙을
- *    고치면 저장된 것은 옛 규칙대로 만들어진 값이라, 크레딧이 막힌 날 그 옛 값이
- *    최대 사흘간 화면에 나간다. 2026-08-08에 딴 카드 거르기·이상값 셈법·낱개 다시
- *    세기를 한꺼번에 바꿨는데, 그 전에 저장된 것에는 섞인 값이 그대로 들어 있다.
- * **규칙을 고치면 이 번호를 올릴 것.** 번호가 다르면 저장된 것을 통째로 버린다.
- */
-const SHAPE_VERSION = 2
 
-async function saveLastPrices() {
-  // 10초에 한 번이면 배포 사이 상태를 지키기 충분하다(ppt-state와 같은 이유).
-  if (Date.now() - lastPriceSaveAt < 10_000) return
-  lastPriceSaveAt = Date.now()
-  try {
-    const rows = [...lastPrice.entries()].slice(-LAST_PRICE_MAX).map(([k, v]) => [k, v.body, v.at])
-    await writeJsonFile(LAST_PRICE_FILE, { v: SHAPE_VERSION, rows })
-  } catch {
-    /* 못 적어도 서비스는 돌아간다 */
-  }
-}
-
-export async function loadLastPrices() {
-  try {
-    const 읽음 = JSON.parse(await readFile(LAST_PRICE_FILE, 'utf-8')) as
-      | [string, string, number][]
-      | { v?: number; rows?: [string, string, number][] }
-    // 예전 파일은 배열 그대로였다 — 그건 모양 번호가 없으므로 버린다.
-    const rows = Array.isArray(읽음) ? [] : 읽음.v === SHAPE_VERSION ? (읽음.rows ?? []) : []
-    if (Array.isArray(읽음) || (!Array.isArray(읽음) && 읽음.v !== SHAPE_VERSION)) {
-      console.log('[pokegre] 지난 시세는 다듬는 규칙이 바뀌기 전 것이라 버렸습니다 — 새로 받습니다.')
-    }
-    for (const [k, body, at] of rows) {
-      if (typeof k === 'string' && typeof body === 'string' && typeof at === 'number') {
-        lastPrice.set(k, { body, at })
-      }
-    }
-    console.log(`[pokegre] 지난 시세 ${lastPrice.size}건을 이어받았습니다`)
-  } catch {
-    /* 처음 뜨는 것 */
-  }
-}
-
-function rememberPrice(key: string, body: string) {
-  lastPrice.delete(key) // 다시 넣어 순서를 뒤로 — 넘칠 때 오래된 것부터 버린다
-  lastPrice.set(key, { body, at: Date.now() })
-  while (lastPrice.size > LAST_PRICE_MAX) {
-    const oldest = lastPrice.keys().next().value
-    if (oldest === undefined) break
-    lastPrice.delete(oldest)
-  }
-  void saveLastPrices()
-}
-
-/** 지금 못 받을 때 쓸 "지난 시세". 언제 받은 것인지 함께 실어 보낸다. */
-function stalePrice(key: string): string | null {
-  const hit = lastPrice.get(key)
-  if (!hit) return null
-  // 너무 오래된 값은 안 보여준다. 날짜를 적어 두긴 하지만 그 줄을 놓치고
-  // 지금 시세로 오해할 수 있다. 크레딧은 보통 다음 날 오전 9시면 다시 차므로
-  // 사흘이면 충분하다(사용자 확인 2026-08-04).
-  if (Date.now() - hit.at > STALE_PRICE_MAX_MS) return null
-  try {
-    return JSON.stringify({ ...(JSON.parse(hit.body) as object), asOf: new Date(hit.at).toISOString() })
-  } catch {
-    return null
-  }
-}
-
-function mountEbayPrice(app: Mountable, apiKey: string) {
-  const cache = new TtlCache<string>(PRICE_TRACKER_CACHE_TTL_MS, PRICE_TRACKER_MAX_ENTRIES)
-  const allow = rateLimiter(PRICE_TRACKER_RATE_LIMIT, PRICE_TRACKER_RATE_WINDOW_MS)
-
-  // 팝수 조회 화면의 카드 찾기. **시세 검색과 달리 값을 안 받아서 1/3 값이다**
-  // (시세 검색은 includeHistory·includeEbay 때문에 장당 3크레딧, 여기는 1크레딧).
-  // 팝수만 볼 건데 시세까지 받아 올 이유가 없다.
-  // 한 번에 받을 카드 수. 이름 하나에 카드가 수십 장인 포켓몬이 많아(개굴닌자 71장)
-  // 넉넉히 받는다. 장당 1크레딧이고 캐시에 6시간 담긴다.
-  // PPT는 limit을 아무리 크게 줘도 **한 번에 200행까지만** 준다. 그 최대치를 쓴다.
-  // 100이던 것을 올렸다 — "피카츄"가 딱 100장으로 잘려 화면에 "카드 100장을
-  // 찾았습니다"라고 적히고 있었다(2026-08-07 확인). 실제로는 더 많다.
-  // ⚠️ 200을 넘는 이름은 여전히 잘린다. 잘렸는지를 화면에 알려 줘야 한다(capped).
-  //    값이 높은 순으로 받으므로 잘리면 **싼 카드가 안 보인다** — "다 나온다"고
-  //    믿게 두면 안 된다.
-  const CARD_FIND_LIMIT = 200
-  // ⚠️ 칸 수를 500 → 150으로 줄였다. 한 칸이 **41KB**다(200장 × 카드 정보).
-  //    500칸이면 20MB인데, 운영 기계는 512MB이고 실측 여유가 220MB뿐이다
-  //    (2026-08-07 /proc/meminfo). 150칸이면 6MB로, 서로 다른 이름 150개를
-  //    6시간 안에 찾는 일은 지금 사용량에서 오지 않는다.
-  const 찾기캐시 = new TtlCache<string>(6 * 60 * 60 * 1000, 150)
-  app.use('/api/local/card-find', async (req, res) => {
-    const q = new URL(req.url ?? '', 'http://x').searchParams
-    const 말 = q.get('search')?.trim() ?? ''
-    const 판 = q.get('lang') === 'english' ? 'english' : 'japanese'
-    res.setHeader('content-type', 'application/json')
-    if (말.length < 2) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: 'search required' }))
-      return
-    }
-    // ⚠️ 저쪽은 **영문 이름만 알아듣는다.** 한글이 그대로 오면 0장이 온다(실측).
-    //    화면이 사전으로 바꿔 보내지만, 사전을 아직 못 받았거나 실패하면 한글이
-    //    그대로 올라온다 — 그때 "그런 카드 없음"으로 보이면 사람은 우리가 그 카드를
-    //    안 다루는 줄 안다. 여기서 한 번 더 막는다.
-    if (/[가-힣]/.test(말)) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: 'needs_english', message: '영문 이름으로 다시 시도해 주세요.' }))
-      return
-    }
-    const 열쇠 = `${판}:${말.toLowerCase()}`
-    const 있음 = 찾기캐시.get(열쇠)
-    if (있음) {
-      res.statusCode = 200
-      res.end(있음)
-      return
-    }
-    if (!apiKey || !allow(req) || !pptGate().ok) {
-      res.statusCode = 503
-      res.end(JSON.stringify({ error: 'unavailable' }))
-      return
-    }
-    try {
-      const u = new URL(`${PRICE_TRACKER_ORIGIN}/cards`)
-      u.searchParams.set('search', 말)
-      u.searchParams.set('language', 판)
-      // ⚠️ 12장만 받고 있었다. 팝수 조회는 **그 이름의 카드를 다 훑어보는 화면**이라
-      //    12장은 턱없이 적다 — "개굴닌자"는 일본판 53장·영문판 71장이 있는데 12장만
-      //    나왔다(2026-08-07 사장님 지적). 시세 검색(12장 + 더 보기)과 목적이 다르다.
-      //    장당 1크레딧이라 60장이어도 60크레딧이고, 6시간 캐시에 담긴다.
-      u.searchParams.set('limit', String(CARD_FIND_LIMIT))
-      u.searchParams.set('sortBy', 'price')
-      u.searchParams.set('sortOrder', 'desc')
-      const r = await fetch(u, { headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(20_000) })
-      notePpt(r.status, r.headers)
-      if (!r.ok) {
-        res.statusCode = r.status === 429 ? 429 : 502
-        res.end(JSON.stringify({ error: 'upstream', status: r.status }))
-        return
-      }
-      const j = (await r.json()) as { data?: Record<string, unknown>[] }
-      const cards = (j.data ?? []).map((c) => ({
-        tcgPlayerId: String(c.tcgPlayerId ?? ''),
-        name: String(c.name ?? ''),
-        setName: String(c.setName ?? ''),
-        cardNumber: String(c.cardNumber ?? ''),
-        rarity: String(c.rarity ?? ''),
-        imageUrl: String(c.imageCdnUrl200 ?? c.imageUrl ?? ''),
-      }))
-      const body = JSON.stringify({ cards, language: 판, capped: cards.length >= CARD_FIND_LIMIT })
-      찾기캐시.set(열쇠, body)
-      res.statusCode = 200
-      res.end(body)
-    } catch {
-      res.statusCode = 502
-      res.end(JSON.stringify({ error: 'upstream' }))
-    }
-  })
-
-  // 등급표 전부. 요약은 통째로 받아 둔 것에 있지만 **등급 하나하나는 여기서 받는다**
-  // (메모리가 512MB뿐이라 전 카드 상세를 들고 있을 수 없다).
-  const 상세캐시 = new TtlCache<string>(POP_DETAIL_TTL_MS, POP_DETAIL_MAX)
-  app.use('/api/local/population-detail', async (req, res) => {
-    const q = new URL(req.url ?? '', 'http://x').searchParams
-    const id = q.get('id')?.trim() ?? ''
-    const 판 = q.get('lang')?.trim() || undefined
-    res.setHeader('content-type', 'application/json')
-    if (!id) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: 'id required' }))
-      return
-    }
-    // 갈라 담은 카드는 저쪽에 그런 열쇠가 없다. 물어봐야 헛걸음이다(위 card-extra 설명).
-    if (id.includes('~')) {
-      res.statusCode = 200
-      res.end(JSON.stringify({ detail: null }))
-      return
-    }
-    const 열쇠 = `${id}:${판 ?? ''}`
-    const 있음 = 상세캐시.get(열쇠)
-    if (있음) {
-      res.statusCode = 200
-      res.end(있음)
-      return
-    }
-    const d = await fetchPopulationDetail(apiKey, id, 판)
-    const body = JSON.stringify({ detail: d })
-    if (d) 상세캐시.set(열쇠, body)
-    res.statusCode = 200
-    res.end(body)
-  })
-
-  // 감정 수량 · 등급별 낙찰. 통째로 받아 둔 것이라 **크레딧을 쓰지 않는다**.
-  // 카드 화면이 이미 아는 tcgPlayerId로 바로 찾는다.
-  app.use('/api/local/card-extra', async (req, res) => {
-    const id = new URL(req.url ?? '', 'http://x').searchParams.get('id')?.trim() ?? ''
-    res.setHeader('content-type', 'application/json')
-    if (!id) {
-      res.statusCode = 400
-      res.end(JSON.stringify({ error: 'id required' }))
-      return
-    }
-    // ⚠️⚠️ **갈라 담은 카드(617410~4-9)에는 감정 수량을 붙이지 않는다.**
-    //    저쪽의 그 값은 **여러 카드를 묶은 칸의 것**이라, 갈라 놓은 카드 하나에 붙이면
-    //    그게 곧 섞임이다(캡틴피카츄 한 칸에 다섯 카드가 들어 있었다).
-    //    뒤를 떼고 물어보면 다섯 카드가 **모두 같은 수량**을 달고 나온다 — 틀린 값이다.
-    //    저쪽에 헛되이 묻지도 않는다(크레딧만 나간다).
-    if (id.includes('~')) {
-      res.statusCode = 200
-      res.setHeader('cache-control', 'public, max-age=3600')
-      res.end(JSON.stringify({ population: null, grades: null, 받은날: exportDoneDay.population ?? null }))
-      return
-    }
-    // 덤프에 있으면 그걸 쓴다(크레딧 0). 없을 때만 한 장 받아 온다 —
-    // 통째 받기는 이레에 한 번이라 그 사이 빈칸이 생기고, 그 한 장이 방문자가
-    // 지금 보고 있는 카드다. 예산·재시도 제한은 fetchPopulationLive 안에 있다.
-    const 판 = new URL(req.url ?? '', 'http://x').searchParams.get('lang')?.trim() || undefined
-    let pop = populationCache.get(id) ?? null
-    if (!pop) pop = await fetchPopulationLive(apiKey, id, 판)
-    const grades = ebayGradeCache.get(id) ?? null
-    res.statusCode = 200
-    // 하루 한 번 갱신되는 값이라 오래 물고 있어도 된다.
-    res.setHeader('cache-control', 'public, max-age=3600')
-    res.end(JSON.stringify({ population: pop, grades, 받은날: exportDoneDay.population ?? null }))
-  })
-
-  // ⚠️ **아는 값만 저쪽에 넘긴다.** 예전엔 방문자가 보낸 주소를 통째로 넘겼는데,
-//    저쪽은 모르는 값이 하나만 붙어도 **400을 주고 아무것도 안 준다.** 실제로
-//    확인용으로 붙인 `?notrack=1` 하나 때문에 시세가 통째로 안 나왔다
-//    (2026-08-08). 광고·추천 링크에 흔히 붙는 utm_* 같은 것이 따라 들어오면
-//    그 방문자에게는 시세 화면이 통째로 비어 보인다.
-//    have는 우리 서버에서만 쓰는(소스 필터) 값이라 역시 안 보낸다.
-const 넘길것 = new Set([
-  'language',
-  'tcgPlayerId',
-  'search',
-  'setName',
-  'setId',
-  'rarity',
-  'artist',
-  'cardType',
-  'minPrice',
-  'maxPrice',
-  'limit',
-  'offset',
-  'sortBy',
-  'sortOrder',
-  'includeEbay',
-  'fetchAllInSet',
-])
-
-
-  app.use('/api/local/card-prices', async (req, res) => {
-    if (!apiKey) {
-      res.statusCode = 501
-      res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ error: 'POKEMON_PRICE_TRACKER_API_KEY not configured' }))
-      return
-    }
-
-    const url = new URL(req.url ?? '', 'http://localhost')
-    // ⚠️ **캐시 열쇠도 거른 값으로 만든다.** 방문자 주소를 그대로 쓰면 utm_* 하나만
-    //    달라도 딴 요청으로 세어, 같은 카드를 크레딧 주고 또 산다.
-    const 거른것 = new URLSearchParams()
-    for (const [k, v] of [...url.searchParams].sort((x, y) => x[0].localeCompare(y[0])))
-      if (넘길것.has(k) || k === 'have') 거른것.append(k, v)
-    const cacheKey = '?' + 거른것.toString()
-    const cached = cache.get(cacheKey)
-
-    if (cached) {
-      res.statusCode = 200
-      res.setHeader('content-type', 'application/json')
-      res.end(cached)
-      return
-    }
-
-    // 제한은 캐시 뒤에 둔다. 캐시 적중은 크레딧을 안 쓰므로 셀 이유가 없고, 여기서
-    // 막으면 남이 이미 조회해둔 카드를 보는 정상 사용자만 걸린다. 여기까지 왔다는 건
-    // 진짜로 업스트림을 부른다는 뜻이다.
-    if (!allow(req)) {
-      tooManyRequests(res)
-      return
-    }
-
-    // ⚠️ 여기에는 크레딧 바닥선(5,000)을 걸지 않는다 — 일부러 그런 것이다.
-    //    바닥선은 "자동 작업과 스크립트가 방문자 몫을 먹지 못하게" 하는 장치다.
-    //    이 길이 바로 그 방문자 몫을 쓰는 곳이라, 여기까지 막으면 5,000을 남겨 두고
-    //    정작 방문자에게는 시세를 못 보여주는 셈이 된다(2026-08-03 사용자 확인).
-    //    미리받기 쪽은 PPT_KEEP_FOR_VISITORS(40,000)로 따로 막고 있다.
-    //
-    // 이미 한도에 걸린 걸 아는 동안은 부르지 않는다. 불러도 429가 돌아올 뿐인데,
-    // 그 429가 쌓이면 키가 정지된다(위 pptGate 설명).
-    const gate = pptGate()
-    if (!gate.ok) {
-      // 크레딧이 없어도 아무것도 안 보여주지는 않는다. 지난번에 받아 둔 값이 있으면
-      // "언제 기준인지"를 붙여 그걸 준다(사용자 편의 우선, 2026-08-04).
-      const stale = stalePrice(cacheKey)
-      if (stale) {
-        res.statusCode = 200
-        res.setHeader('content-type', 'application/json')
-        res.end(stale)
-        return
-      }
-      res.statusCode = 429
-      res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ error: gate.daily ? 'daily_limit' : 'upstream_error', status: 429 }))
-      return
-    }
-
-    try {
-      // 등급별 가격 추이 그래프를 그리려면 히스토리를 함께 받아야 한다. 클라이언트가
-      // 보낸 검색 조건은 그대로 두고 히스토리 옵션만 서버에서 덧붙인다. (캐시 키는
-      // 클라이언트 쿼리 기준이라 그대로 두면 된다.)
-      const upstreamParams = new URLSearchParams()
-      for (const [k, v] of url.searchParams) if (넘길것.has(k)) upstreamParams.append(k, v)
-      // ⚠️ **갈라 놓은 카드의 열쇠는 저쪽에 그대로 보내면 안 된다.** 저쪽이 여러 카드를
-      //    한 칸에 묶어 놓은 경우 우리가 번호로 갈라 "617410~0709" 같은 열쇠를 만든다
-      //    (아래 갈라담기 설명). 저쪽에는 앞의 숫자만 보내고, 받은 뒤 우리가 다시 가른다.
-      const 쪼갠열쇠 = String(url.searchParams.get('tcgPlayerId') ?? '')
-      const 갈래표시 = 쪼갠열쇠.includes('~') ? 쪼갠열쇠.split('~')[1] : ''
-      if (갈래표시) upstreamParams.set('tcgPlayerId', 쪼갠열쇠.split('~')[0])
-      upstreamParams.set('includeHistory', 'true')
-      // 이베이 날짜별 낙찰 히스토리는 includeEbay를 켜야 온다(등급별 그래프의 재료).
-      upstreamParams.set('includeEbay', 'true')
-      // ⚠️ Pro일 때는 이력이 6개월까지만 왔다. Business는 무제한이라 더 길게 받을 수 있고,
-      //    **크레딧은 그대로다**(2026-08-07 실측: 180/60도 1095/365도 카드당 3크레딧).
-      //    maxDataPoints는 365까지 공짜다 — 넘으면 카드당 +1이 붙는다.
-      upstreamParams.set('days', '1095')
-      upstreamParams.set('maxDataPoints', '365')
-      const upstream = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${upstreamParams.toString()}`, {
-        signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
-        headers: {
-          accept: 'application/json',
-          authorization: `Bearer ${apiKey}`,
-        },
-      })
-
-      notePpt(upstream.status, upstream.headers)
-
-      if (!upstream.ok) {
-        // 업스트림 원본 에러 바디는 그대로 흘리지 않고 상태 코드만 전달한다.
-        // (에러 응답은 캐시하지 않아 일시적 429/500이 6시간 고정되지 않게 한다.)
-        // 429는 두 종류다. 분당 한도면 정말 "잠시 후"에 풀리지만, 하루치를 다 쓴 것이면
-        // 한국시간 오전 9시(UTC 0시)까지 안 열린다. 화면에 다르게 안내해야 방문자가
-        // 헛되이 새로고침하지 않는다.
-        const dailyLeft = 머리글숫자(upstream.headers, 'x-ratelimit-daily-remaining')
-        const daily = upstream.status === 429 && Number.isFinite(dailyLeft) && dailyLeft <= 0
-        const stale = stalePrice(cacheKey)
-        if (stale) {
-          res.statusCode = 200
-          res.setHeader('content-type', 'application/json')
-          res.end(stale)
-          return
-        }
-        res.statusCode = upstream.status
-        res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ error: daily ? 'daily_limit' : 'upstream_error', status: upstream.status }))
-        return
-      }
-
-      // 원본을 그대로 넘기지 않고 화면용 필드만 추려서 재배포 소지를 없앤다.
-      const rawJson = await upstream.json()
-      // shapeEbayCards는 낙찰 없는 카드를 걸러내서, 걸러진 개수만 보면 "더 있는지"를
-      // 오판한다(한 페이지가 꽉 찼는데 필터로 줄면 끝난 줄 안다). 원본 개수를 함께
-      // 실어 보내, 클라이언트가 "원본이 페이지 크기만큼 왔으면 더 있다"고 판단하게 한다.
-      const rawList = Array.isArray((rawJson as { data?: unknown }).data)
-        ? ((rawJson as { data: unknown[] }).data)
-        : (rawJson as { data?: unknown }).data
-          ? [(rawJson as { data: unknown }).data]
-          : []
-      // have=tcgplayer면 TCGplayer 시세 있는 카드만 추린다(기본은 이베이 낙찰 카드).
-      const have = url.searchParams.get('have') === 'tcgplayer' ? 'tcgplayer' : 'ebay'
-      // 지나가는 김에 이름을 주워 둔다(공유 링크 미리보기에 쓴다). 화면에 나갈 목록이
-      // 아니라 원본에서 주워야 한다 — 낙찰 기록이 없어 걸러진 카드도 이름은 알 수 있고,
-      // 그 카드의 링크를 공유할 수도 있다.
-      for (const row of rawList) {
-        const c = row as { tcgPlayerId?: unknown; name?: unknown }
-        if (typeof c?.tcgPlayerId === 'string' && typeof c?.name === 'string') {
-          rememberCardName(c.tcgPlayerId, c.name)
-        }
-      }
-      // ⚠️ **갈라 담은 카드를 콕 집어 물었으면 그 하나만 돌려준다.** 공유 링크(/e/617410~4-9)로
-      //    들어온 사람에게 다섯 장을 다 주면 어느 것이 그 카드인지 알 수 없다.
-      const 빚은것 = shapeEbayCards(rawJson, have)
-      const 고른것 = 갈래표시 ? 빚은것.filter((c) => String(c.tcgPlayerId).endsWith(`~${갈래표시}`)) : 빚은것
-      const body = JSON.stringify({ cards: 고른것.length ? 고른것 : 빚은것, rawCount: rawList.length })
-      cache.set(cacheKey, body)
-      rememberPrice(cacheKey, body)
-      res.statusCode = 200
-      res.setHeader('content-type', 'application/json')
-      res.end(body)
-    } catch {
-      // 통신 자체가 실패해도 지난 시세가 있으면 그걸 준다.
-      const stale = stalePrice(cacheKey)
-      if (stale) {
-        res.statusCode = 200
-        res.setHeader('content-type', 'application/json')
-        res.end(stale)
-        return
-      }
-      res.statusCode = 502
-      res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ error: 'upstream_fetch_failed' }))
-    }
-  })
-}
-
-// ── 이베이 한글판(Korean Version) 시세 ────────────────────────────────────
-// Browse API로 "카드명 Korean Version" 현재 매물가(호가)를 받는다. 체결가(낙찰가)를 주는
-// Marketplace Insights는 이베이 별도 승인이 필요해 지금은 호가. 그래서 화면에 "현재 매물가"로
-// 명확히 표기한다(영문판=체결가와 혼동 금지). 키(App/Cert)는 서버에서만, 클라이언트엔 안 내림.
-const EBAY_OAUTH_URL = 'https://api.ebay.com/identity/v1/oauth2/token'
-const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1/item_summary/search'
-
-// 한글판 매물에서 "카드가 아닌 물건"을 제목으로 걸러낸다.
-//
-// ⚠️ 이미 category_ids=183454(낱장 카드)로 받는데도 새어 나온다 — 파는 사람이 아무
-//    분류에나 올리기 때문이다. 실제로 지하철 QR 티켓 세트·보드게임·스티커가 섞여
-//    나왔다(운영자 지적 2026-08-06, 106건 중 5건).
-// ⚠️ 목록을 넓히면 **진짜 카드가 빠진다** — 그게 더 나쁘다. 그래서 넣기 전에 영문판
-//    카드 이름 23,444개에 그 낱말이 실제로 나오는지 세어 보고 정했다. 아래 여덟 개는
-//    세어 보고 **뺀** 것들이다(괄호는 걸리던 진짜 카드):
-//      sticker(Energy Sticker) · ticket(Reserved Ticket) · towel(Team Yell Towel)
-//      doll(Clefairy Doll) · cap(Patrol Cap) · hat(Pikachu with Grey Felt Hat)
-//      puzzle(Puzzle of Time) · backpack(Nemona's Backpack)
-//    sleeve·coin·bag·pin도 뺐다 — "in sleeve"처럼 진짜 카드의 포장 설명으로 쓰인다.
-//    ⚠️ 여기에 낱말을 더할 때는 반드시 위와 같이 카드 이름 전체를 세어 보고 넣을 것.
-//    낱말 경계(\b)로 맞춰 capture 안의 cap 같은 오검출을 막는다.
-//    복수형(stickers·tickets)은 카드 이름에 안 나오고 굿즈 제목에는 흔해서 남긴다.
-//    ⚠️ **festa는 뺐다.** 부산 지하철 티켓("Mega Festa 2026 Busan Subway QR Ticket")을
-//       잡으려고 넣었는데, **SV8a 세트 이름이 「테라스탈 페스타(Terastal Festa)」다.**
-//       그 세트 카드가 통째로 굿즈로 몰려 사라졌다
-//       ("Jolteon ex SV8a Terastal Festa Korean Version" $61 · 2026-08-07 발견).
-//       지하철 티켓 쪽은 subway·qr ticket이 이미 잡으므로 잃는 게 없다.
-//    ⚠️ **여기에 낱말을 더할 땐 세트 이름과 겹치는지 먼저 볼 것.** 세트 이름은 해마다
-//       늘고, 겹치면 그 세트가 통째로 화면에서 사라지는데 아무 표시도 안 난다.
-//    plate(Mystery Plate)·pouch(Energy Pouch)도 같은 이유로 뺐다.
-// ⚠️ "anniversary"·"limited edition"·"sealed"는 카드 **이름**에는 없지만 진짜 카드
-//    **매물 제목**에는 흔하다(예: "Celebrations 25th Anniversary Charizard").
-//    대조할 때 카드 이름만 보고 넣으면 이런 걸 놓친다 — 매물 제목까지 생각할 것.
-// sticker는 진짜 카드가 딱 하나(Energy Sticker)라, 그것만 빼고 잡는다.
-const NOT_A_CARD =
-  /(?<!energy )\bsticker\b|\b(stickers|tickets|ticket\s?set|sticker\s?set|board\s?game|plush|plushie|keychain|key\s?chain|mug|poster|blanket|cushion|figure|figurine|t-?shirt|tshirt|hoodie|socks|playmat|playing\s?mat|transportation|transit\s?card|t-?money|binder|deck\s?box|card\s?case|sleeve\s?set|wallet|lanyard|subway|qr\s?ticket|goods|merch)\b/i
-// 세트 이름에 흔히 붙는 말. 찾는 이름 뒤에 이게 오면 카드 이름이 아니라 세트 이름이다.
-const 세트를뜻하는말 = 'Heroes|Edition|Collection|Box|Set|Deck|Promo|Series|Pack|Starter'
-/**
- * 이 매물이 정말 그 카드인가. 찾는 말 뒤에 세트를 뜻하는 말이 붙은 자리는 지우고,
- * 그래도 찾는 말이 남아 있으면 그 카드로 본다.
- *
- * ⚠️ 검색어의 **첫 낱말만** 본다(대개 포켓몬 이름이다). 낱말을 다 따지면
- *    "Charizard VSTAR"처럼 뒤에 등급·번호가 붙은 검색에서 멀쩡한 것도 걸러진다.
- * ⚠️ 영문이 아닌 검색어는 그냥 통과시킨다 — 화면이 이미 영문으로 바꿔 보내지만,
- *    사전에 없어 한글이 그대로 올라오면 여기서 다 걸러 버리면 안 된다.
- */
-// 카드 이름 뒤에 붙는 표시(V·VMAX·ex·GX…). "리피아 VMAX"처럼 **이름+표시**가 붙어
-// 있으면 그게 그 매물의 카드다.
-const 카드표시 = 'v|vmax|vstar|ex|gx|break|prime'
-// 포켓몬 영문 이름 1,025개를 통째로 쓴다(세 글자 미만은 다른 낱말에 끼어들어 뺀다).
-// 긴 이름부터 맞춰야 "Mew"가 "Mewtwo"를 가로채지 않는다.
-const 포켓몬이름표 = (pokemonNames as Array<{ en?: string }>)
-  .map((p) => String(p.en ?? '').trim())
-  .filter((n) => n.length >= 3)
-  .sort((a, b) => b.length - a.length)
-  .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-const 이름더하기표시 = new RegExp(`\\b(${포켓몬이름표.join('|')})\\s+(?:${카드표시})\\b`, 'ig')
-// 카드 번호 바로 앞에 붙은 포켓몬 이름("MACHAMP 018/024"). 사이에 다른 낱말이 끼면 안 잡는다.
-const 번호앞이름 = new RegExp(`\\b(${포켓몬이름표.join('|')})\\s*[-–]?\\s*\\d{1,3}\\s*/\\s*\\d{1,3}\\b`, 'i')
-
-const 그카드가맞나 = (title: string, q: string): boolean => {
-  const 첫낱말 = (q.trim().split(/\s+/)[0] ?? '').replace(/[^A-Za-z'-]/g, '')
-  if (첫낱말.length < 3) return true
-  // ⚠️ **찾는 말 자체가 세트 이름이면 거르지 않는다.** "Eevee Heroes"라고 친 사람은
-  //    그 세트를 보려는 것이라, 여기서 걸러 버리면 24건이 2건이 된다(2026-08-07 확인).
-  if (new RegExp(`^${첫낱말}\\s+(?:${세트를뜻하는말})\\b`, 'i').test(q.trim())) return true
-  const 지움 = title.replace(new RegExp(`\\b${첫낱말}\\s+(?:${세트를뜻하는말})\\b`, 'ig'), ' ')
-  if (!new RegExp(`\\b${첫낱말}\\b`, 'i').test(지움)) return false
-  // ⚠️ **다른 포켓몬 이름이 우리 이름보다 앞에 나오면 그건 그 포켓몬 카드다.**
-  //    "Leafeon VMAX Eevee Holo Triple Rare 3/69"가 이브이로 잡혀 최저가 $1.12가
-  //    리피아 값이었다(2026-08-07). 이름만 들어 있으면 통과시키던 탓이다.
-  //    단, **이름 뒤에 V·ex 같은 표시가 붙은 것만** 그 카드로 본다 —
-  //    "Mewtwo & Mew GX"처럼 둘이 같이 나오는 카드는 걸러내면 안 되기 때문이다.
-  const 우리위치 = 지움.search(new RegExp(`\\b${첫낱말}\\b`, 'i'))
-  for (const m of 지움.matchAll(이름더하기표시)) {
-    if (m[1].toLowerCase() === 첫낱말.toLowerCase()) continue
-    if ((m.index ?? 0) < 우리위치) return false
-  }
-  // ⚠️⚠️ **카드 번호 바로 앞에 붙은 포켓몬이 그 매물의 카드다.**
-  //    세트 이름이 포켓몬 이름인 경우를 이것으로 가른다(2026-08-08 실측):
-  //        "DETECTIVE PIKACHU SMP2 - MACHAMP 018/024 - KOREAN VERSION"
-  //    피카츄로 찾으면 이게 걸려서 **최저가 $1.34가 괴력몬 값**이 됐다. 제목에
-  //    "PIKACHU"가 있는 건 맞지만 그건 세트 이름이고, 파는 카드는 괴력몬이다.
-  //    앞의 검사들은 못 잡는다 — 피카츄 뒤에 세트를 뜻하는 말이 없고("SMP2"),
-  //    괴력몬 뒤에도 ex·V 같은 표시가 없기 때문이다.
-  //    ⚠️ 이름과 번호 **사이에 다른 말이 끼면 안 본다.** "Charizard EX 006/165"의
-  //       번호 앞말은 "EX"라서 걸리지 않는다 — 그건 리자몽 카드가 맞다.
-  const 번호앞 = 지움.match(번호앞이름)
-  if (번호앞 && 번호앞[1].toLowerCase() !== 첫낱말.toLowerCase()) return false
-  return true
-}
-
-const EBAY_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6시간(호가는 자주 안 변함 + 무료 콜 아낌)
-const EBAY_MAX_ENTRIES = 2000
-
-function mountEbayKorean(app: Mountable, appId: string, certId: string) {
-  const cache = new TtlCache<string>(EBAY_CACHE_TTL_MS, EBAY_MAX_ENTRIES)
-  const allow = rateLimiter(300, 60 * 1000)
-  // 앱 토큰(client_credentials, 2시간)은 요청마다 새로 받지 않고 캐시해 재사용한다.
-  let token = { value: '', exp: 0 }
-
-  async function getToken(): Promise<string> {
-    const now = Date.now()
-    if (token.value && now < token.exp - 60_000) return token.value
-    const basic = Buffer.from(`${appId}:${certId}`).toString('base64')
-    const r = await fetch(EBAY_OAUTH_URL, {
-      method: 'POST',
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      headers: { authorization: `Basic ${basic}`, 'content-type': 'application/x-www-form-urlencoded' },
-      body: 'grant_type=client_credentials&scope=' + encodeURIComponent('https://api.ebay.com/oauth/api_scope'),
-    })
-    const j = (await r.json()) as { access_token?: string; expires_in?: number }
-    if (!j.access_token) throw new Error('ebay_oauth_failed')
-    token = { value: j.access_token, exp: now + (j.expires_in ?? 7200) * 1000 }
-    return token.value
-  }
-
-  app.use('/api/local/ebay-korean', async (req, res) => {
-    if (!appId || !certId) {
-      sendJson(res, 501, { error: 'EBAY keys not configured' })
-      return
-    }
-    const url = new URL(req.url ?? '', 'http://localhost')
-    const q = (url.searchParams.get('q') ?? '').trim().slice(0, 100)
-    if (!q) {
-      sendJson(res, 400, { error: 'missing q' })
-      return
-    }
-    const cacheKey = q.toLowerCase()
-    const cached = cache.get(cacheKey)
-    if (cached) {
-      res.statusCode = 200
-      res.setHeader('content-type', 'application/json')
-      res.end(cached)
-      return
-    }
-    if (!allow(req)) {
-      tooManyRequests(res)
-      return
-    }
-    try {
-      const tok = await getToken()
-      // 이베이 매물 제목은 영어라 "Korean Version"을 붙여 한글판만 걸러 받는다.
-      // category_ids=183454 = CCG Individual Cards(낱장 카드). 박스·팩·스티커 등을 뺀다.
-      const params = new URLSearchParams({
-        q: `${q} Korean Version`,
-        category_ids: '183454',
-        // ⚠️ 183454(CCG 낱장)에는 **포켓몬만 있는 게 아니다** — 원피스·유희왕도 같은
-        //    칸이다. "Starter Deck"으로 찾았더니 원피스 카드가 나왔다(2026-08-07).
-        //    포켓몬 이름으로 찾을 때는 이름이 알아서 걸러 주지만, 이름이 아닌 말로
-        //    찾으면 남의 게임이 섞인다. 이베이가 게임별로 거를 수 있으니 지정한다.
-        // ⚠️ **게임별 거르기(aspect_filter Game:Pokémon TCG)는 안 쓴다.** 넣어 보니
-        //    원피스 카드는 사라지는데 **진짜 포켓몬 매물도 1~2건씩 떨어졌다**
-        //    (Charizard ex 14→13, Pokemon 151 16→15 · 2026-08-07 실측).
-        //    판매자가 "게임" 칸을 안 채운 매물이 빠지는 것이다. 여기 값은 최저가를
-        //    뽑는 데 쓰므로 **진짜 매물을 잃는 쪽이 더 나쁘다**. 남의 게임이 섞이는
-        //    건 카드 이름으로 찾을 때는 안 생긴다(이름이 알아서 거른다).
-        // ⚠️ 24개만 받던 것을 100개로 늘렸다. 싼 것부터 받아 **거른 뒤** 보여주는데,
-        //    세트 이름·굿즈를 거르기 시작하면서 남는 게 너무 적어졌다
-        //    (이브이 24개를 받아 22개가 걸리고 2건만 남았다 · 2026-08-07).
-        //    이베이 Browse는 한 번에 200까지 주고 **요청 수는 그대로 1번**이라 공짜다.
-        limit: '100',
-        filter: 'buyingOptions:{FIXED_PRICE}',
-        sort: 'price',
-      })
-      const r = await fetch(`${EBAY_BROWSE_URL}?${params.toString()}`, {
-        signal: AbortSignal.timeout(UPSTREAM_SLOW_MS),
-        headers: { authorization: `Bearer ${tok}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
-      })
-      if (!r.ok) {
-        sendJson(res, r.status, { error: 'upstream_error', status: r.status })
-        return
-      }
-      const j = (await r.json()) as {
-        total?: number
-        itemSummaries?: Array<{
-          title?: string
-          price?: { value?: string; currency?: string }
-          itemWebUrl?: string
-          image?: { imageUrl?: string }
-          thumbnailImages?: Array<{ imageUrl?: string }>
-          condition?: string
-        }>
-      }
-      // ⚠️ **세트 이름이 포켓몬 이름과 같은 경우를 걸러낸다.** 이베이는 제목 전체에서
-      //    글자를 찾으므로 "이브이"로 찾으면 "Eevee Heroes"(세트 이름) 카드가 전부
-      //    걸린다 — 마릴·리피아가 나오고, 화면 맨 위 "최저 $1.25"가 **마릴 값**이었다
-      //    (2026-08-07 발견). 찾는 이름 뒤에 세트를 뜻하는 말이 붙어 있으면 그건
-      //    세트 이름이므로 지우고, 그래도 이름이 남아 있는 것만 그 카드로 본다.
-      //    실측: 이브이 24건 → 2건(최저 $1.25 마릴 → $2.75 진짜 이브이 ex).
-      //    블래키·리자몽·에브이·피카츄는 최저가가 안 바뀐다(멀쩡한 걸 안 걸러낸다).
-      const items = (j.itemSummaries ?? [])
-        .map((it) => ({
-          title: it.title ?? '',
-          price: it.price?.value ? Number(it.price.value) : null,
-          currency: it.price?.currency ?? 'USD',
-          url: it.itemWebUrl ?? '',
-          img: it.image?.imageUrl ?? it.thumbnailImages?.[0]?.imageUrl ?? '',
-          condition: it.condition ?? '',
-        }))
-        .filter((x) => x.price != null && x.price > 0)
-        .filter((x) => !NOT_A_CARD.test(x.title))
-        .filter((x) => 그카드가맞나(x.title, q))
-        // ⚠️ **우리가 값 순서로 다시 세운다.** 이베이의 price 정렬은 배송비를 더한
-        //    값 기준이라, 화면에는 "최저 $1" 이라 적혀 있는데 목록 첫 줄이 $7.99인
-        //    일이 생겼다(2026-08-07). 우리가 보여주는 값은 물건값이므로 그 값으로
-        //    세워야 머리글과 목록이 말이 맞는다.
-        .sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
-      // ⚠️ total도 거른 뒤의 개수로 보낸다. 이베이가 준 total을 그대로 쓰면
-      //    "매물 34건"이라 적어 놓고 30건만 보여주게 된다.
-      const body = JSON.stringify({ total: items.length, items })
-      cache.set(cacheKey, body)
-      res.statusCode = 200
-      res.setHeader('content-type', 'application/json')
-      res.end(body)
-    } catch {
-      sendJson(res, 502, { error: 'ebay_fetch_failed' })
-    }
-  })
-}
+// ── (없앰) 이베이 한글판(Korean Version) 시세 ─────────────────────────────
+// **2026-08-10에 뺐다**(사장님 지시). Browse API로 "카드명 Korean Version"을 찾아
+// **호가**를 보여 주던 길이다. 뺀 까닭:
+//   · 나머지(이베이·TCGplayer)는 **낙찰가**인데 여기만 호가라 같은 화면에서 값의 뜻이 달랐다.
+//   · 매물 **제목으로만** 찾아 세트·번호를 못 좁혔다 — 무작위 10장으로 재 보니 매물이
+//     있던 4장이 **전부 다른 세트**였다(2026-08-07 실측).
+// ⚠️ 되살리려면 이 자리에 mountEbayKorean과 /api/local/ebay-korean을 되돌리고,
+//    App.tsx의 판 토글에 한글판 버튼을 다시 넣으면 된다.
+// ⚠️ `EBAY_APP_ID`·`EBAY_CERT_ID`는 이제 **아무 데서도 안 쓴다.** Fly 시크릿에는
+//    남아 있으니, 지울지는 사장님이 정한다(`fly secrets unset`).
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_IMAGE_BODY_BYTES = 8 * 1024 * 1024
@@ -5683,6 +4784,57 @@ async function getCollections(id: string): Promise<Collections> {
   return all[id]
 }
 
+// ── 포켓몬 디펜스 시즌1 — 계정에 붙는 기록 ────────────────────────────────
+//
+// ⚠️⚠️ **게임은 로그인 없이도 다 된다.** 로그인한 사람만 기록이 **계정에 남을 뿐**이다
+//    (사장님 2026-08-18: "비로그인 로그인 다 가능하게는 해줘 근데 로그인한 회원은 기록을 써주자").
+//    비로그인은 지금처럼 브라우저(localStorage)에만 남는다 — 기기를 바꾸면 처음부터다.
+// ⚠️ 담는 것은 **깬 판 이름과 판별 최고 별**뿐이다. 사람을 알아볼 것은 회원번호 말고 안 담는다.
+// ⚠️⚠️ **별은 낮은 값으로 덮어쓰지 않는다.** 어려움으로 ★★★을 딴 뒤 쉬움으로 다시 깨도
+//    ★★★이 남아야 한다 — 화면 쪽 규칙과 같아야 하므로 서버에서도 `max`로 합친다.
+const BATTLE_FILE = dataFile('battle.json')
+/** 회원번호 → { 판이름: 최고 별 }. 깬 판은 별이 1 이상인 것으로 알 수 있다. */
+interface 디펜스기록 { stars: Record<string, number>; at: string }
+let 디펜스: Record<string, 디펜스기록> | null = null
+
+async function load디펜스(): Promise<Record<string, 디펜스기록>> {
+  if (디펜스) return 디펜스
+  return firstReadOnce('battle', async () => {
+    if (디펜스) return 디펜스
+    try {
+      const raw = JSON.parse(await readFile(BATTLE_FILE, 'utf-8')) as Record<string, 디펜스기록>
+      // ⚠️ 회원번호에 접두어를 붙이는 규칙이 있다 — 안 붙이면 로그인은 되는데 기록이 빈다.
+      디펜스 = Object.fromEntries(Object.entries(raw).map(([id, v]) => [migrateId(id), v]))
+    } catch {
+      await rescueCorrupt(BATTLE_FILE)
+      디펜스 = {}
+    }
+    return 디펜스!
+  })
+}
+
+async function persist디펜스() {
+  await mkdir(path.dirname(BATTLE_FILE), { recursive: true })
+  await writeJsonFile(BATTLE_FILE, 디펜스)
+}
+
+/** 별 표를 다듬는다. **화면에서 온 값을 그대로 믿지 않는다.** */
+function 별표다듬(v: unknown): Record<string, number> {
+  if (!v || typeof v !== 'object') return {}
+  const 나온것: Record<string, number> = {}
+  let n = 0
+  for (const [이름, 별] of Object.entries(v as Record<string, unknown>)) {
+    // ⚠️ 판이 12개뿐이라 넉넉히 40칸이면 충분하다. 없으면 아무 열쇠나 무한정 들어온다.
+    if (n >= 40) break
+    if (typeof 이름 !== 'string' || 이름.length > 40) continue
+    const x = Math.floor(Number(별))
+    if (!Number.isFinite(x) || x < 1 || x > 3) continue
+    나온것[이름] = x
+    n++
+  }
+  return 나온것
+}
+
 // ── 카드 뽑기(PackSim) ────────────────────────────────────────────────────
 // 출석으로 받은 예산으로 팩을 사서 열고, 나온 카드를 앨범에 모은다.
 // 뽑기는 서버에서 한다 — 화면에서 뽑으면 예산도 앨범도 얼마든지 조작할 수 있다.
@@ -5884,6 +5036,21 @@ function exportDue(종류: string): boolean {
 // 로그에 실제 크기가 찍히므로, 확인한 뒤 이 값을 조정할 것.
 const EXPORT_MAX_BYTES = 40 * 1024 * 1024
 
+/**
+ * 받은 덤프를 `/data/export-<종류>.csv`로 남긴다. 실패해도 시세 갱신은 그대로 간다.
+ * ⚠️ 디스크는 1GB뿐이다. 날짜별로 쌓지 않고 **종류마다 최신 한 벌만** 둔다.
+ */
+async function 덤프저장(종류: string, text: string): Promise<void> {
+  const 곳 = dataFile(`export-${종류}.csv`)
+  try {
+    await mkdir(path.dirname(곳), { recursive: true })
+    await writeFile(곳, text)
+    console.log(`[pokegre] ${종류} 덤프를 남겼습니다: ${곳} · ${(Buffer.byteLength(text) / 1024 / 1024).toFixed(1)}MB`)
+  } catch (e) {
+    console.log(`[pokegre] ${종류} 덤프를 못 남겼습니다(시세 갱신은 계속합니다): ${String(e).slice(0, 80)}`)
+  }
+}
+
 async function fetchExport(apiKey: string, 종류: string): Promise<string | null> {
   const today = utcDay()
   try {
@@ -5894,12 +5061,21 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
     if (r.status !== 429) notePpt(r.status, r.headers)
     const 남음 = r.headers.get('x-export-downloads-remaining')
     if (!r.ok) {
+      // ⚠️⚠️ **429일 때만 "오늘 받았다"로 적는다.**
+      //    예전엔 어떤 실패든 적었다. 그러면 저쪽이 잠깐 500을 내거나 네트워크가 한 번
+      //    끊긴 것만으로 **그날 시세가 통째로 안 들어온다** — 다음 시간에 다시 시도할
+      //    기회를 스스로 없애기 때문이다.
+      //    429는 "오늘 몫을 다 썼다"는 뜻이라 오늘 다시 두드려 봐야 소용없다(적는 게 맞다).
+      //    그 밖의 실패는 **안 적는다** — 한 시간 뒤 확인 때 다시 해 본다.
+      const 몫바닥 = r.status === 429
       console.log(
         `[pokegre] 통째 받기(${종류}) 실패: ${r.status}` +
-          (r.status === 429 ? ' (오늘 몫을 다 썼습니다 — 내일 오전 9시에 다시)' : ''),
+          (몫바닥 ? ' (오늘 몫을 다 썼습니다 — 내일 오전 9시에 다시)' : ' — 다음 시간에 다시 해 봅니다'),
       )
-      exportDoneDay[종류] = today
-      void savePptState()
+      if (몫바닥) {
+        exportDoneDay[종류] = today
+        void savePptState(true)
+      }
       return null
     }
     // ⚠️ **몸통을 읽기 전에 길이부터 본다.** 아래 검사들은 이미 메모리에 올린 뒤라
@@ -5911,12 +5087,18 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
           `${(알린길이 / 1024 / 1024).toFixed(1)}MB > 한계 ${(EXPORT_MAX_BYTES / 1024 / 1024).toFixed(0)}MB — 건너뜁니다.`,
       )
       exportDoneDay[종류] = today
-      void savePptState()
+      void savePptState(true)
       return null
     }
     const buf = Buffer.from(await r.arrayBuffer())
     exportDoneDay[종류] = today
-    void savePptState()
+    // ⚠️⚠️ **여기는 반드시 「지금 바로」 적는다.** `savePptState()`는 10초에 한 번으로
+    //    묶여 있는데, 한 번에 두 종류를 받으면 **두 번째 기록이 통째로 삼켜진다.**
+    //    2026-08-13에 「시세+ebay」를 시켰더니 ebay는 멀쩡히 받아 놓고 상태에는
+    //    `ebay: 08-12`가 그대로 남았다. 그러면 ① 오늘 쓴 칸이 1로 세어져 **한 칸을 더
+    //    쓰려다 429**가 날 수 있고 ② 안 묵은 것을 다시 받으러 간다.
+    //    받은 사실은 **잃으면 안 되는 기록**이라 디스크를 아끼는 것보다 우선한다.
+    void savePptState(true)
     // ⚠️ **크기를 먼저 본다.** 여기서 CSV를 통째로 문자열로 만드는데, 자바스크립트
     //    문자열은 글자당 2바이트라 20MB 파일이 메모리에서 40MB가 된다. 게다가 그걸로
     //    Map을 만들고 다시 JSON 문자열로 저장하므로 **한때 세 벌이 같이 떠 있다.**
@@ -5951,6 +5133,17 @@ async function fetchExport(apiKey: string, 종류: string): Promise<string | nul
       return null
     }
     const text: string = 푼것.toString('utf8')
+    // ⚠️⚠️ **받은 덤프는 반드시 파일로 남긴다.** 예전엔 읽어서 값만 뽑고 버렸다.
+    //    그래서 나중에 "저쪽 카드 목록"이 필요할 때마다 세트를 하나씩 다시 받았고,
+    //    2026-08-09에 그렇게 **34,000크레딧**을 썼다 — 그날 아침 덤프에 이미 다 있던 자료였다.
+    //    덤프 받기 자체는 크레딧이 0이므로, 남겨 두면 검사도 개선도 공짜로 할 수 있다.
+    //    같은 종류는 덮어쓴다(하루 한 번이라 늘 최신이고, 디스크도 아낀다).
+    // ⚠️⚠️ **`void`로 던져 두면 안 된다 — 기다린다.** 예전엔 `void 덤프저장(...)`이라
+    //    저장이 끝나기 전에 돌아왔는데, 「sealed」 작업이 **바로 뒤에서 그 파일을 다시
+    //    읽는다.** writeFile은 열면서 파일을 비우므로 그 찰나에 읽으면 **빈 문자열**이
+    //    오고, `if (t2)`가 거짓이라 **아무 로그도 없이 해석을 건너뛰었다**
+    //    (2026-08-14 실측: 미개봉 시세가 나흘 묵은 채 그대로였다).
+    await 덤프저장(종류, text)
     // ⚠️ **받은 크기와 푼 크기를 둘 다 적는다.** 한계를 얼마로 잡아야 하는지는 이
     //    줄로만 알 수 있다(실제 덤프를 아직 아무도 못 봤다). 줄 수도 같이 적는다.
     console.log(
@@ -6206,12 +5399,23 @@ async function 레어도뽑기(모은것: Map<string, Set<string>>): Promise<voi
   )
 }
 
-async function loadPricesFromCsv(apiKey: string): Promise<number> {
-  if (!apiKey) return 0
-  if (!exportDue('cards')) return 0
-  const gate = pptGate()
-  if (!gate.ok) return 0
-  const text = await fetchExport(apiKey, 'cards')
+export async function loadPricesFromCsv(
+  apiKey: string,
+  // ⚠️ 시세 재료를 어느 덤프로 받을지. **2026-08-11에 기본을 printings로 바꿨다** —
+  //    같은 시세에 **인쇄판별 값 + 상태별 5칸**이 더 붙는다. 실물로 검증하고 넘어왔다:
+  //      · cards를 새 파서에 태우니 옛 결과와 36,673장 전수 일치(다름 0)
+  //      · printings를 태우니 **잃음 0 · 크게 바뀜 0**, 인쇄판별 시세 53,108장이 새로 붙음
+  //        (인쇄판이 여럿인 카드 16,797장 · 상태별 5칸 52,555장)
+  //    cards로 받고 싶으면 명시해서 부른다(옛 길은 그대로 남겨 둔다).
+  종류: 'cards' | 'printings' = 'printings',
+  // ⚠️ 점검용 뒷문. 파일 내용을 주면 **받기(몫·크레딧)를 건너뛰고 해석만** 한다 —
+  //    회귀 검증이 서버와 같은 코드를 타게 하기 위한 것이다(규칙이 둘이면 어긋난다).
+  시험텍스트?: string,
+): Promise<number> {
+  if (!apiKey && !시험텍스트) return 0
+  if (!시험텍스트 && !exportDue(종류)) return 0
+  if (!시험텍스트 && !pptGate().ok) return 0
+  const text = 시험텍스트 ?? (await fetchExport(apiKey, 종류))
   if (text == null) return 0
 
   const lines = text.split('\n')
@@ -6299,45 +5503,120 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
   const 자동완성재료 = new Map<string, Set<string>>()
   // 덤프에 실제로 나온 세트 이름. 아래에서 "저쪽에 값이 없는 세트"를 가려내는 데 쓴다.
   const 본이름 = new Set<string>()
+
+  // ── 1차: 줄을 카드(tcgPlayerId)별로 모은다 ──────────────────────────────────
+  // cards 덤프는 카드당 한 줄이라 그대로 지나가고, printings 덤프는 인쇄판당 한 줄이라
+  // 여기서 한 카드의 줄들이 묶인다. **줄을 그대로 흘리면 안 된다** — 인쇄판 여러 줄이
+  // 값담기의 "겹치면 최솟값" 규칙을 타서, 네오 루기아가 초판 $118 대신 언리 $45로
+  // 앉는다(대표는 저쪽 기준 초판이다). 카드별로 모아 **대표 한 줄**만 태운다.
+  const 인쇄판덤프 = I.marketNearMint !== undefined // printings에만 있는 열
+  type 줄틀 = {
+    name: string
+    setName: string
+    cardNumber: string
+    rarity: string
+    lang: string
+    printing: string
+    market: number
+    sellers: number
+    low: number
+    cond: number[] | null
+  }
+  const 카드별 = new Map<string, 줄틀[]>()
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i]
     if (!line.trim()) continue
     const c = splitCsvLine(line)
-    const 원래이름 = String(c[I.name] ?? '')
+    const tcg = String(c[I.tcgPlayerId] ?? '').trim()
+    if (!tcg) continue
+    const cond = 인쇄판덤프
+      ? [
+          Number(c[I.marketNearMint]) || 0,
+          Number(c[I.marketLightlyPlayed]) || 0,
+          Number(c[I.marketModeratelyPlayed]) || 0,
+          Number(c[I.marketHeavilyPlayed]) || 0,
+          Number(c[I.marketDamaged]) || 0,
+        ]
+      : null
+    const 줄: 줄틀 = {
+      name: String(c[I.name] ?? ''),
+      setName: String(c[I.setName] ?? ''),
+      cardNumber: String(c[I.cardNumber] ?? ''),
+      rarity: I.rarity === undefined ? '' : String(c[I.rarity] ?? ''),
+      lang: String(c[I.language] ?? '').trim(),
+      printing: I.printing === undefined ? '' : String(c[I.printing] ?? '').trim(),
+      market: Number(c[I.marketPrice]) || 0,
+      sellers: I.sellers === undefined ? 0 : Number(c[I.sellers]) || 0,
+      low: I.lowPrice === undefined ? 0 : Number(c[I.lowPrice]) || 0,
+      cond: cond && cond.some((v) => v > 0) ? cond : null,
+    }
+    const 든것 = 카드별.get(tcg)
+    if (든것) 든것.push(줄)
+    else 카드별.set(tcg, [줄])
+  }
+
+  // ── 2차: 카드마다 대표 줄을 골라 예전과 똑같은 규칙으로 담는다 ─────────────────
+  let 대표배움 = 0
+  if (인쇄판덤프) 인쇄판시세.clear()
+  for (const [tcg, 줄들] of 카드별) {
+    let 대표 = 줄들[0]
+    if (줄들.length > 1) {
+      const 배운 = 대표인쇄판.get(tcg)
+      대표 =
+        줄들.find((r) => 배운 && r.printing === 배운) ??
+        // 표에 없으면: 파는 사람이 많은 줄(=주로 거래되는 인쇄판) → 값이 큰 줄 순.
+        [...줄들].sort((x, y) => y.sellers - x.sellers || y.market - x.market)[0]
+    }
+    // cards 덤프면 이 줄의 printing이 대표다 — 배워 둔다(빈 값은 안 배운다).
+    if (!인쇄판덤프 && 대표.printing) {
+      if (대표인쇄판.get(tcg) !== 대표.printing) {
+        대표인쇄판.set(tcg, 대표.printing)
+        대표배움++
+      }
+    }
+    // printings 덤프면 인쇄판별 값을 통째로 남긴다(값이 하나라도 있는 카드만).
+    if (인쇄판덤프) {
+      const 통: Record<string, 인쇄판값> = {}
+      for (const r of 줄들) {
+        if (!(r.market > 0) && !r.cond) continue
+        const v: 인쇄판값 = { m: Math.round(r.market * 100) / 100 }
+        if (r.low > 0) v.l = Math.round(r.low * 100) / 100
+        if (r.cond) v.c = r.cond.map((x) => Math.round(x * 100) / 100)
+        통[r.printing || '기본'] = v
+      }
+      if (Object.keys(통).length) 인쇄판시세.set(tcg, 통)
+    }
+
+    // ── 여기부터는 예전 한 줄 처리와 같다(대표 줄 하나만 태운다) ──
+    const 원래이름 = 대표.name
     if (원래이름) {
-      const 판 = String(c[I.language] ?? '').trim() === 'japanese' ? 'ja' : 'en'
+      const 판 = 대표.lang === 'japanese' ? 'ja' : 'en'
       const 열쇠 = `${판}|${원래이름}`
       let codes = 자동완성재료.get(열쇠)
       if (!codes) 자동완성재료.set(열쇠, (codes = new Set()))
-      const code = I.rarity === undefined ? null : RARITY_CODE.get(String(c[I.rarity] ?? '').trim())
+      const code = RARITY_CODE.get(대표.rarity.trim())
       if (code) codes.add(code)
     }
-    const slugs = slug별.get(c[I.setName]) ?? 속세트.get(c[I.setName])
+    const slugs = slug별.get(대표.setName) ?? 속세트.get(대표.setName)
     if (!slugs) continue
     // 속 세트 줄은 **부모가 안 채운 번호에만** 쓴다(번호가 겹치면 부모가 이긴다).
-    const 속인가 = !slug별.has(c[I.setName])
-    본이름.add(c[I.setName])
-    const market = Number(c[I.marketPrice])
+    const 속인가 = !slug별.has(대표.setName)
+    본이름.add(대표.setName)
+    const market = 대표.market
     if (!(market > 0)) continue
-    const nm = String(c[I.name] ?? '')
+    const nm = 대표.name
     for (const slug of slugs) {
-      // ⚠️ 세트에 따라 저쪽이 **다른 번호 체계**를 쓴다. 셀레브레이션즈 클래식 컬렉션은
-      //    우리가 CC001~CC025로 두는데 저쪽은 원본 카드 번호(4/102)를 쓴다. 그대로 두면
-      //    그 25장은 시세가 통째로 안 붙는다(2026-08-07 덤프 대조로 확인).
-      const 되돌림 = 번호되돌리기(slug, String(c[I.cardNumber] ?? ''), String(c[I.name] ?? ''))
+      // ⚠️ 세트에 따라 저쪽이 **다른 번호 체계**를 쓴다(셀레브레이션즈 CC 등 — 아래 함수 설명).
+      const 되돌림 = 번호되돌리기(slug, 대표.cardNumber, nm)
       const num = stripZeros(되돌림.split('/')[0].trim())
       if (!num) continue
       const 것 = 모음.get(slug) ?? { prices: {}, names: {}, base: new Set<string>(), 이름맞음: new Set<string>() }
       if (속인가 && 것.prices[num] !== undefined) continue
-      // ⚠️⚠️ **한 세트 안에서도 앞자리가 겹친다.** 저쪽은 프로모 세트에 여러 시리즈를 같이
-      //    담는데 번호 분모가 다르다("01/64" · "41/53"). 앞자리만 열쇠로 쓰면 서로 덮어쓴다:
-      //        en-basep 1번  Clefable(Prerelease) $999.95 · Aerodactyl $86.96 · Pikachu $43.39
-      //    이름이 우리 카드와 맞는 줄이 그 자리를 차지하면, 뒤에 오는 안 맞는 줄은 안 받는다.
-      //    (세트별 받기 쪽 담기()와 같은 규칙이다 — 규칙이 둘이면 언젠가 어긋난다.)
+      // ⚠️⚠️ **한 세트 안에서도 앞자리가 겹친다**(프로모 세트의 분모 다른 시리즈 —
+      //    en-basep 1번 자리 다툼). 이름이 우리 카드와 맞는 줄이 이긴다.
       const 우리이름 = 세트이름표(slug)?.get(num)
       const 이름맞나 = !!우리이름 && 이름만벗기기(nm) === 우리이름
       if (이름맞나 && !것.이름맞음.has(num)) {
-        // 이름이 맞는 첫 줄이다. 앞서 안 맞는 줄이 차지했으면 그것을 밀어낸다.
         delete 것.prices[num]
         것.base.delete(num)
         것.이름맞음.add(num)
@@ -6348,6 +5627,7 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
       모음.set(slug, 것)
     }
   }
+  if (대표배움) console.log(`[pokegre] 대표 인쇄판 ${대표배움.toLocaleString()}장을 배웠습니다(cards 덤프에서).`)
 
   // 시세를 넣기 전에 레어도부터 적는다. 뒤에 두면 시세 저장에서 실패했을 때 같이 날아간다.
   await 레어도뽑기(자동완성재료)
@@ -6375,7 +5655,14 @@ async function loadPricesFromCsv(apiKey: string): Promise<number> {
   if (채움) {
     await savePackPriceFile()
     const 장수 = [...모음.values()].reduce((a, b) => a + Object.keys(b.prices).length, 0)
-    console.log(`[pokegre] 시세를 통째로 받아 세트 ${채움}개 · 카드 ${장수.toLocaleString()}장을 채웠습니다.`)
+    기록성공(종류)
+  console.log(`[pokegre] 시세를 통째로 받아 세트 ${채움}개 · 카드 ${장수.toLocaleString()}장을 채웠습니다.`)
+  }
+  // 배운 대표 인쇄판과 인쇄판별 값을 파일에 남긴다 — 배포로 서버가 새로 떠도 이어진다.
+  if (대표배움) await writeJsonFile(PRINTING_PRIMARY_FILE, Object.fromEntries(대표인쇄판)).catch(() => undefined)
+  if (인쇄판덤프 && 인쇄판시세.size) {
+    await writeJsonFile(PRINTING_PRICES_FILE, Object.fromEntries(인쇄판시세)).catch(() => undefined)
+    console.log(`[pokegre] 인쇄판별 시세 ${인쇄판시세.size.toLocaleString()}장을 남겼습니다(상태별 5칸 포함).`)
   }
   return 채움
 }
@@ -6405,7 +5692,99 @@ interface GradeSale {
   avg: number
   med?: number
   smart?: number // PPT가 계산한 "지금 시세"
+  /**
+   * 그 "지금 시세"를 얼마나 믿을 만한가(high/medium/low). 덤프에 `smartMarketConfidence`로
+   * 온다. ⚠️ **안 담고 있었다** — 그래서 새 시세 길에서는 「신뢰도 낮음」이 한 번도 안 떴다
+   * (2026-08-13에 붙임). 거래가 적어 값이 못 미더운 카드를 그냥 값으로만 보여 주면 안 된다.
+   */
+  cf?: string
 }
+// ── 인쇄판(초판/언리미티드…)별 시세 ────────────────────────────────────────────
+//
+// 왜 — cards 덤프는 카드당 **대표 인쇄판 한 줄**만 줘서 나머지 인쇄판 값(약 29%)을 버린다.
+// printings 덤프는 인쇄판당 한 줄씩 다 주지만, 그중 **어느 줄이 대표인지는 안 알려 준다.**
+// 실측(2026-08-10): cards 덤프의 printing 열이 바로 대표다 — 네오 루기아 줄이
+// "1st Edition, 118.31"이고 실시간 API의 primaryPrinting과 정확히 일치했다.
+// → cards를 읽을 때 **카드→대표 인쇄판**을 배워 두고(printing-primary.json),
+//   printings를 읽을 때 그 표로 대표 줄을 골라 값을 예전과 똑같이 매긴다.
+//   표에 없는 카드는 파는 사람이 많은 줄 → 값이 큰 줄 순으로 고른다.
+/** 카드(tcgPlayerId) → 대표 인쇄판 이름. cards 덤프에서 배운다. */
+const 대표인쇄판 = new Map<string, string>()
+const PRINTING_PRIMARY_FILE = dataFile('printing-primary.json')
+/**
+ * 카드 → 인쇄판별 값(그리고 상태별 5칸). printings 덤프에서만 채워진다.
+ * m=마켓가 · l=최저가 · c=[민트,약간,보통,많이,손상] (0이면 생략).
+ * 화면(초판/언리 구분·상태별 시세)에 붙일 재료다 — 붙이는 것은 다음 단계.
+ */
+type 인쇄판값 = { m: number; l?: number; c?: number[] }
+const 인쇄판시세 = new Map<string, Record<string, 인쇄판값>>()
+const PRINTING_PRICES_FILE = dataFile('printing-prices.json')
+
+// ── 미개봉(sealed) 시세 ───────────────────────────────────────────────────────
+//
+// sealed 덤프(제품 2,527개 · 전부 값 있음 · 2026-08-10 첫 수령)를 세트별로 접는다.
+// 화면(세트 상세)이 "이 박스 지금 얼마"를 보여주는 재료다 — 사장님 지시 2026-08-11.
+// ⚠️ 종류마다 제품이 여럿이다(초판 박스·언리 박스·포켓몬센터 ETB…). **파는 사람이 많은
+//    것 → 값이 싼 것** 순으로 하나를 고른다 — 잘 거래되는 기본판이 대표라는 뜻이다.
+//    (인쇄판 대표 고르기의 대체 규칙과 같은 생각이다.)
+// ⚠️ 판을 가른다 — 일본판 세트(ja-)에는 japanese 제품만, 영문판엔 english만 붙인다.
+type 미개봉값 = { name: string; usd: number; sellers: number; tcg: string }
+type 미개봉세트 = { box?: 미개봉값; pack?: 미개봉값; etb?: 미개봉값 }
+const sealedPriceCache = new Map<string, 미개봉세트>()
+const SEALED_PRICES_FILE = dataFile('sealed-prices.json')
+
+export async function 미개봉해석(text: string): Promise<number> {
+  const lines = text.split('\n')
+  const head = splitCsvLine(lines[0] ?? '')
+  const I = Object.fromEntries(head.map((k, i) => [k.trim(), i])) as Record<string, number>
+  for (const k of ['tcgPlayerId', 'name', 'setName', 'productType', 'language', 'marketPrice']) {
+    if (I[k] === undefined) {
+      console.log(`[pokegre] 미개봉 해석: 열 "${k}"가 없습니다`)
+      return 0
+    }
+  }
+  // PPT 세트 이름 → 우리 slug (시세 파서와 같은 대응표를 쓴다)
+  const slug별 = new Map<string, string[]>()
+  for (const [slug, ppt] of Object.entries(pptSetNames as Record<string, string>)) {
+    const 것 = slug별.get(ppt)
+    if (것) 것.push(slug)
+    else slug별.set(ppt, [slug])
+  }
+  const 갈래 = (t: string): keyof 미개봉세트 | null =>
+    t === 'Booster Box' ? 'box' : t === 'Booster Pack' ? 'pack' : t === 'Elite Trainer Box' ? 'etb' : null
+  const 새것 = new Map<string, 미개봉세트>()
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue
+    const c = splitCsvLine(lines[i])
+    const 종류 = 갈래(String(c[I.productType] ?? '').trim())
+    if (!종류) continue
+    const usd = Number(c[I.marketPrice])
+    if (!(usd > 0)) continue
+    const slugs = slug별.get(String(c[I.setName] ?? '')) ?? []
+    if (!slugs.length) continue
+    const 일본제품 = String(c[I.language] ?? '').trim() === 'japanese'
+    const 후보: 미개봉값 = {
+      name: String(c[I.name] ?? ''),
+      usd: Math.round(usd * 100) / 100,
+      sellers: I.sellers === undefined ? 0 : Number(c[I.sellers]) || 0,
+      tcg: String(c[I.tcgPlayerId] ?? ''),
+    }
+    for (const slug of slugs) {
+      if (slug.startsWith('ja-') !== 일본제품) continue // 판이 다른 제품은 안 붙인다
+      const 통 = 새것.get(slug) ?? {}
+      const 지금 = 통[종류]
+      if (!지금 || 후보.sellers > 지금.sellers || (후보.sellers === 지금.sellers && 후보.usd < 지금.usd)) 통[종류] = 후보
+      새것.set(slug, 통)
+    }
+  }
+  if (!새것.size) return 0
+  sealedPriceCache.clear()
+  for (const [k, v] of 새것) sealedPriceCache.set(k, v)
+  await writeJsonFile(SEALED_PRICES_FILE, Object.fromEntries(sealedPriceCache)).catch(() => undefined)
+  console.log(`[pokegre] 미개봉 시세를 세트 ${sealedPriceCache.size}개에 붙였습니다.`)
+  return sealedPriceCache.size
+}
+
 const populationCache = new Map<string, PopEntry>()
 const ebayGradeCache = new Map<string, Record<string, GradeSale>>()
 const POPULATION_FILE = dataFile('population.json')
@@ -6477,6 +5856,7 @@ async function loadPopulationFromCsv(apiKey: string): Promise<number> {
   populationCache.clear()
   for (const [id, v] of 모음) populationCache.set(id, v)
   await saveJsonMap(POPULATION_FILE, populationCache)
+  기록성공('population')
   console.log(`[pokegre] 감정 수량을 통째로 받아 카드 ${populationCache.size.toLocaleString()}장을 채웠습니다.`)
   return populationCache.size
 }
@@ -6499,6 +5879,10 @@ async function loadEbayGradesFromCsv(apiKey: string): Promise<number> {
       avg: Math.round(avg * 100) / 100,
       ...(I.medianPrice !== undefined && 숫자(c[I.medianPrice]) > 0 ? { med: Math.round(숫자(c[I.medianPrice]) * 100) / 100 } : {}),
       ...(smart > 0 ? { smart: Math.round(smart * 100) / 100 } : {}),
+      // 신뢰도. 「지금 시세」가 있을 때만 뜻이 있다(그 값에 붙는 딱지다).
+      ...(smart > 0 && I.smartMarketConfidence !== undefined && String(c[I.smartMarketConfidence] ?? '').trim()
+        ? { cf: String(c[I.smartMarketConfidence]).trim() }
+        : {}),
     }
     모음.set(id, 것)
   })
@@ -6514,23 +5898,11 @@ async function loadEbayGradesFromCsv(apiKey: string): Promise<number> {
   ebayGradeCache.clear()
   for (const [id, v] of 모음) ebayGradeCache.set(id, v)
   await saveJsonMap(EBAY_GRADE_FILE, ebayGradeCache)
+  기록성공('ebay')
   console.log(`[pokegre] 등급별 낙찰을 통째로 받아 카드 ${ebayGradeCache.size.toLocaleString()}장을 채웠습니다.`)
   return ebayGradeCache.size
 }
 
-// ── 덤프에 없는 카드는 그때그때 한 장씩 받는다 ──────────────────────────────
-//
-// 통째 받기는 하루 2회가 전부라 감정 수량을 이레에 한 번밖에 못 받는다. 그 사이에
-// 새로 감정된 카드나, 덤프를 받은 뒤에 우리가 추가한 카드는 빈칸으로 남는다.
-// 다행히 **한 장씩 받는 길은 하루 2회와 무관하다**(카드당 2크레딧, 한 번에 50장까지).
-// 방문자가 실제로 연 카드만 채우므로 낭비가 거의 없다.
-//
-// ⚠️ 없는 카드를 되풀이해 묻지 않는다. 감정 기록이 아예 없는 카드가 많은데
-//    (사장님 카드 614026이 그렇다), 그때마다 2크레딧을 태우면 티끌이 모인다.
-//    한 번 없다고 나오면 이레는 다시 묻지 않는다.
-const POP_LIVE_DAILY_MAX = 4_000 // 크레딧. 하루 2,000장까지.
-const POP_MISS_AGAIN_MS = 7 * 24 * 60 * 60 * 1000
-const populationMissAt = new Map<string, number>()
 let popLiveSpent = 0
 let popLiveDay = ''
 const popLiveSpentToday = () => (popLiveDay === utcDay() ? popLiveSpent : 0)
@@ -6583,38 +5955,6 @@ async function 감정수량한판(apiKey: string, id: string, 판: 'japanese' | 
   return 것
 }
 
-/**
- * ⚠️ **판을 반드시 붙여 물어야 한다.** 안 붙이면 저쪽이 영문판으로 찾아서, 일본판
- *    카드는 감정 기록이 멀쩡히 있는데도 전부 "없음"으로 온다(2026-08-07에 이걸로
- *    18,726장짜리 카드가 빈손으로 나왔다). 화면이 판을 알려주면 그것만 묻고,
- *    모르면 둘 다 물어본다(4크레딧).
- */
-async function fetchPopulationLive(apiKey: string, id: string, 판?: string): Promise<PopEntry | null> {
-  if (!apiKey || !id) return null
-  const 지난번없음 = populationMissAt.get(id)
-  if (지난번없음 && Date.now() - 지난번없음 < POP_MISS_AGAIN_MS) return null
-  const 물을것: ('japanese' | 'english')[] =
-    판 === 'japanese' ? ['japanese'] : 판 === 'english' ? ['english'] : ['japanese', 'english']
-  if (popLiveSpentToday() + 2 * 물을것.length > POP_LIVE_DAILY_MAX) return null
-  // 방문자 몫은 건드리지 않는다.
-  const 남음 = pptLeftNow()
-  if (Number.isFinite(남음) && 남음 - 2 * 물을것.length < PPT_KEEP_FOR_VISITORS) return null
-  if (!pptGate().ok) return null
-  try {
-    for (const p of 물을것) {
-      const 것 = await 감정수량한판(apiKey, id, p)
-      if (것) {
-        populationCache.set(id, 것)
-        void saveJsonMap(POPULATION_FILE, populationCache as Map<string, unknown>)
-        return 것
-      }
-    }
-    populationMissAt.set(id, Date.now())
-    return null
-  } catch {
-    return null
-  }
-}
 
 /** 등급표 전부. 라이브로만 받는다(위 설명 참고). 못 받으면 null. */
 async function fetchPopulationDetail(apiKey: string, id: string, 판?: string): Promise<PopDetail | null> {
@@ -6713,21 +6053,16 @@ function 오늘손으로받을것(): string[] {
     .slice(0, EXPORT_DAILY_MAX)
 }
 
-async function 받아서파일로만(apiKey: string, 종류: string): Promise<void> {
+async function 받아서파일로만(apiKey: string, 종류: string): Promise<string | null> {
+  // 파일로 남기는 일은 이제 fetchExport가 늘 한다. 여기서는 **해석을 안 하고 끝낸다**는
+  // 것만 다르다(안 써 본 종류의 생김새를 볼 때 쓰는 길).
+  // ⚠️ 받은 내용을 **그대로 돌려준다** — 뒤에서 쓸 사람이 파일을 다시 읽지 않게 한다.
+  //    디스크를 한 번 더 거치면 위 경합에 또 걸릴 수 있고, 10MB를 두 번 읽을 이유도 없다.
   const text = await fetchExport(apiKey, 종류)
-  if (text == null) return
-  const 곳 = dataFile(`export-${종류}.csv`)
-  try {
-    await mkdir(path.dirname(곳), { recursive: true })
-    await writeFile(곳, text)
-    const 줄 = text.split('\n')
-    console.log(
-      `[pokegre] ${종류}를 그대로 적었습니다: ${(Buffer.byteLength(text) / 1024 / 1024).toFixed(1)}MB · ` +
-        `${줄.length.toLocaleString()}줄 · 열: ${(줄[0] ?? '').slice(0, 200)}`,
-    )
-  } catch (e) {
-    console.log(`[pokegre] ${종류}를 파일로 못 적었습니다: ${String(e).slice(0, 80)}`)
-  }
+  if (text == null) return null
+  기록성공(종류)
+  console.log(`[pokegre] ${종류}는 해석하지 않고 파일로만 뒀습니다 · 열: ${(text.split('\n')[0] ?? '').slice(0, 200)}`)
+  return text
 }
 
 async function runDailyExports(apiKey: string) {
@@ -6752,7 +6087,9 @@ async function runDailyExports(apiKey: string) {
     console.log('[pokegre] 오늘 통째 받기 몫을 이미 다 썼습니다(한국시간 오전 9시에 초기화).')
     return
   }
-  if (exportDue('cards')) {
+  // ⚠️ 시세 재료가 2026-08-11에 cards → **printings**로 바뀌었다. 여기 검사도 같은
+  //    종류를 봐야 한다 — 안 그러면 「어제 cards를 받았으니 오늘은 쉰다」로 잘못 판단한다.
+  if (exportDue('printings')) {
     await loadPricesFromCsv(apiKey)
     쓴칸++
   }
@@ -6979,9 +6316,19 @@ const hasPrices = (slug: string) => !!Object.keys(packPriceCache.get(slug)?.pric
 function fillTargets(): string[] {
   if (fillSpentToday() >= WARM_FILL_BUDGET) return []
   const dates = setReleaseDates()
+  // ⚠️⚠️ **아직 안 나온 세트는 건너뛴다.** 저쪽(PPT)은 예약 판매가 열린 카드를 발매
+  //    한참 전부터 주는데(30주년은 발매 한 달 전에 19장이 들어왔다) **값은 안 준다** —
+  //    아직 팔린 적이 없으니 시세가 있을 수 없다. 그런데 이 목록은 **발매일 최신순**이라
+  //    발매일을 적어 넣는 순간 그 세트가 **맨 앞**에 서고, 값이 영영 안 붙으니
+  //    `hasPrices`가 계속 false여서 **6시간마다 영원히 두드린다.**
+  //    (`값없는세트`가 막아 주기는 하는데 그건 **시세 덤프를 해석할 때만** 채워진다 —
+  //     받기가 손으로 시키는 일이 된 지금은 그 사이가 며칠씩 벌어진다.)
+  //    발매 전 세트를 안 줍는다고 잃는 건 없다. 이 일은 「덤프가 못 채운 것 줍기」인데,
+  //    발매되면 덤프가 알아서 채운다.
+  const 오늘 = kstDateStr()
   return Object.keys(SET_NAMES)
     // ⚠️ 저쪽에 값이 아예 없는 세트는 뺀다. 안 빼면 6시간마다 영원히 두드린다.
-    .filter((s) => !hasPrices(s) && !값없는세트.has(s))
+    .filter((s) => !hasPrices(s) && !값없는세트.has(s) && (dates.get(s) ?? '') <= 오늘)
     .sort((a, b) => (dates.get(b) ?? '').localeCompare(dates.get(a) ?? '') || a.localeCompare(b))
 }
 
@@ -7053,6 +6400,17 @@ interface PackHighlight {
 }
 
 let highlights: PackHighlight[] | null = null
+/**
+ * 기록 시각이 **절대 안 겹치게** 하는 자리.
+ * ⚠️ 이름 채우기(`fillHighlightName`)가 「같은 카드 중 가장 최근 것」을 **시각으로** 찾는다.
+ *    한 박스에서 자리가 여러 개 생기면 같은 밀리초에 몰려 시각이 겹치고, 그러면 엉뚱한
+ *    자리에 이름이 붙는다(실측: 37개 중 6건이 겹쳤다). 앞 값보다 늘 크게 만든다.
+ */
+let 마지막기록시각 = 0
+const 다음기록시각 = () => {
+  마지막기록시각 = Math.max(Date.now(), 마지막기록시각 + 1)
+  return 마지막기록시각
+}
 
 async function loadHighlights(): Promise<PackHighlight[]> {
   if (highlights) return highlights
@@ -7095,22 +6453,39 @@ const betterHighlight = (a: PackHighlight, b: PackHighlight) => {
 
 // 방금 연 팩(또는 박스)에서 배너에 올릴 만한 카드가 있으면 기록한다.
 // 실패해도 개봉은 정상으로 끝나야 하므로 부르는 쪽에서 await 하지 않는다.
+/**
+ * 홈 「이번 주 TOP 5」에 올릴 기록을 남긴다.
+ *
+ * ⚠️⚠️ **팩 단위로 받는다(`묶음`). 박스는 팩 배열을 그대로 넘겨야 한다.**
+ *    예전에는 카드를 한 줄로 펴서 받고 **그중 딱 한 장**만 올렸다. 낱개로 열면 팩마다
+ *    한 자리씩 생기는데, **한 박스(30팩)를 사면 30팩이 통째로 한 자리로 줄었다**
+ *    (사장님 지적 2026-08-13: "한박스 까고 나온 전체목록이 top5 올라가는게 아니라
+ *     제일 높았던거 하나만 올라가는거같아"). **같은 카드를 뽑고도 박스로 사면 손해**였다.
+ *    지금은 **팩마다 그 팩의 제일 좋은 한 장**을 올린다 — 낱개로 30번 연 것과 같은 셈이다.
+ * ⚠️ 팩마다 **한 장까지**다. 한 팩의 모든 값나가는 카드를 다 올리면 이번엔 낱개보다
+ *    유리해진다. 「낱개로 열었을 때와 같게」가 잣대다.
+ *
+ * @returns 올라간 카드 번호들(화면이 그 카드들의 한글 이름을 채워 준다)
+ */
 async function noteHighlight(
   slug: string,
-  cards: { n: string; r?: string; m?: MirrorFlag; img?: string }[],
-  god: boolean,
+  묶음: { n: string; r?: string; m?: MirrorFlag; img?: string }[][],
+  godOf: (i: number) => boolean,
   user: { id: string; nickname?: string | null },
-): Promise<string | null> {
+): Promise<string[]> {
   const nick = (user.nickname ?? '').trim()
-  if (!nick) return null // 이름 없이 띄울 자리가 아니다
+  if (!nick) return [] // 이름 없이 띄울 자리가 아니다
   const list = await loadHighlights()
-  const priced = withUsd(slug, cards)
-  const worthy = priced.filter(
-    (c) => (c.usd ?? 0) >= HIGHLIGHT_USD || (RARITY_RANK[c.r ?? ''] ?? 0) >= HIGHLIGHT_RANK || god,
-  )
-  if (!worthy.length) return null
-  // 그 팩에서 제일 좋은 한 장만 남긴다(위 betterCard와 같은 잣대를 쓴다).
-  const best = worthy.reduce((a, b) => betterCard(a, b))
+  const 오른것: string[] = []
+  for (let i = 0; i < 묶음.length; i++) {
+    const god = godOf(i)
+    const priced = withUsd(slug, 묶음[i])
+    const worthy = priced.filter(
+      (c) => (c.usd ?? 0) >= HIGHLIGHT_USD || (RARITY_RANK[c.r ?? ''] ?? 0) >= HIGHLIGHT_RANK || god,
+    )
+    if (!worthy.length) continue
+    // 그 팩에서 제일 좋은 한 장만 남긴다(위 betterCard와 같은 잣대를 쓴다).
+    const best = worthy.reduce((a, b) => betterCard(a, b))
 
   // ⚠️ 한 사람이 여러 자리를 차지해도 된다(2026-08-05 운영자 지시).
   //    예전엔 "하루 한 자리"로 막았는데(배너 독점 걱정), 그러면 같은 날 더 좋은 카드가
@@ -7118,19 +6493,22 @@ async function noteHighlight(
   //    그 코드도 필요 없다 — 뽑을 때마다 그냥 쌓고, 값 높은 순으로 뽑아 보여주면 된다.
   //    많이 여는 사람이 상위권을 채우는 건 "가장 시세 높은 카드를 뽑은 사람" 목록의
   //    뜻에 어긋나지 않는다.
-  const entry: PackHighlight = {
-    at: Date.now(),
-    uid: user.id,
-    nick: nick.slice(0, 20),
-    slug,
-    n: best.n,
-    r: best.r,
-    ...(best.m ? { m: best.m } : {}),
-    ...(best.img ? { img: best.img } : {}),
-    ...(best.usd ? { usd: best.usd } : {}),
-    ...(god ? { god: true } : {}),
+    const entry: PackHighlight = {
+      at: 다음기록시각(),
+      uid: user.id,
+      nick: nick.slice(0, 20),
+      slug,
+      n: best.n,
+      r: best.r,
+      ...(best.m ? { m: best.m } : {}),
+      ...(best.img ? { img: best.img } : {}),
+      ...(best.usd ? { usd: best.usd } : {}),
+      ...(god ? { god: true } : {}),
+    }
+    list.push(entry)
+    오른것.push(best.n)
   }
-  list.push(entry)
+  if (!오른것.length) return []
   // 넘치면 버리되, 역대 최고와 최근 것은 남긴다.
   if (list.length > HIGHLIGHT_MAX) {
     const fresh = Date.now() - HIGHLIGHT_FRESH_MS
@@ -7141,8 +6519,8 @@ async function noteHighlight(
   }
   await mkdir(path.dirname(PACK_HIGHLIGHT_FILE), { recursive: true })
   await writeJsonFile(PACK_HIGHLIGHT_FILE, highlights)
-  // 어느 카드가 올라갔는지 알려 주면, 화면이 그 한 장의 한글 이름만 보내 준다.
-  return best.n
+  // 어느 카드가 올라갔는지 알려 주면, 화면이 그 카드들의 한글 이름을 보내 준다.
+  return [...new Set(오른것)]
 }
 
 // POST /packsim/highlight-name — 방금 배너에 오른 카드의 한글 이름을 채운다.
@@ -7178,7 +6556,20 @@ function mountPackHighlights(app: Mountable) {
     //    다섯 개가 안 되면 **안 되는 대로 비운다** — 없는 걸 채워 넣지 않는다.
     const fresh = list.filter((h) => Date.now() - h.at <= HIGHLIGHT_FRESH_MS)
     // 좋은 순 정렬. betterHighlight가 "둘 중 나은 쪽"을 주므로 그걸로 비교한다.
-    const picked = [...fresh].sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1)).slice(0, HIGHLIGHT_SHOW)
+    const 좋은순 = [...fresh].sort((a, b) => (betterHighlight(a, b) === a ? -1 : 1))
+    // ⚠️⚠️ **같은 사람이 같은 카드를 여러 번 뽑아도 한 줄만 낸다.**
+    //    2026-08-13에 「박스도 팩마다 한 자리」로 고치면서 이게 눈에 띄게 됐다 —
+    //    36팩 박스를 몇 번 여니 **같은 카드가 TOP5를 5줄 다 차지했다**(실측).
+    //    사람이 다르면 각자 낸다(같은 카드를 서로 뽑은 것은 다른 이야기다).
+    const 본것 = new Set<string>()
+    const picked: PackHighlight[] = []
+    for (const h of 좋은순) {
+      const 열쇠 = `${h.uid}|${h.slug}|${h.n}|${h.m ?? ''}`
+      if (본것.has(열쇠)) continue
+      본것.add(열쇠)
+      picked.push(h)
+      if (picked.length >= HIGHLIGHT_SHOW) break
+    }
     sendJson(res, 200, {
       // uid(회원번호)는 빼고 보낸다. at(뽑은 시각)은 화면이 날짜를 적는 데 쓴다.
       items: picked.map((h) => {
@@ -7240,15 +6631,13 @@ async function warmPackPrices(apiKey: string) {
   //    셌기 때문에, 세트 이름이 틀렸다든지 해서 영영 못 받는 세트가 하나라도 있으면
   //    5분마다 영원히 다시 돌았다.
   const leftover = warmTargets().some((slug) => packWarmDue(packPriceCache.get(slug)))
-  // 한도에 걸려서 접은 것이면 풀리는 시각까지 기다렸다 온다(5분마다 두드리지 않는다).
-  // 방문자 몫을 남기려고 접은 것이면 하루치가 새로 차는 시각(한국시간 오전 9시)에 온다.
-  if (leftover) {
-    const until = outOfBudget ? nextUtcMidnight() : pptBlockedUntil
-    // 아래 한도(30분)는 안전장치다. 실패한 세트는 위 packWarmDue가 6시간 막아 주지만,
-    // 이 타이머까지 5분이면 그 사이 서른 번 헛되이 깨어난다.
-    const wait = Math.max(30 * 60_000, until - Date.now() + 5_000)
-    setTimeout(() => 던지기('시세 미리받기', warmPackPrices(apiKey)), wait)
-  }
+  // ⚠️ **스스로 다시 오지 않는다**(자동화 제거 · 사장님 지시 2026-08-10). 예전엔 남은
+  //    세트가 있으면 타이머를 걸어 저절로 이어받았는데, 이제는 시킨 일만 하고 끝낸다.
+  //    남았으면 알리기만 한다 — 다시 시키면("줍기") 이어받는다.
+  if (leftover)
+    console.log(
+      `[pokegre] 시세 미리받기: 남은 세트가 있습니다${outOfBudget ? '(방문자 몫을 지키려 접음)' : ''} — 다시 시키면 이어받습니다.`,
+    )
 }
 
 // PPT는 limit을 크게 줘도 한 번에 200행까지만 준다(offset으로 이어받기는 된다 —
@@ -7785,34 +7174,123 @@ function mountAuth(
     // 어제 덤프에서 뽑아 둔 "이름 + 레어도". 배포로 서버가 새로 떠도 이어받는다.
     loadRarityTerms(),
     loadPackPriceFile(),
-    loadLastPrices(),
     loadJsonMap(POPULATION_FILE, populationCache as Map<string, unknown>, '감정 수량'),
+    loadJsonMap(PRINTING_PRIMARY_FILE, 대표인쇄판 as Map<string, unknown>, '대표 인쇄판'),
+    loadJsonMap(PRINTING_PRICES_FILE, 인쇄판시세 as Map<string, unknown>, '인쇄판별 시세'),
+    loadJsonMap(SEALED_PRICES_FILE, sealedPriceCache as Map<string, unknown>, '미개봉 시세'),
     loadJsonMap(EBAY_GRADE_FILE, ebayGradeCache as Map<string, unknown>, '등급별 낙찰'),
   ]).then(() => {
-    if (process.env.NODE_ENV === 'production') {
-      // ⚠️ **통째 받기를 먼저 한다.** 전체 시세를 한 파일로 주므로, 이걸로 채우고 나면
-      //    세트별로 부를 일이 거의 없다(우리 세트 371개 중 331개가 여기서 찬다).
-      //    순서를 바꾸면 세트별 호출이 먼저 크레딧을 쓰고 덤프가 그걸 덮어쓰는 낭비가 된다.
-      setTimeout(() => {
-        // ⚠️ **.catch를 꼭 붙인다.** .finally는 예외를 받아 주지 않는다. 안 받으면
-        //    Node가 프로세스를 내린다 — 하루 한 번 도는 일이 서버를 죽이는 셈이다.
-        void runDailyExports(pptApiKey)
-          .catch((e) => console.log(`[pokegre] 통째 받기 중 오류: ${String(e).slice(0, 120)}`))
-          .finally(() => 던지기('시세 미리받기', warmPackPrices(pptApiKey)))
-      }, 5_000)
-      setInterval(() => 던지기('시세 미리받기', warmPackPrices(pptApiKey)), 60 * 60 * 1000) // 매시간 점검
-      // 하루가 바뀌면(UTC 0시 = 한국시간 오전 9시) 다시 받을 차례가 온다. 함수 안에서
-      // "오늘 이미 받았으면 건너뛴다"를 보므로 자주 불러도 한 번만 실제로 받는다.
-      setInterval(() => 던지기('통째 받기', runDailyExports(pptApiKey)), 60 * 60 * 1000)
-
-      // ⚠️ **신상 일본판 힛카드는 스니커덩크로 매일 받는다.** 저쪽(PPT)은 미국 마켓이라
-      //    갓 나온 일본판의 값이 비어 있다(스톰에메랄다 116줄 중 54줄이 값 0, 제일 비싼
-      //    113번은 $0 · 2026-08-08 덤프 확인). 스니커덩크는 무료라 크레딧이 안 든다.
-      //    기동 20초 뒤에 한 번(다른 일이 끝난 뒤), 그 뒤 1시간마다 확인한다 —
-      //    함수 안에서 "오늘 이미 받았으면 건너뛴다"를 보므로 실제로는 하루 한 번이다.
-      setTimeout(() => 던지기('힛카드 갱신', refreshSnkrdunkHitCards()), 20_000)
-      setInterval(() => 던지기('힛카드 갱신', refreshSnkrdunkHitCards()), 60 * 60 * 1000)
+    // 카드별 추이·낱개는 **파일을 나눠 두고 그때그때 읽는다**(메모리에 안 이고 있는다).
+    // 여기서는 자리만 훑어 천장을 넘었으면 오래된 것을 비운다.
+    void 기록정리()
+    setInterval(() => void 기록정리(), 6 * 60 * 60 * 1000).unref?.()
+    // ═════════════════════════════════════════════════════════════════════════
+    //  **밖에서 받아오는 자동화는 없앴다**(사장님 지시 2026-08-10: "자동화는 싹 다 제거해
+    //  앞으로는 내가 이거 이거 지금 받아 이렇게 지시할테니까").
+    //
+    //  예전엔 여기서 통째 받기(덤프)·시세 미리받기·스니덩크 힛카드를 매시간 저절로
+    //  돌렸다. 이제는 **시킨 일 파일**이 생겼을 때만 돈다:
+    //
+    //      fly ssh console -a pokegre -C "/bin/sh -c 'echo {\"받기\":[\"cards\"]} > /data/manual-jobs.json'"
+    //
+    //  1분 안에 서버가 읽어 그 일만 하고 파일을 지운다. 받을 수 있는 일:
+    //      cards · population · ebay        덤프를 받아 **해석까지** 한다(시세·팝수·등급낙찰)
+    //      printings · sealed               덤프를 받아 **파일로만** 남긴다(/data/export-*.csv)
+    //      힛카드                            스니커덩크에서 신상 일본판 힛카드
+    //      줍기                              덤프가 못 채운 세트를 PPT에서 낱개로(크레딧 씀)
+    //      옛계획                            예전 자동 계획 한 바퀴(cards + 팝수/낙찰 격일)
+    //
+    //  ⚠️ 그대로 남긴 것(자동이지만 밖에서 **받는** 게 아니다): 백업(하루 1회)·그림 캐시
+    //     정리·카드 이름 저장·자정 상점 진열·출석 예산·그림 데우기(우리가 이미 아는
+    //     주소를 미리 여는 것). 이것까지 끄려면 사장님 지시가 따로 필요하다.
+    //  ⚠️ 이제 **지시가 없으면 앨범값·힛카드·팝수·등급낙찰이 안 새로워진다.** 방문자
+    //     검색(이베이·티피 실시간 조회)은 요청이 올 때 받는 것이라 그대로 돈다.
+    // ═════════════════════════════════════════════════════════════════════════
+    const 시킨일파일 = dataFile('manual-jobs.json')
+    let 시킨일도는중 = false
+    const 몫남았나 = () => Object.values(exportDoneDay).filter((날) => 날 === utcDay()).length < EXPORT_DAILY_MAX
+    const 시킨일하기 = async () => {
+      if (시킨일도는중) return
+      let raw: string
+      try {
+        raw = await readFile(시킨일파일, 'utf-8')
+      } catch {
+        return // 파일이 없으면 할 일도 없다 — 평소의 모습이다
+      }
+      시킨일도는중 = true
+      try {
+        // ⚠️ **읽자마자 지운다.** 일하다 죽어도 같은 일을 무한 반복하지 않게.
+        await rm(시킨일파일, { force: true })
+        const 일들 = ((JSON.parse(raw) as { 받기?: string[] }).받기 ?? []).map((x) => String(x).trim())
+        console.log(`[pokegre] 시킨 일: ${일들.join(', ') || '(비어 있음)'}`)
+        for (const 일 of 일들) {
+          // ⚠️ 통째 받기 몫(하루 2칸)을 쓰는 일들. 「시세」·「printings시세」도 printings
+          //    덤프를 받으므로 여기 들어가야 한다 — 빠뜨리면 몫 검사를 건너뛰어 429가 난다.
+          const 덤프류 = ['cards', '시세', 'printings시세', 'population', 'ebay', 'printings', 'sealed'].includes(일)
+          if (덤프류 && !몫남았나()) {
+            console.log(`[pokegre] ${일}: 오늘 통째 받기 몫(하루 ${EXPORT_DAILY_MAX}칸)을 다 썼습니다 — 오전 9시 뒤에 다시.`)
+            continue
+          }
+          // ⚠️ 「시세」가 이제 **printings**다(2026-08-11 전환). 「cards」는 옛 덤프를
+          //    쓰고 싶을 때를 위해 남겨 둔다 — 값은 같고 인쇄판별·상태별만 안 붙는다.
+          if (일 === '시세' || 일 === 'printings시세') await loadPricesFromCsv(pptApiKey)
+          else if (일 === 'cards') await loadPricesFromCsv(pptApiKey, 'cards')
+          else if (일 === 'population') await loadPopulationFromCsv(pptApiKey)
+          else if (일 === 'ebay') await loadEbayGradesFromCsv(pptApiKey)
+          else if (일 === 'printings' || 일 === 'sealed') {
+            const 받은것 = await 받아서파일로만(pptApiKey, 일)
+            // sealed는 받은 김에 바로 세트별로 접는다(미개봉 시세 화면의 재료).
+            // ⚠️⚠️ **받은 내용을 그대로 쓴다 — 파일을 다시 읽지 않는다.** 예전엔 방금 쓴
+            //    CSV를 다시 읽었는데, 저장이 `void`로 던져져 있어 **빈 문자열을 읽고
+            //    아무 말 없이 건너뛰었다**(2026-08-14). 저장도 이제 기다리지만, 애초에
+            //    디스크를 거칠 이유가 없다.
+            if (일 === 'sealed' && 받은것) await 미개봉해석(받은것)
+          }
+          // ⚠️ **받지 않고 이미 있는 파일만 다시 해석한다.** 하루 2칸을 다 쓴 날에도
+          //    해석 코드를 고쳤으면 다시 접어야 한다 — 안 그러면 다음 날 오전 9시까지
+          //    화면이 비어 있다(2026-08-10 배포 직후 실제로 그랬다).
+          else if (일 === 'sealed다시') {
+            const t2 = await readFile(dataFile('export-sealed.csv'), 'utf-8').catch(() => null)
+            if (t2) await 미개봉해석(t2)
+            else console.log('[pokegre] sealed 덤프 파일이 없습니다 — 먼저 "sealed"로 받으세요.')
+          }
+          // ⚠️ **미감정 칸이 이상한 카드부터 사진으로 확인한다**(2026-08-14).
+          //    잣대: 미감정 값이 PSA 10보다 비싼 카드 — 방문자가 「말이 안 된다」고 느끼는 자리다.
+          //    한 장에 PPT 3크레딧 + 사진 몇 장이고, 하루 상한(`SLAB_*_DAILY`)에 걸리면 멈춘다.
+          //    다시 시키면 **이어서** 한다(한 번 읽은 매물은 캐시에 있어 값이 안 든다).
+          else if (일 === '미감정점검') await 미감정점검(pptApiKey)
+          else if (일 === '힛카드') await refreshSnkrdunkHitCards()
+          else if (일 === '줍기') await warmPackPrices(pptApiKey)
+          else if (일 === '옛계획') await runDailyExports(pptApiKey)
+          else console.log(`[pokegre] 모르는 일이라 건너뜁니다: ${일}`)
+        }
+        console.log('[pokegre] 시킨 일 끝')
+      } catch (e) {
+        console.log(`[pokegre] 시킨 일 중 오류: ${String(e).slice(0, 150)}`)
+      } finally {
+        시킨일도는중 = false
+      }
     }
+    setInterval(() => 던지기('시킨 일', 시킨일하기()), 60 * 1000).unref()
+    // ── **유일한 자동: 스니덩크 힛카드, 매일 자정(한국시간)** ─────────────────────
+    // 사장님 지시(2026-08-11): "힛카드는 자동화로 매일 새벽 12시에 받는게 좋을거같다."
+    // 자동화 전부 걷어낸 뒤 유일하게 되살린 것이다 — 크레딧 0(스니덩크는 무료)이고,
+    // 함수 안에 "오늘 이미 받았으면 건너뛴다"가 있어 재부팅해도 두 번 안 받는다.
+    const 다음자정까지 = () => {
+      const 지금 = Date.now()
+      // 한국시간 자정 = (지금+9시간)이 날짜를 넘는 순간. 5초 여유를 붙인다.
+      return Math.floor((지금 + 9 * 3600_000) / 86_400_000 + 1) * 86_400_000 - 9 * 3600_000 - 지금 + 5_000
+    }
+    const 힛카드자정 = () => {
+      setTimeout(() => {
+        던지기('힛카드 갱신', refreshSnkrdunkHitCards())
+        힛카드자정()
+      }, 다음자정까지()).unref()
+    }
+    힛카드자정()
+    // 재부팅으로 자정을 놓친 날의 몫. 오늘 이미 받았으면 함수가 스스로 건너뛴다.
+    setTimeout(() => 던지기('힛카드 갱신', refreshSnkrdunkHitCards()), 30_000).unref()
+    console.log('[pokegre] 자동 받기: 힛카드(매일 자정)뿐 — 나머지는 /data/manual-jobs.json 로 시킬 때만')
   })
   // state는 CSRF 방지용 일회성 값이라 파일에 남길 필요가 없다. 다만 Set으로 두면
   // 콜백이 돌아올 때만 지워져서, 로그인하다 그만두면 영원히 남는다. 인증도 필요 없는
@@ -8038,6 +7516,59 @@ function mountAuth(
         return
       }
 
+      // ── 포켓몬 디펜스 시즌1 ──────────────────────────────────────────────
+      // GET /battle — 내 기록. **로그인 안 했어도 오류가 아니다** — 게임은 누구나 되고
+      //   기록만 안 남는 것이라, 화면이 조용히 로컬 기록으로 굴러가면 된다.
+      if (segments[0] === 'battle' && segments.length === 1 && req.method === 'GET') {
+        const user = await currentUser(req)
+        if (!user) {
+          sendJson(res, 200, { 로그인: false, stars: {} })
+          return
+        }
+        const all = await load디펜스()
+        sendJson(res, 200, { 로그인: true, stars: all[user.id]?.stars ?? {} })
+        return
+      }
+
+      // POST /battle — 기록을 **합친다**(덮어쓰지 않는다).
+      // ⚠️⚠️ 별은 큰 쪽을 남긴다. 낮은 난이도로 다시 깨도 안 내려가야 하고, 기기 두 대에서
+      //    따로 한 것도 합쳐져야 한다. 덮어쓰기로 두면 나중에 켠 기기가 앞의 것을 지운다.
+      if (segments[0] === 'battle' && segments.length === 1 && req.method === 'POST') {
+        const user = await currentUser(req)
+        if (!user) {
+          // 비로그인은 조용히 넘어간다. 화면이 로그인 여부를 몰라도 그냥 보내면 된다.
+          sendJson(res, 200, { 로그인: false, stars: {} })
+          return
+        }
+        const body = JSON.parse((await readBody(req)) || '{}') as { stars?: unknown }
+        const 온것 = 별표다듬(body.stars)
+        const all = await load디펜스()
+        const 칸 = (all[user.id] ??= { stars: {}, at: new Date().toISOString() })
+        for (const [이름, 별] of Object.entries(온것)) {
+          if ((칸.stars[이름] ?? 0) < 별) 칸.stars[이름] = 별
+        }
+        칸.at = new Date().toISOString()
+        await persist디펜스()
+        sendJson(res, 200, { 로그인: true, stars: 칸.stars })
+        return
+      }
+
+      // DELETE /battle — 계정 기록을 지운다.
+      // ⚠️⚠️ **이게 없으면 「깬 기록 지우기」가 로그인한 사람에게 안 먹는다.** 로컬만 지워도
+      //    다음에 켤 때 서버에서 도로 받아 와 되살아난다(만들며 미리 잡았다).
+      if (segments[0] === 'battle' && segments.length === 1 && req.method === 'DELETE') {
+        const user = await currentUser(req)
+        if (!user) {
+          sendJson(res, 200, { 로그인: false, stars: {} })
+          return
+        }
+        const all = await load디펜스()
+        delete all[user.id]
+        await persist디펜스()
+        sendJson(res, 200, { 로그인: true, stars: {} })
+        return
+      }
+
       // ── 카드 뽑기(PackSim) ───────────────────────────────────────────────
       // GET /packsim — 예산·연속출석·앨범. 오늘 출석 안 했으면 받을 금액도 같이 알려준다.
       if (segments[0] === 'packsim' && segments.length === 1 && req.method === 'GET') {
@@ -8211,9 +7742,16 @@ function mountAuth(
         }
         await persistPacksim()
         // 홈 배너용 기록. 실패해도 개봉은 정상이라야 하므로 여기서 죽지 않게 감싼다.
-        const hiBoxN = await noteHighlight(pack.slug, flat, box.god, user).catch(() => null)
+        // ⚠️ **팩 배열을 그대로 넘긴다.** 펴서 넘기면 30팩이 한 자리로 줄어든다(noteHighlight 설명).
+        //    갓팩 여부도 팩마다 다르므로 그 팩 것을 준다.
+        const hiBoxN = await noteHighlight(
+          pack.slug,
+          box.packs.map((bp) => bp.cards),
+          (i) => !!box.packs[i]?.god,
+          user,
+        ).catch(() => [] as string[])
         sendJson(res, 200, {
-          ...(hiBoxN ? { highlight: hiBoxN } : {}),
+          ...(hiBoxN.length ? { highlight: hiBoxN } : {}),
           packs: box.packs.map((bp) => ({ ...bp, cards: withUsd(pack.slug, bp.cards) })),
           god: box.god,
           godCount,
@@ -8284,8 +7822,8 @@ function mountAuth(
         store.last = { slug: pack.slug, cards: drawn.cards.map(({ n, r, m }) => ({ n, r, ...(m ? { m } : {}) })), god: drawn.god }
         await persistPacksim()
         // 홈 배너용 기록. 실패해도 개봉은 정상이라야 하므로 여기서 죽지 않게 감싼다.
-        const hiN = await noteHighlight(pack.slug, drawn.cards, drawn.god, user).catch(() => null)
-        sendJson(res, 200, { cards: withUsd(pack.slug, drawn.cards), god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited, ...(hiN ? { highlight: hiN } : {}) })
+        const hiN = await noteHighlight(pack.slug, [drawn.cards], () => drawn.god, user).catch(() => [] as string[])
+        sendJson(res, 200, { cards: withUsd(pack.slug, drawn.cards), god: drawn.god, balance: store.balance, opened: store.opened, packs: store.packs ?? {}, unlimited, ...(hiN.length ? { highlight: hiN } : {}) })
         return
       }
 
@@ -8299,15 +7837,22 @@ function mountAuth(
           sendJson(res, 401, { error: 'login required' })
           return
         }
-        const b = JSON.parse((await readBody(req)) || '{}') as { n?: unknown; name?: unknown }
-        const n = String(b.n ?? '')
-        const name = typeof b.name === 'string' ? b.name : ''
-        if (!n || !name) {
-          sendJson(res, 400, { error: 'bad request' })
-          return
+        // ⚠️ 한 박스를 열면 자리가 여러 개 생기므로 **여러 장을 한 번에** 받는다.
+        //    옛 꼴({n,name})도 그대로 받는다 — 이미 열린 화면이 그 꼴로 보낼 수 있다.
+        const b = JSON.parse((await readBody(req)) || '{}') as {
+          n?: unknown
+          name?: unknown
+          list?: { n?: unknown; name?: unknown }[]
         }
-        const ok = await fillHighlightName(user.id, n, name)
-        sendJson(res, 200, { ok })
+        const 것들 = Array.isArray(b.list) ? b.list : [{ n: b.n, name: b.name }]
+        let 채움 = 0
+        for (const it of 것들.slice(0, 60)) {
+          const n = String(it?.n ?? '')
+          const name = typeof it?.name === 'string' ? it.name : ''
+          if (!n || !name) continue
+          if (await fillHighlightName(user.id, n, name)) 채움++
+        }
+        sendJson(res, 200, { ok: 채움 > 0, 채움 })
         return
       }
 
@@ -8438,6 +7983,8 @@ function mountAuth(
         // 본문은 이용자가 쓴 글. 카드 목록은 pull(이미지 그리드)로 보여주므로 글이 없으면
         // 짧은 기본 문장만 넣는다.
         const comment = typeof body.comment === 'string' ? body.comment.trim().slice(0, 1000) : ''
+        // 올리는 그 시점의 환율. 아직 한 번도 못 받았으면 값을 안 적는다(아래 krw 설명).
+        const 환율 = 지금환율()
         const content = comment || `${pack.jp ? '일본판' : '영문판'} ${packName} ${last.box ? '박스를' : '팩을'} 열었습니다.`
         const post: CommunityPost = {
           id: Date.now(),
@@ -8478,11 +8025,17 @@ function mountAuth(
                     (a.c.usd ?? 0) - (b.c.usd ?? 0) || (rank[a.c.r ?? ''] ?? 0) - (rank[b.c.r ?? ''] ?? 0),
                 )
                 .slice(-PULL_CARD_LIMIT)
+                // ⚠️ **값 높은 것부터** 늘어놓는다(사장님 지시 2026-08-11). 위에서 오름차순으로
+                //    세워 뒤 12장을 잘랐으므로, 여기서 뒤집어야 제일 비싼 카드가 맨 앞에 온다.
+                //    자랑글은 제일 좋은 카드를 먼저 보여 주는 게 맞다.
+                .reverse()
                 .map(({ c, q }) => ({
                   img: c.img ?? '',
                   name: koN(c),
                   r: tierKo[c.r ?? ''] ?? c.r ?? '',
                   ...(q > 1 ? { q } : {}),
+                  // 올리는 그때의 원화값. 환율을 아직 못 받았거나 시세가 없는 카드는 안 적는다.
+                  ...(c.usd && 환율 ? { krw: Math.round(c.usd * 환율.usdToKrw) } : {}),
                 }))
             })(),
           },
@@ -8862,10 +8415,23 @@ const SNKRDUNK_UA = { accept: 'application/json', 'user-agent': 'Mozilla/5.0 (co
 // 미감정 "거의 미사용". 화면의 다른 값(TCGplayer 마켓가)과 잣대를 맞춘다.
 const SNKRDUNK_COND_A = 'trading_card_single_nearly_unused'
 // 값이 높은 카드는 특별 등급이다. 커먼까지 훑으면 시간만 걸리고 힛카드엔 못 든다.
-const HIT_RARITY = new Set([
-  'Double rare', 'Illustration rare', 'Ultra Rare', 'Special illustration rare',
-  'Hyper rare', 'Mega Ultra Rare', 'Mega Hyper Rare', 'ACE SPEC Rare',
-])
+//
+// ⚠️⚠️ **레어도는 반드시 소문자로 견준다**(2026-08-11 · 사장님 지적 "스톰에메랄드가 왜
+//    아직 8월 8일 기준이야"). 자료마다 표기가 달라(`Double Rare` ↔ `Double rare`)
+//    **최근 일본판 세트 셋 다 후보가 1장뿐**이었고, `후보.length < 3`에 걸려 **매일
+//    조용히 건너뛰고 있었다.** 8월 8일 이후 사흘간 한 번도 안 받은 이유다.
+//    (카드 뽑기에서도 같은 함정을 이미 겪었다 — CLAUDE.md의 「등급 이름 대소문자」)
+//    ⚠️ 「Art Rare」·「Special Art Rare」는 일본판 표기다. 영문판의
+//       「Illustration rare」·「Special illustration rare」와 같은 자리라 함께 넣는다.
+const HIT_RARITY = new Set(
+  [
+    'Double rare', 'Illustration rare', 'Ultra Rare', 'Special illustration rare',
+    'Hyper rare', 'Mega Ultra Rare', 'Mega Hyper Rare', 'ACE SPEC Rare',
+    'Art Rare', 'Special Art Rare', 'Super Rare', 'Secret Rare', 'Shiny Super Rare',
+  ].map((r) => r.toLowerCase()),
+)
+/** ⚠️ 레어도를 견줄 땐 늘 이 함수를 쓴다 — 표기가 자료마다 다르다. */
+const 힛등급인가 = (r?: string) => !!r && HIT_RARITY.has(String(r).toLowerCase())
 const HIT_MAX_TARGETS = 60
 const HIT_SHOWN = 8
 const 쉬기 = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -8973,7 +8539,7 @@ async function refreshSnkrdunkHitCards(): Promise<void> {
   } catch {
     return
   }
-  const 후보 = cards.filter((c) => c.r && HIT_RARITY.has(c.r)).slice(0, HIT_MAX_TARGETS)
+  const 후보 = cards.filter((c) => 힛등급인가(c.r)).slice(0, HIT_MAX_TARGETS)
   if (후보.length < 3) return
 
   const 코드 = 세트.slug.replace(/^ja-/, '')
@@ -9017,7 +8583,7 @@ async function refreshSnkrdunkHitCards(): Promise<void> {
   // 저장은 달러 기준이다(화면이 원화로 바꿀 때 쓰는 환율과 같은 곳에서 받는다).
   let usdJpy = 0
   try {
-    const fx = (await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY', { signal: AbortSignal.timeout(10_000) }).then((r) => r.json())) as { rates?: { JPY?: number } }
+    const fx = (await fetch('https://api.frankfurter.dev/v1/latest?from=USD&to=JPY', { signal: AbortSignal.timeout(10_000) }).then((r) => r.json())) as { rates?: { JPY?: number } }
     usdJpy = Number(fx?.rates?.JPY ?? 0)
   } catch {
     usdJpy = 0
@@ -9053,6 +8619,60 @@ function loadHitCardFile() {
   //    setHitCards.json은 사람이 스크립트를 돌린 날에 멈춰 있다 — 스톰에메랄다가
   //    사흘 묵어 있었다(2026-08-08). /data 쪽은 서버가 하루 한 번 새로 받는다.
   return { ...(hitCardFile ?? {}), ...스니덩힛카드 }
+}
+
+/**
+ * 저쪽(PPT) 번호 하나로 **그 카드의 요약**을 낸다 — 검색엔진용 카드 페이지가 쓴다.
+ *
+ * ⚠️⚠️ **크레딧 0이다.** 이미 받아 둔 것만 읽는다 — 도감(`card-index.json`) ·
+ *    인쇄판별 시세 · 등급별 낙찰 · 감정 수량. **여기서 저쪽을 부르면 안 된다.**
+ *    크롤러가 카드 주소를 두드릴 때마다 크레딧이 나가고, 카드가 5만 장이다.
+ * ⚠️ 없는 값은 그냥 뺀다. 「틀린 것보다 빈칸」이 이 리포의 원칙이고, 검색 결과에
+ *    「0원」이 적히면 안 본 것만 못하다.
+ */
+export async function 카드요약(id: string): Promise<{
+  이름: string
+  세트: string
+  번호: string
+  판: 'ja' | 'en'
+  티피?: number
+  등급?: { 이름: string; 값: number; 건수: number }
+  팝수?: number
+} | null> {
+  const idx = await loadCardIndex()
+  if (!idx) return null
+  const 줄 = idx.rows.find((r) => r[7] === id)
+  if (! 줄) return null
+  const [slug, n, 이름] = 줄
+  const 세트칸 = idx.sets[slug]
+  const 것: Awaited<ReturnType<typeof 카드요약>> = {
+    이름,
+    세트: 세트칸?.[0] ?? slug,
+    번호: 도감번호(n) ?? '',
+    판: (세트칸?.[1] as 'ja' | 'en') ?? (slug.startsWith('en-') ? 'en' : 'ja'),
+  }
+  // TCGplayer 대표 인쇄판 값 — 여럿이면 제일 비싼 것을 쓴다(대표를 따로 안 들고 있다).
+  const 인쇄 = 인쇄판시세.get(id)
+  if (인쇄) {
+    const 값들 = Object.values(인쇄).map((v) => v.m).filter((v) => v > 0)
+    if (값들.length) 것.티피 = Math.max(...값들)
+  }
+  // 등급별 낙찰 — 건수가 제일 많은 등급 하나만(타일에서 쓰는 「대표 등급」과 같은 잣대).
+  const 등급표 = ebayGradeCache.get(id)
+  if (등급표) {
+    // ⚠️⚠️ **`ungraded`는 뺀다.** 저쪽이 등급을 못 알아본 낙찰 모음이라 값이 「생카드 값」이
+    //    아니다(화면에서도 값을 안 보여 준다 — `등급확인안됨`). 검색 결과에 그 값을 적으면
+    //    화면과 어긋나고, 무엇보다 틀린 값을 밖에 내보내는 셈이다.
+    const 줄들 = Object.entries(등급표).filter(
+      ([칸, v]) => 칸 !== 'ungraded' && 칸 !== 'raw' && v.n > 0 && (v.smart ?? v.avg) > 0,
+    )
+    줄들.sort((a, b) => b[1].n - a[1].n)
+    const [등급이름, v] = 줄들[0] ?? []
+    if (등급이름 && v) 것.등급 = { 이름: 등급이름, 값: Math.round(v.smart ?? v.avg), 건수: v.n }
+  }
+  const 팝 = populationCache.get(id)
+  if (팝?.all) 것.팝수 = 팝.all
+  return 것
 }
 
 export function topPricedCards(slug: string, limit = 4): { n: string; usd: number; name: string }[] {
@@ -9159,6 +8779,1638 @@ async function bestCardCovers(): Promise<Record<string, string>> {
   return out
 }
 
+// 카드 이름으로 세트를 가리지 않고 찾는 색인. `scripts/gen-card-index.mts`가 미리 만든다.
+// 7MB라 클라이언트로 통째로 내려주면 무겁다 — 서버가 한 번 읽어 두고 결과만 준다.
+// 한글 이름도 색인에 이미 들어 있어 서버가 변환기를 들고 있을 필요가 없다.
+//
+// ⚠️ **한 벌만 읽는다.** 플리마켓 안에 있던 것을 여기로 올렸다(2026-08-12) — 새 시세 길도
+//    같은 색인을 쓰는데, 각자 읽으면 **7MB짜리를 두 번 펼쳐** 512MB 기계에서 위험하다.
+type CardIndex = {
+  // slug → [한글 세트명, ed, 발매일, 영문 세트명(한글과 같으면 빈칸)]
+  sets: Record<string, [string, string, string, string?]>
+  // slug · 번호 · 이름 · 그림 · 한글이름 · 한글그림 · 한글번호 · **저쪽(PPT) 번호**
+  // ⚠️ 8번째 `tcg`는 2026-08-12에 붙였다. 이게 있어야 덤프에서 값을 콕 집어 꺼낸다.
+  rows: [string, string, string, string, string, string, string, string][]
+}
+let cardIndex: CardIndex | null = null
+let cardIndexTried = false
+
+async function loadCardIndex(): Promise<CardIndex | null> {
+  if (cardIndex || cardIndexTried) return cardIndex
+  return firstReadOnce('card-index', async () => {
+    if (cardIndex) return cardIndex
+    cardIndexTried = true
+    // 리포 루트(개발)와 이미지 루트(배포) 모두 같은 자리다. public/ 에 두지 않는 이유는
+    // 거기 있으면 정적 파일로 공개돼 누구나 7MB를 내려받게 되기 때문이다.
+    try {
+      cardIndex = JSON.parse(await readFile(path.resolve('card-index.json'), 'utf-8'))
+      return cardIndex
+    } catch {
+      /* 아래에서 알린다 */
+    }
+    console.warn('[pokegre] card-index.json 을 못 찾았습니다. npx tsx scripts/gen-card-index.mts 로 만드세요.')
+    return null
+  })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  새 시세 길 (2026-08-12) — 「카드가 먼저, 값이 나중」
+//
+//  ⚠️⚠️ **옛 길에 덧붙인 게 아니라 따로 깐 길이다**(사장님 지시: "기존꺼에 덧붙이지
+//     말고 새로운 토글 만들어서"). 옛 길(`/api/local/card-prices` + ebayPrices.ts)은
+//     그대로 살아 있다. 둘을 나란히 놓고 세어 본 뒤에 무엇을 남길지 정한다.
+//
+//  왜 새로 깔았나 — 옛 길은 **매물을 찾는다.** 그래서 매물 제목이 재료가 되고,
+//  제목은 파는 사람 마음대로라 뒤처리가 겹겹이 붙었다(제목 뜯기·조각 잇기·옮겨쌓기·
+//  세트 대응표·레어도 꼬리 떼기 — 700줄쯤). 이 길은 **카드를 먼저 정한다.**
+//  카드가 정해지면 그 카드의 PPT 번호로 덤프에서 값을 꺼내면 끝이라 뒤처리가 없다.
+//
+//  재료(전부 덤프 · **크레딧 0**):
+//    인쇄판별 시세 52,213장(91%) · 등급별 낙찰 20,179장(35%) · 감정 수량 19,334장(34%)
+//    셋 중 하나라도 값이 있는 카드 52,222장(91%)
+//
+//  ⚠️ 화면에 내주는 꼴은 **옛 길과 똑같다**(EbayCard). 사장님 지시로 형태를 맞춘 것이라,
+//     화면 컴포넌트를 그대로 재사용해 두 길을 같은 눈으로 견줄 수 있다.
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 카드 한 장의 「추이 + 낱개 낙찰」을 받아서 **우리 것으로 쌓는다** (2026-08-12) ──
+//
+// 덤프는 **요약만** 준다(등급별 건수·평균·중앙값·적정가). 날짜별 추이도, 「1월 18일에
+// $160에 팔렸다」도 안 온다. 그건 저쪽에 따로 물어야 나온다(카드당 3크레딧).
+//
+// ⚠️ **한 번 받은 것은 저장해서 다시 안 받는다.** 사람들이 많이 보는 카드일수록 값을
+//    딱 한 번만 치른다. 게다가 **덮어쓰지 않고 이어 붙인다** — 저쪽은 한 번에 200일치쯤
+//    주는데, 이어 붙이면 시간이 갈수록 **우리 그래프가 저쪽보다 길어진다.**
+//    1년 뒤에는 저쪽에 없는 기간까지 우리가 갖게 된다. 그게 「우리 자료가 된다」의 뜻이다.
+//
+// ⚠️ 값이 묵으니 **이레가 지나면 다시 받는다**(사장님과 정한 간격). 한 장에 이레마다
+//    3크레딧이라 하루 200,000 중 티도 안 난다.
+type 낱개낙찰 = { p: number; d: string; u?: string; a?: boolean; t?: string; /** 저쪽이 원래 담았던 칸(우리가 옮겼을 때만). */ g0?: string }
+type 카드기록 = {
+  /** 마지막으로 저쪽에 물어본 때(ms). 이레가 지나면 다시 묻는다. */
+  at: number
+  /** 등급별 날짜별 낙찰 평균가. `{ psa10: { '2026-05-05': 99.99 } }` */
+  h?: Record<string, Record<string, number>>
+  /** 등급별 낱개 낙찰(최근 것부터). */
+  s?: Record<string, 낱개낙찰[]>
+  /**
+   * **우리가 다시 센 등급값.** 저쪽이 등급을 잘못 담아 보낸 칸만 들어 있다.
+   * 있으면 덤프 값보다 이걸 먼저 쓴다(`smart`는 버리고 중앙값이 나간다).
+   */
+  gx?: Record<string, { n: number; avg: number; med: number }>
+  /** TCGplayer 추이 — `c`는 어느 상태의 추이인지. */
+  tcg?: { c: string | null; h: Record<string, number> }
+  /**
+   * 감정 수량. **덤프에 없는 카드만** 여기 담긴다(덤프에 있으면 목록 응답에 이미 실려 있다).
+   * ⚠️ 덤프가 담는 것은 저쪽 번호 있는 카드의 **34%**뿐이다(19,334/57,344 · 2026-08-12).
+   *    값 \$20 넘는데 없는 카드가 1,242장이라, 그건 카드를 열 때 한 번 받아 두는 게 맞다.
+   */
+  pop?: PopEntry
+}
+/**
+ * ⚠️⚠️ **카드마다 파일 하나로 나눠 둔다. 한 파일에 모으면 안 된다.**
+ *
+ * 처음엔 다른 자료처럼 `card-history.json` 한 덩이로 만들었다가 실물을 보고 갈아엎었다
+ * (2026-08-12). 한 장이 **41KB**였다 — 3~4KB로 짐작했던 것의 열 배다. 그러면
+ * 카드를 하나 열 때마다 **수백 MB짜리 파일을 통째로 다시 쓰게 된다**(`saveJsonMap`은
+ * 맵 전체를 쓴다). 512MB 기계에서 그건 사고다.
+ * 나눠 두면 한 번에 20KB만 쓰고, 기동할 때 통째로 읽어 메모리에 이고 있을 필요도 없다
+ * (그림 캐시 `/data/imgcache`가 쓰는 방식과 같다).
+ */
+// ── 미감정 칸 낙찰의 **사진을 보고 등급을 읽는다** (2026-08-14) ────────────────
+//
+// ⚠️⚠️ **왜 필요한가 — 미감정 칸은 「저쪽이 등급을 못 읽었다」는 뜻이다.** 그래서 잘못
+//    담기는 곳이 정확히 거기다(사장님 지적: "미감정에 psa10 매물이 들어있다").
+//    실물로 확인한 카드 하나(`/e/250323`)에서 미감정 5건 중 **4건이 감정 카드**였다 —
+//    PSA 10 둘 · PSA 9 하나 · CGC 10 하나. 진짜 미감정은 $0.99짜리 한 건뿐이었다.
+//
+// ⚠️⚠️ **제목으로는 못 잡는다.** 그 4건 중 제목에 등급이 적힌 것은 하나뿐이었다
+//    (「Graded CC&G 10」). 나머지는 제목·매물 페이지 글 어디에도 등급이 없고 **사진에만**
+//    슬랩이 찍혀 있다. 저쪽이 주는 `gradingCompany`·`grade` 칸도 **전부 비어 있다**(확인함).
+//    그래서 사진이 유일한 근거다.
+//
+// ⚠️⚠️ **감정 칸(psa10 등)은 안 건드린다.** 거기는 저쪽이 등급을 읽고 넣은 것이라 근거가
+//    이미 둘(제목·저쪽 분류)이고, 우리 판독은 작은 사진에서 **8을 9로 잘못 읽은 적이 있다**.
+//    근거가 하나뿐인 우리 판독으로 근거가 둘인 것을 뒤집으면 그게 새 오류다.
+//
+// ⚠️ 사진 주소는 **이베이 API**로 받는다(매물 번호 → 사진). 매물 페이지는 `curl`이 403이고
+//    인앱 브라우저도 막히지만, API는 **낙찰이 끝난 매물도** 준다. 키는 예전에 기능을 뺄 때
+//    지우지 않고 Fly 시크릿에 남겨 둔 것을 다시 쓴다(무료 · 하루 5,000번).
+// ⚠️ 사진은 **225px 짜리**를 쓴다(`s-l1600`을 `s-l225`로 바꾼다). 500px는 장당 420토큰,
+//    225px는 **192토큰**인데 판독은 그대로였다(실측). Haiku는 등급 숫자를 못 읽어 안 쓴다.
+// ⚠️⚠️ **이 열쇠는 사이트 「사진으로 찾기」와 같은 지갑을 쓴다.** 2026-08-13에 카드 820장을
+//    읽다 잔액이 바닥나 **운영의 사진 검색이 멈춘 적이 있다.** 그래서 하루 상한이 있다.
+/** mountApi가 받은 환경. 사진 판독이 이베이·Anthropic 열쇠를 여기서 꺼낸다. */
+let 환경: ApiEnv = {}
+const SLAB_FILE = dataFile('slab-reads.json')
+/** 매물 번호 → 읽어낸 등급칸(`psa10`…) · `raw`(진짜 미감정) · `''`(못 읽음·매물 지워짐) */
+const slabCache = new Map<string, string>()
+const SLAB_STATE_FILE = dataFile('slab-state.json')
+let slab하루 = { day: '', ebay: 0, ai: 0 }
+/** 하루에 읽을 사진 수. 잔액이 사이트 사진 검색과 공유라 넉넉히 잡지 않는다. */
+const SLAB_AI_DAILY = 4_000
+/**
+ * ⚠️⚠️⚠️ **사진 읽기는 꺼 둔다**(사장님 지시 2026-08-15: "예상하지 못하는 금액이 나갈 것 같으니까").
+ *
+ * 왜 껐나 — 두 가지다.
+ *   ① **돈.** 카드를 열 때마다 매물 사진을 읽어 한 달 $12쯤이 예고 없이 나간다. 이 열쇠는
+ *      사이트 「사진으로 찾기」와 **같은 지갑**이라, 마르면 방문자 기능이 멈춘다.
+ *   ② **느려진다.** 카드 하나를 열 때 낱개마다 이베이 API + 사진 판독을 하느라 상세가
+ *      몇 초씩 늦게 떴다(사장님 지적: "상세보기할때 내역들 너무 늦게 나와").
+ *
+ * ⚠️ **끈다고 값이 틀려지지는 않는다.** 「등급 확인 안 됨」 칸은 이제 값을 아예 안 보여 주므로
+ *    (`등급확인안됨` · src/api/ebayPrices.ts), 사진으로 확인해도 화면에 더 쓸 데가 없다.
+ *    제목에 등급이 적힌 매물을 옮기는 것은 **공짜라 그대로 돈다.**
+ * ⚠️ 다시 켜려면 이 값만 true로. 이미 읽은 매물은 `/data/slab-reads.json`에 남아 있어
+ *    값이 다시 들지 않는다.
+ */
+const 사진판독켬 = false
+/** 이베이 API 하루 몫(저쪽이 정한 값은 5,000이라 여유를 둔다). */
+const SLAB_EBAY_DAILY = 4_500
+
+async function slab상태읽기() {
+  try {
+    const d = JSON.parse(await readFile(SLAB_STATE_FILE, 'utf-8')) as typeof slab하루
+    if (d && typeof d.day === 'string') slab하루 = { day: d.day, ebay: d.ebay || 0, ai: d.ai || 0 }
+  } catch {
+    /* 없으면 처음 */
+  }
+  await loadJsonMap(SLAB_FILE, slabCache as Map<string, unknown>, '사진 등급 판독')
+}
+async function slab상태쓰기() {
+  await writeJsonFile(SLAB_STATE_FILE, slab하루).catch(() => undefined)
+}
+function slab오늘맞추기() {
+  const 오늘 = utcDay()
+  if (slab하루.day !== 오늘) slab하루 = { day: 오늘, ebay: 0, ai: 0 }
+}
+
+let ebay토큰: { v: string; 만료: number } | null = null
+async function 이베이토큰(env: ApiEnv): Promise<string | null> {
+  if (ebay토큰 && ebay토큰.만료 > Date.now() + 60_000) return ebay토큰.v
+  const id = env.EBAY_APP_ID
+  const cs = env.EBAY_CERT_ID
+  if (!id || !cs) return null
+  try {
+    const r = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${Buffer.from(`${id}:${cs}`).toString('base64')}`,
+      },
+      body: `grant_type=client_credentials&scope=${encodeURIComponent('https://api.ebay.com/oauth/api_scope')}`,
+      signal: AbortSignal.timeout(15_000),
+    })
+    const j = (await r.json()) as { access_token?: string; expires_in?: number }
+    if (!j.access_token) return null
+    ebay토큰 = { v: j.access_token, 만료: Date.now() + (j.expires_in ?? 7200) * 1000 }
+    return ebay토큰.v
+  } catch {
+    return null
+  }
+}
+
+/** 매물 번호로 사진 주소를 받는다. 지워진 매물은 null(그때는 손대지 않는다). */
+async function 매물사진(env: ApiEnv, listingId: string): Promise<string | null> {
+  const t = await 이베이토큰(env)
+  if (!t) return null
+  slab오늘맞추기()
+  if (slab하루.ebay >= SLAB_EBAY_DAILY) return null
+  slab하루.ebay++
+  try {
+    const r = await fetch(`https://api.ebay.com/buy/browse/v1/item/v1|${encodeURIComponent(listingId)}|0`, {
+      headers: { Authorization: `Bearer ${t}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!r.ok) return null
+    const j = (await r.json()) as { image?: { imageUrl?: string } }
+    return j.image?.imageUrl ?? null
+  } catch {
+    return null
+  }
+}
+
+/** 사진 한 장을 보고 슬랩인지·어느 등급인지 읽는다. 못 읽으면 ''. */
+async function 사진등급(env: ApiEnv, 사진주소: string): Promise<string> {
+  const k = env.ANTHROPIC_API_KEY
+  if (!k) return ''
+  slab오늘맞추기()
+  if (slab하루.ai >= SLAB_AI_DAILY) return ''
+  try {
+    // ⚠️ 큰 사진은 값만 두 배다 — 225px로 줄여 받는다(실측: 판독 결과 같음).
+    const 작은것 = 사진주소.replace(/s-l\d+\.jpg/i, 's-l225.jpg')
+    const buf = Buffer.from(await (await fetch(작은것, { signal: AbortSignal.timeout(15_000) })).arrayBuffer())
+    if (!buf.length) return ''
+    slab하루.ai++
+    const r = await fetch(ANTHROPIC_API_URL, {
+      method: 'POST',
+      headers: { 'x-api-key': k, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5',
+        max_tokens: 48,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: buf.toString('base64') } },
+              {
+                type: 'text',
+                text: '이 이베이 매물 사진을 봐라. 카드가 감정 회사 케이스(슬랩)에 들어 있나? 들어 있으면 라벨의 회사와 등급을 읽어라. 딱 한 줄로만 답해라: SLAB <회사> <등급> 또는 RAW 또는 SLAB UNKNOWN. 다른 말은 하지 마라.',
+              },
+            ],
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    const j = (await r.json()) as { content?: { text?: string }[] }
+    const 답 = (j.content ?? []).map((c) => c.text ?? '').join(' ').trim()
+    if (/^\s*RAW\b/i.test(답)) return 'raw'
+    // 「SLAB PSA 10」·「SLAB PSA GEM MINT 10」 꼴에서 회사와 숫자를 뽑는다.
+    const m = /SLAB\s+([A-Za-z&]+)[^0-9]*?(10|[1-9](?:\.5)?)\b/i.exec(답)
+    if (!m) return ''
+    const 회사 = m[1].toLowerCase()
+    if (!new RegExp(`^(?:${회사말})$`, 'i').test(회사)) return '' // 우리가 아는 회사만
+    return `${회사}${m[2].replace('.', '_')}`
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * 미감정 칸 낙찰들의 사진을 읽어 **제자리 등급칸**을 돌려준다(매물번호 → 등급칸).
+ * ⚠️ 한 번 읽은 매물은 다시 안 읽는다 — 못 읽은 것(`''`)도 적어 두어 두 번 두드리지 않는다.
+ */
+async function 미감정사진읽기(env: ApiEnv, 낙찰: { listingId?: string }[]): Promise<Map<string, string>> {
+  const 답 = new Map<string, string>()
+  let 바뀜 = false
+  for (const s of 낙찰) {
+    const id = String(s.listingId ?? '').trim()
+    if (!id) continue
+    if (slabCache.has(id)) {
+      답.set(id, slabCache.get(id)!)
+      continue
+    }
+    const 사진 = await 매물사진(env, id)
+    const 등급 = 사진 ? await 사진등급(env, 사진) : ''
+    slabCache.set(id, 등급)
+    답.set(id, 등급)
+    바뀜 = true
+  }
+  if (바뀜) {
+    await writeJsonFile(SLAB_FILE, Object.fromEntries(slabCache)).catch(() => undefined)
+    await slab상태쓰기()
+  }
+  return 답
+}
+
+/**
+ * 미감정 칸이 수상한 카드를 골라 **사진으로 등급을 확인**한다(시킬 때만 돈다).
+ *
+ * ⚠️ 고르는 잣대는 **미감정 값이 PSA 10보다 비싼 카드**다. 5.5%(670장)가 그렇고,
+ *    그게 방문자 눈에 제일 이상하게 보이는 자리다.
+ * ⚠️ 실제 판독·옮기기는 `카드기록받기`가 한다 — 여기서는 그 카드를 **열어 주기만** 한다.
+ *    자리가 둘이면 규칙도 둘이 되어 언젠가 어긋난다.
+ * ⚠️ 하루 상한에 걸리면 조용히 멈춘다. 남은 것은 다음에 시키면 이어서 한다.
+ */
+async function 미감정점검(apiKey: string): Promise<void> {
+  if (!apiKey) return
+  if (!사진판독켬) {
+    console.log('[pokegre] 미감정 점검: 사진 읽기가 꺼져 있습니다(사진판독켬=false). 켜고 다시 시키세요.')
+    return
+  }
+  slab오늘맞추기()
+  const 후보: { id: string; 배: number }[] = []
+  for (const [id, 표] of ebayGradeCache) {
+    const u = 표.ungraded
+    const p = 표.psa10
+    if (!u || !p) continue
+    const uv = u.smart ?? u.avg
+    const pv = p.smart ?? p.avg
+    if (uv > 0 && pv > 0 && uv > pv) 후보.push({ id, 배: uv / pv })
+  }
+  후보.sort((a, b) => b.배 - a.배)
+  console.log(`[pokegre] 미감정 점검: 수상한 카드 ${후보.length.toLocaleString()}장 — 하루 몫이 닿는 데까지 봅니다.`)
+  const idx = await loadCardIndex()
+  const 판표 = new Map<string, 'japanese' | 'english'>()
+  if (idx) for (const r of idx.rows) if (r[7]) 판표.set(r[7], (idx.sets[r[0]]?.[1] ?? 'ja') === 'en' ? 'english' : 'japanese')
+  let 본카드 = 0
+  for (const { id } of 후보) {
+    if (slab하루.ai >= SLAB_AI_DAILY || slab하루.ebay >= SLAB_EBAY_DAILY) {
+      console.log(`[pokegre] 미감정 점검: 하루 몫을 다 썼습니다(사진 ${slab하루.ai} · 이베이 ${slab하루.ebay}). 다음에 이어서.`)
+      break
+    }
+    // 점검은 **늘 다시 받는다** — 규칙을 고쳤을 때 이미 본 카드도 다시 계산돼야 한다.
+    await 카드기록받기(apiKey, id, 판표.get(id) ?? 'english', true)
+    본카드++
+  }
+  await slab상태쓰기()
+  console.log(
+    `[pokegre] 미감정 점검 끝 — 카드 ${본카드}장 · 사진 ${slab하루.ai}장 · 이베이 ${slab하루.ebay}번(오늘 누적).`,
+  )
+}
+
+const CARD_HISTORY_DIR = dataFile('card-history')
+/** 이레가 지나면 다시 묻는다. */
+const 기록다시묻기 = 7 * 24 * 60 * 60 * 1000
+/** 한 등급에 남길 점의 최대 개수(하루 한 점이면 2년치). 넘으면 오래된 것부터 버린다. */
+const 기록점최대 = 730
+/**
+ * 한 등급에 남길 낱개 낙찰 개수.
+ * ⚠️ 처음에 30건으로 뒀다가 줄였다 — 실물을 재 보니 **낱개가 한 장 덩치의 70%**였고
+ *    (제목이 평균 72자다) 화면에는 등급당 몇 건만 보인다. 5건이면 화면에 쓰고도 남는다.
+ */
+const 기록낱개최대 = 5
+/**
+ * 쌓아 둘 카드 수의 천장.
+ *
+ * ⚠️⚠️ **2026-08-15에 6,000 → 21,000으로 올렸다.** 등급 자료가 있는 카드가 20,197장인데,
+ *    낙찰가 점검(위 「값 고침표」)을 하려면 **전부 손에 있어야** 한다 — 6,000이면 받는
+ *    족족 앞엣것이 지워져 전수 점검 자체가 안 된다(사장님 지시).
+ *
+ * ⚠️ **처음 6,000으로 잡은 근거가 틀렸었다.** 한 장을 21KB로 짐작했는데 실물로 재니
+ *    **11.8KB**였다(821장 = 9.7MB). 20,197장이면 약 238MB이고 `/data`는 974MB 중
+ *    537MB를 써서 370MB가 남는다 — **디스크는 넉넉하다.** 짐작한 숫자를 근거로
+ *    한도를 박아 두면 나중에 그 한도가 일을 막는다.
+ *
+ * ⚠️ 넘으면 **제일 오래 안 본 카드부터** 버린다(다시 열면 3크레딧으로 다시 받으면 된다).
+ *    파일 시각(mtime)이 곧 「마지막으로 받은 때」라 그게 그대로 잣대가 된다.
+ * ⚠️ **백업에는 안 담긴다** — `backupDataFiles`가 최상위 `.json`만 복사하므로 폴더는
+ *    안 딸려간다(확인함 2026-08-12). 담기면 7일치가 곱해져 볼륨이 터진다. 잃어도
+ *    다시 받으면 그만이라 안 담는 게 맞다(`card-names.json`을 뺀 것과 같은 판단).
+ */
+const 기록카드최대 = 21_000
+
+/** 값에 붙은 긴 소수를 자른다. `1128.3333333333333`을 그대로 적으면 자리만 먹는다. */
+const 값다듬 = (n: number) => Math.round(n * 100) / 100
+
+const 기록길 = (id: string) => path.join(CARD_HISTORY_DIR, `${id}.json`)
+
+// ── 값 고침표 ────────────────────────────────────────────────────────────
+// ⚠️⚠️ **저쪽(PPT)이 낙찰가를 틀리게 주는 일이 있다.** 2026-08-15에 사장님이 찾으셨다 —
+//    `/e/475445`(메타몽 GG22) PSA 10에 **9,900원**이 찍혀 있었다. 그 매물 링크를 열어
+//    보니 이베이에는 **SOLD US $749.99**라고 적혀 있는데, 저쪽이 우리에게 보낸 값은
+//    `"price": 7`이었다. 사기 매물도 아니고 딴 카드도 아니다 — **값 하나만 틀렸다.**
+//
+// 여기에 적어 두면 저쪽에서 받을 때마다 그 값을 갈아 끼운다. 이베이 매물에 적힌
+// 값으로 고치는 것이라 **우리 판단이 들어갈 자리가 없다** — 근거가 매물 그 자체다.
+// (「저쪽이 뺀 것만 뺀다」는 규칙과 다른 일이다. 그건 뺄지 말지를 정하는 것이고,
+//  이건 틀린 값을 사실로 바로잡는 것이다.)
+//
+// ⚠️ **파일만 고쳐서는 안 되는 이유가 이것이다.** `점잇기`가 `{...옛, ...새}`라 새로 받은
+//    값이 이긴다 — `/data/card-history/<번호>.json`을 손으로 고쳐 놔도 이레 뒤 다시 받을 때
+//    저쪽 값으로 되돌아간다. 그래서 **받는 자리에서** 갈아 끼워야 한다.
+//
+// ⚠️ 배포 없이 고칠 수 있어야 한다(매물 확인은 사람이 크롬으로 하는 일이라 수시로 는다).
+//    그래서 파일 시각(mtime)을 보고 바뀌었으면 다시 읽는다.
+const PRICE_FIX_FILE = dataFile('price-fixes.json')
+type 값고침 = {
+  /** 이베이 매물에 적힌 진짜 값(USD). */
+  p: number
+  /** 저쪽이 보냈던 틀린 값. 그래프 점을 고칠 때 이 값과 같은 날만 건드린다. */
+  was?: number
+  /** 확인한 날(YYYY-MM-DD). */
+  at?: string
+  /**
+   * **이 카드 것이 아니라서 아예 안 담는다.**
+   *
+   * ⚠️ 값이 틀린 것과 **다른 문제**다. 저쪽은 포켓몬 이름으로 낙찰을 뭉쳐 보내서
+   *    「강챙이」 한 칸에 스카이릿지·익스페디션·네오 디스커버리 강챙이가 다 들어온다.
+   *    값을 고쳐 놓으면 오히려 더 나빠진다 — $15일 땐 그냥 이상한 값이었는데
+   *    $860이 되면 **그 카드가 정말 $860에 팔린 것처럼 보인다**(2026-08-15 실측).
+   *
+   * ⚠️⚠️ **매물을 눈으로 확인한 것만 적는다.** 제목의 번호로 기계가 가리게 했더니
+   *    「Pikachu 004(SV-P)」를 **4번이 아니라 1번 카드로** 보냈다(앞의 0 때문이다).
+   *    겹친 매물 437건 중 150건이 그 잣대에 걸렸는데 그대로 지웠으면 멀쩡한 것이 날아갔다.
+   *    옛 길의 `딴카드거르기`가 진짜 $773 낙찰을 세트명 때문에 뺐던 것과 같은 함정이다.
+   */
+  drop?: boolean
+  /** 제자리 카드의 저쪽 번호(되짚기용). */
+  home?: string
+  /** 어느 카드·어느 등급칸에서 나온 낙찰인지(되짚기용). */
+  card?: string
+  g?: string
+  /** `drop`한 까닭을 사람 말로(되짚기용). */
+  why?: string
+}
+let 값고침표: Map<string, 값고침> = new Map()
+let 값고침시각 = -1
+async function 값고침읽기(): Promise<Map<string, 값고침>> {
+  try {
+    const st = await stat(PRICE_FIX_FILE)
+    if (st.mtimeMs === 값고침시각) return 값고침표
+    const j = JSON.parse(await readFile(PRICE_FIX_FILE, 'utf-8')) as Record<string, 값고침>
+    const 표 = new Map<string, 값고침>()
+    for (const [id, v] of Object.entries(j ?? {})) {
+      // 안 담을 것(`drop`)은 값이 없어도 된다 — 값을 고치는 게 아니라 빼는 것이라서.
+      if (v && (v.drop || (Number.isFinite(v.p) && v.p > 0))) 표.set(String(id), v)
+    }
+    값고침표 = 표
+    값고침시각 = st.mtimeMs
+    console.log(`[pokegre] 값 고침표 ${표.size}건을 읽었습니다.`)
+  } catch {
+    // 파일이 없는 게 정상이다(고칠 게 없으면 안 만든다).
+    값고침표 = new Map()
+    값고침시각 = -1
+  }
+  return 값고침표
+}
+
+/**
+ * 저쪽 응답의 낙찰가를 고침표대로 갈아 끼운다. **아무것도 읽기 전에** 부른다.
+ *
+ * 낱개·그래프·다시 세기가 모두 이 응답을 재료로 쓰므로, 여기서 한 번 고치면 세 곳이
+ * 같이 맞는다.
+ *
+ * ⚠️ **그래프는 그날 값이 틀린 값과 같을 때만 고친다.** 저쪽이 주는 그래프 점은 「그날
+ *    팔린 것들의 평균」이라 매물 하나에 1:1로 안 붙는다. 그날 한 건만 팔렸으면 점이 곧
+ *    그 값이고(우리가 찾은 경우가 이것이다), 여러 건이면 평균이라 함부로 못 바꾼다.
+ *    **모르는 것은 안 건드린다.**
+ */
+function 값고침적용(카드: RawPriceTrackerCard, 표: Map<string, 값고침>, 이카드: string): { 고친수: number; 뺀수: number } {
+  if (!표.size) return { 고친수: 0, 뺀수: 0 }
+  // ⚠️⚠️ **`drop`은 적어 둔 그 카드에서만 뺀다.** 저쪽은 같은 매물을 **여러 카드에** 준다
+  //    (이름으로 뭉치기 때문이다 — 강챙이 한 매물이 우리 카드와 스카이릿지 강챙이 양쪽에
+  //    들어와 있었다). 매물번호만 보고 빼면 **제자리 카드에서도 같이 사라진다.**
+  const 뺄까 = (고침: 값고침 | undefined) => !!고침?.drop && (!고침.card || 고침.card === 이카드)
+  let 고친수 = 0
+  let 뺀수 = 0
+  const 고친날: Record<string, Map<string, 값고침>> = {}
+  for (const [등급, 목록] of Object.entries(카드.ebay?.soldListings ?? {})) {
+    if (!목록) continue
+    // ⚠️ **이 카드 것이 아닌 낙찰을 먼저 걷어낸다.** 값을 고치기 전에 해야 한다 —
+    //    안 그러면 딴 카드 낙찰에 제 값을 채워 넣어 더 그럴듯하게 보이게 만든다.
+    const 남길 = 목록.filter((s) => !뺄까(표.get(String(s?.listingId ?? ''))))
+    뺀수 += 목록.length - 남길.length
+    목록.length = 0
+    목록.push(...남길)
+    for (const s of 목록) {
+      const 고침 = 표.get(String(s?.listingId ?? ''))
+      if (!고침 || 고침.p == null) continue
+      const 옛값 = Number(s.price)
+      if (옛값 === 고침.p) continue
+      s.price = 고침.p
+      고친수++
+      const 날 = String(s?.soldDate ?? '').slice(0, 10)
+      if (날) ((고친날[등급] ??= new Map())).set(날, { ...고침, was: 고침.was ?? 옛값 })
+    }
+  }
+  // 그래프 점도 같이 — 그날 점이 틀린 값 그대로일 때만.
+  for (const [등급, 날들] of Object.entries(고친날)) {
+    const 줄 = 카드.ebay?.priceHistory?.[등급]
+    if (!줄) continue
+    for (const [날, 고침] of 날들) {
+      const 점 = 줄[날]
+      if (!점) continue
+      const 이전 = Number(점.average)
+      if (!Number.isFinite(이전) || 고침.was == null) continue
+      if (Math.abs(이전 - 고침.was) > 0.011) continue // 그날 여러 건이 섞인 점이다 — 안 건드린다
+      점.average = 고침.p
+    }
+  }
+  return { 고친수, 뺀수 }
+}
+
+async function 카드기록읽기(id: string): Promise<카드기록 | null> {
+  try {
+    return JSON.parse(await readFile(기록길(id), 'utf-8')) as 카드기록
+  } catch {
+    return null
+  }
+}
+
+async function 카드기록쓰기(id: string, 기록: 카드기록) {
+  try {
+    await mkdir(CARD_HISTORY_DIR, { recursive: true })
+    await writeJsonFile(기록길(id), 기록)
+  } catch (e) {
+    console.log(`[pokegre] 카드 추이 저장 실패(${id}): ${String(e).slice(0, 60)}`)
+  }
+}
+
+/** 천장을 넘으면 오래된 것부터 지운다. 기동할 때와 여섯 시간마다 한 번씩만 돈다. */
+let 기록정리중 = false
+async function 기록정리() {
+  if (기록정리중) return
+  기록정리중 = true
+  try {
+    const 이름들 = await readdir(CARD_HISTORY_DIR).catch(() => [] as string[])
+    const 것들 = 이름들.filter((f) => f.endsWith('.json'))
+    if (것들.length <= 기록카드최대) return
+    const 잰것: { f: string; t: number }[] = []
+    for (const f of 것들) {
+      const st = await stat(path.join(CARD_HISTORY_DIR, f)).catch(() => null)
+      if (st) 잰것.push({ f, t: st.mtimeMs })
+    }
+    잰것.sort((a, b) => a.t - b.t)
+    // 천장에 딱 맞추면 다음 한 장에 또 돈다 — 조금 넉넉히 지운다.
+    const 지울것 = 잰것.slice(0, Math.max(0, 잰것.length - Math.floor(기록카드최대 * 0.9)))
+    for (const x of 지울것) await rm(path.join(CARD_HISTORY_DIR, x.f)).catch(() => undefined)
+    if (지울것.length) console.log(`[pokegre] 카드 추이 ${지울것.length.toLocaleString()}장을 오래된 순으로 비웠습니다.`)
+  } finally {
+    기록정리중 = false
+  }
+}
+
+/** 새로 받은 점을 **얹는다**(덮지 않는다). 같은 날짜는 새 값으로 갱신한다. */
+function 점잇기(옛: Record<string, number> | undefined, 새: Record<string, number>): Record<string, number> {
+  const 합 = { ...(옛 ?? {}), ...새 }
+  const 날들 = Object.keys(합).sort()
+  if (날들.length <= 기록점최대) return 합
+  const 남길: Record<string, number> = {}
+  for (const d of 날들.slice(-기록점최대)) 남길[d] = 합[d]
+  return 남길
+}
+
+/** 낱개 낙찰을 잇는다. 같은 매물(주소)은 하나로 본다. */
+function 낱개잇기(옛: 낱개낙찰[] | undefined, 새: 낱개낙찰[]): 낱개낙찰[] {
+  const 본 = new Map<string, 낱개낙찰>()
+  for (const x of [...(옛 ?? []), ...새]) {
+    const 열쇠 = x.u || `${x.d}|${x.p}`
+    if (!본.has(열쇠)) 본.set(열쇠, x)
+  }
+  return [...본.values()].sort((a, b) => (a.d < b.d ? 1 : -1)).slice(0, 기록낱개최대)
+}
+
+/**
+ * 카드 한 장을 저쪽에 물어 추이·낱개를 받아 쌓는다. 이미 쌓아 둔 게 싱싱하면 안 묻는다.
+ *
+ * ⚠️ **`pptGate`를 반드시 거친다.** 429를 계속 내면 키가 정지된다(CLAUDE.md).
+ * ⚠️ 크레딧 바닥선(방문자 몫)은 **안 건다** — 이건 방문자가 지금 보고 있는 카드라,
+ *    바로 그 몫을 쓰라고 있는 것이다(`/api/local/card-prices`와 같은 판단).
+ */
+async function 카드기록받기(
+  apiKey: string,
+  id: string,
+  판: 'japanese' | 'english',
+  /**
+   * 이레 검사를 건너뛰고 다시 받는다. **점검을 다시 돌릴 때만** 쓴다.
+   * ⚠️ 기록 파일을 지우면 안 된다 — 쌓아 둔 추이(저쪽보다 긴 그래프)가 통째로 날아간다.
+   *    그래서 지우는 대신 이 문으로 다시 받아 **이어 붙인다**.
+   */
+  강제 = false,
+): Promise<카드기록 | null> {
+  if (!id || !/^\d+$/.test(id)) return null
+  const 있는것 = await 카드기록읽기(id)
+  if (!강제 && 있는것 && Date.now() - 있는것.at < 기록다시묻기) return 있는것
+  if (!apiKey) return 있는것
+  if (!pptGate().ok) return 있는것
+  try {
+    const p = new URLSearchParams({
+      tcgPlayerId: id,
+      language: 판,
+      limit: '1',
+      includeHistory: 'true',
+      includeEbay: 'true',
+      // 옛 길과 같은 값. 365점까지는 크레딧이 안 늘어난다(2026-08-07 실측).
+      days: '1095',
+      maxDataPoints: '365',
+    })
+    const r = await fetch(`${PRICE_TRACKER_ORIGIN}/cards?${p}`, {
+      headers: { accept: 'application/json', authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15_000),
+    })
+    notePpt(r.status, r.headers)
+    if (!r.ok) return 있는것
+    const j = (await r.json()) as { data?: unknown }
+    const 카드 = (Array.isArray(j.data) ? j.data[0] : j.data) as RawPriceTrackerCard | undefined
+    if (!카드) return 있는것
+
+    // ⚠️ **아무것도 읽기 전에** 틀린 낙찰가를 갈아 끼운다(위 `값고침적용` 주석 참고).
+    //    낱개·그래프·다시 세기가 다 이 응답을 재료로 쓰므로 여기 한 곳이면 된다.
+    const { 고친수, 뺀수 } = 값고침적용(카드, await 값고침읽기(), id)
+    if (고친수 || 뺀수) {
+      console.log(`[pokegre] 카드 ${id}: 낙찰가 ${고친수}건을 고치고 ${뺀수}건은 딴 카드 것이라 뺐습니다.`)
+    }
+
+    const 기록: 카드기록 = { at: Date.now(), h: { ...(있는것?.h ?? {}) }, s: { ...(있는것?.s ?? {}) } }
+    // ① 등급별 날짜별 낙찰 평균
+    for (const [등급, 날들] of Object.entries(카드.ebay?.priceHistory ?? {})) {
+      const 새: Record<string, number> = {}
+      for (const [날, v] of Object.entries(날들 ?? {})) {
+        const 값 = Number(v?.average)
+        if (Number.isFinite(값) && 값 > 0) 새[String(날).slice(0, 10)] = 값다듬(값)
+      }
+      if (Object.keys(새).length) 기록.h![등급] = 점잇기(기록.h![등급], 새)
+    }
+    // ② 등급별 낱개 낙찰
+    //
+    // ⚠️⚠️ **저쪽이 제 셈에서 뺀 낙찰은 아예 안 담는다**(사장님 지시 2026-08-12:
+    //    "저쪽이 이상하다고 판단된 기록만 빼줘 선으로 긋지말고 아예 제외").
+    //    저쪽은 등급마다 **최저~최고 범위**를 같이 주는데, **건수는 전부 세고 값(평균·중앙)은
+    //    그 범위 안의 것만으로 낸다.** 옛 길이 등급칸 2,669개를 맞춰 이 규칙을 확인했다.
+    //    그래서 범위 밖을 그냥 두면 **목록의 값과 위의 평균이 안 맞는다** — 실측(2026-08-12,
+    //    메가리자몽 X ex 110):
+    //        BGS 9.5  범위 $537~$1,200 · 낱개 23건 평균 $1,088  ← $5,100 한 건 때문
+    //                 범위 밖 1건 빼면 $906.00 = **덤프가 말하는 $906.01과 센트까지 같다**
+    //        PSA 10   범위 밖 8건 빼면 $1,099.26 ✔ · PSA 9 4건 빼면 $622.19 ✔ · TAG 10 ✔
+    // ⚠️ 범위를 안 주는 등급은 **거르지 않는다** — 모르는 잣대로 지우면 멀쩡한 기록이 사라진다.
+    // ⚠️⚠️ **제목이 등급을 말하면 그 칸으로 옮겨 담는다** (2026-08-14).
+    //    사장님이 「미감정에 psa10 매물이 들어있다」고 짚어 주셔서 찾았다. 실물:
+    //    `/e/250323` 미감정 칸에 **"… Celebrations 15/82 PSA Gem 10" $99.99**가 들어 있었다.
+    //    저쪽이 등급을 잘못 담아 보낸 것이라, 그대로 두면 눌러 들어간 사람이 미감정
+    //    밑에서 PSA 10 매물을 본다.
+    //    ⚠️ **`제목등급칸`은 이미 있던 함수다**(`src/lib/listingTitle.ts`). 주석에까지
+    //       「이걸 안 넣으면 그 매물이 미감정 칸에 그대로 남는다」고 적혀 있는데, 옛 시세
+    //       길을 지울 때(2026-08-13) 부르는 자리가 같이 사라져 **아무 데서도 안 쓰이고
+    //       있었다.** 새로 만들 것이 아니라 다시 이어 붙이는 일이다.
+    //    ⚠️ **드물다 — 흔한 문제로 오해하지 말 것.** 카드 35장을 받아 낱개를 전부 뒤졌더니
+    //       어긋난 것은 그 한 카드뿐이었고, 쌓여 있던 2,188건 중에서는 10건(0.5%)이었다.
+    //    ⚠️ **큰 숫자(건수·평균·시세)는 저쪽 것을 그대로 둔다.** 저쪽은 제 분류대로 셈했고
+    //       우리는 그 칸의 낙찰을 5건만 들고 있어 다시 셀 수 없다. 여기서 바로잡는 것은
+    //       **낱개가 어느 칸 밑에 보이느냐**뿐이다.
+    //    ⚠️ 제목에 등급이 안 적힌 매물은 못 고친다 — 제목이 우리가 가진 유일한 단서다.
+    const 옮길것: Record<string, 낱개낙찰[]> = {}
+    // ⚠️⚠️ **저쪽이 보낸 낱개의 「날것」 개수**를 센다 — 범위 검사를 통과한 수가 아니다.
+    //    저쪽은 **건수는 전부 세고 평균만 범위 안의 것으로** 낸다(CLAUDE.md). 그래서
+    //    범위를 통과한 수와 저쪽 건수를 맞대면 **거의 늘 어긋나** 보이고, 그 탓에
+    //    「다시 세기」가 54장 중 3장에서만 돌았다(2026-08-14 실측).
+    const 받은수: Record<string, number> = {}
+    let 옮긴수 = 0
+    // ⚠️⚠️ **미감정 칸만 사진을 읽는다.** 「미감정」은 저쪽이 등급을 못 읽었다는 뜻이라
+    //    잘못 담기는 곳이 거기다. 감정 칸은 근거가 이미 둘(제목·저쪽 분류)이라 안 건드린다.
+    const 사진판독 = 사진판독켬
+      ? await 미감정사진읽기(환경, 카드.ebay?.soldListings?.ungraded ?? [])
+      : new Map<string, string>()
+    for (const [등급, 목록] of Object.entries(카드.ebay?.soldListings ?? {})) {
+      const 칸 = 카드.ebay?.salesByGrade?.[등급]
+      // 소수점 끝자리가 어긋나는 일이 있어 아주 조금 여유를 준다(옛 길과 같은 폭).
+      const 아래 = Number.isFinite(칸?.minPrice) ? (칸!.minPrice as number) * 0.999 : 0
+      const 위 = Number.isFinite(칸?.maxPrice) ? (칸!.maxPrice as number) * 1.001 : Infinity
+      받은수[등급] = (받은수[등급] ?? 0) + (목록?.length ?? 0)
+      for (const s of 목록 ?? []) {
+        const 값 = Number(s?.price)
+        const 날 = String(s?.soldDate ?? '').slice(0, 10)
+        if (!Number.isFinite(값) || 값 <= 0 || !날) continue
+        // ⚠️ 범위 검사는 **원래 칸 기준**으로 한다. 「저쪽이 제 셈에서 뺀 것은 우리도 안
+        //    담는다」가 이 검사의 뜻이라, 옮길 곳이 아니라 저쪽이 넣었던 칸으로 재야 맞다.
+        if (값 < 아래 || 값 > 위) continue
+        const 제목 = s.title || undefined
+        // ⚠️ 순서: **사진이 먼저**다. 미감정 칸은 제목에 등급이 없는 게 보통이라
+        //    (그래서 미감정으로 분류됐다) 사진만이 근거다. `raw`면 진짜 미감정이니 그대로 둔다.
+        const 사진칸 = 등급 === 'ungraded' ? (사진판독.get(String(s.listingId ?? '')) ?? '') : ''
+        const 제목칸 = 제목 ? 제목등급칸(제목) : ''
+        const 읽은칸 = 사진칸 && 사진칸 !== 'raw' ? 사진칸 : 제목칸
+        const 갈곳 = 읽은칸 && 읽은칸 !== 등급 ? 읽은칸 : 등급
+        if (갈곳 !== 등급) 옮긴수++
+        ;(옮길것[갈곳] ??= []).push({
+          p: 값다듬(값),
+          d: 날,
+          u: s.url || undefined,
+          // ⚠️ 저쪽은 **소문자**로 보낸다(`auction` · `buy_it_now`). 예전엔 `'Auction'`과
+          //    견줘서 **한 건도 안 맞았고, 경매로 팔린 것이 전부 「즉시구매」로 나갔다**
+          //    (2026-08-15 실측: 메타몽 GG22 한 장만 262건 중 170건이 실제로는 경매).
+          a: String(s.listingType ?? '').toLowerCase() === 'auction' || undefined,
+          t: 제목,
+          // 옮긴 것에는 **원래 칸**을 남긴다 — 나중에 「왜 여기 있나」를 되짚을 수 있어야 한다.
+          ...(갈곳 !== 등급 ? { g0: 등급 } : {}),
+        })
+      }
+    }
+    // ⚠️⚠️ **옮긴 게 있으면 그 칸들을 여기서 다시 센다.**
+    //    사장님 지시: "제자리에 옮기고 그에 따라서 다시 시세를 적어주는 것".
+    //    **이 자리에서만 할 수 있다** — 저쪽이 준 낙찰 목록이 통째로 손에 있는 지금뿐이고,
+    //    저장할 때는 칸마다 5건으로 자르므로(`기록낱개최대`) 나중엔 다시 못 센다.
+    //    ⚠️ 우리 셈이 저쪽 셈과 같다는 건 이미 검증돼 있다 — 카드 8장 · 등급칸 287개에서
+    //       **평균이 센트까지 287/287 일치**했다(CLAUDE.md). 새 잣대를 만드는 게 아니다.
+    //    ⚠️ **건드린 칸만** 다시 센다. 멀쩡한 칸까지 우리 값으로 바꾸면, 저쪽과 어긋나는
+    //       자리가 쓸데없이 늘고 어디가 왜 다른지 되짚기 어려워진다.
+    //    ⚠️ `smart`(저쪽의 「지금 시세」)는 **버린다.** 섞인 채로 만든 값이라 근거가 무너졌고,
+    //       우리가 그 모델을 다시 만들 수는 없다. 화면은 `smartPrice`가 없으면 중앙값을
+    //       쓰므로(`src/api/ebayPrices.ts`), 우리가 다시 센 중앙값이 나간다.
+    // ⚠️⚠️⚠️ **저쪽이 낙찰을 다 보내 줬을 때만 다시 센다.**
+    //    저쪽이 낙찰 목록을 추려서 보내면(예: 66건 중 20건) 우리 셈은 그 20건짜리가 되어
+    //    **저쪽 값보다 더 틀린 값**이 된다. 그래서 칸마다 「범위를 통과한 건수」와 저쪽이
+    //    말한 건수를 맞대 보고, **카드의 모든 칸이 딱 맞을 때만** 다시 센다.
+    //    ⚠️ 한 칸이라도 어긋나면 **옮기기만 하고 숫자는 저쪽 것을 그대로 둔다** —
+    //       낱개가 제자리로 가는 것만으로도 「미감정 밑에 PSA 10」은 없어진다.
+    const 다알고있나 = Object.entries(카드.ebay?.salesByGrade ?? {}).every(
+      ([칸이름, v]) => !(v?.count && v.count > 0) || (받은수[칸이름] ?? 0) === v.count,
+    )
+    const 바뀐칸 = new Set<string>()
+    if (옮긴수 > 0 && 다알고있나) {
+      for (const [칸이름, 목록] of Object.entries(옮길것)) {
+        const 원래 = 카드.ebay?.salesByGrade?.[칸이름]
+        const 옮겨온것있나 = 목록.some((x) => x.g0)
+        const 빠져나간것있나 = 원래 != null && 목록.filter((x) => !x.g0).length !== (원래.count ?? 목록.length)
+        if (!옮겨온것있나 && !빠져나간것있나) continue
+        const 값들 = 목록.map((x) => x.p).sort((a, b) => a - b)
+        if (!값들.length) continue
+        const 가운데 = 값들.length % 2 ? 값들[(값들.length - 1) / 2] : (값들[값들.length / 2 - 1] + 값들[값들.length / 2]) / 2
+        기록.gx ??= {}
+        기록.gx[칸이름] = {
+          n: 값들.length,
+          avg: 값다듬(값들.reduce((a, b) => a + b, 0) / 값들.length),
+          med: 값다듬(가운데),
+        }
+        바뀐칸.add(칸이름)
+      }
+    }
+    for (const [칸이름, 새] of Object.entries(옮길것)) {
+      if (새.length) 기록.s![칸이름] = 낱개잇기(기록.s![칸이름], 새)
+    }
+    if (옮긴수 > 0)
+      console.log(
+        `[pokegre] 낱개 낙찰 ${옮긴수}건을 제목이 말하는 등급칸으로 옮겼습니다(카드 ${id}) · ` +
+          (다알고있나 ? `${바뀐칸.size}개 칸을 다시 셈함` : '저쪽이 낙찰을 다 안 보내 숫자는 그대로 둠'),
+      )
+    // ③ TCGplayer 추이 — **큰 숫자와 같은 상태**를 고른다(옛 길과 같은 규칙).
+    const conditions = 카드.priceHistory?.conditions ?? {}
+    const 쓴상태 =
+      (카드.prices?.primaryPrinting ? 카드.variants?.[카드.prices.primaryPrinting]?.conditionUsed : null) ??
+      Object.values(카드.variants ?? {})[0]?.conditionUsed ??
+      null
+    const 상태순서 = ['Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']
+    const 있는상태 = Object.keys(conditions).filter((k) => (conditions[k].history?.length ?? 0) > 0)
+    const 바라는 = 상태순서.find((c) => (쓴상태 ?? '').includes(c))
+    const 고른상태 =
+      (바라는 && 있는상태.includes(바라는) ? 바라는 : null) ??
+      있는상태.find((k) => k.includes('Near Mint')) ??
+      있는상태.sort((a, b) => (conditions[b].history?.length ?? 0) - (conditions[a].history?.length ?? 0))[0] ??
+      null
+    if (고른상태) {
+      const 새: Record<string, number> = {}
+      for (const pt of conditions[고른상태].history ?? []) {
+        const 값 = Number(pt?.market)
+        const 날 = String(pt?.date ?? '').slice(0, 10)
+        if (Number.isFinite(값) && 값 > 0 && 날) 새[날] = 값다듬(값)
+      }
+      if (Object.keys(새).length) 기록.tcg = { c: 고른상태, h: 점잇기(있는것?.tcg?.h, 새) }
+    } else if (있는것?.tcg) 기록.tcg = 있는것.tcg
+
+    // ④ 감정 수량 — **덤프에 없을 때만** 받는다(있으면 목록 응답에 이미 실려 나간다).
+    //    추이·낱개를 받는 이 한 번에 같이 묻고 같은 곳에 쌓는다 — 자리가 둘이면 갱신
+    //    규칙도 둘이 되어 언젠가 어긋난다.
+    if (!populationCache.has(id)) {
+      const 이미 = 있는것?.pop
+      if (이미) 기록.pop = 이미
+      else {
+        const 것 = await 감정수량한판(apiKey, id, 판).catch(() => null)
+        if (것) 기록.pop = 것
+      }
+    }
+    await 카드기록쓰기(id, 기록)
+    return 기록
+  } catch {
+    return 있는것
+  }
+}
+
+function mountCardBoard(app: Mountable, apiKey: string) {
+  // ⚠️⚠️⚠️ **쪽을 나누지 않는다. 찾은 것을 다 준다.**
+  //
+  //    처음에 옛 길의 「12장씩 + 더 보기」를 그대로 옮겨 놨다가 두 번 지적받았다
+  //    (2026-08-12 "왜 12장밖에 안나와?" → 100장으로 고침 → "더보기를 눌러도 12장이라는게
+  //    문제야" → "베끼지말고 새걸로 처음부터 다시 하라고 했잖아").
+  //    **옛 길이 쪽을 나눈 것은 한 쪽마다 크레딧 36이 나가고 저쪽이 12장씩만 주기 때문**이다.
+  //    우리 파일만 읽는 이 길에는 그 이유가 **하나도** 남지 않는다 — 쪽 나누기 자체가 베낀 것이다.
+  //
+  //    ⚠️ 그래도 천장 하나는 있어야 한다. 두 글자만 쳐도 수천 장이 걸리고("er" 5,489장 ·
+  //       "이" 3,540장 · 한 글자면 "a" 20,311장), 통째로 보내면 15MB에 타일 2만 개가 된다.
+  //       이 천장은 **크레딧이 아니라 브라우저가 그릴 수 있는 양**이 정하는 것이라,
+  //       걸리면 「몇 장까지만 보여 드린다」고 밝힌다. 진짜 카드 이름은 여기 안 걸린다
+  //       (리자몽 125 · charizard 224 · 피카츄 367 — 전부 한 번에 다 나온다).
+  const 낼수있는최대 = 2000
+
+  // 목록 타일은 **등급을 딱 하나만** 보여 준다(`대표등급()` = 낙찰이 제일 많은 등급).
+  // 그런데 카드 하나에 등급이 최대 17줄이라, 다 실어 보내면 **쓰지도 않을 것이 덩치의 83%**다.
+  // 그래서 목록에는 대표 하나만 싣고, 카드를 누르면 그때 `?grades=` 로 전부 받아 온다
+  // (크레딧 0 · 10ms). ⚠️ 화면이 쓰는 꼴(`EbayGradeStat`)은 목록·상세가 똑같아야 한다 —
+  // 그래서 빚는 자리를 이 함수 하나로 모았다.
+  const 등급빚기 = (등급: Record<string, GradeSale> | undefined) =>
+    Object.entries(등급 ?? {})
+      .map(([grade, g]) => ({
+        grade,
+        count: g.n,
+        averagePrice: g.avg,
+        medianPrice: g.med ?? g.avg,
+        minPrice: 0,
+        maxPrice: 0,
+        marketTrend: null,
+        lastSaleDate: null,
+        smartPrice: g.smart ?? null,
+        confidence: g.cf ?? null,
+        // 덤프는 **셈해 둔 값만** 준다 — 날짜별 추이도 낱개 낙찰도 안 온다.
+        // 빈 배열로 두면 화면이 그래프와 낱개 목록을 알아서 접는다(옛 캐시 응답과 같은 꼴).
+        history: [],
+        sales: [],
+      }))
+      // ⚠️ **낙찰 많은 등급 순.** 화면의 대표가(`대표등급`)가 「건수가 제일 많은 등급」을
+      //    고르므로, 다른 잣대로 세우면 타일에는 PSA 10이 뜨는데 상세 맨 위에는 다른
+      //    등급이 서서 **같은 카드가 두 값을 말하는 것처럼** 보인다. 미감정을 맨 위로
+      //    올려 볼까 했으나 그래서 그만뒀다 — 형태를 맞추라는 지시이기도 하다.
+      .sort((a, b) => b.count - a.count)
+
+  // 세트 코드 → 그 세트들. 「M2 110」·「SV2a 201」처럼 코드로 찾을 때 쓴다.
+  // ⚠️ **낱말이 딱 맞을 때만** 쓴다 — 부분 일치를 허용하면 "s1"이 "s10"에 걸린다
+  //    (CLAUDE.md에 같은 함정이 적혀 있다). 그래서 Map으로 정확히 맞춘다.
+  // 저쪽(PPT) 번호 → 우리 카드. **공유 링크(`/e/<번호>`)가 이걸로 카드를 찾는다.**
+  // ⚠️ 예전엔 번호로 **저쪽에 이름을 물어봤다** — 크레딧이 나가서 하루 상한(500번)까지
+  //    걸어 뒀고, 상한을 넘으면 카톡 미리보기에 카드 이름이 안 떴다. 우리 색인에 그 번호가
+  //    57,344장 들어 있으니 **공짜로, 더 빨리** 찾을 수 있다.
+  let 번호표: Map<string, { slug: string; n: string; name: string; ed: string }> | null = null
+  const 저쪽번호표 = (idx: CardIndex) => {
+    if (번호표) return 번호표
+    번호표 = new Map()
+    for (const r of idx.rows) {
+      const [slug, n, name, , , , , tcg] = r as unknown as string[]
+      if (!tcg || 번호표.has(tcg)) continue
+      번호표.set(tcg, { slug, n, name, ed: idx.sets[slug]?.[1] ?? 'ja' })
+    }
+    return 번호표
+  }
+
+  let 코드표: Map<string, string[]> | null = null
+  const 세트코드표 = (idx: CardIndex) => {
+    if (코드표) return 코드표
+    코드표 = new Map()
+    // ⚠️⚠️ **붙임표·점을 뗀 꼴도 같이 넣는다.** 사진으로 찾기가 읽는 세트코드는
+    //    **카드에 찍힌 그대로**라 「S-P」·「SM-P」인데, 우리 슬러그는 「ja-SP」·「ja-SMP」다.
+    //    그 한 글자 때문에 「S-P 049/S-P」가 **0건**이었다(2026-08-16 실측 · 스캔 기록에
+    //    남은 실제 검색어로 확인). 카드에 찍힌 꼴로 쳐도 찾아져야 한다.
+    const 넣기 = (열쇠: string, slug: string) => {
+      if (열쇠.length < 2) return
+      const 있 = 코드표!.get(열쇠)
+      if (있) { if (!있.includes(slug)) 있.push(slug) }
+      else 코드표!.set(열쇠, [slug])
+    }
+    for (const slug of Object.keys(idx.sets)) {
+      const c = slug.replace(/^(ja|en)-/, '').toLowerCase()
+      넣기(c, slug)
+      넣기(c.replace(/[-.]/g, ''), slug)
+    }
+    return 코드표
+  }
+
+  // ── 「이 카드 것이 아닌 것 같다」 판정 ──────────────────────────────────────
+//
+// 매물 제목만 보고 **후보**를 고른다. 지우는 게 아니라 사람이 읽을 목록을 만드는 것이다.
+// 2026-08-16에 1,942건을 손으로 판정하면서 얻은 규칙을 그대로 옮겼다.
+//
+// ⚠️⚠️ **제목의 번호로 가리지 마라.** 「Pikachu 004(SV-P)」를 4번이 아니라 1번 카드로
+//    보냈다(앞의 0 때문). 겹친 437건 중 150건이 그 잣대에 걸렸는데 그대로 지웠으면
+//    멀쩡한 낙찰이 날아간다. 옛 길의 `딴카드거르기`가 진짜 $773 낙찰을 세트명 때문에
+//    뺐던 것과 같은 함정이다.
+const 비게임말: [RegExp, string][] = [
+  [/\btopsun\b/i, '톱선(껌 카드)'],
+  [/\bcarddass\b/i, '반다이 카드다스'],
+  [/\bamada\b/i, '아마다 스티커'],
+  [/\bmerlin\b/i, '멀린 스티커'],
+  [/\buno\b/i, '우노'],
+  [/\bplaying cards?\b/i, '플레잉 카드'],
+  [/\bhanafuda\b/i, '하나후다'],
+  [/\bold maid\b/i, '올드메이드'],
+  [/\bdragon ?ball\b/i, '드래곤볼'],
+  [/\bpanini\b/i, '파니니'],
+  [/\btopps\b/i, '톱스'],
+  [/\bmetazoo\b/i, '메타주'],
+  [/\byu-?gi-?oh\b/i, '유희왕'],
+  [/\bone piece\b/i, '원피스'],
+  [/\bzukan\b/i, '주칸'],
+  [/\bsticker/i, '스티커'],
+  [/\bflipz?\b/i, '액션 플립즈'],
+]
+/** 제목에서 인쇄 연도를 뽑는다. 앞에 붙는 「Sold Aug 26, 2025」(팔린 날)는 뗀다. */
+function 제목연도(t: string): number[] {
+  const s = String(t || '').replace(/^\s*Sold\s+[A-Za-z]{3,9}\.?\s+\d{1,2},?\s*\d{4}\s*-?\s*/i, '')
+  return [...new Set([...s.matchAll(/\b(19[9]\d|20[0-2]\d)\b/g)].map((m) => Number(m[1])))]
+}
+/** 걸리면 까닭을 돌려주고, 아니면 빈 문자열. */
+function 딴카드의심(제목: string, 카드번호: string): string {
+  const t = String(제목 || '')
+  if (!t) return ''
+  for (const [re, 이름] of 비게임말) if (re.test(t)) return '포켓몬 카드게임 아님: ' + 이름
+  const idx = cardIndex
+  if (!idx) return ''
+  const 줄 = idx.rows.find((r) => r[7] === 카드번호)
+  if (!줄) return ''
+  const 세트 = idx.sets[줄[0]]
+  if (!세트) return ''
+  const 해 = Number(String(세트[2] || '').slice(0, 4))
+  if (!해) return ''
+  // ⚠️ 프로모·프리릴리즈 세트는 여러 해에 걸쳐 나와 세트 연도가 무의미하다.
+  //    안 빼면 후보가 17,497건이 되고 표본 15개가 전부 헛것이었다(실측).
+  const 이름 = String(세트[0] || '')
+  if (/프로모|promo|prerelease|championship|리그|league/i.test(이름)) return ''
+  const 해들 = 제목연도(t)
+  if (!해들.length) return ''
+  // ⚠️ 5년 넘게 벌어질 때만. 1~2년 차이는 재판·발매 지연으로 흔하다.
+  if (해들.some((y) => Math.abs(y - 해) <= 4)) return ''
+  // ⚠️ **여기 「제목에 우리 세트 영문 이름이 있으면 우리 카드」 검사가 빠져 있다.**
+  //    색인이 세트 이름을 한글로만 들고 있어 영문 제목과 못 견준다. 그래서 이 목록에는
+  //    「파는 사람이 연도를 잘못 적은 것」이 섞여 들어온다(2026-08-16 실측으로 배치당
+  //    0~11건). 지우는 목록이 아니라 **사람이 읽을 후보**라 그대로 둔다 — 읽으면 바로
+  //    갈린다(「2021 Southern Islands Wartortle #15/18」은 우리 카드가 맞다).
+  return `연도 ${해들.join(',')} ↔ 우리 세트 ${해}`
+}
+
+// ── 낙찰가 점검용 목록 ────────────────────────────────────────────────────
+  // 저쪽(PPT)이 낙찰가를 틀리게 주는 걸 이베이 원문과 맞대 보려면, **이베이 페이지에서
+  // 돌아가는 스크립트가** 확인할 매물 목록을 받아 가야 한다(서버가 이베이를 직접 부르면
+  // 403이다 — 위 「값 고침표」 절 참고).
+  //
+  // ⚠️ 그래서 이 자리만 **다른 출처에서 부를 수 있게**(CORS) 열어 둔다. 열쇠(`CHECK_TOKEN`)가
+  //    맞을 때만 답한다 — 없으면 아예 꺼져 있는 것과 같다.
+  // ⚠️ 내주는 것은 **매물번호·우리가 아는 값·카드번호·등급칸**뿐이다. 개인정보가 아니고
+  //    이미 `/api/local/card-board`로 누구나 볼 수 있는 값이다.
+  app.use('/api/local/check-queue', async (req, res) => {
+    const 열쇠 = process.env.CHECK_TOKEN
+    const q = new URL(req.url ?? '', 'http://x').searchParams
+    res.setHeader('access-control-allow-origin', '*')
+    if (req.method === 'OPTIONS') {
+      res.setHeader('access-control-allow-headers', '*')
+      res.statusCode = 204
+      res.end()
+      return
+    }
+    // ⚠️⚠️ **우리 사이트 화면에서 부를 때는 열쇠가 필요 없다.**
+    //    열쇠는 이 자리를 **다른 출처에도 열어 둔 것**(CORS) 때문에 두는 문지기다.
+    //    그런데 이베이 탭은 우리 서버를 못 부르므로(이베이 CSP), 실제로 부르는 것은
+    //    **pokegre.com에 띄운 「다리」 탭**이다 — 즉 우리 출처다. 그 탭에 열쇠를 넣으려면
+    //    스크립트에 비밀을 적어 넣어야 하는데, 그건 하면 안 되는 짓이다(도구도 막는다).
+    //    → 브라우저가 붙여 주는 `sec-fetch-site: same-origin`을 본다. 이 값은 **브라우저가
+    //      직접 넣고 스크립트가 못 바꾸는 값**이라, 남의 사이트가 흉내 낼 수 없다.
+    //    ⚠️ 서버 밖(curl·스크립트)에서 부를 때는 그 헤더가 없으므로 **여전히 열쇠가 필요하다.**
+    const 우리화면 = String(req.headers['sec-fetch-site'] ?? '') === 'same-origin'
+    if (!우리화면 && (!열쇠 || q.get('token') !== 열쇠)) {
+      res.statusCode = 404
+      res.end('not found')
+      return
+    }
+    // ── 확인 결과 받기 ──────────────────────────────────────────────────
+    // 한 줄 = [매물번호, 상태, 이베이값, 우리값, 카드번호, 등급칸, 제목]
+    //  · 「팔림」이고 값이 우리 것과 다르면 → 고침표에 넣고 쌓아 둔 기록도 바로 고친다
+    //  · 그 밖(지워짐·미상·오류·값 같음)은 → 확인 끝 목록에만 넣는다(다시 안 본다)
+    // ⚠️ 「미상」은 안 고친다 — 안 팔리고 끝난 매물도 값이 보이는데 그건 호가다.
+    //
+    // ⚠️⚠️ **제목도 여기서 같이 본다**(2026-08-16에 고침). 처음엔 값만 쓰고 제목을 버려서
+    //    **같은 매물을 두 번 훑었다** — 값 점검으로 한 번, 「딴 카드 섞임」 점검으로 또 한 번.
+    //    사장님 지적: "어차피 가격 확인해보면서 까볼텐데 왜 그때 같이 검증 안하고".
+    //    이제 한 번 열 때 값과 「이 카드 것이 맞나」를 같이 판정한다.
+    if (req.method === 'POST') {
+      try {
+        // 한 번에 500줄쯤 보내므로 넉넉히 잡는다(기본 상한은 글쓰기용이라 작다).
+        const 몸 = await readBody(req, 4 * 1024 * 1024)
+        const rows = (JSON.parse(몸) as { rows?: unknown[] }).rows ?? []
+        const 표 = JSON.parse(await readFile(PRICE_FIX_FILE, 'utf-8').catch(() => '{}')) as Record<string, 값고침>
+        const 확인끝 = new Set<string>(
+          JSON.parse(await readFile(dataFile('price-checked.json'), 'utf-8').catch(() => '[]')),
+        )
+        const 고칠카드: Record<string, { itm: string; p: number; was: number; g: string }[]> = {}
+        let 고침 = 0
+        // 「이 카드 것이 아닌 것 같다」고 걸린 줄. 사람이 읽고 정하도록 따로 모아 둔다.
+        const 의심 = JSON.parse(
+          await readFile(dataFile('mix-candidates.json'), 'utf-8').catch(() => '[]'),
+        ) as { itm: string; card: string; g: string; p: number; t: string; why: string }[]
+        const 의심본것 = new Set(의심.map((x) => x.itm))
+        let 새의심 = 0
+        for (const r of rows as [string, string, number | null, number, string, string, string][]) {
+          const [itm, 상태, 값, 우리, card, g, 제목] = r
+          if (!itm) continue
+          if (상태 === '팔림' && Number.isFinite(값) && (값 as number) > 0 && Math.abs((값 as number) - 우리) > 0.011) {
+            표[itm] = { p: 값 as number, was: 우리, at: kstDateStr(), card, g }
+            ;(고칠카드[card] ??= []).push({ itm, p: 값 as number, was: 우리, g })
+            고침++
+          } else 확인끝.add(itm)
+          // ⚠️ 값과 **같은 자리에서** 「이 카드 것이 맞나」도 본다. 여기서 안 보면 같은
+          //    매물을 나중에 또 열어야 한다(그 실수를 이미 한 번 했다).
+          if (제목 && !표[itm]?.drop && !의심본것.has(itm)) {
+            const 왜 = 딴카드의심(제목, card)
+            if (왜) {
+              의심.push({ itm, card, g, p: 우리, t: String(제목).slice(0, 70), why: 왜 })
+              의심본것.add(itm)
+              새의심++
+            }
+          }
+        }
+        if (새의심) await writeJsonFile(dataFile('mix-candidates.json'), 의심)
+        // 쌓아 둔 기록도 그 자리에서 고친다(그래프 점은 그날 한 건뿐일 때만).
+        for (const [id, 목록] of Object.entries(고칠카드)) {
+          const p = 기록길(id)
+          let j: 카드기록
+          try { j = JSON.parse(await readFile(p, 'utf-8')) } catch { continue }
+          for (const v of 목록) {
+            for (const [칸, s] of Object.entries(j.s ?? {})) {
+              for (const x of s) {
+                if (!(x.u ?? '').includes('/itm/' + v.itm)) continue
+                const 옛 = x.p
+                x.p = v.p
+                const 점 = j.h?.[칸]?.[x.d]
+                if (점 != null && Math.abs(점 - 옛) < 0.011) j.h![칸][x.d] = v.p
+              }
+            }
+          }
+          await writeJsonFile(p, j)
+        }
+        await writeJsonFile(PRICE_FIX_FILE, 표)
+        await writeJsonFile(dataFile('price-checked.json'), [...확인끝])
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ 받음: rows.length, 고침, 고침표: Object.keys(표).length, 확인끝: 확인끝.size }))
+      } catch (e) {
+        res.statusCode = 500
+        res.end(String(e))
+      }
+      return
+    }
+    const n = Math.min(20_000, Math.max(1, Number(q.get('n') ?? 5000) || 5000))
+    const 건너 = Math.max(0, Number(q.get('skip') ?? 0) || 0)
+    // ── 급한 것부터 보기 ──────────────────────────────────────────────────
+    //
+    // ⚠️⚠️ **거르는 게 아니라 순서다. 마지막 칸(`전부`)에 아무 조건이 없으므로 결국 다 본다**
+    //    (사장님 확인 2026-08-16: "15달러 먼저 보더라도 마지막에는 결국 다른것들도 다 봐야해").
+    //    순서를 바꿔도 안 꼬인다 — 진행은 「어디까지 갔나」가 아니라 **「무엇을 봤나」**
+    //    (`price-checked.json`의 매물번호)로 적히고, 큐는 부를 때마다 그걸 빼고 처음부터
+    //    다시 만든다. 커서가 없다(같은 요청을 두 번 하면 글자까지 같은 답이 온다).
+    //    ⚠️ 단 `skip`은 순서에 기대므로 **급함을 바꿔 쓸 때 같이 쓰면 안 된다.**
+    //
+    // 왜 이 차례인가(2026-08-16 실측):
+    //   · **$15**: 틀린 값의 90%가 정확히 $15였고, $15 낱개 50건을 까 보니 24건이 틀렸다.
+    //     남은 3,272건 중 절반쯤이 틀렸다는 뜻이라, 전체 평균(0.35%)보다 **140배** 효율이다.
+    //   · **헐값인데 상위 등급**: 등급 받은 카드가 $20 밑은 드물다. 22,934건.
+    //   · 그 뒤로 헐값 전부 → 상위 등급 전부 → 나머지 전부.
+    // ⚠️ 주소의 파라미터 **이름은 아스키여야 한다.** 「급함」으로 뒀더니 노드가 요청을
+    //    아예 안 받고 **400**을 냈다(주소 줄에 날것 한글이 들어가서다). 이름만 `pri`다.
+    const 급함 = (q.get('pri') ?? '').trim()
+    const 상위등급 = new Set(['psa10','psa9','psa9_5','cgc10','cgc9_5','cgc9','bgs10','bgs9_5','bgs9','ace10','tag10','sgc10','sgc9_5'])
+    const 급한가 = (p: number, 칸: string): boolean => {
+      switch (급함) {
+        case 'p15': return p === 15
+        case '헐값상위': return p > 0 && p < 20 && 상위등급.has(칸)
+        case '헐값': return p > 0 && p < 20
+        case '상위': return 상위등급.has(칸)
+        default: return true // 「전부」 — 조건 없음
+      }
+    }
+    try {
+      const 확인끝 = new Set<string>(JSON.parse(await readFile(dataFile('price-checked.json'), 'utf-8')))
+      const 표 = JSON.parse(await readFile(PRICE_FIX_FILE, 'utf-8')) as Record<string, unknown>
+      const 본 = new Set<string>()
+      const 목록: [string, number, string, string][] = []
+      let 지나침 = 0
+      for (const f of await readdir(CARD_HISTORY_DIR)) {
+        if (목록.length >= n) break
+        let j: 카드기록
+        try { j = JSON.parse(await readFile(path.join(CARD_HISTORY_DIR, f), 'utf-8')) } catch { continue }
+        const id = f.replace('.json', '')
+        for (const [칸, s] of Object.entries(j.s ?? {})) {
+          for (const x of s) {
+            const m = /itm\/(\d+)/.exec(x.u ?? '')
+            if (!m) continue
+            const itm = m[1]
+            if (확인끝.has(itm) || 표[itm] || 본.has(itm)) continue
+            본.add(itm)
+            if (!급한가(Number(x.p) || 0, 칸)) continue
+            if (지나침++ < 건너) continue
+            목록.push([itm, x.p, id, 칸])
+            if (목록.length >= n) break
+          }
+          if (목록.length >= n) break
+        }
+      }
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ rows: 목록 }))
+    } catch (e) {
+      res.statusCode = 500
+      res.end(String(e))
+    }
+  })
+
+  app.use('/api/local/card-board', async (req, res) => {
+    const q = new URL(req.url ?? '', 'http://x').searchParams
+    // 카드를 눌렀을 때 그 한 장을 받아 가는 자리. 목록은 대표 등급 하나만 싣는다.
+    //
+    // ⚠️ 여기서 **추이와 낱개 낙찰까지** 채운다. 덤프에는 요약만 있어 그 둘이 없다
+    //    (사장님 지적 2026-08-12: "그래프는 왜 없냐?" / "세부 낙찰기록은 없네?").
+    //    쌓아 둔 게 싱싱하면 크레딧 0, 이레가 지났으면 3크레딧으로 다시 받아 **이어 붙인다.**
+    const 등급만 = (q.get('grades') ?? '').trim()
+    if (등급만) {
+      const 판말 = q.get('lang') === 'english' ? 'english' : 'japanese'
+      // ⚠️ **비교 담기는 등급표만 쓴다 — 추이·낱개를 받으면 안 된다.**
+      //    등급표는 받아 둔 덤프(`ebayGradeCache`)에 있어 크레딧이 0인데, 추이·낱개는
+      //    저쪽에 물어야 나와 **처음 보는 카드면 3크레딧**이다. 비교는 그 둘을 한 줄도
+      //    안 그리므로, 담을 때마다 크레딧이 나가면 그건 그냥 새는 것이다.
+      //    카드를 열 때는 이 표시가 없으므로 예전 그대로 다 받아 온다.
+      const 기록 = q.get('grades만') === '1' ? null : await 카드기록받기(apiKey, 등급만, 판말)
+      // ⚠️⚠️ **덤프에 없는 등급칸도 낸다.** 등급표는 덤프(`ebayGradeCache`)로 빚는데,
+      //    낱개를 **제목이 말하는 칸으로 옮기면**(`제목등급칸`) 덤프에 없는 칸이 생긴다 —
+      //    AGS·GMA·Z gold 같은 작은 감정 회사는 저쪽이 PSA·CGC 칸에 담아 보내기 때문이다.
+      //    그대로 두면 옮긴 낱개가 **화면에서 통째로 사라진다**(2026-08-16 실측: 197816의
+      //    AGS 9.5 낙찰 2건이 파일에는 있는데 등급표 13칸 어디에도 안 나왔다).
+      //    저쪽 값이 없는 칸이므로 **우리가 가진 낙찰로만** 건수·중앙값을 낸다.
+      const 덤프칸 = ebayGradeCache.get(등급만) ?? {}
+      const 우리만 = Object.keys(기록?.s ?? {}).filter((칸) => !(칸 in 덤프칸) && (기록!.s![칸]?.length ?? 0) > 0)
+      const 우리만줄 = 우리만.map((칸) => {
+        const 값들 = 기록!.s![칸].map((s) => s.p).filter((v) => v > 0).sort((a, b) => a - b)
+        const 중앙 = 값들.length
+          ? 값들.length % 2
+            ? 값들[(값들.length - 1) / 2]
+            : 값다듬((값들[값들.length / 2 - 1] + 값들[값들.length / 2]) / 2)
+          : 0
+        return {
+          grade: 칸,
+          count: 기록!.s![칸].length,
+          averagePrice: 값들.length ? 값다듬(값들.reduce((a, b) => a + b, 0) / 값들.length) : 0,
+          medianPrice: 중앙,
+          minPrice: 0,
+          maxPrice: 0,
+          marketTrend: null,
+          lastSaleDate: null,
+          smartPrice: null,
+          confidence: null,
+          history: [],
+          sales: [],
+        }
+      })
+      const grades = [...등급빚기(덤프칸), ...우리만줄]
+        .sort((a, b) => b.count - a.count)
+        .map((g) => ({
+        ...g,
+        // ⚠️ 우리가 다시 센 칸이면 **그 값을 쓴다**(저쪽이 등급을 잘못 담았던 칸).
+        //    `smartPrice`를 null로 두면 화면이 중앙값을 쓴다 — 그게 우리가 센 값이다.
+        ...(기록?.gx?.[g.grade]
+          ? {
+              count: 기록.gx[g.grade].n,
+              averagePrice: 기록.gx[g.grade].avg,
+              medianPrice: 기록.gx[g.grade].med,
+              smartPrice: null,
+              confidence: null,
+            }
+          : {}),
+        history: Object.entries(기록?.h?.[g.grade] ?? {})
+          .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+          .map(([date, price]) => ({ date, price })),
+        sales: (기록?.s?.[g.grade] ?? []).map((s) => ({
+          price: s.p,
+          date: s.d,
+          url: s.u ?? '',
+          auction: !!s.a,
+          ...(s.t ? { title: s.t } : {}),
+        })),
+      }))
+      sendJson(res, 200, {
+        grades,
+        // 감정 수량. 덤프에 있으면 그것, 없으면 카드를 열 때 받아 쌓아 둔 것.
+        // ⚠️ 이걸 같이 주므로 화면은 `card-extra`를 따로 부르지 않는다(옛 길에 남은 자리다).
+        population: populationCache.get(등급만) ?? 기록?.pop ?? null,
+        // TCGplayer 추이. `historyCondition`은 **어느 상태의 추이인지** — 큰 숫자와 다르면
+        // 화면이 제목에 밝힌다(옛 길이 하던 그대로).
+        tcgHistory: 기록?.tcg
+          ? {
+              condition: 기록.tcg.c,
+              history: Object.entries(기록.tcg.h)
+                .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+                .map(([date, price]) => ({ date, price })),
+            }
+          : null,
+      })
+      return
+    }
+    // 공유 링크로 들어왔을 때 「이 번호가 어느 카드인가」를 묻는 자리. **크레딧 0.**
+    // ⚠️ 갈라 담은 열쇠(「617410~4-9」)가 올 수 있으니 앞 숫자만 쓴다.
+    const 번호로 = (q.get('id') ?? '').trim().split('~')[0]
+    if (번호로) {
+      const idx0 = await loadCardIndex()
+      const 것 = idx0 ? 저쪽번호표(idx0).get(번호로) : undefined
+      sendJson(
+        res,
+        200,
+        것
+          ? {
+              card: {
+                slug: 것.slug,
+                no: 도감번호(것.n) ?? '',
+                name: 것.name,
+                edition: 것.ed === 'en' ? 'english' : 'japanese',
+                setName: idx0!.sets[것.slug]?.[0] ?? '',
+              },
+            }
+          : { card: null },
+      )
+      return
+    }
+    // 레어도 코드(SAR·SR…)는 대문자라, **소문자로 만들기 전 말**도 들고 있어야 뗄 수 있다.
+    const 원래말 = (q.get('q') ?? '').trim()
+    const 말 = 원래말.toLowerCase()
+    const 판 = q.get('lang') === 'english' ? 'en' : 'ja'
+    // ⚠️ 도감·세트·작가에서 카드 한 장을 눌러 온 경우 그 카드가 **맨 앞**에 서야 한다.
+    //    옛 길은 그 카드를 아예 콕 집어 열어 줬다 — 새 길이 그걸 잃으면 후퇴다
+    //    (CLAUDE.md 「새 길을 만들면 옛 길이 하던 것을 빠짐없이 옮겨라」).
+    //    여기서는 한 장만 주는 게 아니라 **맨 앞에 세우고 형제 카드도 같이** 보여 준다.
+    const 콕slug = (q.get('slug') ?? '').trim()
+    const 콕번호 = (q.get('no') ?? '').trim()
+    res.setHeader('content-type', 'application/json')
+    if (말.length < 1) {
+      sendJson(res, 200, { cards: [], hasMore: false, total: 0 })
+      return
+    }
+    const idx = await loadCardIndex()
+    if (!idx) {
+      sendJson(res, 200, { cards: [], hasMore: false, total: 0 })
+      return
+    }
+
+    // ── 카드 고르기 ──────────────────────────────────────────────────────────
+    // 우리 도감에서만 찾는다. 저쪽에 묻지 않으므로 크레딧이 0이고, 딴 카드가 섞일
+    // 자리도 없다(옛 길은 저쪽 search가 세트 이름까지 뒤져 엉뚱한 게 올라왔다).
+    //
+    // ⚠️ **한글 이름과 원래 이름을 둘 다 본다.** 색인에 한글만 있으면 「charizard」를
+    //    쳤을 때 한 장도 안 나온다 — 옛 길은 번역기를 태워 영문으로 물었으므로 됐다.
+    //    새 길이 그걸 잃으면 후퇴다(CLAUDE.md 「새 길을 만들면 옛 길이 하던 것을 빠짐없이」).
+    // ⚠️⚠️ **꼬리표 말고 카드 이름으로 찾는다.**
+    //    이름 뒤에는 번호와 꼬리표가 붙는다 — 「부스터 - SM186 (#44 리자몽 스탬프)」.
+    //    통째로 견주면 **리자몽 스탬프가 찍힌 부스터·기본 불꽃 에너지까지** 리자몽 검색에
+    //    딸려 온다. 실측(2026-08-12 · 영문판 「리자몽」): 224장 중 **58장이 리자몽 카드가
+    //    아니었다**(기본 불꽃 에너지 18 · 파이리 4 · 슈퍼볼 4 · 하우 4 …).
+    //    사장님이 「저게 전체 매물이 맞아?」로 물으셨을 때 세다가 찾았다.
+    // ⚠️ 꼬리표를 뗄 때 **`\s+-\s+`로 견준다.** 「Ho-Oh」처럼 이름 안에 붙임표가 있는 카드가
+    //    있어서, 사이 공백을 안 보면 이름이 잘린다(CLAUDE.md에 같은 함정이 적혀 있다).
+    const 머리이름 = (s: string) => {
+      let cur = s
+      for (;;) {
+        const 뗀것 = cur.replace(/\s*[([][^)\]]*[)\]]\s*$/, '').trim()
+        if (뗀것 === cur) break
+        cur = 뗀것
+      }
+      return cur.replace(/\s+-\s+.*$/, '').trim()
+    }
+    // 번호를 견주는 잣대. 앞의 0은 떼고 본다 — 도감은 「025」, 색인은 「25」로 적힌 자리가 있다.
+    // ⚠️ 쪼개기와 「눌러 온 카드 맨 앞」이 **같은 잣대**를 써야 한다. 따로 두면 한쪽만 고쳐서 어긋난다.
+    const 번호열쇠 = (s: string) => String(s ?? '').trim().replace(/^0+(?=\d)/, '').toUpperCase()
+    type 고른카드 = { slug: string; n: string; name: string; en: string; img: string; tcg: string; rare: string; 일반판그림: boolean; 인쇄번호: string }
+    const 고른것: 고른카드[] = []
+    // 꼬리표에만 걸린 것. 이름으로 한 장도 못 찾았을 때만 쓴다 — 「스탬프」·「델타종」처럼
+    // 꼬리표를 일부러 찾는 사람도 있어서, 아예 버리면 그 검색이 빈손이 된다.
+    const 꼬리표만: 고른카드[] = []
+
+    // ── ① 별명으로 먼저 찾는다 ────────────────────────────────────────────────
+    // 「생일 피카츄」·「맥도날드」처럼 **카드 이름에 없는 말**로 부르는 것들이다.
+    // 스니커덩크는 매물 제목에 별명을 같이 담아 찾히는데 우리는 카드 이름만 들고 있어
+    // 0건이 났다(사장님 지적 2026-08-16). 자세한 근거는 src/lib/searchAliases.ts에 있다.
+    // ⚠️ 화면 이름은 안 건드린다 — **찾는 길만 하나 더 내는 것**이다.
+    {
+      const 줄 = 별명찾기(원래말)
+      if (줄) {
+        const 카드열쇠 = new Set((줄.카드 ?? []).map(([s, n]) => s + '|' + 번호열쇠(n)))
+        const 세트집합 = new Set(줄.세트 ?? [])
+        for (const r of idx.rows) {
+          const [slug, n, name, img, , , , tcg, en, rare, 일반판그림, 인쇄번호] = r as unknown as string[]
+          const set = idx.sets[slug]
+          if (!set || set[1] !== 판) continue
+          if (!세트집합.has(slug) && !카드열쇠.has(slug + '|' + 번호열쇠(n))) continue
+          고른것.push({ slug, n, name, en: en || name, img: img ?? '', tcg: tcg ?? '', rare: rare ?? '', 일반판그림: 일반판그림 === '1', 인쇄번호: 인쇄번호 ?? '' })
+        }
+      }
+    }
+
+    if (!고른것.length) for (const r of idx.rows) {
+      const [slug, n, name, img, , , , tcg, en, rare, 일반판그림, 인쇄번호] = r as unknown as string[]
+      const set = idx.sets[slug]
+      if (!set || set[1] !== 판) continue
+      const 통째 = name.toLowerCase().includes(말) || (en ?? '').toLowerCase().includes(말)
+      if (!통째) continue
+      const 카드 = { slug, n, name, en: en || name, img: img ?? '', tcg: tcg ?? '', rare: rare ?? '', 일반판그림: 일반판그림 === '1', 인쇄번호: 인쇄번호 ?? '' }
+      const 이름으로 =
+        머리이름(name).toLowerCase().includes(말) || 머리이름(en ?? '').toLowerCase().includes(말)
+      if (이름으로) 고른것.push(카드)
+      else 꼬리표만.push(카드)
+    }
+    if (!고른것.length) 고른것.push(...꼬리표만)
+
+    // ── 그래도 0건이면 **말을 쪼개서** 다시 찾는다 ────────────────────────────
+    //
+    // 스니커덩크에서 치던 말이 그대로 통해야 한다(사장님 2026-08-12: "스니덩크에서
+    // 검색하던걸 그대로 이베이 티피에도 되나해서"). 이런 꼴이 지금은 0건이었다:
+    //     「M2 110」(세트코드+번호) · 「리자몽 110」 · 「저지맨 SR」 · 「Pikachu XY95」
+    //     사진으로 찾기가 만드는 「M4 086/083」도 같다.
+    //
+    // ⚠️⚠️ **0건일 때만 쪼갠다.** 이 한 줄이 「기존 검색이 안 깨진다」를 보장한다 —
+    //    지금 결과가 나오는 검색은 여기까지 아예 안 온다. 안 그러면 이름에 숫자·코드가
+    //    든 카드가 깨진다(실측: 이름에 숫자 든 것 149가지 「폴리곤2」·「포켓기어3.0」 ·
+    //    세트코드가 이름에 든 것 「동탁군 E4」 24개 · 「조로아크 BW」 · 「SP 에너지」).
+    // ⚠️ 새 길이 옛 길보다 잘하는 자리다 — 옛 길은 저쪽 세트 대응표가 있어야 세트를
+    //    좁혔는데 **31%가 대응표에 없었다.** 여기는 우리 도감이라 전부 좁혀진다.
+    if (!고른것.length) {
+      // ① 스니커덩크에서만 통하는 말을 뗀다(":1ED" 등). ② 뒤에 붙은 레어도를 뗀다.
+      const { 이름: 전용뗀 } = 마켓전용말떼기(원래말)
+      const { 이름: 레어도뗀, 코드: 레어도 } = 레어도떼기(전용뗀)
+      // ③ 남은 것을 토막 내어 「세트코드 / 번호 / 이름」으로 가른다.
+      const 코드표2 = 세트코드표(idx)
+      const 세트들: string[] = []
+      const 번호들: string[] = []
+      const 이름조각: string[] = []
+      for (const 토막 of 레어도뗀.split(/\s+/).filter(Boolean)) {
+        const 소문자 = 토막.toLowerCase()
+        const 세트 = 코드표2.get(소문자) ?? 코드표2.get(소문자.replace(/[-.]/g, ''))
+        // 세트코드는 그 판에 있는 것만 인정한다(영문판을 보는데 ja- 세트를 잡으면 0건이 된다).
+        const 이판세트 = (세트 ?? []).filter((s) => idx.sets[s]?.[1] === 판)
+        if (이판세트.length) {
+          세트들.push(...이판세트)
+          continue
+        }
+        // ⚠️⚠️ **「No.」·「#」 머리는 떼고 본다.** 옛 일본 세트를 파는 사람과 사진으로 찾기가
+        //    「PMCG4 No.004」 꼴로 적는데, 이 머리 때문에 번호로 안 잡혀 **0건**이 났다
+        //    (사장님 지적 2026-08-16: "이미 있어서 보여줄수있는 매물인데 매칭이 안되서").
+        //    같은 카드를 「PMCG4 004」로 치면 잘 나온다 — 머리 세 글자 차이였다.
+        //    ⚠️ 숫자가 뒤따를 때만 뗀다. 「N」(트레이너 카드 이름)을 건드리면 안 된다.
+        const 머리뗀 = 토막.replace(/^(?:no\.?|#|번호)\s*(?=\d)/i, '')
+        // 「No.」가 홀로 한 낱말인 경우(「PMCG4 No. 004」)는 버린다 — 이름이 아니다.
+        if (/^(?:no\.?|#|번호)$/i.test(토막)) continue
+        // 번호꼴: 숫자로 시작(110 · 086/083)하거나 프로모 꼴(XY95 · SM169 · SWSH050)
+        // ⚠️ **빗금 뒤(분모)는 뗀다.** 스니커덩크와 사진으로 찾기가 「086/083」 꼴로 만드는데,
+        //    색인의 번호는 「86」이라 안 떼면 영영 안 맞는다(색인에 빗금 든 번호는 0개다).
+        if (/^\d/.test(머리뗀) || /^[A-Za-z]{2,5}\d{1,4}$/.test(머리뗀)) {
+          번호들.push(번호열쇠(도감번호(머리뗀.split('/')[0]) ?? 머리뗀))
+          continue
+        }
+        이름조각.push(토막)
+      }
+      // 갈라낸 게 하나도 없어도, **군더더기를 뗀 이름으로 한 번 더** 찾아본다.
+      // 스니커덩크는 「리자몽 :1ED」처럼 저기서만 통하는 말을 붙인다 — 떼면 그냥 이름이다.
+      if (!세트들.length && !번호들.length && !레어도 && 레어도뗀 && 레어도뗀 !== 원래말) {
+        const 뗀말 = 레어도뗀.toLowerCase()
+        for (const r of idx.rows) {
+          const [slug, n, name, img, , , , tcg, en, rare, 일반판그림, 인쇄번호] = r as unknown as string[]
+          const set = idx.sets[slug]
+          if (!set || set[1] !== 판) continue
+          if (!머리이름(name).toLowerCase().includes(뗀말) && !머리이름(en ?? '').toLowerCase().includes(뗀말)) continue
+          고른것.push({ slug, n, name, en: en || name, img: img ?? '', tcg: tcg ?? '', rare: rare ?? '', 일반판그림: 일반판그림 === '1', 인쇄번호: 인쇄번호 ?? '' })
+        }
+      }
+      // 아무것도 못 갈랐으면 그냥 둔다(쪼개기가 할 수 있는 게 없다).
+      if (세트들.length || 번호들.length || 레어도) {
+        const 이름말 = 이름조각.join(' ').toLowerCase()
+        const 세트집합 = new Set(세트들)
+        // ⚠️⚠️ **레어도로 걸러 0건이면 레어도를 빼고 한 번 더 본다.**
+        //    사람이 치는 레어도와 우리 자료가 어긋나는 일이 잦다 — 「캡틴피카츄 AR」이
+        //    **0건 1등(23회)**이었는데, 그 카드는 도감에 멀쩡히 있고 레어도만 `Promo`다
+        //    (장터에서는 AR이라 부른다). 빈손을 내주느니 **그 포켓몬을 보여 주는 것**이 낫다.
+        //    ⚠️ 레어도를 **먼저** 지키고, 그걸로 아무것도 없을 때만 푼다 — 순서를 뒤집으면
+        //       「리자몽 SAR」이 리자몽 전부를 쏟아내어 지금 잘 되는 검색이 깨진다.
+        for (const 레어도쓸까 of [true, false]) {
+          if (고른것.length) break
+          if (!레어도쓸까 && !레어도) break // 레어도가 없었으면 두 번 돌 이유가 없다
+          for (const r of idx.rows) {
+            const [slug, n, name, img, , , , tcg, en, rare, 일반판그림, 인쇄번호] = r as unknown as string[]
+            const set = idx.sets[slug]
+            if (!set || set[1] !== 판) continue
+            if (세트집합.size && !세트집합.has(slug)) continue
+            // ⚠️⚠️ **카드에 찍힌 번호로도 찾는다.** 옛 일본 세트는 우리 `n`(정렬 순번)과
+          //    실물 번호(포켓몬 도감번호)가 다르다 — 파이리가 우리는 012, 카드엔 No.004다.
+          //    사람이 손에 든 카드를 보고 치는 번호는 **찍힌 쪽**이라 그것도 맞춰야 한다.
+          // ⚠️⚠️ **찍힌 번호가 있으면 그것만 본다.** 우리 `n`(정렬 순번)까지 같이 보면
+          //    「PMCG4 No.004」에 파이리(찍힌 004)와 **질퍽이(우리 순번 004)가 같이** 나온다
+          //    — 사장님 지적 2026-08-17. 찍힌 번호가 그 카드의 진짜 번호이고 `n`은 우리 사정이다.
+          const 볼번호 = 인쇄번호 ? 번호열쇠(인쇄번호) : 번호열쇠(도감번호(n) ?? '')
+          if (번호들.length && !번호들.includes(볼번호)) continue
+            if (레어도쓸까 && 레어도 && !레어도맞나(레어도, rare ?? '')) continue
+            if (이름말 && !머리이름(name).toLowerCase().includes(이름말) && !머리이름(en ?? '').toLowerCase().includes(이름말))
+              continue
+            고른것.push({ slug, n, name, en: en || name, img: img ?? '', tcg: tcg ?? '', rare: rare ?? '', 일반판그림: 일반판그림 === '1', 인쇄번호: 인쇄번호 ?? '' })
+          }
+        }
+      }
+    }
+
+    // ── ②′ 그래도 0건이면 **세트 이름으로** 찾는다 ────────────────────────────
+    //
+    // 실제 검색 기록에서 0건이던 것의 제일 큰 덩어리가 세트 이름이었다(2026-08-16):
+    //     「어비스아이」6회 · 「닌자스피너」5회 · 「붉은 섬광」5회 · 「배틀파트너즈」7회 …
+    // ⚠️ **자동완성으로 고르면 세트 화면으로 잘 간다** — 손으로 친 사람만 빈손이었다.
+    //    그 사람에게 「없다」고 보이는 것이 제일 나쁘다(사장님 지적).
+    //
+    // 맞춰 보는 꼴 넷. 사람들이 실제로 친 말을 그대로 본떴다:
+    //   ① 색인의 한글 세트명 그대로            「M5 어비스 아이」
+    //   ② 앞의 세트코드를 뗀 것                「어비스 아이」  ← 「어비스아이」가 여기 걸린다
+    //   ③ 콜론 뒤 토막                        「스칼렛&바이올렛 : 배틀파트너즈」
+    //   ④ 영문 세트명                         「Paradigm Trigger」·「crown zenith」
+    // ⚠️ **띄어쓰기·기호를 없애고 견준다.** 사람들이 「어비스아이」·「니힐제로」처럼 붙여 친다.
+    // ⚠️ **세 글자 이상일 때만** 품기(부분 일치)를 허용한다. 짧은 말로 품기를 하면
+    //    엉뚱한 세트가 통째로 딸려 온다. 여기는 0건일 때만 오므로 지금 되는 검색은 안 깨진다.
+    // ⚠️⚠️ **딱 맞는 것과 품는 것을 갈라 둔다.**
+    //    ① **이름이 딱 맞으면** 다른 결과가 있어도 세트를 낸다. 「정글」·「Silver tempest」는
+    //       우연히 이름에 그 말이 든 카드가 **한 장** 걸려서, 「0건일 때만」으로 두면
+    //       그 한 장 때문에 세트 230장을 영영 못 본다(실측으로 잡았다).
+    //    ② **품기(부분 일치)는 0건일 때만.** 「맥도날드」가 「맥도날드 프로모 2011」에 걸리는
+    //       자리라, 아무 때나 켜면 엉뚱한 세트가 통째로 딸려 온다.
+    {
+      const 납작 = (s: string) => s.toLowerCase().replace(/[\s:·&\-_.,'’()[\]]+/g, '')
+      const 코드뗌 = (s: string) => s.replace(/^[A-Za-z0-9.:\-]{1,9}\s+/, '')
+      const 친말 = 납작(원래말)
+      const 콜론뒤 = 원래말.includes(':') ? 납작(원래말.slice(원래말.lastIndexOf(':') + 1)) : ''
+      const 딱맞음 = new Set<string>()
+      const 품음 = new Set<string>()
+      // ⚠️ 한 글자는 세트 찾기에서 뺀다 — 「N」이 세트 이름에 걸린다.
+      //    ⚠️ **딱 맞기는 두 글자부터** 본다. 한글 세트 이름은 짧다 — 「정글」이 두 글자라
+      //       세 글자로 막았더니 통째로 안 걸렸다(실측으로 잡았다).
+      const 딱볼말 = [친말, 콜론뒤].filter((x) => x.length >= 2)
+      const 품을말 = [친말, 콜론뒤].filter((x) => x.length >= 3)
+      if (딱볼말.length) {
+        for (const [slug, s] of Object.entries(idx.sets)) {
+          if (s[1] !== 판) continue
+          const 후보 = [s[0], 코드뗌(s[0]), s[3] ?? '', 코드뗌(s[3] ?? '')].filter(Boolean).map(납작)
+          // ⚠️⚠️ **딱 맞기를 먼저 전부 본 뒤에 품기를 본다.** 예전엔 한 덩이로 돌면서
+          //    품기에 걸리면 `break` 했는데, 그러면 뒤에 있는 **진짜 딱 맞는 후보**를
+          //    영영 못 본다 — 「Silver tempest」가 `swsh12silvertempest`(품음)에 먼저
+          //    걸려 멈추는 바람에 `silvertempest`(딱맞음)에 도달하지 못했다.
+          if (후보.some((c) => 딱볼말.includes(c))) { 딱맞음.add(slug); continue }
+          if (품을말.length && 후보.some((c) => 품을말.some((w) => c.includes(w)))) 품음.add(slug)
+        }
+      }
+      // ⚠️⚠️ **이름으로 이미 여러 장 찾았으면 세트를 얹지 않는다.**
+      //    「아르세우스」·「델타종」은 포켓몬 이름이면서 **세트 이름이기도** 하다. 문턱 없이
+      //    얹었더니 영문판 「아르세우스」가 41장 → 142장이 됐는데, 늘어난 99장이 그 세트의
+      //    **아르세우스가 아닌 카드**였다(실측 2026-08-16). 숫자는 늘었어도 나빠진 것이다.
+      //    우리가 고치려던 것은 **엉뚱한 카드 한두 장이 세트를 가로막는 것**이다
+      //    (「정글」 1장 · 「Silver tempest」 1장). 그래서 두 장 이하일 때만 얹는다.
+      const 세트얹기 = 고른것.length <= 2
+      const 쓸것 = 딱맞음.size && 세트얹기 ? 딱맞음 : 고른것.length ? new Set<string>() : 품음
+      if (쓸것.size) {
+        const 이미 = new Set(고른것.map((c) => c.slug + '|' + c.n))
+        for (const r of idx.rows) {
+          const [slug, n, name, img, , , , tcg, en, rare, 일반판그림, 인쇄번호] = r as unknown as string[]
+          if (!쓸것.has(slug) || 이미.has(slug + '|' + n)) continue
+          고른것.push({ slug, n, name, en: en || name, img: img ?? '', tcg: tcg ?? '', rare: rare ?? '', 일반판그림: 일반판그림 === '1', 인쇄번호: 인쇄번호 ?? '' })
+        }
+      }
+    }
+
+    // ── ② 그래도 0건이면 **붙여 쓴 꼬리를 띄워** 한 번 더 ─────────────────────
+    // 「피카츄v」는 0장인데 「피카츄 v」는 30장이다. 사람들은 한 칸을 잘 안 띄운다 —
+    // 실제 검색 기록에서 이 꼴이 27가지·36회였다(2026-08-16 실측).
+    // ⚠️ **0건일 때만** 한다. 지금 결과가 나오는 검색은 여기까지 아예 안 온다
+    //    (「폴리곤2」·「포켓기어3.0」처럼 이름에 글자가 붙은 카드를 깨뜨리지 않으려는 것이다).
+    // ⚠️ 꼬리는 두 갈래다.
+    //    ① **카드 표기**(ex·V·GX·VMAX·VSTAR) — 「피카츄v」
+    //    ② **한글 레어도 낱말**(프로모·찬란…) — 「체육관프로모」
+    //       ⚠️ ②는 **띄우기만 하고 다시 돌린다**. 「체육관 프로모」가 되면 위 쪼개기가
+    //          「이름 체육관 + 레어도 Promo」로 알아듣는다(실측: 체육관 트레이너·체육관 배지).
+    //          여기서 이름만 견주면 레어도 조건이 사라져 프로모가 아닌 것까지 딸려 온다.
+    //       ⚠️ 낱말 목록은 **레어도표에서 뽑는다**(src/lib/rarityCode.ts). 표가 원본이라
+    //          거기 한 줄 넣으면 여기도 저절로 따라온다 — 목록을 두 벌 두지 않는다.
+    if (!고른것.length) {
+      const 한글레어도 = [...레어도표.keys()].filter((k) => /[가-힣]/.test(k)).sort((a, b) => b.length - a.length)
+      const 붙은한글 = new RegExp('([가-힣])(' + 한글레어도.join('|') + ')$')
+      const 붙은꼬리 = /(\S)(ex|v|gx|vmax|vstar|vunion)$/i
+      const 말끔 = 원래말.trim()
+      const 한 = 말끔.match(붙은한글)
+      const m = 말끔.match(붙은꼬리)
+      if (한) {
+        // 한글 레어도는 띄운 뒤 **쪼개기를 다시 태운다**(레어도 조건을 살리려는 것이다).
+        const { 이름: 레어도뗀2, 코드: 레어도2 } = 레어도떼기(말끔.replace(붙은한글, '$1 $2'))
+        const 이름말2 = 레어도뗀2.toLowerCase()
+        if (레어도2 && 이름말2) {
+          for (const r of idx.rows) {
+            const [slug, n, name, img, , , , tcg, en, rare, 일반판그림, 인쇄번호] = r as unknown as string[]
+            const set = idx.sets[slug]
+            if (!set || set[1] !== 판) continue
+            if (!레어도맞나(레어도2, rare ?? '')) continue
+            if (!머리이름(name).toLowerCase().includes(이름말2) && !머리이름(en ?? '').toLowerCase().includes(이름말2)) continue
+            고른것.push({ slug, n, name, en: en || name, img: img ?? '', tcg: tcg ?? '', rare: rare ?? '', 일반판그림: 일반판그림 === '1', 인쇄번호: 인쇄번호 ?? '' })
+          }
+        }
+      } else if (m && !/\s/.test(말끔.slice(-m[0].length))) {
+        const 띄운말 = 말끔.replace(붙은꼬리, '$1 $2').toLowerCase()
+        for (const r of idx.rows) {
+          const [slug, n, name, img, , , , tcg, en, rare, 일반판그림, 인쇄번호] = r as unknown as string[]
+          const set = idx.sets[slug]
+          if (!set || set[1] !== 판) continue
+          if (!머리이름(name).toLowerCase().includes(띄운말) && !머리이름(en ?? '').toLowerCase().includes(띄운말)) continue
+          고른것.push({ slug, n, name, en: en || name, img: img ?? '', tcg: tcg ?? '', rare: rare ?? '', 일반판그림: 일반판그림 === '1', 인쇄번호: 인쇄번호 ?? '' })
+        }
+      }
+    }
+
+    // 줄 세우기. 값도 낙찰도 없는 카드가 먼저 나오면 "이 사이트는 값이 없네"로 읽힌다
+    // (옛 길에서 겪은 것과 같은 이유 — 못 알아본 것은 뒤로 민다).
+    //
+    // ⚠️ **값이 있느냐 다음은 「얼마나 거래되느냐」로 세운다.** 값 있는 카드끼리는
+    //    점수가 같아 색인 순서(=세트 파일 이름 순)로 남는데, 그러면 「리자몽」을 쳤을 때
+    //    아무도 안 찾는 덱 부록이 맨 앞에 선다. 낙찰 건수가 곧 "사람들이 실제로 사고파는
+    //    카드"라 이걸 잣대로 쓴다. 낙찰이 없으면 비싼 것 순(둘 다 없으면 색인 순).
+    const 값점수 = (t: string) => (t && 인쇄판시세.has(t) ? 2 : 0) + (t && ebayGradeCache.has(t) ? 1 : 0)
+    const 낙찰수 = (t: string) => {
+      const g = t ? ebayGradeCache.get(t) : undefined
+      let n = 0
+      for (const v of Object.values(g ?? {})) n += v.n
+      return n
+    }
+    const 대표값 = (t: string) => {
+      let m = 0
+      for (const v of Object.values((t ? 인쇄판시세.get(t) : undefined) ?? {})) if (v.m > m) m = v.m
+      return m
+    }
+    // 눌러서 온 그 카드는 무엇보다 앞에 세운다(번호는 `도감번호()`를 거친 것끼리 견준다 —
+    // 색인에는 「110~709224」처럼 꼬리가 붙은 것이 있어 그대로 맞추면 영영 안 맞는다).
+    const 콕인가 = (c: { slug: string; n: string }) =>
+      !!콕slug && c.slug === 콕slug && 번호열쇠(도감번호(c.n) ?? '') === 번호열쇠(콕번호)
+
+    // ⚠️⚠️ **친 말과 이름이 똑같은 카드를 맨 앞에 세운다.**
+    //    무작위 1,500장 왕복 검사에서 딱 한 장을 못 찾았는데, 이름이 **「N」 한 글자**인
+    //    트레이너 카드였다(2026-08-12). 「N」은 12,884장에 걸려 천장(2,000장)을 넘고,
+    //    정작 이름이 「N」인 카드는 그 뒤로 밀려 화면에 아예 안 나왔다.
+    //    **이름이 짧은 카드는 이 규칙이 없으면 영영 못 찾는다** — 더 칠 글자가 없기 때문이다.
+    //    덤으로, 「리자몽」을 치면 메가리자몽보다 리자몽이 먼저 나와 읽기도 자연스럽다.
+    const 이름점수 = (c: { name: string; en: string }) => {
+      const a = 머리이름(c.name).toLowerCase()
+      const b = 머리이름(c.en ?? '').toLowerCase()
+      if (a === 말 || b === 말) return 2 // 이름이 그대로 그 말
+      if (a.startsWith(말) || b.startsWith(말)) return 1 // 그 말로 시작
+      return 0
+    }
+    const 순서 = new Map(
+      고른것.map((c) => [c, [콕인가(c) ? 1 : 0, 이름점수(c), 값점수(c.tcg), 낙찰수(c.tcg), 대표값(c.tcg)] as const]),
+    )
+    고른것.sort((a, b) => {
+      const x = 순서.get(a)!
+      const y = 순서.get(b)!
+      return y[0] - x[0] || y[1] - x[1] || y[2] - x[2] || y[3] - x[3] || y[4] - x[4]
+    })
+
+    const 총 = 고른것.length
+    // 찾은 것을 다 낸다. 천장에 걸릴 때만 자른다(그리고 아래에서 잘렸다고 밝힌다).
+    const 이쪽 = 고른것.slice(0, 낼수있는최대)
+
+    // ── 값 붙이기 ────────────────────────────────────────────────────────────
+    const cards = 이쪽.map((c) => {
+      const set = idx.sets[c.slug]
+      const 인쇄 = c.tcg ? 인쇄판시세.get(c.tcg) : undefined
+      const 등급 = c.tcg ? ebayGradeCache.get(c.tcg) : undefined
+      const 팝 = c.tcg ? populationCache.get(c.tcg) : undefined
+
+      // 인쇄판이 여럿이면 **제일 비싼 것**을 대표로 낸다. 어느 인쇄판인지 같이 적는다 —
+      // 안 적으면 1st Edition을 가진 사람이 Unlimited 값을 보고 있을 수 있다(59%가 2배 넘게 갈린다).
+      let 대표: { printing: string; m: number; l?: number } | null = null
+      for (const [printing, v] of Object.entries(인쇄 ?? {}))
+        if (!대표 || v.m > 대표.m) 대표 = { printing, m: v.m, l: v.l }
+
+      // ⚠️ **목록에는 대표 등급 하나만 싣는다.** 타일이 그것만 보여 주는데 17줄을 다 실으면
+      //    덩치의 83%가 안 쓰는 것이다(한 장 3,669 → 643바이트). 나머지는 카드를 눌렀을 때
+      //    `?grades=`로 받아 간다. 총 낙찰 건수는 **자르기 전에** 세어 둔다 — 자른 뒤에 세면
+      //    타일의 「낙찰 727건」이 대표 등급 건수(511)로 줄어들어 사실과 달라진다.
+      const 등급전부 = 등급빚기(등급)
+      const 총낙찰 = 등급전부.reduce((s, g) => s + g.count, 0)
+      const grades = 등급전부.slice(0, 1)
+
+      return {
+        // ⚠️⚠️ **번호가 없는 카드에도 남과 겹치지 않는 열쇠를 준다.** 화면이 이 값으로
+        //    타일을 구분하고 고른 카드를 기억하는데, 9%(구판·프로모)는 PPT 번호가 없어
+        //    전부 빈 문자열이 된다 — 그러면 그 카드들이 **한 장으로 뭉쳐** 아무거나 눌러도
+        //    같은 것이 열리고, 「더 보기」의 겹침 거르기가 뒤쪽을 통째로 지운다.
+        //    숫자로 시작하지 않게 지어 저쪽 번호와 절대 헷갈리지 않게 한다.
+        tcgPlayerId: c.tcg || `no-tcg.${c.slug}.${c.n}`,
+        name: c.name,
+        // 이베이에서 직접 찾아보기 링크가 쓰는 원본 이름. 한글로는 매물이 한 건도 안 잡힌다.
+        nameEn: c.en,
+        setName: set?.[0] ?? '',
+        setNameEn: set?.[0] ?? '',
+        // ⚠️ **`도감번호()`를 거친다.** 색인의 `n`에는 「85~669812」·「#577029」처럼
+        //    저쪽 내부번호가 붙은 것이 있어, 그대로 내면 뜻 없는 숫자가 카드 번호인
+        //    척 붙는다(2026-08-11에 옛 길에서 잡았던 것과 같은 함정 — 잣대를 나눠 쓴다).
+        cardNumber: 도감번호(c.n),
+        // ⚠️ **타일에도 레어도를 보여 준다.** 색인에 넣어 놓고 빈 문자열로 보내고 있었다
+        //    (2026-08-12에 잡음). 같은 이름 카드가 여럿일 때(기본판·SR·SAR) 레어도가 없으면
+        //    어느 것인지 못 가리는데, 값이 크게 갈리는 자리다(사장님 지시 2026-08-09).
+        // ⚠️ 저쪽이 「None」이라 준 것은 안 적는다 — 화면에 「None」이 그대로 나간다.
+        rarity: c.rare && c.rare !== 'None' ? c.rare : '',
+        imageUrl: c.img,
+        // ⚠️ **그림이 그 카드 것이 아니라 같은 번호의 일반판 것**일 때 화면이 밝히게 한다.
+        //    저쪽 CDN에 무늬 변종 그림이 없어(403) 뒷면이 나오던 자리를 메운 것이다.
+        imgBase: c.일반판그림 || undefined,
+        // ⚠️ **카드에 찍힌 번호.** 옛 일본 세트는 우리 번호와 실물이 달라, 화면은 이걸 보여 준다.
+        printNo: c.인쇄번호 || undefined,
+        totalSales: 총낙찰,
+        monthlySales: null,
+        tcgplayer: 대표
+          ? {
+              market: 대표.m,
+              low: 대표.l ?? 0,
+              sellers: 0,
+              printing: 대표.printing,
+              condition: null,
+              lastUpdated: null,
+              url: c.tcg ? `https://www.tcgplayer.com/product/${c.tcg}` : '',
+              history: [],
+            }
+          : null,
+        grades,
+        // 등급이 더 있다는 표시. 화면이 이걸 보고 카드를 열 때 나머지를 받아 온다.
+        // ⚠️ 없으면 화면이 "이 카드는 등급이 하나뿐"으로 알고 **표를 반쪽만** 보여 준다.
+        gradesTrimmed: 등급전부.length > grades.length,
+        // 새 길에만 있는 칸 — 감정 수량을 같이 낸다(옛 길은 카드를 열어야 나왔다).
+        population: 팝 ?? null,
+        slug: c.slug,
+      }
+    })
+
+    sendJson(res, 200, {
+      cards,
+      total: 총,
+      // 천장에 걸려 잘랐으면 밝힌다. **말없이 자르면 「이게 전부」로 읽힌다.**
+      잘림: 총 > 이쪽.length ? 낼수있는최대 : 0,
+      받은날: { 시세: exportOkDay.printings ?? exportOkDay.cards ?? null, 낙찰: exportOkDay.ebay ?? null, 팝수: exportOkDay.population ?? null },
+    })
+  })
+}
+
 function mountSetHitCards(app: Mountable) {
   // 세트 목록용: 값이 제일 높은 카드 그림을 세트마다 하나씩.
   app.use('/api/local/set-covers', async (_req, res) => {
@@ -9250,6 +10502,11 @@ function mountSetHitCards(app: Mountable) {
       slug: 고른것.slug,
       ed: 고른것.ed ?? 'ja',
       name: 고른것.name ?? '',
+      // ⚠️ **세트 이름도 한글로 보낸다.** 카드 이름만 옮기고 세트 이름은 원어로 보내고
+      //    있어서 홈 제목이 `M6: Storm Emeralda 힛카드 목록`으로 나갔다(2026-08-09에
+      //    브라우저로 확인). 원어(`name`)는 그대로 두고 한글을 따로 얹는다 — 화면이
+      //    한글을 먼저 쓰고, 없으면 원어로 되돌아간다.
+      nameKo: koSet(고른것.ed ?? 'ja', 고른것.name ?? ''),
       releaseDate: 고른것.releaseDate ?? '',
       src: sd ? 'snkrdunk' : 'tcgplayer',
       grade: sd ? (saved.grade === 'psa10' ? 'psa10' : 'a') : undefined,
@@ -9271,6 +10528,9 @@ function mountSetHitCards(app: Mountable) {
 }
 
 export function mountApi(app: Mountable, env: ApiEnv) {
+  환경 = env
+  // 사진 판독 결과와 하루 몫을 이어받는다(한 번 읽은 매물을 다시 읽지 않으려고).
+  void slab상태읽기()
   publicConfig = { openChatUrl: env.OPENCHAT_URL?.trim() || null }
   mountConfig(app)
   adminIds = new Set(
@@ -9286,6 +10546,11 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountSnkrdunkProxy(app)
   mountImageProxy(app)
   mountSetHitCards(app)
+  // 시세 길(2026-08-12). ⚠️ **옛 길은 2026-08-13에 지웠다** — 이제 이것 하나뿐이다.
+  // ⚠️ 열쇠를 넘기는 것은 **카드를 열 때 추이·낱개를 받아 오기 위해서**다. 검색 자체는
+  //    여전히 크레딧 0이고, 저쪽을 부르는 자리는 `카드기록받기` 하나뿐이다.
+  mountCardBoard(app, env.POKEMON_PRICE_TRACKER_API_KEY ?? '')
+  mountPopulationAndSealed(app, env.POKEMON_PRICE_TRACKER_API_KEY ?? '')
   mountSearchTracker(app)
   mountVisitStats(app)
   mountScanFeedback(app)
@@ -9296,8 +10561,6 @@ export function mountApi(app: Mountable, env: ApiEnv) {
   mountPackHighlights(app)
   mountExchangeRate(app)
   mountCommunity(app)
-  mountEbayPrice(app, env.POKEMON_PRICE_TRACKER_API_KEY ?? '')
-  mountEbayKorean(app, env.EBAY_APP_ID ?? '', env.EBAY_CERT_ID ?? '')
   mountCardScan(app, env.ANTHROPIC_API_KEY ?? '')
   mountAuth(
     app,

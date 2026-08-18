@@ -24,7 +24,7 @@ import oldJpDex from '../src/data/oldJpDex.json' with { type: 'json' }
 
 type Pokemon = { id: number; ko: string; ja: string; en: string }
 type SetMeta = { slug: string; ed: 'ja' | 'en'; name: string; releaseDate?: string; serie?: string }
-type Card = { n: string; name: string; img?: string; r?: string }
+type Card = { n: string; name: string; img?: string; r?: string; tcg?: string; printNo?: string }
 
 /** 한 장. 화면이 쓰는 것만 담는다 — 파일이 커지면 첫 화면이 느려진다. */
 type Entry = {
@@ -32,12 +32,24 @@ type Entry = {
   name: string
   /** 세트 슬러그. 눌러서 세트 화면으로 갈 때 쓴다. */
   s: string
+  /**
+   * **카드에 실제로 찍힌 번호**(옛 일본 세트만). 없으면 `n`을 보여 준다.
+   * ⚠️ 1996~2001 구판은 카드 번호가 없고 포켓몬 도감번호가 「No.004」로 찍혀 있다.
+   *    우리 `n`은 정렬 순번이라 실물과 다르다(사장님 지시 2026-08-17).
+   */
+  p?: string
   /** 카드 번호 */
   n: string
   /** 그림 */
   img?: string
   /** 등급 */
   r?: string
+  /**
+   * **PPT 번호**(tcgPlayerId). 화면이 이베이·TCGplayer 시세를 이름으로 뒤지지 않고
+   * 이 번호로 콕 집어 부른다 — 딴 카드가 안 섞이고 크레딧도 48분의 1이다.
+   * ⚠️ 없는 카드도 있다(PPT에 없는 옛 카드). 그때는 예전처럼 이름으로 찾는다.
+   */
+  tcg?: string
 }
 
 const ROOT = path.resolve(import.meta.dirname, '..')
@@ -51,7 +63,27 @@ const byEn = [...list].sort((a, b) => b.en.length - a.en.length)
 //    원문은 `Farfetch'd`(곧은 따옴표)라 파오리가 안 잡혔고, `deoxys`·`weezing`처럼
 //    소문자로 적힌 원문도 놓쳤다(2026-08-07 점검 중 발견).
 const 견줌 = (s: string) => s.replace(/[’‘'`´]/g, "'").replace(/\s+/g, ' ').toLowerCase()
-const 들었나 = (통: string, 조각: string) => 견줌(통).includes(견줌(조각))
+/**
+ * 카드 이름 안에 포켓몬 이름이 들었나.
+ *
+ * ⚠️⚠️ **영문 이름은 글자만 겹쳐도 걸린다.** 그냥 `includes`로 보던 때 트레이너·굿즈
+ *    카드가 포켓몬 무더기에 섞였다(2026-08-09에 10장을 잡았다):
+ *        `Big Parasol`      → Para**s**ol 안의 Paras  → 파라스 무더기
+ *        `Hypnotoxic Laser` → **Hypno**toxic 안의 Hypno → 슬리퍼 무더기
+ *        `Aaron's Aura` · `Charon's Choice` → A**aron**·Ch**aron** 안의 Aron → 가보리 무더기
+ *    그래서 **영문일 때만 앞뒤에 다른 알파벳이 붙지 않을 것**을 요구한다.
+ *    `Charizard ex`·`Charizard-EX`·`Erika's Oddish`·`Nidoran♀`는 앞뒤가 알파벳이
+ *    아니라 그대로 걸린다.
+ * ⚠️ 한글·일본어에는 이 검사를 걸면 안 된다 — 낱말 사이가 안 띄어져 있어 다 막힌다.
+ */
+const 들었나 = (통: string, 조각: string) => {
+  const a = 견줌(통)
+  const b = 견줌(조각)
+  if (!b) return false
+  if (!/^[a-z0-9'. -]+$/.test(b)) return a.includes(b)
+  const 벽 = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(?<![a-z])${벽}(?![a-z])`).test(a)
+}
 
 const idx = JSON.parse(readFileSync(path.join(ROOT, 'public/sets/index.json'), 'utf-8')) as SetMeta[]
 const meta = new Map(idx.map((s) => [s.slug, s]))
@@ -120,7 +152,9 @@ for (const f of readdirSync(path.join(ROOT, 'public/sets'))) {
   for (const c of d.cards ?? []) {
     const nm = c.name ?? ''
     if (!nm) continue
-    const 한장 = { name: nm, s: slug, n: c.n, img: c.img || undefined, r: c.r || undefined, date: m.releaseDate ?? '' }
+    // ⚠️ `p`(카드에 찍힌 번호)를 같이 담는다 — 옛 일본 세트는 우리 `n`(정렬 순번)과 실물이
+    //    다르다(파이리가 우리는 012, 카드엔 No.004). 화면은 찍힌 쪽을 보여 준다.
+    const 한장 = { name: nm, s: slug, n: c.n, p: c.printNo || undefined, img: c.img || undefined, r: c.r || undefined, tcg: c.tcg || undefined, date: m.releaseDate ?? '' }
     // ⚠️ **이름으로 포켓몬을 찾았으면 그것을 믿는다.** 원본 종류표로 먼저 걸렀더니
     //    "자시안 V"·"히스이 가디"·"팔데아 켄타로스" 같은 멀쩡한 포켓몬 카드 150종이
     //    트레이너로 새어 나갔다(2026-08-07 회귀 검사에서 발견). 종류표는 세트·번호를
@@ -246,10 +280,23 @@ const 발매순 = (a: { date: string; s: string; n: string }, b: { date: string;
 
 // 목록 파일. 검색창이 이것만 받아 이름을 찾는다.
 // t: 'p'=포켓몬 · 't'=트레이너·에너지. 화면이 어느 쪽인지 표시하는 데 쓴다.
-type Row = { id: number; ko: string; en: string; c: number; t: 'p' | 't' }
+/**
+ * `cv` = 목록에 보일 **대표 카드 그림**. 작가 화면이 그렇게 하고 있어 꼴을 맞춘다.
+ *
+ * ⚠️ **주소를 통째로 넣으면 목록이 574KB → 981KB가 된다.** 이 파일은 화면을 열면
+ *    바로 받는 것이라 두 배로 불리면 안 된다. 그림 6,400개 중 6,107개가 PPT 주소
+ *    (`…/product/<번호>_in_400x400.jpg`)라 **번호만 적고 화면이 주소를 만든다** — +68KB다.
+ *    PPT 주소가 아닌 293개만 주소를 그대로 적는다.
+ */
+const 대표그림 = (카드: { img?: string }[]): string => {
+  const img = 카드.find((c) => c.img)?.img ?? ''
+  const m = /tcgplayer-cdn\.tcgplayer\.com\/product\/(\d+)_/.exec(img)
+  return m ? m[1] : img
+}
+type Row = { id: number; ko: string; en: string; c: number; t: 'p' | 't'; cv?: string }
 const index: Row[] = list
   .filter((p) => (buckets.get(p.id)?.length ?? 0) > 0)
-  .map((p) => ({ id: p.id, ko: p.ko, en: p.en, c: buckets.get(p.id)!.length, t: 'p' }))
+  .map((p) => ({ id: p.id, ko: p.ko, en: p.en, c: buckets.get(p.id)!.length, t: 'p', cv: 대표그림(buckets.get(p.id)!) }))
 
 // ⚠️ 트레이너 번호는 10000부터 준다. 포켓몬 도감번호(1~1025)와 겹치면 파일이 덮인다.
 //    포켓몬이 늘어도(새 세대) 10000까지는 한참 남는다.
@@ -269,7 +316,7 @@ const 트레이너목록 = [...trainers.entries()].sort((a, b) => b[1].length - 
   const 띄 = (s: string) => (s.match(/[\s·]/g) ?? []).length
   const 대 = (s: string) => (s.match(/[A-Z]/g) ?? []).length
   const ko = 이름들.sort((a, b) => 띄(b) - 띄(a) || 대(a) - 대(b))[0]
-  index.push({ id, ko, en, c: arr.length, t: 't' })
+  index.push({ id, ko, en, c: arr.length, t: 't', cv: 대표그림(arr) })
 })
 writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index))
 

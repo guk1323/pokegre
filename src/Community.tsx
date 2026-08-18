@@ -20,6 +20,7 @@ import {
   type CommunityComment,
   type PostCategory,
 } from './api/community';
+import { formatKrwApprox } from './api/exchangeRate';
 
 async function handleReport(action: () => Promise<void>) {
   if (!window.confirm('이 게시물을 신고하시겠습니까? 운영자가 확인 후 조치합니다.')) return;
@@ -57,6 +58,112 @@ function formatDate(ts: number): string {
   return `${mm}.${dd} ${hh}:${min}`;
 }
 
+// 한 쪽에 보여 줄 글 수(사장님 지시 2026-08-11 "10개로 나눠서").
+const POSTS_PER_PAGE = 10;
+
+/**
+ * 쪽 번호로 무엇을 보여 줄지. 쪽이 30개면 번호를 30개 그릴 수 없으니 지금 쪽 둘레만 낸다.
+ * 앞뒤로 두 개씩(최대 5개) — 네이버 카페도 이런 식이다.
+ */
+function 쪽번호들(지금: number, 전체: number): number[] {
+  const 최대 = 5;
+  if (전체 <= 최대) return Array.from({ length: 전체 }, (_, i) => i + 1);
+  // 끝쪽에 붙으면 창을 안쪽으로 밀어, 늘 5개가 보이게 한다.
+  const 시작 = Math.min(Math.max(1, 지금 - 2), 전체 - 최대 + 1);
+  return Array.from({ length: 최대 }, (_, i) => 시작 + i);
+}
+
+function PagerButton({
+  disabled,
+  onClick,
+  label,
+  children,
+}: {
+  disabled: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="h-8 w-8 rounded-lg text-sm text-neutral-500 hover:bg-neutral-100 disabled:opacity-30 disabled:hover:bg-transparent"
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * 글 목록 한 줄.
+ *
+ * 넓은 화면에서는 제목·작성자·작성일·조회를 칸으로 나눠 세운다(사장님 지시 2026-08-11 —
+ * 네이버 카페 꼴이 눈에 익다고 하셨다). 폰에서는 칸을 넷으로 쪼개면 제목이 몇 글자밖에
+ * 안 남아서, 제목 한 줄 + 그 밑에 작은 글씨 한 줄로 둔다.
+ */
+function PostRow({ post, onOpen }: { post: CommunityPost; onOpen: (id: number) => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onOpen(post.id)}
+        className="flex w-full items-center gap-3 px-2 py-3 text-left hover:bg-neutral-50"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-black">
+            {/* 공지(고정 글)는 게시판 말머리 대신 눈에 띄는 공지 배지를 앞에 단다. */}
+            {post.isPinned ? (
+              <span className="mr-1 rounded bg-[#2a78d6] px-1.5 py-0.5 text-[10px] font-bold text-white">공지</span>
+            ) : (
+              <span className="mr-1 text-xs font-semibold text-neutral-500">[{CATEGORY_LABEL[post.category]}]</span>
+            )}
+            {/* 비밀글 표시. 이모지는 안 쓴다(사이트 지침) — 작은 자물쇠 그림으로 둔다. */}
+            {post.secret && (
+              <svg
+                aria-label="비밀글"
+                role="img"
+                viewBox="0 0 24 24"
+                className="mr-1 inline-block h-3.5 w-3.5 align-[-2px] text-neutral-500"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+              >
+                <rect x="4" y="10" width="16" height="10" rx="2.5" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </svg>
+            )}
+            {post.title}
+            {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
+          </p>
+          {/* 폰에서만 쓰는 줄. 넓은 화면에서는 오른쪽 칸들이 같은 것을 보여 준다. */}
+          <p className="mt-0.5 text-xs text-neutral-400 sm:hidden">
+            <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)} · 조회{' '}
+            {(post.viewCount ?? 0).toLocaleString()}
+            {/* 좋아요 수도 목록에서 보이게(사장님 지시 2026-08-10). 0은 줄만 어지럽혀 숨긴다. */}
+            {post.likeCount > 0 && ` · 좋아요 ${post.likeCount.toLocaleString()}`}
+          </p>
+        </div>
+        <span className="hidden w-24 shrink-0 truncate text-center text-xs text-neutral-500 sm:block">
+          <AuthorName name={post.author} isAdmin={post.authorIsAdmin} />
+        </span>
+        <span className="hidden w-16 shrink-0 text-center text-xs tabular-nums text-neutral-400 sm:block">
+          {formatDate(post.createdAt)}
+        </span>
+        <span className="hidden w-14 shrink-0 text-right text-xs tabular-nums text-neutral-400 sm:block">
+          {(post.viewCount ?? 0).toLocaleString()}
+        </span>
+        {/* 0은 줄만 어지럽혀 빈칸으로 둔다(폰 줄과 같은 잣대). */}
+        <span className="hidden w-14 shrink-0 text-right text-xs tabular-nums text-neutral-400 sm:block">
+          {post.likeCount > 0 ? post.likeCount.toLocaleString() : ''}
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function PostList({
   heading,
   emptyText,
@@ -76,6 +183,24 @@ function PostList({
   onWrite: () => void;
   onRequestLogin: () => void;
 }) {
+  const [쪽, set쪽] = useState(1);
+  // 공지는 쪽수에서 빼고 따로 센다 — 공지가 많은 게시판이면 공지가 한 쪽을 다 먹는다.
+  const 공지 = posts.filter((p) => p.isPinned);
+  const 보통글 = posts.filter((p) => !p.isPinned);
+  const 쪽수 = Math.max(1, Math.ceil(보통글.length / POSTS_PER_PAGE));
+  // ⚠️ 게시판을 바꾸거나 글이 지워져 쪽수가 줄면, 보고 있던 쪽이 사라져 빈 화면이 된다.
+  //    그럴 땐 마지막 쪽으로 당긴다. (useEffect로 되돌리면 빈 화면이 한 번 그려진다.)
+  const 지금쪽 = Math.min(쪽, 쪽수);
+  const 이쪽글 = 보통글.slice((지금쪽 - 1) * POSTS_PER_PAGE, 지금쪽 * POSTS_PER_PAGE);
+  // 쪽이 아주 많아도 번호를 다 그리면 줄이 넘친다. 지금 쪽 둘레만 보인다.
+  const 보일쪽들 = 쪽번호들(지금쪽, 쪽수);
+  // 게시판을 바꾸면 1쪽부터 본다. posts가 통째로 바뀐 것을 길이·첫 글로 알아낸다.
+  const 열쇠 = `${posts.length}:${posts[0]?.id ?? 0}`;
+  const [본열쇠, set본열쇠] = useState(열쇠);
+  if (본열쇠 !== 열쇠) {
+    set본열쇠(열쇠);
+    if (쪽 !== 1) set쪽(1);
+  }
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -96,49 +221,54 @@ function PostList({
       ) : posts.length === 0 ? (
         <p className="text-sm text-neutral-400 py-12 text-center">{emptyText}</p>
       ) : (
-        <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-          {posts.map((post) => (
-            <li key={post.id}>
-              <button
-                type="button"
-                onClick={() => onOpen(post.id)}
-                className="w-full flex items-center justify-between gap-3 px-2 py-3 text-left hover:bg-neutral-50"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-black truncate">
-                    {/* 공지(고정 글)는 게시판 말머리 대신 눈에 띄는 공지 배지를 앞에 단다. */}
-                    {post.isPinned ? (
-                      <span className="mr-1 rounded bg-[#2a78d6] px-1.5 py-0.5 text-[10px] font-bold text-white">공지</span>
-                    ) : (
-                      <span className="mr-1 text-xs font-semibold text-neutral-500">[{CATEGORY_LABEL[post.category]}]</span>
-                    )}
-                    {/* 비밀글 표시. 이모지는 안 쓴다(사이트 지침) — 작은 자물쇠 그림으로 둔다. */}
-                    {post.secret && (
-                      <svg
-                        aria-label="비밀글"
-                        role="img"
-                        viewBox="0 0 24 24"
-                        className="mr-1 inline-block h-3.5 w-3.5 align-[-2px] text-neutral-500"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.4"
-                      >
-                        <rect x="4" y="10" width="16" height="10" rx="2.5" />
-                        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-                      </svg>
-                    )}
-                    {post.title}
-                    {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
-                  </p>
-                  <p className="text-xs text-neutral-400 mt-0.5">
-                    <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)} · 조회{' '}
-                    {(post.viewCount ?? 0).toLocaleString()}
-                  </p>
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* 칸 이름줄. 넓은 화면에서만 보인다 — 폰에서는 칸이 좁아 제목만 남기고
+              나머지는 제목 밑에 한 줄로 붙인다(아래 PostRow). */}
+          <div className="hidden border-y border-neutral-200 bg-neutral-50 px-2 py-2 text-xs font-semibold text-neutral-500 sm:flex">
+            <span className="flex-1">제목</span>
+            <span className="w-24 shrink-0 text-center">작성자</span>
+            <span className="w-16 shrink-0 text-center">작성일</span>
+            <span className="w-14 shrink-0 text-right">조회</span>
+            {/* ⚠️ **좋아요 칸이 없어서 넓은 화면에서만 안 보였다**(사장님 지적 2026-08-14).
+                폰 줄(아래 PostRow의 `sm:hidden`)에는 좋아요가 들어 있는데 칸 쪽에는
+                빠져 있었다 — 같은 것을 두 군데서 그리므로 **한쪽만 고치면 이렇게 어긋난다.** */}
+            <span className="w-14 shrink-0 text-right">좋아요</span>
+          </div>
+          <ul className="divide-y divide-neutral-200 border-b border-neutral-200 border-t sm:border-t-0">
+            {/* 공지는 어느 쪽수에서도 맨 위에 둔다. 쪽을 넘겼다고 공지가 사라지면
+                읽으라고 붙여 둔 뜻이 없어진다(네이버 카페도 이렇게 한다). */}
+            {공지.map((post) => (
+              <PostRow key={post.id} post={post} onOpen={onOpen} />
+            ))}
+            {이쪽글.map((post) => (
+              <PostRow key={post.id} post={post} onOpen={onOpen} />
+            ))}
+          </ul>
+          {/* 쪽 번호. 한 쪽에 10개씩(사장님 지시 2026-08-11). 한 쪽뿐이면 안 그린다. */}
+          {쪽수 > 1 && (
+            <nav className="mt-4 flex items-center justify-center gap-1" aria-label="쪽 넘기기">
+              <PagerButton disabled={지금쪽 === 1} onClick={() => set쪽(지금쪽 - 1)} label="이전 쪽">
+                ‹
+              </PagerButton>
+              {보일쪽들.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => set쪽(n)}
+                  aria-current={n === 지금쪽 ? 'page' : undefined}
+                  className={`h-8 min-w-8 rounded-lg px-2 text-sm tabular-nums ${
+                    n === 지금쪽 ? 'bg-black font-bold text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+              <PagerButton disabled={지금쪽 === 쪽수} onClick={() => set쪽(지금쪽 + 1)} label="다음 쪽">
+                ›
+              </PagerButton>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );
@@ -274,6 +404,11 @@ function PostDetail({
                 </div>
                 <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{c.name}</p>
                 <p className="text-[10px] text-neutral-400">{c.r}</p>
+                {/* 뽑았을 그때의 값. 지금 시세가 아니라 **글 올린 날의 값**이라 안 변한다.
+                    시세를 못 받은 세트는 값이 안 와서 줄이 안 생긴다(0원이라고 적으면 틀린 말). */}
+                {c.krw ? (
+                  <p className="text-[10px] font-bold text-neutral-800">{formatKrwApprox(c.krw)}</p>
+                ) : null}
               </div>
             ))}
           </div>

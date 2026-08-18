@@ -28,33 +28,120 @@ export interface SetCard {
   koImg?: string;
   koNo?: string;
   koName?: string;
+  /**
+   * **이 그림은 그 카드 것이 아니라 같은 번호의 일반판 것**이라는 표시.
+   *
+   * ⚠️ 저쪽(tcgplayer) CDN에 그 카드 그림이 없어(403) 카드 뒷면이 나오던 자리를,
+   *    같은 밑번호의 일반판 그림으로 메운 것이다(scripts/fix-dead-card-imgs.mts).
+   *    무늬 변종(마스터볼·몬스터볼 미러)에 몰려 있다.
+   * ⚠️⚠️ **반드시 화면에 밝혀야 한다.** 무늬 변종은 그림 자체가 값어치라, 말없이
+   *    일반판 그림을 보여 주면 사는 사람이 헷갈린다(사장님 지시 2026-08-16:
+   *    "일반 카드 이미지는 쓰되 마스터볼 미러라고 명시는 제대로 해주는거").
+   */
+  imgBase?: boolean;
+  /**
+   * **카드에 실제로 찍힌 번호.** 옛 일본 세트(1996~2001 구판)는 「4/102」 같은 카드 번호가
+   * 없고 **그 포켓몬의 도감번호**가 「No. 004」로 찍혀 있다(실물 그림으로 확인).
+   * ⚠️ 우리 `n`은 pokellector가 매긴 **정렬 순번**이라 실물과 다르다(파이리가 012).
+   *    사장님 지시(2026-08-17): 화면에는 **카드에 찍힌 번호**를 보여 준다.
+   * ⚠️ `n`은 안 바꾼다 — 인쇄번호는 **겹칠 수 있어서**다(같은 포켓몬 카드가 한 세트에 둘).
+   *    만드는 곳: scripts/fill-print-no.mts
+   */
+  printNo?: string;
+  /**
+   * **PPT 번호**(tcgPlayerId). 2026-08-09에 도감을 PPT 덤프로 갈아엎으며 박아 두었다
+   * (65,596장 중 58,151장). 이게 있으면 이베이·TCGplayer 시세를 이름으로 뒤지지 않고
+   * 콕 집어 부를 수 있다.
+   */
+  tcg?: string;
   // 레어도(원본 DB 표기). 채워진 세트가 많지 않다 — 2023년 이후 24개 세트뿐이라
   // 없으면 없는 대로 다뤄야 한다.
   r?: string;
 }
 
-// 낮은 등급 → 높은 등급. 세트의 간판 카드를 고르는 데 쓴다.
-// 원본 DB(TCGdex) 표기를 그대로 쓴다 — 표기가 바뀌면 목록에 없어 -1이 되고,
-// 그런 카드는 자동으로 뒤로 밀린다(틀린 카드를 올리는 것보다 낫다).
+/**
+ * 낮은 등급 → 높은 등급. 세트의 간판 카드(「주요 카드」)를 고르는 데 쓴다.
+ *
+ * ⚠️⚠️ **이 표가 오래 망가져 있었다**(2026-08-16에 고침). 두 가지가 겹쳤다:
+ *   ① **대소문자.** 표에는 `Double rare`(TCGdex 표기)만 있었는데 도감을 PPT 덤프로
+ *      갈아엎은 뒤로는 `Double Rare`가 들어온다. 글자가 한 칸 달라 **2,935장이 -1**이었다.
+ *      (카드 뽑기에서 똑같은 사고를 이미 냈었다 — CLAUDE.md의 `등급열쇠()` 항목.)
+ *   ② **일본판 표기가 통째로 없었다.** AR·SR·SAR·MUR·홀로 레어가 한 줄도 없어서
+ *      **일본 세트는 전부** 간판이 커먼·레어로 나갔다(M6는 「메가레쿠쟈 ex」 대신 「파비코리」).
+ *   전체로는 레어도가 붙은 58,513장 중 **35,823장(61%)만** 순위가 잡히고 있었다.
+ *
+ * ⚠️ **순서를 짐작으로 정하지 않았다.** 카드는 특별할수록 **인쇄된 분모보다 뒷번호**를
+ *    받는다(「113/108」). 그래서 레어도마다 「분모를 넘는 카드의 비율」을 세어 갈랐다
+ *    (재료: index.json의 `denom` 374개 세트). 그 값이 아래 「시크릿 구간」 주석의 %다.
+ *    같은 100%끼리의 앞뒤는 굳이 다투지 않는다 — **등급이 같으면 뒷번호가 이기므로**
+ *    (`topCards`의 두 번째 잣대) 세트 안에서는 저절로 맨 끝 카드가 앞에 선다.
+ *
+ * ⚠️ 새 레어도가 나오면 **여기 한 줄을 넣어야 한다.** 안 넣으면 -1이 되어 간판 후보에서
+ *    통째로 빠진다 — 30주년의 `Futuristic Rare`(FUR)가 그럴 뻔했다.
+ *    빠진 게 없는지는 `npx tsx scripts/check-rarity-order.mts`가 세어 준다.
+ */
 const RARITY_ORDER = [
+  // ── 포켓몬 TCG 포켓(◇) ──
+  'One Diamond',
+  'Two Diamond',
+  'Three Diamond',
+  'Four Diamond',
+  // ── 본세트 (인쇄된 분모 안) ──
   'Common',
+  'Common Holo',
   'Uncommon',
   'Rare',
-  'Double rare',
+  'Holo Rare', // 0.2%
+  'Rare Holo',
+  'Double Rare', // 0.3% — 일본판 RR
+  'Triple Rare',
+  'Rare Ace',
+  'ACE Rare',
   'ACE SPEC Rare',
-  'Ultra Rare',
-  'Illustration rare',
-  'Shiny rare',
+  'Rare BREAK',
+  'Rare Holo LV.X',
+  'Prism Rare', // 1.3%
+  'Radiant Rare',
+  'Kagayaku', // 일본판 「카가야쿠」 = Radiant. 전부 Radiant 포켓몬인 것을 확인했다.
+  'Amazing Rare',
+  'Shining',
+  'Trainer Rare',
+  'Ultra Rare', // 28.4% — 여기서 갈린다(영문판 풀아트 구간)
+  // ── 포켓몬 TCG 포켓(★) ──
+  'One Star',
+  'Two Star',
+  'Three Star',
+  // ── 시크릿 (인쇄된 분모 밖) ─────────────────────────────────────────────
+  'Art Rare', // 86.5% — 일본판 AR
+  'Super Rare', // 94.8% — 일본판 SR
+  'Super Rare Holo',
+  'Shiny Rare', // 95.2%
+  'Shiny Holo Rare',
   'Shiny Ultra Rare',
-  'Special illustration rare',
-  'Secret Rare',
-  'Hyper rare',
+  'Special Art Rare', // 97.3% — 일본판 SAR
+  'Hyper Rare', // 98.5%
+  'Secret Rare', // 99.2%
+  'Illustration Rare', // 100%
+  'Special Illustration Rare', // 100%
+  'Character Rare', // 100%
+  'Character Super Rare', // 100%
+  'Shiny Secret Rare', // 100%
+  'Rainbow Rare', // 100%
+  'Rare Holo LEGEND',
   'Black White Rare',
-  'Mega Hyper Rare',
+  'Mega Attack Rare',
+  'Futuristic Rare', // 30주년(M6a)에서 새로 생긴 FUR. en-ME 157·158이 128장짜리 세트의 뒷번호다.
+  'Mega Hyper Rare', // 영문판 MUR — 세트의 마지막 카드
+  'Mega Ultra Rare', // 일본판 MUR — 〃
 ];
 
+// ⚠️ **대소문자를 무시하고 찾는다.** 같은 등급을 소스마다 다르게 적는다
+//    (TCGdex `Illustration rare` ↔ PPT `Illustration Rare`). 둘이 같은 것이라는 건
+//    짐작이 아니라 잰 값이다 — 분모를 넘는 비율이 **양쪽 다 100%**로 같았다.
+const RARITY_RANK = new Map(RARITY_ORDER.map((r, i) => [r.toLowerCase(), i]));
+
 export function rarityRank(r?: string): number {
-  return r ? RARITY_ORDER.indexOf(r) : -1;
+  return r ? (RARITY_RANK.get(r.trim().toLowerCase()) ?? -1) : -1;
 }
 
 export interface SetFile {
@@ -108,13 +195,31 @@ export async function loadKoSets(): Promise<string[]> {
   return koSetsCache;
 }
 
+/**
+ * **카드에 찍힌 번호 차례**로 세운다(`printNo`가 있는 옛 일본 세트만).
+ *
+ * ⚠️ 왜: 그 세트들의 `n`은 pokellector가 매긴 **정렬 순번**이라 실물과 다르다.
+ *    번호만 실물 것으로 바꿔 놓으면 화면에 「004 → 041 → 043 → 088」처럼 뒤죽박죽 나온다
+ *    — 사장님 지적 2026-08-17 "번호만 바꿀 게 아니라 순서도 바꿔야지".
+ * ⚠️ **번호 없는 카드(트레이너·에너지)는 뒤에 그대로 둔다.** 실물에도 번호가 없고,
+ *    지금 파일에서도 이미 맨 뒤에 몰려 있다(PMCG4: 53~64번 자리).
+ * ⚠️ **같은 번호가 둘일 수 있다**(에리카의 뚜벅쵸 002·003이 둘 다 No.043) — 그때는
+ *    원래 차례를 지킨다(`sort`가 안정 정렬이다).
+ * ⚠️ `printNo`가 하나도 없는 세트는 **손대지 않는다**(그대로 돌려준다).
+ */
+function 인쇄번호순(cards: SetCard[]): SetCard[] {
+  if (!cards.some((c) => c.printNo)) return cards;
+  const 값 = (c: SetCard) => (c.printNo ? Number(c.printNo) : Number.MAX_SAFE_INTEGER);
+  return [...cards].sort((a, b) => 값(a) - 값(b));
+}
+
 export async function loadSetCards(slug: string): Promise<SetCard[]> {
   const hit = setCache.get(slug);
   if (hit) return hit;
   const res = await fetch(`/sets/${slug}.json`);
   if (!res.ok) throw new Error('수록 카드를 불러오지 못했습니다.');
   const file = (await res.json()) as SetFile;
-  const cards = file.cards ?? [];
+  const cards = 인쇄번호순(file.cards ?? []);
   setCache.set(slug, cards);
   return cards;
 }

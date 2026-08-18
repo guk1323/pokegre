@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CardImg } from './CardImg';
-import { CONFIDENCE_LABEL, ebaySoldUrl, formatGradeLabel, mainPrice, type EbayCard } from '../api/ebayPrices';
+import { ebaySoldUrl, formatGradeLabel, mainPrice, 등급확인안됨, type EbayCard } from '../api/ebayPrices';
 import { Price, KrwRateNote, useKrw } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
 import { reportCardTitleMiss } from '../api/localStats';
@@ -23,10 +23,21 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
   const [titleReported, setTitleReported] = useState(false);
   useEffect(() => setTitleReported(false), [card.tcgPlayerId]);
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
+    <div
+      // ⚠️⚠️ **붙여 두되(sticky) 안쪽이 스크롤되게 한다.**
+      //    상세가 화면보다 길면(등급표+그래프+낱개가 쌓이면 1,100px을 넘는다) 붙어 있는 채로
+      //    아래쪽이 화면 밖에 남는다. 그러면 **왼쪽 목록을 끝까지 내려야** 비로소 상세 밑이
+      //    보인다 — 목록이 2,000px을 넘으니 사실상 못 본다
+      //    (사장님 지적 2026-08-15: "어느정도 훨씬 더 내려야 상세보기도 내려가져").
+      //    화면 높이에서 위 여백(top-4=16px)과 아래 숨 쉴 자리를 뺀 만큼으로 묶고,
+      //    넘치면 **패널 안에서** 굴리게 한다.
+      //    ⚠️ `100dvh`를 쓴다 — 폰 주소창이 접히고 펴져도 값이 따라 바뀐다(`vh`는 안 바뀐다).
+      //    ⚠️ 이 칸은 `lg` 이상에서만 보인다(좁은 화면은 시트가 대신한다).
+      className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-white p-5"
+    >
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
         {card.imageUrl ? (
-          <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" lazy={false} />
+          <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" lazy={false} 일반판그림={card.imgBase} />
         ) : (
           // ⚠️ 갈라 담은 카드에는 사진을 안 붙인다(저쪽 사진은 묶인 칸 하나의 것이라
           //    그대로 쓰면 갈라 놓은 카드가 전부 같은 사진이 된다). 왜 없는지 밝힌다.
@@ -44,7 +55,10 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
       </div>
       <p className="text-xs text-neutral-400 mb-1">
         {card.setName}
-        {card.cardNumber ? ` · ${card.cardNumber}` : ''} · 낙찰 {card.totalSales.toLocaleString()}건
+        {/* ⚠️ **카드에 찍힌 번호가 있으면 그걸 보여 준다.** 옛 일본 세트는 우리 번호(정렬
+            순번)와 실물이 다르다 — 파이리가 우리는 012인데 카드엔 No.004다. 손에 든 카드와
+            화면이 달라 보이면 안 된다(사장님 지시 2026-08-17). */}
+        {card.printNo ? ` · No.${card.printNo}` : card.cardNumber ? ` · ${card.cardNumber}` : ''} · 낙찰 {card.totalSales.toLocaleString()}건
         {/* ⚠️ 위 "낙찰 202건"은 다 합친 숫자다. 1년 전에 몰려 팔리고 지금은 안 나가는
             카드와, 지금도 꾸준한 카드가 똑같아 보인다. 최근 한 달을 같이 적으면
             "팔고 싶을 때 팔리는 카드인가"를 알 수 있다. 값이 없으면 안 띄운다. */}
@@ -56,6 +70,15 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
       {card.droppedOther ? (
         <p className="mb-1 text-[11px] text-amber-600">
           이름이 같은 다른 세트 카드 {card.droppedOther.toLocaleString()}건은 뺐습니다.
+        </p>
+      ) : null}
+      {/* ⚠️ **빼기만 하지 않고 제자리로 옮겨 온 것도 밝힌다**(사장님 지시 2026-08-09:
+          "옮겨 쌓는거 해줘"). 저쪽이 다른 카드 칸에 담아 둔 낙찰 중 **제목으로 이 카드임이
+          또렷한 것**만 옮겨 온다. 말없이 섞으면 그것도 속이는 것이라 건수를 적고,
+          아래 낱개 목록에도 한 건씩 "옮겨 옴" 표를 붙인다. */}
+      {card.movedIn ? (
+        <p className="mb-1 text-[11px] text-emerald-600">
+          다른 카드에 잘못 담겨 있던 {card.movedIn.toLocaleString()}건을 이 카드로 옮겨 왔습니다.
         </p>
       ) : null}
       {titleReported ? (
@@ -77,10 +100,21 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
 
       {/* 낙찰 기록이 충분한 등급이 있으면 추이 그래프를 먼저 보여준다. 없으면 스스로
           아무것도 안 그린다. */}
+      {/* ⚠️ 제목에 「그날그날 낙찰 평균」을 붙였다가 뺐다(사장님 2026-08-12: "굳이 그런거라면
+          안 써도 될거같아"). 점 하나가 그날 팔린 값들의 평균이라 위 큰 숫자(최근 30일 기준)와
+          끝점이 다른데, 실측해 보니 그 차이(중앙 9.2%)가 **그래프가 하루 사이에 저절로 튀는
+          폭(중앙 12.1%)보다 작다** — 굳이 짚어 줄 만큼 어긋나는 게 아니다. */}
       <EbayPriceChart grades={card.grades} />
 
       {/* 낙찰 기록이 없는 카드에도 붙는다 — 감정된 게 몇 장인지는 거래와 무관하게 안다. */}
-      <GradedPopulation tcgPlayerId={card.tcgPlayerId} edition={edition} />
+      {/* ⚠️ `population`을 그대로 넘긴다. 새 시세 길은 카드를 열 때 추이·낱개와 **한 번에**
+          받아 오므로 여기서 또 부를 이유가 없다. 옛 길 카드에는 그 칸이 아예 없어서
+          undefined가 넘어가고, 그러면 예전처럼 스스로 받아 온다. */}
+      <GradedPopulation
+        tcgPlayerId={card.tcgPlayerId}
+        edition={edition}
+        population={(card as { population?: Parameters<typeof GradedPopulation>[0]['population'] }).population}
+      />
 
       <div>
         <div className="flex items-baseline justify-between">
@@ -98,11 +132,13 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
             직접 보고 판단해 주세요.
           </p>
         )}
-        {/* 처음 온 사람은 "시세"가 최근 기준인지, "신뢰도"가 뭔지 모른다. 한 줄로만 짚어준다. */}
-        <p className="mb-2 mt-0.5 text-[11px] leading-snug text-neutral-400">
-          최근 낙찰 기준 현재 시세입니다. 주황색 <span className="text-amber-600">신뢰도 낮음</span>은 거래가 적어
-          값이 불확실하니 참고만 하세요.
-        </p>
+        {/* ⚠️⚠️ **설명 줄을 통째로 뺐다**(2026-08-13). 예전엔 카드마다 「신뢰도 낮음은 거래가
+            적어…」 두 줄이 늘 깔렸는데, 감정 수량 줄이 그 사이에 묻혀 안 보였다(사장님 지적:
+            "저렇게 글 많은데 쑤셔넣으면 어떻게 알아").
+            「낮음이 있을 때만」으로 바꿔 볼까 했으나 재 보니 **대표 등급이 낮음인 카드가 66%**라
+            조건을 걸어도 결국 늘 뜬다(낙찰 1~4건인 등급칸의 97%가 낮음이다).
+            → 설명 대신 **줄에 붙는 말 자체를 뜻이 통하게** 바꿨다(「신뢰도 낮음」 → 「거래 적음」).
+              그러면 따로 풀어 줄 말이 없다. */}
         {/* 메인 값은 PPT의 "현재 적정가"(최근 30일 가중)로, 옛 거래에 안 눌린 지금 시세다.
             없는 등급은 중앙값으로 대체한다. 아래 작은 줄에 중앙값을 참고로 곁들이고, 신뢰도가
             낮으면(거래가 적으면) 눈에 띄게 알린다. 행을 누르면 이베이의 그 등급 "낙찰 완료"
@@ -118,7 +154,10 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
           {card.grades.map((g) => {
             const sold = shortDate(g.lastSaleDate);
             const { price, isSmart } = mainPrice(g);
-            const conf = isSmart && g.confidence ? (CONFIDENCE_LABEL[g.confidence] ?? g.confidence) : null;
+            // ⚠️⚠️ **이 칸은 값을 안 보여 준다.** 저쪽이 등급을 못 알아본 낙찰 모음이라
+            //    평균도 중앙값도 「생카드 값」이 아니다(자세한 근거는 `등급확인안됨` 주석).
+            //    낱개는 그대로 둔다 — 「그 값에 팔렸다」는 사실은 참이다.
+            const 값숨김 = 등급확인안됨(g.grade);
             return (
               <li key={g.grade}>
                 <a
@@ -130,18 +169,25 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-neutral-700">{formatGradeLabel(g.grade)}</p>
                     <p className="text-[11px] text-neutral-400">
-                      {conf && (
-                        <span className={g.confidence === 'low' ? 'text-amber-600' : undefined}>신뢰도 {conf} · </span>
-                      )}
+                      {/* ⚠️ **「낮음」일 때만 붙인다.** 「높음·보통」은 굳이 알릴 것이 아니고,
+                          붙이면 그것도 글이 된다. 말도 「신뢰도 낮음」이 아니라 **뜻 그대로**
+                          적는다 — 처음 온 사람도 따로 설명 없이 읽힌다. */}
+                      {!값숨김 && g.confidence === 'low' && <span className="text-amber-600">거래 적음 · </span>}
                       {g.count.toLocaleString()}건{sold ? ` · 마지막 ${sold}` : ''}
                     </p>
                   </div>
-                  <div className="flex-shrink-0 text-right">
-                    <Price amount={price} currency="usd" className="text-sm font-bold text-black leading-tight" />
-                    {isSmart && (
-                      <p className="text-[11px] text-neutral-400 leading-tight">중앙값 {krw(g.medianPrice, 'usd')}</p>
-                    )}
-                  </div>
+                  {값숨김 ? (
+                    <p className="flex-shrink-0 text-right text-[11px] leading-tight text-neutral-400">
+                      값 없음
+                    </p>
+                  ) : (
+                    <div className="flex-shrink-0 text-right">
+                      <Price amount={price} currency="usd" className="text-sm font-bold text-black leading-tight" />
+                      {isSmart && (
+                        <p className="text-[11px] text-neutral-400 leading-tight">중앙값 {krw(g.medianPrice, 'usd')}</p>
+                      )}
+                    </div>
+                  )}
                 </a>
                 {/* 실제 낙찰 낱개. "28건"이라는 숫자보다 "1월 18일에 $160에 팔렸다"가
                     훨씬 와닿는다. 이 값은 예전부터 응답에 들어 있었는데 안 쓰고 있었다
@@ -169,6 +215,12 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
                                   셈 제외 · {s.뺀까닭}
                                 </span>
                               )}
+                              {/* 다른 카드 칸에서 제자리로 옮겨 온 기록. 어디서 왔는지까지 밝힌다. */}
+                              {!s.뺀까닭 && s.옮겨온곳 && (
+                                <span className="mr-1 rounded bg-emerald-100 px-1 py-px text-[9px] font-normal text-emerald-700">
+                                  옮겨 옴 · {s.옮겨온곳}
+                                </span>
+                              )}
                               <span className={s.뺀까닭 ? 'text-neutral-400 line-through' : undefined}>
                                 {krw(s.price, 'usd')}
                               </span>
@@ -192,6 +244,15 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
             );
           })}
         </ul>
+        )}
+        {/* ⚠️⚠️ **「등급 확인 안 됨」 줄이 있을 때만** 한 줄 붙인다. 값이 비어 있는 까닭을
+            안 적으면 「고장인가?」로 읽힌다. 늘 깔면 글이 많아 다른 줄이 묻히므로
+            (2026-08-13에 설명 줄을 통째로 뺐던 까닭이 그것이다) 있을 때만 낸다. */}
+        {card.grades.some((g) => 등급확인안됨(g.grade)) && (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-400">
+            「등급 확인 안 됨」은 매물 제목에 감정 등급이 안 적혀 있어 <strong>분류가 끝나지 않은 낙찰</strong>입니다.
+            감정된 카드가 섞여 있어 값을 내지 않습니다. 낱개를 눌러 매물에서 직접 확인해 보실 수 있습니다.
+          </p>
         )}
         <KrwRateNote />
       </div>

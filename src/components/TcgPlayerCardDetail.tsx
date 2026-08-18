@@ -59,7 +59,18 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
       ? '마켓 시세 추이'
       : `마켓 시세 추이 · ${추이상태 ?? '민트'} 기준`;
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5 sticky top-4">
+    <div
+      // ⚠️⚠️ **붙여 두되(sticky) 안쪽이 스크롤되게 한다.**
+      //    상세가 화면보다 길면(등급표+그래프+낱개가 쌓이면 1,100px을 넘는다) 붙어 있는 채로
+      //    아래쪽이 화면 밖에 남는다. 그러면 **왼쪽 목록을 끝까지 내려야** 비로소 상세 밑이
+      //    보인다 — 목록이 2,000px을 넘으니 사실상 못 본다
+      //    (사장님 지적 2026-08-15: "어느정도 훨씬 더 내려야 상세보기도 내려가져").
+      //    화면 높이에서 위 여백(top-4=16px)과 아래 숨 쉴 자리를 뺀 만큼으로 묶고,
+      //    넘치면 **패널 안에서** 굴리게 한다.
+      //    ⚠️ `100dvh`를 쓴다 — 폰 주소창이 접히고 펴져도 값이 따라 바뀐다(`vh`는 안 바뀐다).
+      //    ⚠️ 이 칸은 `lg` 이상에서만 보인다(좁은 화면은 시트가 대신한다).
+      className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-white p-5"
+    >
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
         {card.imageUrl && <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" lazy={false} />}
       </div>
@@ -133,7 +144,14 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
         <p className="text-sm text-neutral-400 py-8 text-center">시세 데이터가 없습니다.</p>
       )}
 
-      <GradedPopulation tcgPlayerId={card.tcgPlayerId} edition={edition} />
+      {/* ⚠️ `population`을 그대로 넘긴다. 새 시세 길은 카드를 열 때 추이·낱개와 **한 번에**
+          받아 오므로 여기서 또 부를 이유가 없다. 옛 길 카드에는 그 칸이 아예 없어서
+          undefined가 넘어가고, 그러면 예전처럼 스스로 받아 온다. */}
+      <GradedPopulation
+        tcgPlayerId={card.tcgPlayerId}
+        edition={edition}
+        population={(card as { population?: Parameters<typeof GradedPopulation>[0]['population'] }).population}
+      />
 
       {chartGrades.length > 0 && (
         <div className="mt-3">

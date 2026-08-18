@@ -23,14 +23,29 @@ export const RARITY_RANK: Record<string, number> = {
   'Mega Ultra Rare': 9, // 일본판 메가 시리즈 전용 최상위(카드 전체 금색) — 세트당 1장
   'Mega Hyper Rare': 9, // 영문판 메가 시리즈의 같은 등급(MHR) — 세트당 2장
 };
-export const rankOf = (r?: string) => RARITY_RANK[r ?? ''] ?? 0;
-export const usableCards = (cards: PackCard[]) => cards.filter((c) => c.r && c.r in RARITY_RANK);
+// ⚠️⚠️ **여기도 대소문자를 안 가려야 한다.** 위 pools와 같은 함정인데 이쪽이 더 무섭다 —
+//    `usableCards`가 순위표에 없는 등급을 **뽑기 대상에서 통째로 뺀다.** 실측(2026-08-11):
+//    en-sv10 카드 256장 중 **57장**(Double Rare·Illustration Rare·SIR·Hyper Rare)이
+//    이렇게 빠져 있었다. 확률표를 아무리 고쳐도 카드 자체가 없으니 나올 수가 없었다.
+const 순위표소문자: Record<string, number> = Object.fromEntries(
+  Object.entries(RARITY_RANK).map(([k, v]) => [k.toLowerCase(), v]),
+);
+export const rankOf = (r?: string) => 순위표소문자[String(r ?? '').toLowerCase()] ?? 0;
+export const usableCards = (cards: PackCard[]) =>
+  cards.filter((c) => c.r && String(c.r).toLowerCase() in 순위표소문자);
 
 const randOf = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 
+// ⚠️⚠️ **등급 이름은 대소문자를 안 가린다.** 확률표는 "Hyper rare"라 적혀 있는데 세트
+//    자료에는 "Hyper Rare"로 들어 있어, **영문판 15개 세트에서 상위 등급이 통째로 안
+//    나오고 있었다**(2026-08-11 확률 손보다가 발견 — 20,000팩을 돌려도 HR·SIR·IR·RR이
+//    0장이고 UR만 나왔다. 확률표가 하나도 안 걸려 전부 fallback으로 빠진 것이다).
+//    한쪽 표기를 고치는 것으로는 또 어긋난다 — 자료는 TCGdex·PPT에서 오고 표기가 제각각이다.
+//    **찾을 때 소문자로 맞춰 본다.**
+const 등급열쇠 = (r: string | undefined | null) => String(r ?? 'Common').toLowerCase();
 function groupByRarity(cards: PackCard[]) {
   const pools: Record<string, PackCard[]> = {};
-  for (const c of cards) (pools[c.r ?? 'Common'] ??= []).push(c);
+  for (const c of cards) (pools[등급열쇠(c.r)] ??= []).push(c);
   return pools;
 }
 const cardsFlat = (pools: Record<string, PackCard[]>) => Object.values(pools).flat();
@@ -49,7 +64,7 @@ function rollSlot(
   let x = Math.random();
   for (const [tier, p] of rolls) {
     if (x < p) {
-      const pool = (pools[tier] ?? []).filter((c) => !taken.has(c.n));
+      const pool = (pools[등급열쇠(tier)] ?? []).filter((c) => !taken.has(c.n));
       if (pool.length) return randOf(pool);
       return randOf(pick.length ? pick : cardsFlat(pools));
     }
@@ -65,7 +80,7 @@ function forceTier(
   fallback: PackCard[],
   taken: Set<string>,
 ): PackCard {
-  const pool = (pools[tier] ?? []).filter((c) => !taken.has(c.n));
+  const pool = (pools[등급열쇠(tier)] ?? []).filter((c) => !taken.has(c.n));
   if (pool.length) return randOf(pool);
   const left = fallback.filter((c) => !taken.has(c.n));
   return randOf(left.length ? left : fallback);
@@ -82,8 +97,8 @@ function drawDistinct(pool: PackCard[], n: number, taken?: Set<string>): PackCar
 
 // 갓팩: 팩 장수 그대로, 전부 AR 이상. 상위 등급이 모자라면 아래 등급으로 메운다.
 function drawGodPack(pools: Record<string, PackCard[]>, size: number): PackCard[] {
-  const top = GOD_TIERS.flatMap((t: string) => pools[t] ?? []);
-  const pool = top.length >= size ? top : [...top, ...(pools['Double rare'] ?? []), ...(pools['Rare'] ?? [])];
+  const top = GOD_TIERS.flatMap((t: string) => pools[등급열쇠(t)] ?? []);
+  const pool = top.length >= size ? top : [...top, ...(pools[등급열쇠('Double rare')] ?? []), ...(pools[등급열쇠('Rare')] ?? [])];
   return drawDistinct(pool, size);
 }
 
@@ -107,8 +122,8 @@ type BuildOpts = {
 // jp151(7장) = 커먼3 + 언커먼1 + 미러1 + 슬롯2 · na(10장) = 커먼3 + 언커먼3 + 리버스2 + 슬롯2.
 function buildPack(cards: PackCard[], profile: RateProfile, opts: BuildOpts = {}): PackCard[] {
   const pools = groupByRarity(cards);
-  const commons = pools['Common'] ?? cards;
-  const uncommons = pools['Uncommon'] ?? commons;
+  const commons = pools[등급열쇠('Common')] ?? cards;
+  const uncommons = pools[등급열쇠('Uncommon')] ?? commons;
   const cu = [...commons, ...uncommons];
   // 이 팩에 넣을 변형판 목록. jp151=미러 1장 · na=리버스 2장 ·
   // prismatic=몬스터볼 포일 1/3팩 + 마스터볼 포일 1/20팩(팩마다 있을 수도 없을 수도).
@@ -130,7 +145,7 @@ function buildPack(cards: PackCard[], profile: RateProfile, opts: BuildOpts = {}
 
   // 미러/리버스/포일: 커먼~레어 풀에서 뽑아 변형판 표시를 붙인다.
   if (mirrorCount > 0) {
-    const mirrorPool = [...cu, ...(pools['Rare'] ?? [])];
+    const mirrorPool = [...cu, ...(pools[등급열쇠('Rare')] ?? [])];
     for (let i = 0; i < mirrorCount; i++) {
       const base = drawDistinct(mirrorPool, 1, taken)[0];
       if (!base) break;
@@ -140,7 +155,7 @@ function buildPack(cards: PackCard[], profile: RateProfile, opts: BuildOpts = {}
   }
 
   profile.slots.forEach((slot, si) => {
-    const fb = slot.fb === 'rare' ? pools['Rare'] ?? uncommons : cu;
+    const fb = slot.fb === 'rare' ? pools[등급열쇠('Rare')] ?? uncommons : cu;
     const isLast = si === profile.slots.length - 1;
     let card: PackCard;
     if (si === 0 && profile.slots.length > 1 && opts.forceA) {
@@ -227,7 +242,7 @@ export function drawBox(
   const srRolls = lastRolls.filter(
     ([t]) =>
       ['Mega Ultra Rare', 'Hyper rare', 'Special illustration rare', 'Ultra Rare'].includes(t) &&
-      (pools[t]?.length ?? 0) > 0,
+      (pools[등급열쇠(t)]?.length ?? 0) > 0,
   );
   const srTotal = srRolls.reduce((a, [, p]) => a + p, 0);
   let x = Math.random() * srTotal;
@@ -236,7 +251,7 @@ export function drawBox(
   let srTier =
     srRolls[0]?.[0] ??
     Object.keys(pools)
-      .filter((t) => (pools[t]?.length ?? 0) > 0)
+      .filter((t) => (pools[등급열쇠(t)]?.length ?? 0) > 0)
       .sort((a, b) => (RARITY_RANK[b] ?? -1) - (RARITY_RANK[a] ?? -1))[0] ??
     'Ultra Rare';
   for (const [t, p] of srRolls) {
@@ -256,7 +271,7 @@ export function drawBox(
     if (i !== undefined) forcedLast.set(i, 'Double rare');
   }
   // ACE 1장(일반 박스, 수록 세트만)
-  if (opts.guarantee === 'jp' && (pools['ACE SPEC Rare']?.length ?? 0) > 0) {
+  if (opts.guarantee === 'jp' && (pools[등급열쇠('ACE SPEC Rare')]?.length ?? 0) > 0) {
     const i = takeIdx();
     if (i !== undefined) forcedLast.set(i, 'ACE SPEC Rare');
   }

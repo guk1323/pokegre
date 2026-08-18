@@ -22,7 +22,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // ⚠️ 예전엔 여기에 손으로 적었다. 여섯 개 적어 두고 나머지 82개를 못 받고 있었다.
 //    TCGdex가 세트 코드로 일본어 이름을 그대로 준다(S8b → VMAXクライマックス).
 //    받아서 쓰고, 못 받은 것만 아래 표로 메운다.
+// 영문판 검색어를 손으로 줘야 하는 세트. 스니덩크가 영문 세트를 일본어 상품명으로 올려서
+// ("スカーレット&バイオレット 151 ブースターバンドル"), 영문 이름으로는 0건인 것들이다.
+const EN_KEYWORD_FALLBACK = {
+  'en-sv03.5': '151 英語版 ボックス',
+}
 const JP_NAME_FALLBACK = {
+  // 스니덩크 실물 상품명으로 확인(2026-08-10): 拡張パック「ストームエメラルダ」
+  'ja-M6': 'ストームエメラルダ',
   'ja-SV1S': 'スカーレットex',
   'ja-SV1V': 'バイオレットex',
   'ja-SV2D': 'クレイバースト',
@@ -118,7 +125,10 @@ async function main() {
   const index = JSON.parse(await readFile(path.join(OUT, 'index.json'), 'utf8'))
   let hit = 0
   let done = 0
-  const targets = index.filter((x) => !x.boxImg)
+  // 슬러그를 주면 그것만 한다(예: node scripts/patch-set-boxes.mjs ja-M6 en-me01).
+  // 전체(555개)를 매번 도는 건 낭비다 — 상점에 오르는 세트만 콕 집어 채울 때 쓴다.
+  const 고른것 = process.argv.slice(2).filter((x) => !x.startsWith('--'))
+  const targets = index.filter((x) => !x.boxImg && (!고른것.length || 고른것.includes(x.slug)))
   const skipped = []
   for (const entry of targets) {
     // 일본판은 일본어 이름이 있어야 찾는다(한글로는 0건). 없으면 건너뛰고 끝에 알린다.
@@ -127,7 +137,11 @@ async function main() {
       skipped.push(`${entry.slug} ${entry.name}`)
       continue
     }
-    const img = entry.ed === 'ja' ? await searchBox(jp) : await searchEnBox(entry.name)
+    // 영문판 이름의 "ME01:" 같은 앞코드는 스니덩크가 모른다 — 콜론 뒤 토막으로 찾는다.
+    const en이름 = EN_KEYWORD_FALLBACK[entry.slug] ?? (String(entry.name ?? '').includes(':')
+      ? String(entry.name).slice(String(entry.name).indexOf(':') + 1).trim()
+      : String(entry.name ?? ''))
+    const img = entry.ed === 'ja' ? await searchBox(jp) : await searchEnBox(en이름)
     if (img) {
       entry.boxImg = img
       hit++

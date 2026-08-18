@@ -30,6 +30,9 @@ interface Latest {
   slug: string;
   ed: 'ja' | 'en';
   name: string;
+  /** 화면에 적을 **한글 세트 이름**. 서버가 이름 사전을 태워서 보낸다.
+   *  ⚠️ 옛 서버는 이걸 안 보낸다 — 없으면 `name`(원어)으로 되돌아간다. */
+  nameKo?: string;
   releaseDate: string;
   src: 'snkrdunk' | 'tcgplayer';
   grade?: 'psa10' | 'a';
@@ -106,10 +109,15 @@ export function NewSetHitCards({
   // 시세가 하나도 없으면 이 줄 자체를 안 그린다. 빈 상자를 남기면 "고장난 자리"로 보인다.
   if (!data) return null;
 
-  const 이름 = data.name;
+  const 이름 = data.nameKo || data.name;
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-2">
+        {/* ⚠️⚠️ **구역 제목은 두 단으로만 쓴다**(사장님 지시 2026-08-12 "제목 폰트랑 굵기 비율 맞춰").
+              주요(시세): text-lg + font-extrabold + 검정  — 인기 검색어 · 힛카드 목록
+              곁다리    : text-sm + font-bold + 회색      — 이번 주 TOP 5 · 포켓몬 소식
+            8월 12일에 이 제목만 한 단계 낮췄다가 인기 검색어와 어긋나 되돌렸다.
+            구역을 작게 만들 일이 있으면 **제목이 아니라 카드 칸 수**로 줄인다. */}
         <h2 className="text-lg font-extrabold tracking-tight text-black">{이름} 힛카드 목록</h2>
         <button
           type="button"
@@ -130,11 +138,16 @@ export function NewSetHitCards({
       </p>
       {/* ⚠️ 폰은 4장, 큰 화면은 8장. 폰에서 8장을 넣으면 한 칸이 80px이라 카드가
           뭔지 알아볼 수 없다(세트 화면에서 겪은 것과 같은 문제). */}
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-        {/* ⚠️ **넓은 화면은 6장 한 줄, 핸드폰은 4장 한 줄.** 8장을 6열에 넣었더니 두 줄이
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+        {/* ⚠️ **넓은 화면은 8장 한 줄, 핸드폰은 4장 한 줄.** 8장을 6열에 넣었더니 두 줄이
             되어 이 구역만 674px(홈의 34%)이 됐다. 8열로 하면 한 줄이지만 카드가 133px로
-            잘아 무슨 카드인지 안 보였다(2026-08-08). 6장·6열이면 한 줄이면서 180px다. */}
-        {data.cards.slice(0, 6).map((c, i) => (
+            잘아 무슨 카드인지 안 보였다(2026-08-08). 6장·6열이면 한 줄이면서 180px다.
+            ⚠️⚠️ **폰은 4열에서 더 늘리지 말 것.** 2026-08-12에 5열로 바꿔 봤다가 되돌렸다 —
+               카드 한 장이 **63px**이 되어 무슨 카드인지 알아볼 수가 없었다.
+               넓은 화면은 8열로 늘렸다(같은 날, 사장님이 "힛카드 목록을 작게" 하라고
+               하셔서). 이 구역이 홈에서 제일 컸다(344px) — 8열이면 카드가 135px이라
+               읽히면서 구역 높이가 줄어든다. 폰과 넓은 화면은 사정이 다르다. */}
+        {data.cards.slice(0, 8).map((c, i) => (
           <button
             key={c.n}
             type="button"

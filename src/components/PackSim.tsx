@@ -229,7 +229,8 @@ const todayKst = kstDateStr;
 // "시세 보기"가 넘기는 목표. 앨범에 보여주는 값이 TCGplayer 마켓가이므로 눌렀을 때도
 // TCGplayer 화면으로 간다(보여준 숫자와 다른 시장으로 보내면 헷갈린다). 검색어는
 // "이름 번호"라 그 카드 한 장으로 좁혀진다(039처럼 0 붙은 그대로 — 39는 239에도 걸린다).
-export type PickTarget = { query: string; source: 'snkrdunk' | 'ebay' | 'tcgplayer'; edition: 'japanese' | 'english' };
+// ⚠️ 옛 해외 시세('ebay'·'tcgplayer')는 2026-08-13에 지웠다. `cardboard_tcg`가 그 자리다.
+export type PickTarget = { query: string; source: 'snkrdunk' | 'cardboard' | 'cardboard_tcg'; edition: 'japanese' | 'english' };
 
 export function PackSim({
   onPickCard,
@@ -540,7 +541,7 @@ export function PackSim({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: slug2, spend, from }),
       });
-      const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string; highlight?: string };
+      const d = (await r.json()) as { cards?: PackCard[]; god?: boolean; balance?: number; packs?: Record<string, number>; error?: string; highlight?: string | string[] };
       if (!r.ok || !d.cards) {
         setErr(openErrorText(d.error, '팩'));
         return;
@@ -602,7 +603,7 @@ export function PackSim({
         balance?: number;
         boxes?: Record<string, number>;
         error?: string;
-        highlight?: string;
+        highlight?: string | string[];
       };
       if (!r.ok || !d.packs) {
         setErr(openErrorText(d.error, '박스'));
@@ -785,7 +786,7 @@ export function PackSim({
     const jp = !!packBySlug.get(slug2)?.jp;
     const en = value?.names?.[slug2]?.[번호열쇠(n)];
     const name = en || (jp ? koName(true, rawName) : rawName);
-    return { query: `${name} ${n}`, source: 'tcgplayer', edition: jp ? 'japanese' : 'english' };
+    return { query: `${name} ${n}`, source: 'cardboard_tcg', edition: jp ? 'japanese' : 'english' };
   };
 
     const usdOf = (a: AlbumCard) => {
@@ -800,16 +801,23 @@ export function PackSim({
   // 무겁게 한다). 이 화면은 이미 사전을 들고 있으니 여기서 한 장만 보낸다.
   // 배너에 오르는 건 100팩에 한 번쯤이라 부담이 없다. 실패해도 그냥 넘어간다 —
   // 이름이 없으면 배너가 팩 이름과 등급만 보여준다.
-  const sendHighlightName = (n: string | undefined, cards: PackCard[], jp: boolean) => {
-    if (!n) return;
-    const hit = cards.find((c) => c.n === n);
-    const name = hit ? koName(jp, hit.name) : '';
-    if (!name) return;
+  // ⚠️ 한 박스를 열면 **자리가 팩 수만큼** 생긴다(2026-08-13). 그래서 카드 번호가
+  //    여러 개 올 수 있고, 한 번에 묶어 보낸다. 서버는 옛 꼴({n,name})도 받는다.
+  const sendHighlightName = (ns: string | string[] | undefined, cards: PackCard[], jp: boolean) => {
+    const 번호들 = (Array.isArray(ns) ? ns : ns ? [ns] : []).filter(Boolean);
+    if (!번호들.length) return;
+    const list = 번호들
+      .map((n) => {
+        const hit = cards.find((c) => c.n === n);
+        return { n, name: hit ? koName(jp, hit.name) : '' };
+      })
+      .filter((x) => x.name);
+    if (!list.length) return;
     void fetch('/api/local/auth/packsim/highlight-name', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ n, name }),
+      body: JSON.stringify({ list }),
     }).catch(() => undefined);
   };
   // 개봉 직후 결과 자리로 화면을 옮긴다.
@@ -965,8 +973,12 @@ export function PackSim({
               </>
             )}
           </div>
-          {/* 잔액이 상한이면 눌러도 한 푼도 안 들어온다. 버튼을 그대로 열어 두면 눌러 보고
-              아무 일도 안 일어나는 것처럼 보이므로, 미리 이유를 적어 준다. */}
+          {/* ⚠️⚠️ 잔액이 상한이어도 **출석 버튼을 잠그지 않는다**(사장님 지시 2026-08-11:
+              "상한을 50만으로 올리고 연속 출석이 이어지게"). 예전엔 상한이면 버튼을
+              `disabled`로 막았는데, 그러면 **연속 출석이 그날로 끊긴다** — GP를 다 모은
+              사람일수록 매일 오던 사람인데 그 기록을 잃는다. 서버는 상한에 걸려도
+              `streak`을 올려 주므로(checkin), 화면만 막고 있던 것이다.
+              대신 GP가 안 늘어난다는 것은 눌리기 **전에** 미리 알린다. */}
           {(() => {
             const full = (sim?.balance ?? 0) >= MAX_BALANCE;
             const label = guest
@@ -974,21 +986,21 @@ export function PackSim({
               : !sim?.canCheckIn
                 ? '오늘 출석 완료'
                 : full
-                  ? `GP가 가득 찼습니다`
+                  ? '출석만 하기'
                   : `출석하고 ${gp(DAILY_BUDGET)} 받기`;
             return (
               <div className="w-full sm:ml-auto sm:w-auto">
                 <button
                   type="button"
                   onClick={guest ? onRequestLogin : checkIn}
-                  disabled={guest ? false : busy || !sim?.canCheckIn || full}
+                  disabled={guest ? false : busy || !sim?.canCheckIn}
                   className="w-full rounded-lg bg-black px-5 py-2.5 text-sm font-bold text-white disabled:opacity-40 sm:w-auto"
                 >
                   {label}
                 </button>
                 {sim?.canCheckIn && full && (
                   <p className="mt-1 text-[11px] text-neutral-400 sm:text-right">
-                    GP가 상한이라 지금 받으면 사라집니다.
+                    GP가 상한({gp(MAX_BALANCE)})이라 GP는 안 늘지만 연속 출석은 이어집니다.
                   </p>
                 )}
               </div>
@@ -1340,7 +1352,10 @@ export function PackSim({
                     <p className="text-center text-xs font-semibold text-amber-700">지금까지 나온 상위 카드</p>
                     <div className="mt-1 flex flex-wrap justify-center gap-1">
                       {tops.map((c) => (
-                        <img key={c.i} src={thumb(c.img ?? '', 80)} alt="" className="h-14 rounded ring-1 ring-amber-200" />
+                        // ⚠️ 여기도 `cardImg`를 거친다. 지금 뽑기 카드는 전부 limitless(완성된
+                        //    주소)라 탈이 없지만, TCGdex 주소가 하나라도 섞이면 그 자리부터
+                        //    뒷면이 뜬다 — 같은 실수를 CardImg에서 이미 한 번 했다(2026-08-13).
+                        <img key={c.i} src={thumb(cardImg(c.img ?? ''), 80)} alt="" className="h-14 rounded ring-1 ring-amber-200" />
                       ))}
                     </div>
                   </div>
@@ -2095,6 +2110,20 @@ function CardSlot({
   const tier = glowOf(card.usd);
   const glow = flipped ? tier : 0;
   const hit = glow > 0;
+  // ⚠️⚠️ **카드 밑 글자는 뒤집기 전에도 자리를 잡아 둔다.**
+  //    예전엔 빈 자리를 그냥 띄어쓰기(' ')로 채웠는데, **띄어쓰기만 있는 줄은 높이가
+  //    0이다** — HTML이 공백만 있는 줄을 지운다(실측: 빈칸 0px, 글자가 들면 15px).
+  //    그래서 한 장 뒤집을 때마다 카드 밑이 자라고, 그 아래 "한번에 공개"·"다음 팩"
+  //    버튼이 통째로 내려갔다. 1280x800과 375x812(폰) 둘 다에서 **32px** 밀렸다.
+  //    누를 때마다 버튼이 도망가서 불편하다고 사장님이 지적했다(2026-08-11).
+  //    안 지워지는 공백(U+00A0)으로 채우면 뒤집기 전에도 줄 높이가 그대로 잡힌다 —
+  //    고친 뒤 다섯 장을 하나씩 뒤집어도 버튼이 한 픽셀도 안 움직였다.
+  // ⚠️ 뒤집기 전에 미리 잡아 두는 자리는 **이 카드가 나중에 보여 줄 줄**만큼이다.
+  //    모르는 카드까지 넉넉히 잡으면 팩마다 빈 줄이 두 줄씩 생겨 화면이 뜬다.
+  //    빈 줄은 글자가 없어 눈에 안 보이므로 어느 카드가 좋은지도 드러나지 않는다.
+  // ⚠️ 눈에 안 보이는 글자라 코드(escape)로 적는다. 그냥 붙여 넣으면 나중에
+  //    공백 정리에 지워져도 아무도 모른다 — 그러면 이 문제가 조용히 되살아난다.
+  const 빈줄 = '\u00A0';
   return (
     <div>
       <div
@@ -2137,17 +2166,32 @@ function CardSlot({
           </div>
         </div>
       </div>
-      <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{flipped ? name : ' '}</p>
+      {/* 줄 높이(leading)도 숫자로 못 박아 둔다. 지금은 빈 줄과 글자가 든 줄의 키가 이미
+          같지만(둘 다 실측 15px), 글꼴이나 기본 줄 높이가 바뀌면 한쪽만 달라질 수 있다 —
+          그러면 이 문제가 조용히 되살아난다. 박아 두면 그럴 일이 없다. */}
+      <p className="mt-1 line-clamp-1 text-[11px] leading-[17px] font-semibold text-neutral-700">
+        {flipped ? name : 빈줄}
+      </p>
       {/* ⚠️ 등급은 묶음 안에서 안 적는다(showTier=false). 바로 위 묶음 머리가 이미
           "언커먼 4장"이라고 했는데 카드마다 또 "언커먼"을 달면 한 화면에 등급 이름이
           12번 나온다(팩 10장 기준 실측 2026-08-04). 개봉 중에는 등급이 섞여 있어 켠다. */}
       {showTier && (
-        <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>{flipped ? rarityKo(card.r, jp) : ' '}</p>
+        <p className={`text-[10px] leading-[15px] font-bold ${meta.cls.split(' ')[0]}`}>
+          {flipped ? rarityKo(card.r, jp) : 빈줄}
+        </p>
       )}
-      {showTier && flipped && card.m && <p className={`text-[10px] ${M_LABEL[card.m].cls}`}>{M_LABEL[card.m].t}</p>}
+      {/* 몬스터볼·마스터볼 무늬. **뒤집기 전에도 줄을 잡아 둔다** — 이 줄이 뒤집을 때
+          생기면 그 카드만 키가 커져서 아래 버튼이 밀린다(위 빈줄 설명). */}
+      {showTier && card.m && (
+        <p className={`text-[10px] leading-[15px] ${M_LABEL[card.m].cls}`}>
+          {flipped ? M_LABEL[card.m].t : 빈줄}
+        </p>
+      )}
       {/* 값은 아는 카드만 적는다. 시세를 아직 못 받은 세트도 있어서, 모르는 걸 "0원"
           이라고 적으면 "값이 없는 카드"로 읽힌다(틀린 것보다 빈칸). */}
-      {price && flipped && <p className="text-[10px] font-bold text-neutral-800">{price}</p>}
+      {price && (
+        <p className="text-[10px] leading-[15px] font-bold text-neutral-800">{flipped ? price : 빈줄}</p>
+      )}
     </div>
   );
 }

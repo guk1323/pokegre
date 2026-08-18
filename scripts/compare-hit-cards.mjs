@@ -59,7 +59,7 @@ async function tradedJpy(apparelId) {
 
 async function main() {
   const ppt = JSON.parse(await readFile('/tmp/pp_full.json', 'utf8').catch(() => '{}'))
-  const fx = await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY').then((r) => r.json()).catch(() => null)
+  const fx = await fetch('https://api.frankfurter.dev/v1/latest?from=USD&to=JPY').then((r) => r.json()).catch(() => null)
   const usdJpy = fx?.rates?.JPY ?? 0
   if (!usdJpy) { console.error('환율을 못 받았습니다.'); process.exit(1) }
 

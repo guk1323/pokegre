@@ -23,7 +23,10 @@ export interface CommunityPost {
     pack: string;
     god: boolean;
     total?: number;
-    cards: { img: string; name: string; r: string; q?: number }[];
+    // krw는 **글을 올린 그때의 값**이다. 지금 시세로 다시 계산하지 않는다 —
+    // 자랑글은 그 순간의 기록이라, 나중에 열어도 그때 적힌 금액이 그대로여야 한다.
+    // 값이 없는 카드(시세 미수신)는 krw가 없다. 카드는 **값 높은 순**으로 온다.
+    cards: { img: string; name: string; r: string; q?: number; krw?: number }[];
   };
   // 작성자가 올린 사진 주소(/uploads/…).
   images?: string[];

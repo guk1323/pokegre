@@ -12,7 +12,10 @@ import {
 } from '../api/auth';
 import { CardRow } from './CardRow';
 
+
+
 const ALL_PROVIDERS: LoginProvider[] = ['kakao', 'naver'];
+
 
 // 계정 카드 안에 들어가는 한 줄. 로그인 수단 연결은 평생 한 번 누르거나 아예 안 누르는
 // 일이라, 상자를 따로 주면 정작 매번 보는 즐겨찾기보다 자리를 더 먹는다.
@@ -186,6 +189,10 @@ function AccountCard({
   const [editing, setEditing] = useState(false);
   if (!loggedIn) {
     return (
+      // ⚠️⚠️ **이 카드에 단추를 더 넣지 마라.** 화면 단추를 「로그인」 옆에 뒀다가 뺐다 —
+      //    단추가 둘이 되니 설명이 좁은 칸에 밀려 **320px에서 여섯 줄**로 찢어졌다
+      //    (사장님 지적: "작은 화면으로 보니까 옆에 설명이 되게 너저분하게 되네").
+      //    폰에서 위아래로 쌓아 봤지만, 결국 **제목 줄로 옮기는 것**으로 정해졌다.
       <div className="mb-6 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 p-5">
         <div className="min-w-0">
           <p className="text-sm font-bold text-black mb-1">로그인하고 시작하기</p>

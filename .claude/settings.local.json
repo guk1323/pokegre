@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(fly deploy:*)",
+      "Bash(fly secrets:*)",
+      "Bash(fly apps:*)",
+      "Bash(fly scale:*)",
+      "Bash(fly volumes:*)",
+      "Bash(fly machine:*)",
+      "Bash(git push:*)",
+      "Bash(rm -rf:*)",
+      "Read(//Users/sonhunguk/Documents/GitHub/pokemon-card-price-tracker/.env)",
+      "Read(//Users/sonhunguk/Documents/GitHub/pokemon-card-price-tracker/.env.*)"
+    ]
+  }
+}

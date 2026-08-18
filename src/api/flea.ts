@@ -53,8 +53,12 @@ export const SLAB_GRADES = [
   '기타 감정품',
 ] as const;
 
-export const EDITION_LABEL = { jp: '일본판', na: '영문판', kr: '한글판' } as const;
-export type Edition = keyof typeof EDITION_LABEL;
+// 다루는 판은 **화면·서버가 같은 한 벌**을 쓴다(src/lib/fleaSets.ts).
+// 영문판은 안 받는다 — 왜인지는 그 파일 머리말에 있다.
+import { FLEA_EDITION_LABEL, type FleaEdition } from '../lib/fleaSets';
+
+export const EDITION_LABEL = FLEA_EDITION_LABEL;
+export type Edition = FleaEdition;
 
 // 등급별 한 줄 설명. 등록 화면에서 고를 때 바로 보이게 해서 후하게 매기는 걸 줄인다.
 export const RAW_GRADE_HINT: Record<(typeof RAW_GRADES)[number], string> = {

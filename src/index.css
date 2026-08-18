@@ -72,6 +72,12 @@ select {
 }
 .sheet-panel {
   animation: sheet-up 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  /* ⚠️ 시트 안에서 끝까지 굴렸을 때 **뒤 목록으로 넘어가지 않게** 막는다. 없으면 손가락이
+     끝에 닿는 순간 뒤 화면이 딸려 움직여, 시트가 미끄러지는 것처럼 느껴진다
+     (사장님 지적 2026-08-15: "스크롤하기 너무 어려워"). */
+  overscroll-behavior: contain;
+  /* iOS에서 관성 스크롤이 뚝뚝 끊기는 것을 막는다. */
+  -webkit-overflow-scrolling: touch;
 }
 .sheet-backdrop {
   animation: sheet-fade 0.22s ease-out;
@@ -81,4 +87,667 @@ select {
   .sheet-backdrop {
     animation: none;
   }
+}
+
+/* ── 어두운 화면(다크 모드) ────────────────────────────────────────────────
+ *
+ * ⚠️⚠️ **클래스는 한 줄도 안 고친다.** 이 앱에는 색 클래스가 1,472곳인데(2026-08-14 실측)
+ *    거의 전부 `neutral` 계열 + 검정/흰색이다. Tailwind가 그 색들을 CSS 변수로 들고
+ *    있으므로 **변수 값만 뒤집으면** 화면 전체가 따라온다. 앞으로 만드는 화면도 저절로
+ *    적용된다 — `dark:`를 1,472번 붙이면 새 코드마다 까먹는다.
+ *
+ * ⚠️ 되는 까닭은 이 리포가 색을 **뜻대로** 써 왔기 때문이다: 옅은 바탕은 낮은 숫자(50·100),
+ *    진한 글씨는 높은 숫자(700·800). 그래서 사다리를 뒤집으면 뜻이 그대로 살아난다.
+ *    ⚠️ 이 규칙을 깨고 색을 쓰면(예: 어두운 바탕에 `bg-neutral-50`) 다크에서 뒤집힌다.
+ *
+ * ⚠️⚠️ **순검정(#000)을 안 쓴다.** 흰 글씨와 대비가 너무 세서 글자가 번져 보이고
+ *    (halation) 어두운 방에서 오히려 더 피로하다. 바탕은 #141414, 제일 밝은 글씨도
+ *    순흰색 대신 #ededed로 낮춘다. OLED 절전은 순검정이 유리하지만 **눈이 목적**이다
+ *    (사장님 지시 2026-08-14: "어두운곳에서도 눈 덜 아프게 보는게 목적").
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* 바탕·면. `bg-white`(카드 면)와 `bg-neutral-100`(바깥 바탕)이 짝이다. */
+  --color-white: #1a1a1a;
+  --color-neutral-50: #202020;
+  --color-neutral-100: #141414;
+  --color-neutral-200: #2c2c2c;
+  --color-neutral-300: #3a3a3a;
+
+  /* 글씨. 400은 이 앱에서 제일 많이 쓰는 「옅은 설명글」이라 읽히는 선까지만 낮춘다. */
+  --color-neutral-400: #8c8c8c;
+  --color-neutral-500: #a3a3a3;
+  --color-neutral-600: #bdbdbd;
+  --color-neutral-700: #d4d4d4;
+  --color-neutral-800: #e0e0e0;
+  --color-neutral-900: #ededed;
+  --color-neutral-950: #f5f5f5;
+
+  /* `bg-black text-white`는 「고른 것」 표시다(메뉴·탭). 뒤집어야 뜻이 산다. */
+  --color-black: #ededed;
+
+  /* 마켓 색은 **뜻이 색 자체**라 안 뒤집는다. 다만 어두운 바탕에서 형광펜처럼 튀어
+     채도만 낮춘다(eBay 파랑·TCGplayer 주황·경고 노랑). */
+  --color-blue-700: #3b6fb0;
+  --color-orange-600: #c26a2a;
+  --color-amber-500: #c99a3a;
+  --color-amber-600: #c9a24a;
+  /* ⚠️ 700을 더한 까닭: 밝은 화면에서 `amber-600`(#d97706)이 흰 바탕에 **3.2**밖에 안 나온다.
+     11px 굵은 글씨는 4.5가 있어야 읽힌다(2026-08-17 대전쟁 값 숫자에서 잡았다). */
+  --color-amber-700: #d9a441;
+  --color-amber-50: #2a2415;
+  --color-amber-200: #4a3f22;
+}
+
+/* 시스템이 어두우면 저절로 따라간다. 사람이 밝게 고정했으면(`data-theme='light'`) 안 따른다. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-white: #1a1a1a;
+    --color-neutral-50: #202020;
+    --color-neutral-100: #141414;
+    --color-neutral-200: #2c2c2c;
+    --color-neutral-300: #3a3a3a;
+    --color-neutral-400: #8c8c8c;
+    --color-neutral-500: #a3a3a3;
+    --color-neutral-600: #bdbdbd;
+    --color-neutral-700: #d4d4d4;
+    --color-neutral-800: #e0e0e0;
+    --color-neutral-900: #ededed;
+    --color-neutral-950: #f5f5f5;
+    --color-black: #ededed;
+    --color-blue-700: #3b6fb0;
+    --color-orange-600: #c26a2a;
+    --color-amber-500: #c99a3a;
+    --color-amber-600: #c9a24a;
+    --color-amber-700: #d9a441;
+    --color-amber-50: #2a2415;
+    --color-amber-200: #4a3f22;
+  }
+}
+
+/* ── 대전쟁 전장 색 ────────────────────────────────────────────────────────
+ *
+ * ⚠️⚠️ **`neutral`만으로는 안 되는 딱 한 곳이다.** 전장은 들판이라 색이 있어야 하는데
+ *    `from-sky-50 to-emerald-50`을 그냥 썼더니 **다크에서 거의 흰 상자**가 됐다
+ *    (oklch 0.977 = 흰색에 가깝다 · 사장님 지적 2026-08-17 "다크모드랑 화이트모드 둘 다
+ *    잘 안보이거든"). sky·emerald는 위 사다리에 없어서 안 뒤집힌다.
+ * ⚠️ 그래서 **여기서만 변수를 따로 둔다.** 화면 코드에는 `var(--전장-…)`만 쓴다 —
+ *    Tailwind의 색 이름을 직접 쓰면 다시 같은 함정에 빠진다.
+ * ⚠️ 도트 그림은 테두리가 검어서 **어두운 바탕에서 묻힌다.** 그래서 다크 쪽 바탕을
+ *    새까맣게 두지 않고 살짝 든 남색·풀색으로 둔다(#1b2430 · #1a2a24).
+ */
+:root {
+  --전장-하늘: #e8f4fd;
+  --전장-땅: #cfe8d6;
+  --전장-금: #a8bfae;
+  --전장-흙: #bcd9c4;
+  --전장-먼: #8aa894;
+  --전장-구름: rgba(255, 255, 255, 0.78);
+  --성-내: #3a72d0;
+  --성-적: #c8433f;
+}
+:root[data-theme='dark'] {
+  --전장-하늘: #1b2430;
+  --전장-땅: #17251f;
+  --전장-금: #34443b;
+  --전장-흙: #1d2f27;
+  --전장-먼: #46586a;
+  --전장-구름: rgba(255, 255, 255, 0.1);
+  --성-내: #3b6fb0;
+  --성-적: #b04545;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --전장-하늘: #1b2430;
+    --전장-땅: #17251f;
+    --전장-금: #34443b;
+    --전장-흙: #1d2f27;
+    --전장-먼: #46586a;
+    --전장-구름: rgba(255, 255, 255, 0.1);
+    --성-내: #3b6fb0;
+    --성-적: #b04545;
+  }
+}
+
+/* ── 스테이지 배경 ────────────────────────────────────────────────────────
+ * ⚠️ 판마다 다른 곳이니 배경도 달라야 한다(사장님 2026-08-17). 그림을 안 쓰고 색으로만
+ *    한다 — 도트 그림 위에 사진을 깔면 유닛이 묻힌다.
+ * ⚠️ **다크 값도 반드시 같이 둔다.** 밝은 값만 두면 어두운 화면에서 흰 상자가 된다
+ *    (앞서 전장 전체가 그랬다).
+ */
+.판-들판 { --전장-하늘: #e6f3fe; --전장-땅: #cfe8d6; --전장-흙: #bcd9c4; --전장-금: #a8bfae; --전장-먼: #8aa894; }
+.판-숲   { --전장-하늘: #dcefdc; --전장-땅: #bfe0c2; --전장-흙: #a9d3ae; --전장-금: #8fbf96; --전장-먼: #6ba173; }
+.판-동굴 { --전장-하늘: #dcdae2; --전장-땅: #c6c2cf; --전장-흙: #b3aec0; --전장-금: #9a94aa; --전장-먼: #847e96; }
+.판-실내 { --전장-하늘: #f0ece2; --전장-땅: #ddd5c4; --전장-흙: #cec4ae; --전장-금: #b8ac93; --전장-먼: #a3957a; }
+.판-바다 { --전장-하늘: #daf0fb; --전장-땅: #bfe2f2; --전장-흙: #a6d6ec; --전장-금: #86bfda; --전장-먼: #6aa8c6; }
+.판-화산 { --전장-하늘: #fbe6dc; --전장-땅: #eecfc2; --전장-흙: #e0bcab; --전장-금: #c99b85; --전장-먼: #b07f6a; }
+.판-탑   { --전장-하늘: #e4dced; --전장-땅: #cec2dd; --전장-흙: #bcaed0; --전장-금: #a08fb8; --전장-먼: #8b789f; }
+
+:root[data-theme='dark'] .판-들판,
+:root:not([data-theme='light']) .판-들판 { --전장-하늘: #1b2430; --전장-땅: #17251f; --전장-흙: #1d2f27; --전장-금: #34443b; --전장-먼: #46586a; }
+:root[data-theme='dark'] .판-숲,
+:root:not([data-theme='light']) .판-숲   { --전장-하늘: #16241a; --전장-땅: #13241a; --전장-흙: #182d20; --전장-금: #2c4433; --전장-먼: #3d6249; }
+:root[data-theme='dark'] .판-동굴,
+:root:not([data-theme='light']) .판-동굴 { --전장-하늘: #23212a; --전장-땅: #1d1b24; --전장-흙: #26232f; --전장-금: #3c3848; --전장-먼: #4f4a5e; }
+:root[data-theme='dark'] .판-실내,
+:root:not([data-theme='light']) .판-실내 { --전장-하늘: #272319; --전장-땅: #201d16; --전장-흙: #2b261b; --전장-금: #453d2b; --전장-먼: #5c5340; }
+:root[data-theme='dark'] .판-바다,
+:root:not([data-theme='light']) .판-바다 { --전장-하늘: #16232e; --전장-땅: #132330; --전장-흙: #172b3a; --전장-금: #2a4459; --전장-먼: #3f6684; }
+:root[data-theme='dark'] .판-화산,
+:root:not([data-theme='light']) .판-화산 { --전장-하늘: #2c1d18; --전장-땅: #251815; --전장-흙: #2f1e18; --전장-금: #4d3128; --전장-먼: #6b4237; }
+:root[data-theme='dark'] .판-탑,
+:root:not([data-theme='light']) .판-탑   { --전장-하늘: #241f2e; --전장-땅: #1e1a27; --전장-흙: #262032; --전장-금: #3e3550; --전장-먼: #584a68; }
+
+/* ── 때리는 순간 튀는 표시 ────────────────────────────────────────────────
+ * ⚠️ 속성색을 그대로 쓴다 — 불꽃은 주황, 물은 파랑. 뭐가 때리는지 색으로 갈린다.
+ * ⚠️ 애니메이션을 쓰지 않는다. 겹친 유닛이 스무 마리면 스무 개가 동시에 돌아 버벅인다.
+ *    한 프레임짜리 원 하나로 끝낸다(`때린티`가 0.12초 동안만 참이다).
+ */
+.대전쟁-타격 {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* ── 대전쟁 「게임다운 톤」 ────────────────────────────────────────────────
+ * ⚠️ 왜: 시세 사이트의 다른 화면과 톤이 같아서 **표처럼 보였다**(사장님 2026-08-17).
+ *    얇은 회색 테두리 + 흰 바탕 + 작은 글씨는 자료를 읽는 화면의 꼴이다.
+ * ⚠️ **색은 여기서만 정한다.** 화면 코드에 색을 박으면 다크에서 안 뒤집힌다.
+ * ⚠️ neutral 사다리를 안 타는 값(무대 테두리 등)은 **다크 값을 반드시 같이** 둔다.
+ */
+:root {
+  --대전쟁-무대: #2b3440;      /* 전장을 감싸는 틀 — 무대처럼 어둡게 */
+  --대전쟁-무대선: #1c232c;
+  --대전쟁-카드: #ffffff;
+  --대전쟁-카드선: #d6dbe1;
+  --대전쟁-카드눌림: #eef1f4;
+  --대전쟁-빈별: #9a9a9a;      /* 아직 못 딴 별 — 흰 바탕에서 3.1(모양으로도 갈린다) */
+  --대전쟁-금반전: #fbbf24;    /* 「고른 것」 단추(bg-neutral-900) 위에 얹는 금색 */
+  /* 역할 이름 — 흰 카드 위에서 5.5~6.5 */
+  --역-벽: #56626e; --역-탱커: #2c5c99; --역-근접: #9c4e18; --역-원거리: #6b45a8;
+}
+:root[data-theme='dark'],
+:root:not([data-theme='light']) {
+  /* ⚠️ 어두운 화면에서는 **밝은 쪽으로** 틀을 세운다. 페이지 바탕(#141414)보다 어둡게 두면
+     무대와 바탕이 안 갈려 「창」으로 안 보인다(2026-08-17 화면에서 잡음). */
+  --대전쟁-무대: #39424f;
+  --대전쟁-무대선: #4b5666;
+  --대전쟁-카드: #1e2229;
+  --대전쟁-카드선: #333a44;
+  --대전쟁-카드눌림: #171b21;
+  --대전쟁-빈별: #6f6f6f;
+  /* ⚠️ 어두운 화면에서 「고른 것」 단추는 **밝아진다**(neutral-900 = #ededed).
+     그 위에 밝은 금을 얹으면 대비 1.6이라 별이 사라진다 — 여기만 어두운 금이다. */
+  --대전쟁-금반전: #7a4300;
+  /* 어두운 카드(#1e2229) 위에서 7.5~8.5 */
+  --역-벽: #a9b5c1; --역-탱커: #74acdf; --역-근접: #e2925c; --역-원거리: #b795e2;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --대전쟁-무대: #2b3440;
+    --대전쟁-무대선: #1c232c;
+    --대전쟁-카드: #ffffff;
+    --대전쟁-카드선: #d6dbe1;
+    --대전쟁-카드눌림: #eef1f4;
+    --대전쟁-빈별: #9a9a9a;
+    --대전쟁-금반전: #fbbf24;
+    --역-벽: #56626e; --역-탱커: #2c5c99; --역-근접: #9c4e18; --역-원거리: #6b45a8;
+  }
+}
+
+/* ⚠️⚠️ 금색은 **`text-amber-700`을 쓴다** — 위 사다리에 다크 값(#d9a441)이 이미 있다.
+   `amber-400`·`amber-500`은 흰 바탕에서 2~3밖에 안 나와 별이 희미해진다.
+   아래 둘은 사다리로 안 되는 두 자리만 맡는다. */
+.대전쟁-빈별 { color: var(--대전쟁-빈별); }
+.대전쟁-금반전 { color: var(--대전쟁-금반전); }
+
+/* 내 성이 깎이면 무대 테두리가 붉어진다 — 위급한 것을 눈으로 알린다. */
+.대전쟁-무대[data-위급='1'] {
+  border-color: #c2453f;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18), 0 0 0 2px rgba(194, 69, 63, 0.35);
+}
+
+/* 전장을 감싸는 무대 틀 — 안쪽 그림자로 「들여다보는 창」처럼 만든다. */
+.대전쟁-무대 {
+  background: var(--대전쟁-무대);
+  border: 4px solid var(--대전쟁-무대선);
+  border-radius: 14px;
+  padding: 4px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+.대전쟁-무대 > * {
+  border-radius: 9px;
+  /* 안쪽으로 그림자를 넣어 화면이 안으로 파인 느낌을 준다. */
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
+/* 유닛 카드 — 눌리는 느낌을 준다. */
+.대전쟁-카드 {
+  background: var(--대전쟁-카드);
+  border: 1.5px solid var(--대전쟁-카드선);
+  border-radius: 10px;
+  box-shadow: 0 2px 0 var(--대전쟁-카드선);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+/* ⚠️⚠️ **`:disabled`가 아니라 `[aria-disabled]`를 본다.** 못 사는 카드도 **길게 눌러
+   능력치를 볼 수 있어야** 해서 `disabled`를 뗐다(2026-08-18). 그러면 이 규칙들이 통째로
+   안 걸려 못 사는 카드가 눌릴 것처럼 보인다 — 잣대를 같이 옮긴다. */
+.대전쟁-카드:not([aria-disabled='true']):hover {
+  border-color: var(--color-neutral-900);
+}
+.대전쟁-카드:not([aria-disabled='true']):active {
+  transform: translateY(2px);
+  box-shadow: none;
+  background: var(--대전쟁-카드눌림);
+}
+.대전쟁-카드[aria-disabled='true'] {
+  box-shadow: none;
+}
+
+/* ── 단추 묶음 ─────────────────────────────────────────────────────────────
+ * ⚠️ 왜: 낱개 단추가 다섯 개 흩어져 있어 「정리가 안 됐다」고 지적받았다(2026-08-18).
+ *    성격이 같은 것(다시·보기·배속·소리)을 **띠 하나로 묶으면** 줄이 하나로 줄고
+ *    무엇이 켜져 있는지가 한눈에 보인다.
+ * ⚠️ 켜진 칸은 `bg-neutral-900 / color-white` 짝을 쓴다 — **둘 다 사다리를 타므로**
+ *    어두운 화면에서 같이 뒤집혀 뜻이 산다(한쪽만 박으면 검은 글씨가 된다).
+ */
+.대전쟁-묶음 {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1.5px solid var(--대전쟁-카드선);
+  background: var(--대전쟁-카드);
+  box-shadow: 0 2px 0 var(--대전쟁-카드선);
+}
+.대전쟁-묶음 > button {
+  padding: 0.375rem 0.7rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.35rem;
+  white-space: nowrap;
+}
+.대전쟁-묶음 > button + button {
+  border-left: 1.5px solid var(--대전쟁-카드선);
+}
+.대전쟁-묶음 > button[data-켬='1'] {
+  background: var(--color-neutral-900);
+  color: var(--color-white);
+}
+.대전쟁-묶음 > button:not([data-켬='1']):not(:disabled):hover {
+  background: var(--대전쟁-카드눌림);
+}
+.대전쟁-묶음 > button:disabled {
+  opacity: 0.4;
+}
+
+/* 시작·멈춤 — 화면에서 제일 큰 단추 하나. 누를 곳이 어디인지 헷갈리면 안 된다. */
+.대전쟁-주단추 {
+  border-radius: 10px;
+  padding: 0.5rem 1.75rem;
+  font-size: 1rem;
+  font-weight: 900;
+  background: var(--color-neutral-900);
+  color: var(--color-white);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.대전쟁-주단추:not(:disabled):active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+.대전쟁-주단추:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+/* ── 진영 건물 ─────────────────────────────────────────────────────────────
+ * ⚠️⚠️⚠️ **여기서 두 번 퇴짜맞았다. 되살리기 전에 까닭부터 읽을 것.**
+ *   ① **성** → "포켓몬 스럽지 않잖아"(2026-08-17). 포켓몬에 없는 말이라 뜻이 안 통했다.
+ *   ② **몬스터볼** → "몬스터볼 되게 별로네"(2026-08-18). 볼은 **던지는 것**이지
+ *      지키고 서 있는 것이 아니라, 전장 끝에 박아 두니 뜻이 어긋났다.
+ *   ③ 지금 = **내 쪽 포켓몬 센터 · 상대 쪽 체육관.** 시즌1 열두 판이 전부 관동
+ *      **체육관 순례**라(회색→블루→갈색→무지개→노랑→연분홍→홍련) 부술 곳이 체육관인
+ *      것이 이야기와 딱 맞고, 회복하러 돌아가는 곳이 센터인 것도 원작 그대로다.
+ * ⚠️ 그림 파일을 안 쓴다 — 지붕(사다리꼴)+몸통+표시 셋이면 건물로 읽힌다(용량 0).
+ * ⚠️ 지붕 색은 **진영 색**을 쓴다(내 파랑 · 상대 빨강). 원작 센터 지붕은 빨강이지만,
+ *    화면 곳곳(HP 띠·유닛 체력 바)이 이미 파랑=나 / 빨강=상대라 그쪽을 지킨다.
+ */
+.대전쟁-집 {
+  position: relative;
+}
+/* 지붕 — 사다리꼴. 몸통보다 좌우로 넓게 빼야 처마가 생겨 건물로 보인다. */
+.집-지붕 {
+  position: absolute;
+  left: -9%;
+  right: -9%;
+  top: 0;
+  height: 42%;
+  background: var(--집색);
+  clip-path: polygon(0 100%, 15% 0, 85% 0, 100% 100%);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+/* 몸통 — 밝은 벽. 아래는 안 막는다(땅에 붙어 선다). */
+.집-몸 {
+  position: absolute;
+  left: 9%;
+  right: 9%;
+  top: 40%;
+  bottom: 0;
+  background: linear-gradient(to bottom, #fbfbf9 0 58%, #e4e4dd 100%);
+  border: 2px solid rgba(0, 0, 0, 0.45);
+  border-bottom: none;
+  border-radius: 2px 2px 0 0;
+}
+/* 창 두 짝 */
+.집-몸::before {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 12%;
+  height: 24%;
+  background: linear-gradient(
+    to right,
+    rgba(30, 40, 60, 0.45) 0 30%,
+    transparent 30% 70%,
+    rgba(30, 40, 60, 0.45) 70% 100%
+  );
+}
+/* 문 */
+.집-몸::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 36%;
+  height: 46%;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--집색) 45%, #2f3238);
+  border-radius: 46% 46% 0 0 / 30% 30% 0 0;
+}
+/* 지붕 표시 — 내 쪽은 **볼 간판**, 상대 쪽은 **배지**. 어느 편인지 색 말고도 갈린다. */
+.집-표 {
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  width: 24%;
+  height: 24%;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: linear-gradient(to bottom, #fdfdfb 0 48%, #d9d9d2 52% 100%);
+  border: 2px solid rgba(0, 0, 0, 0.55);
+}
+.대전쟁-집[data-쪽='적'] .집-표 {
+  border-radius: 3px;
+  transform: translateX(-50%) rotate(45deg);
+  background: #f0d24a;
+}
+/* 금 — 단계가 오를수록 늘어난다. 몸통 위에 긋는다. */
+.대전쟁-집 > i {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.62);
+  transform-origin: 0 50%;
+  border-radius: 2px;
+  z-index: 2;
+}
+/* 무너짐 — 납작해지고 빛이 죽는다. */
+.대전쟁-집[data-깨짐='1'] {
+  transform: scaleY(0.55);
+  transform-origin: 50% 100%;
+  filter: grayscale(0.7) brightness(0.75);
+}
+
+/* ── 배경 꾸미기 ──────────────────────────────────────────────────────────
+ * 사장님 2026-08-18: "배경 좀 이쁘게 꾸미면 안되냐". 전엔 **그러데이션 두 칸이 전부**였다.
+ * 하늘(구름) → 지평선(실루엣) → 땅 → 앞쪽 풀, **네 겹**을 깔아 깊이를 준다.
+ *
+ * ⚠️ 그림 파일을 안 쓴다 — 도트 위에 사진을 깔면 유닛이 묻히고 용량도 는다.
+ *    그러데이션만으로 판마다 다른 곳처럼 보이게 한다.
+ * ⚠️⚠️ **모든 겹은 `pointer-events:none`이고 유닛보다 뒤(z 0)다.** 안 그러면 싸우는 것을 가린다.
+ * ⚠️ 색은 판마다 `--전장-먼`이 정한다 — 다크 값도 짝으로 들어 있다.
+ */
+.대전쟁-구름 {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 55%;
+  pointer-events: none;
+  background-repeat: repeat-x;
+  background-size: 340px 100%;
+  background-image:
+    radial-gradient(26px 11px at 40px 26%, var(--전장-구름) 62%, transparent 64%),
+    radial-gradient(18px 8px at 66px 31%, var(--전장-구름) 62%, transparent 64%),
+    radial-gradient(31px 13px at 190px 16%, var(--전장-구름) 62%, transparent 64%),
+    radial-gradient(21px 9px at 222px 21%, var(--전장-구름) 62%, transparent 64%),
+    radial-gradient(24px 10px at 292px 38%, var(--전장-구름) 62%, transparent 64%);
+  /* 아주 느리게 흐른다. 겹 하나만 움직이므로 값이 싸다. */
+  animation: 대전쟁-구름흐름 90s linear infinite;
+}
+@keyframes 대전쟁-구름흐름 {
+  from { background-position-x: 0; }
+  to { background-position-x: 340px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .대전쟁-구름 { animation: none; }
+}
+/* 동굴·실내는 **하늘이 없다.** 구름을 띄우면 지붕 아래에 구름이 뜬다. */
+.판-동굴 .대전쟁-구름,
+.판-실내 .대전쟁-구름 { display: none; }
+
+/* 지평선 실루엣 — 판마다 모양이 다르다. 기본은 들판의 둔덕이다. */
+.대전쟁-먼 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3rem;
+  height: 46px;
+  pointer-events: none;
+  opacity: 0.85;
+  background-repeat: repeat-x;
+  background-position: bottom left;
+  background-size: 118px 40px;
+  background-image: radial-gradient(ellipse 62px 36px at 50% 100%, var(--전장-먼) 99%, transparent 100%);
+}
+/* 뒤쪽에 한 겹 더 — 흐리고 낮게 깔아 멀리 있는 것처럼 보이게 한다. */
+.대전쟁-먼2 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3rem;
+  height: 46px;
+  pointer-events: none;
+  opacity: 0.32;
+  background-repeat: repeat-x;
+  /* ⚠️ 앞 겹과 **주기를 어긋나게** 둔다(118 ↔ 197). 같은 폭이면 두 겹이 겹쳐 무늬로 보인다. */
+  background-position: bottom 0 left 51px;
+  background-size: 197px 58px;
+  background-image: radial-gradient(ellipse 108px 54px at 50% 100%, var(--전장-먼) 99%, transparent 100%);
+}
+
+.판-숲 .대전쟁-먼 {
+  background-size: 52px 52px;
+  height: 58px;
+  background-image:
+    radial-gradient(ellipse 22px 30px at 50% 76%, var(--전장-먼) 99%, transparent 100%),
+    linear-gradient(var(--전장-먼) 0 0);
+  background-position: bottom left, bottom 0 left 24px;
+  background-repeat: repeat-x, repeat-x;
+}
+.판-바다 .대전쟁-먼 {
+  height: 26px;
+  background-size: 72px 20px;
+  background-image: radial-gradient(ellipse 40px 16px at 50% 100%, var(--전장-먼) 99%, transparent 100%);
+}
+.판-화산 .대전쟁-먼 {
+  height: 72px;
+  background-size: 96px 66px;
+  background-image: radial-gradient(ellipse 34px 62px at 50% 100%, var(--전장-먼) 99%, transparent 100%);
+}
+/* 탑·실내는 둔덕이 아니라 **네모**다 — 건물 안이라 곡선이 어울리지 않는다. */
+.판-탑 .대전쟁-먼,
+.판-실내 .대전쟁-먼 {
+  height: 54px;
+  background-size: 46px 54px;
+  background-image: linear-gradient(to right, var(--전장-먼) 0 20px, transparent 20px 100%);
+  background-position: bottom left;
+}
+.판-탑 .대전쟁-먼2,
+.판-실내 .대전쟁-먼2 {
+  height: 38px;
+  background-size: 74px 38px;
+  background-image: linear-gradient(to right, var(--전장-먼) 0 34px, transparent 34px 100%);
+  background-position: bottom 0 left 18px;
+}
+/* 동굴은 **위에서 종유석이 내려온다.** 아래 둔덕만 있으면 동굴로 안 읽힌다. */
+.판-동굴 .대전쟁-먼2 {
+  top: 0;
+  bottom: auto;
+  height: 40px;
+  opacity: 0.55;
+  background-size: 64px 34px;
+  background-position: top left;
+  background-image: radial-gradient(ellipse 16px 34px at 50% 0%, var(--전장-먼) 99%, transparent 100%);
+}
+
+/* 앞쪽 풀·돌 — 땅 띠 위에 얹혀 유닛이 「그 안에」 서 있는 것처럼 보이게 한다. */
+.대전쟁-앞 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2.6rem;
+  height: 9px;
+  pointer-events: none;
+  opacity: 1;
+  background-repeat: repeat-x;
+  /* ⚠️ 크고 밝은 반원을 늘어놓았더니 **하얀 울타리**로 보였다(2026-08-18 화면에서 잡음).
+     작고 어둡게, 간격을 고르지 않게 두 겹으로 놓아야 풀포기로 읽힌다. */
+  background-size: 27px 9px, 41px 7px;
+  background-position: bottom left, bottom 0 left 13px;
+  /* ⚠️⚠️ **`--전장-먼`을 쓰면 안 된다.** 그 색은 어두운 화면에서 땅보다 **밝아서**
+     풀포기가 하얀 울타리로 보인다(2026-08-18 어두운 화면에서 잡음). 그림자로 그린다 —
+     검정 알파는 어느 화면에서든 「땅보다 어두운 것」이라 뜻이 안 뒤집힌다. */
+  background-image:
+    radial-gradient(ellipse 5px 9px at 50% 100%, rgba(0, 0, 0, 0.22) 99%, transparent 100%),
+    radial-gradient(ellipse 4px 7px at 50% 100%, rgba(0, 0, 0, 0.16) 99%, transparent 100%);
+}
+
+/* 바닥 흙띠 — 걸어 다니는 자리가 어디인지 보이게 한다 */
+.대전쟁-땅 {
+  /* ⚠️ 세로줄을 22px마다 그었더니 **하얀 울타리**처럼 보였다(2026-08-18 화면에서 잡음).
+     결은 가로로 눕히고, 잔돌을 흩어 놓아야 흙바닥으로 읽힌다. */
+  background:
+    radial-gradient(1.5px 1.5px at 14px 9px, rgba(0, 0, 0, 0.09) 99%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 47px 21px, rgba(0, 0, 0, 0.08) 99%, transparent 100%),
+    radial-gradient(2px 1.5px at 76px 33px, rgba(0, 0, 0, 0.07) 99%, transparent 100%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 7px),
+    var(--전장-흙);
+  background-size: 93px 48px, 93px 48px, 93px 48px, auto, auto;
+}
+
+/* ⚠️⚠️ **밝은 화면에서 금·노랑 테두리 카드가 바탕에 녹는다 — 그림자로 테두리를 세운다.**
+ *
+ * 카드 140장의 **가장자리 2px 띠 평균 밝기**를 재서 바탕과의 명도대비를 냈다(2026-08-14,
+ * `scratchpad/card-edge-contrast.py`). 결과가 예상과 반대였다:
+ *
+ *   | | 최소 | 중앙 | 1.15 미만(거의 안 보임) |
+ *   |---|---|---|---|
+ *   | 밝은 화면(바탕 #f5f5f5) | **1.02** | 1.23 | **21/129장** |
+ *   | 어두운 화면(바탕 #141414) | 2.57 | 10.55 | **0장** |
+ *
+ * → **어두운 화면은 손댈 데가 없다.** 포켓몬 카드는 테두리가 노랑이라 검은 판에서 오히려
+ *   잘 보인다. 「다크에 무채색 아웃라인을 넣자」는 제안을 받았지만 넣을 근거가 없어 안 넣었다.
+ * → 문제는 **밝은 화면의 금·노랑 카드**다. 테두리 rgb(253,248,108)은 #f5f5f5와 밝기가
+ *   거의 같아 대비 1.02 — 옆면이 그냥 사라진다(메가리자몽 MUR 두 장에서 눈으로 확인).
+ *
+ * ⚠️⚠️⚠️ **그런데 그림자를 넣어 봤더니 전체로는 더 나빠져서 안 넣었다.**
+ *    `filter: drop-shadow(0 1px 2px rgb(0 0 0 / .28))`를 걸고 같은 잣대로 150장을 다시 쟀다:
+ *
+ *      | | 1.15 미만 | 1.3 미만 |
+ *      |---|---|---|
+ *      | 그림자 없음(지금) | 21장 | 82장 |
+ *      | 그림자 있음 | **97장** | **117장** |
+ *      → 좋아진 카드 8장 · **나빠진 카드 138장** · 흐림에서 벗어난 카드 **0장**
+ *
+ *    까닭: **카드 테두리는 대개 바탕보다 어둡다.** 그 바깥에 검은 그림자를 깔면 어두운
+ *    테두리와 어두운 그림자가 붙어 경계가 되레 흐려진다. 금·노랑 카드(바탕보다 밝은 쪽)
+ *    한 줌만 좋아지고 나머지가 다 손해다.
+ *    ⚠️ 바탕을 어둡게(neutral-200·300) 하는 길도 재 봤는데, 대비 1.3을 넘기려면 #d4d4d4까지
+ *       내려야 한다 — 검색 결과 전체가 눈에 띄게 잿빛이 된다. 문제에 비해 과한 값이다.
+ *    ⚠️ **바탕이 고정인데 카드 테두리 색이 제각각이라, 한 가지 정적인 처리로는 못 푼다.**
+ *       밝은 테두리는 어두운 테를 원하고 어두운 테두리는 밝은 테를 원한다. 되살릴 생각이
+ *       들면 **먼저 위 표를 다시 재 볼 것** — 「보기 좋을 것 같다」로 넣을 자리가 아니다.
+ *    잰 스크립트: `scratchpad/card-edge-contrast.py` · `scratchpad/shadow-sim.py`
+ */
+
+/* ⚠️⚠️ **목록의 카드 사진만 살짝 낮춘다.** 이 사이트는 화면의 상당 부분이 카드 사진이라
+ *    (타일마다 144px 사진 칸이 수십 개), 바탕만 어둡게 하면 **밝은 사진이 어두운 판에
+ *    박혀 더 눈부시다.** 훑을 때는 편하게, 볼 때는 제대로 — 그래서 마우스를 올리거나
+ *    카드를 열면 원래 밝기로 돌린다. 카드가 주인공인 사이트라 아예 어둡게 두면 안 된다.
+ * ⚠️ 상세(`.card-img-full`)와 시트 안은 건드리지 않는다.
+ */
+:root[data-theme='dark'] .card-dim img,
+:root[data-theme='dark'] img.card-dim {
+  filter: brightness(0.88);
+  transition: filter 0.15s ease-out;
+}
+:root[data-theme='dark'] .card-dim:hover img,
+:root[data-theme='dark'] img.card-dim:hover {
+  filter: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .card-dim img,
+  :root:not([data-theme='light']) img.card-dim {
+    filter: brightness(0.88);
+    transition: filter 0.15s ease-out;
+  }
+  :root:not([data-theme='light']) .card-dim:hover img,
+  :root:not([data-theme='light']) img.card-dim:hover {
+    filter: none;
+  }
+}
+
+/* ⚠️⚠️ **비교 담기 바가 카드 상세 시트의 맨 아랫줄을 덮고 있었다** (2026-08-14에 찾음).
+ *
+ * 둘 다 `fixed ... bottom-0`이고 z도 40으로 같은데, 비교 바가 DOM에서 뒤에 있어 **시트 위에
+ * 그려진다.** 시트 안쪽 여백은 `pb-8`(32px)인데 비교 바는 **63px**이라, 끝까지 내려도
+ * 마지막 31px이 바에 가려 **영영 안 보인다.**
+ * 실측(폰 375×812 · eBay 눈 · 비교 1장 담고 카드 열기): 바 위 749px · 시트 마지막 요소
+ * 아래 780px → **31px이 가려짐.** 화면으로도 「원화는 8.13 환율 기준 참고값입니다.」가
+ * 반쯤 잘려 있었다.
+ *
+ * ⚠️ **미스클릭은 아니었다** — 바 자리를 `elementFromPoint`로 찍으면 바의 단추가 제대로
+ *    잡힌다(시트가 가로채지 않는다). 문제는 **가려진 글**이지 눌림이 아니다.
+ * ⚠️ 「오늘의 상점 하단 바」와는 **원리상 겹칠 수 없다** — 그건 다른 화면(view)이고,
+ *    상시 바가 아니라 구매 알림 토스트다. 셋이 겹친다는 말은 사실이 아니다.
+ * ⚠️ 바를 숨기지 않고 **자리를 비우는 쪽**을 골랐다. 시트를 보는 중에도 「비교하기」로
+ *    바로 넘어갈 수 있어야 한다.
+ * ⚠️⚠️ **CSS의 `padding-bottom`으로는 못 고친다 — 해 보고 되레 나빠졌다.**
+ *    시트 패널은 높이가 `max-height: calc(100dvh - topGap)`으로 정해져 있고 안쪽이
+ *    스크롤된다. 여기에 아래 여백을 더하면 **패널이 그만큼 길어져 화면 밖으로 내려갈 뿐**
+ *    이라 가려지는 양이 31px → 46px로 늘었다(실측). **자리를 비우려면 패널을 짧게 하고
+ *    위로 밀어 올려야 한다** — 그래서 `DetailSheet`가 `아래막힘`(px)을 받아
+ *    `max-height`에서 빼고 `margin-bottom`으로 띄운다. App이 비교 바가 떠 있을 때만 넘긴다.
+ */
+
+/* ⚠️⚠️ **드롭다운(select) 목록은 운영체제가 그린다 — 글자색만 정하면 안 된다.**
+ *
+ * 시세 추이의 등급 고르개에 `text-neutral-700`만 걸려 있었다. 어두운 화면에서 그 값은
+ * **밝은 회색(#d4d4d4)**이 되는데, `option`에는 **바탕색이 없어(투명)** 목록이 열릴 때
+ * 밝은 바탕이 깔리면 **밝은 글씨 + 밝은 바탕**이 되어 글자가 안 보였다
+ * (사장님 지적 2026-08-15: "다크모드에서 거래추이그래프 드롭다운할때 글씨 너무 안보이고").
+ *
+ * ⚠️ `color-scheme: dark`만으로는 부족했다 — 실측해 보니 그 속성은 켜져 있는데도
+ *    `option`의 바탕이 `rgba(0,0,0,0)`이었다. **글자색과 바탕색은 짝으로 정해야 한다.**
+ * ⚠️ 닫힌 상태(select 자체)는 안 건드린다 — 지금 생김새가 화면마다 다르고, 여기서
+ *    바탕을 박으면 그 배치가 깨진다. 문제는 **열렸을 때의 목록**뿐이다.
+ */
+select option {
+  background-color: var(--color-white);
+  color: var(--color-neutral-800);
 }

@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-export type SearchSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
+// ⚠️ `cardboard`는 **새로 깐 길**이다(2026-08-12). eBay·TCGplayer와 같은 자료를 쓰지만
+//    저쪽에 묻지 않고 받아 둔 덤프에서 꺼낸다(크레딧 0). 옛 둘은 그대로 둔다 —
+//    사장님 지시로 나란히 놓고 견주는 중이다(src/api/cardBoard.ts 설명 참고).
+// ⚠️ 옛 해외 시세('ebay'·'tcgplayer')는 2026-08-13에 지웠다.
+export type SearchSource = 'snkrdunk' | 'cardboard' | 'cardboard_tcg';
 const SOURCE_LABEL: Record<SearchSource, string> = {
   snkrdunk: 'SNKRDUNK',
-  ebay: 'eBay',
-  tcgplayer: 'TCGplayer',
+  // 해외 시세의 두 마켓. **같은 값을 보는 눈이 둘일 뿐**이라 이름은 마켓 이름 그대로 쓴다.
+  cardboard: 'eBay',
+  cardboard_tcg: 'TCGplayer',
 };
 // 마켓마다 칩 색을 달리한다. 색이 바뀌는 것만으로도 "여기가 바뀌는 자리"임이 읽힌다
 // (2026-08-07 운영자 지시). 사이트가 흑백 기조라 원색은 피하고, 각 마켓이 실제로 쓰는
@@ -12,8 +17,8 @@ const SOURCE_LABEL: Record<SearchSource, string> = {
 // ⚠️ 흰 글자가 얹히므로 너무 밝은 색은 안 된다(대비).
 const SOURCE_CHIP: Record<SearchSource, string> = {
   snkrdunk: 'bg-neutral-900',
-  ebay: 'bg-blue-700',
-  tcgplayer: 'bg-orange-600',
+  cardboard: 'bg-blue-700',
+  cardboard_tcg: 'bg-orange-600',
 };
 
 export function SearchBar({
@@ -26,6 +31,7 @@ export function SearchBar({
   onClear,
   source,
   onSourceChange,
+  sources,
   children,
 }: {
   value: string;
@@ -44,10 +50,38 @@ export function SearchBar({
   // 통째로 차지했다(2026-08-05 운영자 지시로 합침).
   source?: SearchSource;
   onSourceChange?: (s: SearchSource) => void;
+  /** 목록에 보일 마켓. 안 주면 셋 다. 탭이 고른 갈래만 보이게 할 때 쓴다. */
+  sources?: SearchSource[];
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // ── 한글 조합 중 엔터 ────────────────────────────────────────────────────────
+  //
+  // ⚠️⚠️ **한글은 마지막 글자가 아직 "조합 중"일 때 엔터가 들어온다.** 그 상태에서
+  //    `blur()`로 입력칸을 떠나면 브라우저가 조합을 확정하며 **그 글자를 한 번 더 넣는다** —
+  //    "리자몽"을 치고 엔터를 눌렀는데 "리자몽몽"이 됐다(사장님 지적 2026-08-10).
+  //    영문은 조합이 없어서 이 일이 안 난다. 그래서 영문으로만 눌러 보면 못 잡는다.
+  //
+  //    → 조합 중 엔터는 **아무것도 하지 않고 표시만 남긴다.** 조합이 끝나는 순간
+  //      (compositionend) 그때 검색한다. 그래야 **한 번만 눌러도** 검색된다
+  //      (조합 중 엔터를 그냥 무시해 버리면 두 번 눌러야 해서 그것도 불편하다).
+  const 조합중 = useRef(false);
+  const 엔터기다림 = useRef(false);
+  // ⚠️ `onSubmit`은 렌더마다 새로 만들어진다. 조합이 끝난 뒤에 부르려면 **그때의 최신 것**을
+  //    잡아야 한다 — 옛 것을 부르면 방금 친 글자가 빠진 검색어로 찾는다.
+  const 제출 = useRef(onSubmit);
+  제출.current = onSubmit;
+  const 키움직임 = useRef(onKeyNav);
+  키움직임.current = onKeyNav;
+  /** 엔터를 실제로 처리한다. 조합이 없을 땐 바로, 조합 중이면 끝난 뒤에 부른다. */
+  const 엔터하기 = (el: HTMLInputElement) => {
+    // 목록에서 고른 항목이 있으면 그것으로 검색한다(키보드는 그대로 둔다 —
+    // 고른 말이 검색창에 들어가는 게 보여야 한다).
+    if (키움직임.current?.('Enter')) return;
+    el.blur();
+    제출.current?.();
+  };
   // 바깥을 누르면 닫는다. 목록을 열어 둔 채 다른 데를 눌렀을 때 걸려 있으면 답답하다.
   useEffect(() => {
     if (!open) return;
@@ -97,7 +131,10 @@ export function SearchBar({
           </button>
           {open && (
             <div className="absolute left-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
-              {(Object.keys(SOURCE_LABEL) as SearchSource[]).map((s) => (
+              {/* ⚠️ 탭(일본 매물 / 해외 시세)이 생긴 뒤로는 **그 탭에 속한 마켓만** 보여
+                  준다. 안 그러면 「해외 시세」 탭에서 스니커덩크를 고를 수 있어 탭과
+                  어긋난다(2026-08-09). `sources`를 안 주면 예전처럼 셋 다 나온다. */}
+              {(sources ?? (Object.keys(SOURCE_LABEL) as SearchSource[])).map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -135,21 +172,44 @@ export function SearchBar({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
-        onBlur={onBlur}
+        onBlur={() => {
+          // ⚠️ **조합 표시를 여기서 반드시 내린다.** 조합 도중에 다른 데를 눌러 떠나면
+          //    `compositionend`가 안 올 수 있는데, 그러면 표시가 켜진 채 남아 **그 뒤로
+          //    엔터가 통째로 안 먹는다.** 기다리던 엔터도 같이 버린다(떠났으니 검색 안 한다).
+          조합중.current = false;
+          엔터기다림.current = false;
+          onBlur?.();
+        }}
         // 엔터(폰 키보드의 "검색")를 누르면 자동완성을 닫고 키보드를 내린다. 예전에는
         // 검색창 밖을 따로 눌러야 닫혀서, 결과가 나와도 자동완성이 그 위를 덮고 있었다.
+        onCompositionStart={() => {
+          조합중.current = true;
+        }}
+        onCompositionEnd={(e) => {
+          조합중.current = false;
+          if (!엔터기다림.current) return;
+          엔터기다림.current = false;
+          // ⚠️ `currentTarget`은 이 함수가 끝나면 비워지므로 **먼저 잡아 둔다.**
+          const el = e.currentTarget;
+          // ⚠️ 조합이 끝나며 들어온 글자가 상태에 반영된 **다음에** 검색한다. 바로 부르면
+          //    마지막 글자가 빠진 말로 찾는다.
+          setTimeout(() => 엔터하기(el), 0);
+        }}
         onKeyDown={(e) => {
+          // ⚠️ 조합 중에는 브라우저가 keyCode 229를 보낸다. `isComposing`이 표준이고,
+          //    안 오는 브라우저를 위해 우리 표시(조합중)도 같이 본다.
+          if (e.nativeEvent.isComposing || 조합중.current) {
+            // 조합 중 엔터는 여기서 **아무것도 안 한다.** 조합이 끝나면 그때 검색한다.
+            if (e.key === 'Enter') 엔터기다림.current = true;
+            return;
+          }
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Escape') {
             // 위/아래는 커서를 글자 끝으로 보내려 하므로, 목록을 움직였으면 막는다.
             if (onKeyNav?.(e.key)) e.preventDefault();
             return;
           }
           if (e.key !== 'Enter') return;
-          // 목록에서 고른 항목이 있으면 그것으로 검색한다(키보드는 그대로 둔다 —
-          // 고른 말이 검색창에 들어가는 게 보여야 한다).
-          if (onKeyNav?.('Enter')) return;
-          e.currentTarget.blur();
-          onSubmit?.();
+          엔터하기(e.currentTarget);
         }}
         enterKeyHint="search"
         // ⚠️ 소스 칩이 왼쪽 자리를 먹으므로 안내문구가 더 짧아야 한다. 폰(375)에서

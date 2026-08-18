@@ -1,182 +1,190 @@
-// 카드 등급(레어도)이 빈 자리를 limitless에서 채운다.
-//
-// 왜 필요한가: 세트 화면 맨 위 "간판 카드"와 목록 표지는 등급으로 고른다. 등급이 비면
-// 그냥 번호순이 되어, 커먼 카드가 세트 얼굴로 올라간다. 원본(TCGdex)이 등급을 안 준
-// 세트가 많다(2026-08-02 기준 40,489장 중 9,776장).
-//
-// ⚠️ 번호와 이름이 둘 다 맞을 때만 채운다. 번호만 보고 붙이면 엉뚱한 등급이 들어간다
-//    (리포 CLAUDE.md 최우선 원칙: 틀린 것보다 빈칸이 낫다).
-// ⚠️ 이미 등급이 있는 카드는 건드리지 않는다. 덮어쓰기가 아니라 빈칸 메우기다.
-// ⚠️ 프로모 세트(SVP·SMP·XYP…)는 원래 등급이 없다. limitless에도 비어 있어 안 채워진다.
-//
-// 쓰기: npx tsx scripts/fill-card-rarity.mts                (전체, 몇 장인지만)
-//       npx tsx scripts/fill-card-rarity.mts --write        (저장)
-//       npx tsx scripts/fill-card-rarity.mts ja-SV4a --write (세트 지정)
-import { readFile, writeFile, readdir } from 'node:fs/promises'
+/**
+ * 카드마다 빠진 **레어도(`r`)를 채운다.** 재료는 TCGdex — **크레딧 0**.
+ *
+ * 왜 — 도감 59,798장 중 **10,961장(18%)에 레어도가 없다.** 그래서 「저지맨 SR」·「리자몽 SAR」
+ * 처럼 레어도를 붙여 찾으면 그 카드들이 안 나온다(사장님 지적 2026-08-12: "지금 검색하는데
+ * 데이터가 안나온다는데"). 프로모·샤이니·하이클래스 세트에 몰려 있다.
+ *
+ * ⚠️ **저쪽(PPT)으로는 못 채운다.** 빠진 것의 89%가 저쪽 번호를 갖고 있는데, 실시간으로
+ *    물어봐도 레어도를 **빈 문자열**로 준다(2026-08-12에 6장으로 확인). 우리가 안 받아온
+ *    게 아니라 저쪽이 모른다.
+ *
+ * ⚠️⚠️ **번호와 이름이 둘 다 맞을 때만 넣는다.** 이 리포의 원칙이다 — 「틀린 것보다 빈칸」.
+ *    번호만 맞춰 넣으면 같은 번호의 다른 인쇄(미러 홀로 등)에 엉뚱한 레어도가 붙는다.
+ *    ⚠️ 이름은 **영문/일본어 원본끼리** 견준다. 우리 도감의 `name`이 그 원본이다.
+ *    ⚠️ 번호는 앞의 0을 떼고, 우리 쪽 꼬리(`11~602979`)도 떼고 견준다.
+ *
+ * ⚠️ 이미 레어도가 있는 카드는 **안 건드린다.** 덮어쓰면 우리가 손본 것이 날아간다.
+ *
+ * 쓰는 법: npx tsx scripts/fill-card-rarity.mts [--write] [세트슬러그 ...]
+ */
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { koreanizeTitle } from '../src/lib/koreanizeTitle.ts'
-import { koreanizeEnglishCardName } from '../src/lib/koreanizeEnglishTitle.ts'
 
-// ⚠️ 원본이 "등급 없음"을 빈 문자열이 아니라 'None'이라는 값으로 적어 둔 세트가 있다
-//    (2026-08-03 기준 48개 세트 1,795장). 순위표에 없는 이름이라 등급이 없는 것과 똑같이
-//    취급되는데, 스크립트는 "이미 등급이 있다"고 보고 건너뛰었다. 그래서 ja-SV7·SV9는
-//    뽑기에서 SR·SAR이 아예 안 나오는데도 채워지지 않았다.
-const isBlank = (r) => !(r || '').trim() || r === 'None'
-
-const OUT = path.resolve(process.cwd(), 'public/sets')
 const WRITE = process.argv.includes('--write')
-const only = process.argv.slice(2).filter((a) => !a.startsWith('--'))
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const 고른세트 = process.argv.slice(2).filter((a) => !a.startsWith('--'))
 
-// limitless가 &#039;·&amp; 같은 HTML 기호로 내보내는 이름이 있다. 풀어 두지 않으면
-// "レシラム&マッシブーン"과 "レシラム&amp;マッシブーン"이 다른 이름으로 보인다.
-const unescape = (s) =>
-  s
-    .replace(/&#0?39;|&apos;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-const strip = (s) => unescape(s.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
-// 이름 비교는 표기 차이를 지우고 한다("Mr. Mime" / "Mr Mime").
-const norm = (s) => s.toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-鿿]/g, '')
+const SETS = path.resolve('public/sets')
+type 세트줄 = { slug: string; ed?: string; id?: string; name?: string }
+const 목록 = JSON.parse(readFileSync(path.join(SETS, 'index.json'), 'utf-8')) as 세트줄[]
+const 세트표 = new Map(목록.map((s) => [s.slug, s]))
 
-// ⚠️ 원본(TCGdex)이 세트 뒷번호 카드만 영어 이름으로 적어 둔 세트가 있다(ja-SV6·SV8·SV10).
-//    limitless는 같은 카드를 일본어로 적으므로 글자로는 절대 안 맞는다. 그래서 등급이
-//    통째로 안 채워졌고, 그 세트들은 뽑기에서 SR·SAR이 아예 안 나왔다.
-//    양쪽을 우리 한글 사전으로 옮겨 같은 이름이 되는지로 판별한다.
-// ⚠️ 한 쪽에만 남는 영어 조각을 걷어낸다. "Team Rocket's Spidops"는 "Team 로켓단의
-//    트래피더"가 되는데 일본어 쪽은 "로켓단의 트래피더"라, 그 Team 하나 때문에 안 맞았다.
-const toKo = (s) =>
-  koreanizeEnglishCardName(koreanizeTitle(s))
+const 번호열쇠 = (n: unknown) =>
+  String(n ?? '')
+    .split('~')[0]
+    .split('/')[0]
+    .trim()
+    .replace(/^0+(?=[0-9])/, '')
+    .toUpperCase()
+// 이름은 **글자만** 남겨 견준다. 저쪽과 우리가 공백·기호를 다르게 적는 일이 흔하다
+// ("Mega Charizard X ex" ↔ "Mega Charizard X-ex"). 글자를 바꾸지는 않는다.
+const 이름열쇠 = (s: unknown) =>
+  String(s ?? '')
     .toLowerCase()
-    .replace(/\bteam\b/g, '')
-    .replace(/[^가-힣a-z0-9]/g, '')
-const sameCard = (a, b) => {
-  if (norm(a) === norm(b)) return true
-  const ka = toKo(a)
-  const kb = toKo(b)
-  // 한글로 못 옮기는 이름이면 판단할 수 없다 — 그럴 땐 안 채운다(틀린 것보다 빈칸).
-  return !!ka && ka === kb && /[가-힣]/.test(ka)
+    .replace(/[^a-z0-9぀-ヿ一-鿿가-힯]/g, '')
+
+/** 여럿을 한꺼번에, 다만 예의 있게(동시 6개). */
+async function 나눠서<T, R>(것들: T[], 몇개: number, 하나: (x: T) => Promise<R>): Promise<R[]> {
+  const 답: R[] = []
+  for (let i = 0; i < 것들.length; i += 몇개) 답.push(...(await Promise.all(것들.slice(i, i + 몇개).map(하나))))
+  return 답
 }
 
-// limitless와 우리 데이터(TCGdex)가 같은 등급을 다르게 적는다. 여기서 맞춰 두지 않으면
-// src/lib/cardCatalog.ts의 RARITY_ORDER에 안 걸려, 채워 넣고도 등급이 없는 것과 똑같아진다.
-// (대소문자도 다르다: limitless "Shiny Rare" / 우리 "Shiny rare")
-const RARITY_ALIAS = {
-  'Art Rare': 'Illustration rare',
-  'Special Art Rare': 'Special illustration rare',
-  'Shiny Rare': 'Shiny rare',
-  'Shiny Super Rare': 'Shiny Ultra Rare',
-  'Hyper Rare': 'Hyper rare',
-  'Double Rare': 'Double rare',
-  'Illustration Rare': 'Illustration rare',
-  'Special Illustration Rare': 'Special illustration rare',
-  'ACE SPEC Rare': 'ACE SPEC Rare',
-}
-// 우리 순위표에 있는 이름만 넣는다. 모르는 등급을 넣으면 순위 -1이라 아무 소용이 없고,
-// 나중에 "등급이 있는데 왜 안 걸리지" 하고 헤매게 된다.
-const KNOWN = new Set([
-  'Common',
-  'Uncommon',
-  'Rare',
-  'Double rare',
-  'ACE SPEC Rare',
-  'Ultra Rare',
-  'Illustration rare',
-  'Shiny rare',
-  'Shiny Ultra Rare',
-  'Special illustration rare',
-  'Secret Rare',
-  'Hyper rare',
-  'Black White Rare',
-  'Mega Hyper Rare',
-])
-
-async function get(url, tries = 3) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-      if (r.ok) return await r.text()
-    } catch {
-      /* 재시도 */
-    }
-    await sleep(1500 + i * 1500)
-  }
-  return null
-}
-
-const files = only.length
-  ? only.map((s) => `${s}.json`)
-  : (await readdir(OUT)).filter((f) => f.endsWith('.json') && f !== 'index.json')
-
-// 등급이 하나도 안 빈 세트는 아예 안 부른다(요청 낭비 방지).
-const targets = []
-for (const f of files) {
-  const slug = f.replace('.json', '')
-  let d
+const 받기 = async (u: string) => {
   try {
-    d = JSON.parse(await readFile(path.join(OUT, f), 'utf8'))
+    const r = await fetch(u, { signal: AbortSignal.timeout(20_000) })
+    return r.ok ? await r.json() : null
   } catch {
-    continue
+    return null
   }
-  const blank = (d.cards ?? []).filter((c) => isBlank(c.r)).length
-  if (blank) targets.push({ slug, file: f, d, blank })
 }
-console.log(`등급이 빈 카드가 있는 세트 ${targets.length}개 (빈 카드 ${targets.reduce((a, t) => a + t.blank, 0)}장)\n`)
 
-let total = 0
-let touchedFiles = 0
-for (const t of targets) {
-  const lang = t.slug.startsWith('ja-') ? 'jp/' : ''
-  const html = await get(`https://limitlesstcg.com/cards/${lang}${t.d.id}?display=list`)
-  if (!html) {
-    console.log(`  ${t.slug.padEnd(14)} limitless에서 못 받음`)
-    await sleep(600)
-    continue
-  }
-  // 표 칸: [세트, 번호, 이름, 타입, 등급, USD, EUR]
-  const src = new Map()
-  for (const [, body] of html.matchAll(/<tr data-hover="[^"]+">(.*?)<\/tr>/gs)) {
-    const td = [...body.matchAll(/<td[^>]*>(.*?)<\/td>/gs)].map((m) => strip(m[1]))
-    const [, n, name, , rarity] = td
-    if (!n || !name || !rarity) continue
-    src.set(String(n).padStart(3, '0'), { name, rarity })
-  }
-  if (!src.size) {
-    console.log(`  ${t.slug.padEnd(14)} limitless에도 등급 없음 (프로모 등)`)
-    await sleep(600)
-    continue
-  }
+type 카드줄 = { id?: string; localId?: string; name?: string }
 
-  let filled = 0
-  const skipped = []
-  const unknown = new Set()
-  for (const c of t.d.cards ?? []) {
-    if (!isBlank(c.r)) continue
-    const hit = src.get(c.n)
-    if (!hit) continue
-    if (!sameCard(c.name, hit.name)) {
-      if (skipped.length < 3) skipped.push(`${c.n} ${c.name}≠${hit.name}`)
+/**
+ * 세트 목록(카드 id·번호·이름). 레어도는 여기 안 온다 — 낱장을 받아야 나온다.
+ *
+ * ⚠️⚠️ **판을 넘나들지 않는다.** 일본 세트면 일본판만, 영문 세트면 영문판만 본다.
+ *    처음엔 「일본판에 없으면 영문판이라도」로 짜 놨는데, 사장님이 막으셨다
+ *    (2026-08-12: "영문 일판 레어도가 다를수도 있으니까 정확한거 아니면 니가 유추해서 넣지마").
+ *    같은 카드라도 판에 따라 레어도가 다를 수 있다 — 넘겨짚어 넣으면 그게 틀린 값이다.
+ *    ⚠️ 다른 세트를 채우려고 이 함수를 손볼 때도 **폴백을 되살리지 말 것.**
+ */
+const 세트목록 = async (id: string, ed: string): Promise<{ lang: string; cards: 카드줄[] } | null> => {
+  const lang = ed === 'ja' ? 'ja' : 'en'
+  const j = (await 받기(`https://api.tcgdex.net/v2/${lang}/sets/${encodeURIComponent(id)}`)) as {
+    cards?: 카드줄[]
+  } | null
+  return j?.cards?.length ? { lang, cards: j.cards } : null
+}
+
+const 낱장 = async (lang: string, id: string) =>
+  (await 받기(`https://api.tcgdex.net/v2/${lang}/cards/${encodeURIComponent(id)}`)) as {
+    localId?: string
+    name?: string
+    rarity?: string
+  } | null
+
+const 쓸만한레어도 = (r: unknown) => {
+  const s = String(r ?? '').trim()
+  return s && s !== 'None' ? s : ''
+}
+
+async function main() {
+  // 레어도가 빠진 카드가 있는 세트만 훑는다.
+  const 파일들 = readdirSync(SETS).filter((f) => f.endsWith('.json') && !['index.json', 'ko-index.json'].includes(f))
+  const 할것: { slug: string; 빈수: number }[] = []
+  for (const f of 파일들) {
+    const slug = f.slice(0, -5)
+    if (고른세트.length && !고른세트.includes(slug)) continue
+    let j: { cards?: { r?: string }[] }
+    try {
+      j = JSON.parse(readFileSync(path.join(SETS, f), 'utf-8'))
+    } catch {
       continue
     }
-    const r = RARITY_ALIAS[hit.rarity] ?? hit.rarity
-    if (!KNOWN.has(r)) {
-      unknown.add(hit.rarity)
+    const 빈수 = (j.cards ?? []).filter((c) => !c.r || c.r === 'None').length
+    if (!빈수) continue
+    const m = 세트표.get(slug)
+    // ppt-* 아이디는 저쪽이 지어낸 것이라 TCGdex에 없다.
+    if (!m?.id || /^ppt-/.test(String(m.id))) continue
+    할것.push({ slug, 빈수 })
+  }
+  할것.sort((a, b) => b.빈수 - a.빈수)
+  console.log(`레어도가 빠진 세트 ${할것.length}개 (빈 카드 ${할것.reduce((s, x) => s + x.빈수, 0).toLocaleString()}장)\n`)
+
+  let 채움 = 0
+  let 이름안맞음 = 0
+  let 못찾음 = 0
+  const 못채운세트: { slug: string; 빈수: number; 까닭: string }[] = []
+
+  for (const [i, { slug, 빈수 }] of 할것.entries()) {
+    const m = 세트표.get(slug)!
+    const 앞머리 = `  ${String(i + 1).padStart(3)}/${할것.length} ${slug.padEnd(26)}`
+    const 목록2 = await 세트목록(String(m.id), String(m.ed ?? 'en'))
+    if (!목록2) {
+      못채운세트.push({ slug, 빈수, 까닭: 'TCGdex에 그 세트가 없음' })
+      console.log(`${앞머리} ✗ 세트 없음 (빈 ${빈수}장)`)
       continue
     }
-    c.r = r
-    filled++
+    // ⚠️ **먼저 3장만 찔러 본다.** 세트 하나가 카드 수백 장이라, 레어도가 없는 세트까지
+    //    전부 받으면 요청이 십수만 건이 된다. 일본판 프로모·샤이니는 대개 「None」이다.
+    const 찔러본것 = await 나눠서(목록2.cards.slice(0, 3), 3, (c) => 낱장(목록2.lang, String(c.id)))
+    if (!찔러본것.some((c) => 쓸만한레어도(c?.rarity))) {
+      못채운세트.push({ slug, 빈수, 까닭: 'TCGdex도 레어도를 「None」으로 줌' })
+      console.log(`${앞머리} · 그쪽도 레어도 없음 (빈 ${빈수}장)`)
+      continue
+    }
+
+    // 여기까지 왔으면 그 세트는 레어도를 갖고 있다 — 통째로 받는다.
+    const 것들 = await 나눠서(목록2.cards, 6, (c) => 낱장(목록2.lang, String(c.id)))
+    const 표 = new Map<string, { r: string; name: string }>()
+    for (const [k, c] of 것들.entries()) {
+      const 레어 = 쓸만한레어도(c?.rarity)
+      if (!레어) continue
+      표.set(번호열쇠(c?.localId ?? 목록2.cards[k]?.localId), { r: 레어, name: String(c?.name ?? '') })
+    }
+
+    const 곳 = path.join(SETS, `${slug}.json`)
+    const j = JSON.parse(readFileSync(곳, 'utf-8')) as { cards?: { n?: string; name?: string; r?: string }[] }
+    let 이세트 = 0
+    for (const c of j.cards ?? []) {
+      if (c.r && c.r !== 'None') continue
+      const 것 = 표.get(번호열쇠(c.n))
+      if (!것) {
+        못찾음++
+        continue
+      }
+      // ⚠️ 이름이 다르면 **넣지 않는다.** 번호만 같은 다른 카드일 수 있다.
+      if (이름열쇠(것.name) !== 이름열쇠(c.name)) {
+        이름안맞음++
+        continue
+      }
+      c.r = 것.r
+      이세트++
+      채움++
+    }
+    if (이세트 && WRITE) writeFileSync(곳, JSON.stringify(j))
+    if (이세트 < 빈수) 못채운세트.push({ slug, 빈수: 빈수 - 이세트, 까닭: '번호·이름이 안 맞거나 그쪽에 없음' })
+    console.log(`${앞머리} ${이세트 ? '✔' : '·'} 채움 ${String(이세트).padStart(4)}/${빈수}장`)
   }
-  total += filled
-  if (filled) touchedFiles++
-  console.log(
-    `  ${t.slug.padEnd(14)} 빈칸 ${String(t.blank).padStart(3)}장 중 ${String(filled).padStart(3)}장 채움` +
-      (unknown.size ? `  (모르는 등급이라 건너뜀: ${[...unknown].join(', ')})` : '') +
-      (skipped.length ? `  (이름이 달라 건너뜀: ${skipped.join(', ')})` : ''),
-  )
-  if (WRITE && filled) await writeFile(path.join(OUT, t.file), JSON.stringify(t.d))
-  await sleep(600)
+
+  console.log(`\n${WRITE ? '적었습니다' : '미리보기(파일은 안 건드림)'}`)
+  console.log(`  채운 카드      ${채움.toLocaleString()}장`)
+  console.log(`  이름이 달라 건너뜀 ${이름안맞음.toLocaleString()}장   ← 틀린 것보다 빈칸`)
+  console.log(`  저쪽에 그 번호가 없음 ${못찾음.toLocaleString()}장`)
+  console.log()
+  console.log(`  ── 못 채운 곳 (${못채운세트.reduce((a, b) => a + b.빈수, 0).toLocaleString()}장) ──`)
+  const 까닭별: Record<string, number> = {}
+  for (const x of 못채운세트) 까닭별[x.까닭] = (까닭별[x.까닭] ?? 0) + x.빈수
+  for (const [k, v] of Object.entries(까닭별).sort((a, b) => b[1] - a[1]))
+    console.log(`     ${String(v).toLocaleString().padStart(6)}장  ${k}`)
+  console.log()
+  console.log('  못 채운 세트 (많은 순 20개)')
+  for (const x of 못채운세트.sort((a, b) => b.빈수 - a.빈수).slice(0, 20))
+    console.log(`     ${String(x.빈수).padStart(4)}장  ${x.slug.padEnd(30)}${x.까닭}`)
+  if (!WRITE) console.log('\n  실제로 적으려면 --write 를 붙여 다시 돌린다.')
+  else console.log('\n  ⚠️ 이어서 `npx tsx scripts/gen-card-index.mts` 를 꼭 돌릴 것(색인에 반영).')
 }
-console.log(`\n합계 ${total}장 · 세트 ${touchedFiles}개`)
-if (!WRITE) console.log('저장하려면 --write')
+
+await main()

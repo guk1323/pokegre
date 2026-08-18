@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { trackEvent } from '../api/localStats';
 
 // 감정 수량. "이 카드가 전 세계에 감정된 게 몇 장인가"를 보여준다.
@@ -22,74 +22,71 @@ interface Population {
   gem?: number;
 }
 
-interface Extra {
-  population: Population | null;
-  받은날: string | null;
-}
-
 // 감정된 게 이보다 적으면 "아주 적다"고 알린다. 이 아래에선 미감정 시세를 그대로
 // 믿으면 안 된다 — 감정품이 몇 장 없으니 값이 훨씬 높게 잡히는 일이 잦다.
 const 적음 = 50;
 
 // ⚠️ 판(edition)을 꼭 넘겨야 한다. 저쪽은 판을 안 주면 **영문판으로 찾아서**
 //    일본판 카드가 전부 "감정 기록 없음"이 된다(2026-08-07에 이걸로 빈손이 났다).
-export function GradedPopulation({ tcgPlayerId, edition }: { tcgPlayerId: string; edition?: string }) {
-  const [것, set것] = useState<Extra | null>(null);
-
+export function GradedPopulation({
+  tcgPlayerId,
+  edition,
+  population,
+}: {
+  tcgPlayerId: string;
+  edition?: string;
+  /**
+   * **이미 받아 둔 감정 수량.**
+   *
+   * ⚠️⚠️ 예전에는 이걸 안 주면 스스로 `/api/local/card-extra`를 부르러 갔다. 그 자리가
+   *    **옛 시세 길**이라 2026-08-13에 길과 함께 사라져서, 그 갈래도 지웠다. 지금은
+   *    카드를 열 때 추이·낱개와 **한 번에** 받아 온 것을 여기로 넘긴다 —
+   *    안 넘기면 감정 수량이 그냥 안 보인다(예전처럼 부르러 가지 않는다).
+   */
+  population?: Population | null;
+}) {
+  const p = population;
+  // ⚠️ 넘겨받아 보여 줄 때도 **본 횟수는 센다.** 안 세면 통계에서 새 길 몫이 통째로 빠져
+  //    「감정 수량을 아무도 안 본다」로 읽힌다(사장님이 새 기능은 통계에 넣으라고 하셨다).
+  const 셌나 = useRef(false);
   useEffect(() => {
-    if (!tcgPlayerId) return;
-    let 살아있음 = true;
-    set것(null);
-    const lang = edition === 'japanese' || edition === 'english' ? `&lang=${edition}` : '';
-    fetch(`/api/local/card-extra?id=${encodeURIComponent(tcgPlayerId)}${lang}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: Extra | null) => {
-        if (!살아있음 || !j?.population) return;
-        set것(j);
-        trackEvent('population');
-      })
-      .catch(() => undefined);
-    return () => {
-      살아있음 = false;
-    };
-  }, [tcgPlayerId, edition]);
-
-  const p = 것?.population;
+    if (!p || !(p.all > 0) || 셌나.current) return;
+    셌나.current = true;
+    trackEvent('population');
+  }, [p]);
+  useEffect(() => {
+    셌나.current = false;
+  }, [tcgPlayerId]);
   if (!p || !(p.all > 0)) return null;
-
-  const 줄: { 이름: string; 값: string }[] = [];
-  if (p.psa10 != null) 줄.push({ 이름: 'PSA 10', 값: `${p.psa10.toLocaleString()}장` });
-  if (p.psa9 != null) 줄.push({ 이름: 'PSA 9', 값: `${p.psa9.toLocaleString()}장` });
-  줄.push({ 이름: '전체', 값: `${p.all.toLocaleString()}장` });
 
   // 여기 요약은 PSA 10·9·전체 셋뿐이다. 전체가 4,000장인데 10등급 2,000·9등급 1,000이면
   // **나머지 1,000장이 어디 갔는지 알 수 없다**(사장님 지적 2026-08-07). 그래서 눌러서
   // 전 등급표로 갈 수 있게 한다. 등급표는 볼 때 받아 오므로 여기서는 크레딧이 안 든다.
   const 자세히 = `/population?id=${encodeURIComponent(tcgPlayerId)}${edition ? `&lang=${edition}` : ''}`;
 
+  // ⚠️ **한 줄로 작게 둔다**(사장님 지시 2026-08-12: "감정 수량은 저렇게 크게 표시하지말고
+  //    그냥 작게만 해주고 링크 연결해서 팝수쪽으로 가서 구체적으로 보게 해줘").
+  //    예전엔 네 줄짜리 상자였다 — 큰 글씨 숫자 셋 + 설명 두 줄. 이 화면의 주인공은
+  //    시세인데 감정 수량이 그만큼 자리를 먹으면 시세가 뒤로 밀린다.
+  //    자세한 것(전 등급·기관별)은 **팝수 화면이 원래 그 일을 한다** — 거기로 보낸다.
+  // ⚠️ 감정된 게 아주 적을 때는 그 한마디만 남긴다. 「PSA 10이 2장」인 카드의 감정품
+  //    시세를 미감정 시세와 같은 것으로 보면 크게 어긋나서, 그건 짚어 줘야 한다.
+  // ⚠️⚠️ **작게 두되 자기 자리는 줘야 한다.** 한 줄 11px 회색으로만 만들었더니 위의 그래프
+  //    눈금·아래의 안내문과 글씨가 똑같아 **통째로 묻혔다**(사장님 지적 2026-08-13:
+  //    "감정수량이 어딨는지 보이지도 않아. 저렇게 글 많은데 쑤셔넣으면 어떻게 알아").
+  //    옅은 바탕 한 칸으로 감싸면 글씨를 안 키우고도 눈에 걸린다 — 예전 네 줄짜리 상자
+  //    (약 100px)와 지금(약 34px)의 가운데다.
   return (
     <a
       href={자세히}
-      className="mt-3 block rounded-lg border border-neutral-200 px-4 py-3 hover:border-neutral-300 hover:bg-neutral-50"
+      className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-neutral-50 px-3 py-2 hover:bg-neutral-100"
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold text-neutral-700">감정 수량</p>
-        {p.gem != null && <p className="text-[11px] text-neutral-400">10등급 비율 {p.gem}%</p>}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-        {줄.map((r) => (
-          <div key={r.이름} className="flex items-baseline gap-1.5">
-            <span className="text-xs text-neutral-500">{r.이름}</span>
-            <span className="text-sm font-semibold text-black">{r.값}</span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-2 text-[11px] leading-snug text-neutral-400">
-        {p.all < 적음
-          ? '감정된 카드가 매우 적습니다. 감정품 시세는 위 미감정 시세와 크게 다를 수 있습니다.'
-          : '지금까지 감정 기관(PSA·BGS·CGC·SGC)이 매긴 등급의 장수입니다.'}
-      </p>
-      <p className="mt-1.5 text-[11px] font-semibold text-neutral-600">눌러서 전체 등급 보기 →</p>
+      <span className="min-w-0 truncate text-[11px] text-neutral-500">
+        감정 수량 <span className="text-xs font-bold text-black">{p.all.toLocaleString()}장</span>
+        {p.psa10 != null && <span> · PSA 10 {p.psa10.toLocaleString()}장</span>}
+        {p.all < 적음 && <span className="text-amber-600"> · 감정된 게 적어 시세가 크게 다를 수 있습니다</span>}
+      </span>
+      <span className="flex-shrink-0 text-[11px] font-semibold text-neutral-600">자세히 →</span>
     </a>
   );
 }

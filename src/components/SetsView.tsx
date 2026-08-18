@@ -1,4 +1,13 @@
-import { 번호열쇠 } from '../lib/cardNo.ts';
+import { 레어도한글 } from '../lib/rarityCode';
+
+// ⚠️ 레어도를 모르는 카드(저쪽이 `None`으로 주는 것)에는 **아무것도 안 적는다.**
+//    한글표는 `None`을 `-`로 옮기는데, 카드마다 대시만 덩그러니 찍히면 고장난 것처럼 보인다
+//    (2026-08-09 화면에서 확인).
+const 보일레어도 = (r: string | null | undefined) => {
+  const s = 레어도한글(r);
+  return s === '-' ? '' : s;
+};
+import { 번호열쇠, 보일번호 } from '../lib/cardNo.ts';
 import { useEffect, useRef, useState } from 'react';
 import {
   CARD_BACK,
@@ -16,6 +25,7 @@ import {
 } from '../lib/cardCatalog';
 import pokemonNames from '../data/pokemonNames.json';
 import { serieSlug } from '../lib/setNameKo';
+import { kstDateStr } from '../lib/kstDay';
 import { isPocketSet } from '../lib/pocketSets';
 import type { 도감카드정보 } from '../lib/pokedexRoute';
 import { useSubScreen } from '../lib/useSubScreen';
@@ -51,6 +61,11 @@ const SERIE_LABEL: Record<string, string> = {
   //    카드가 다른 걸 보고 우리가 틀렸다고 본다. 붙어 나오던 띄어쓰기만 맞춘다.
   'ポケモンカードe': '포켓몬 카드 e',
   'ポケモンカード★neo': '포켓몬 카드 neo',
+  // ⚠️ 여기 없으면 이름 사전이 **소리로** 옮겨 「다이야몬도＆파루」·「푸라치나」가 된다
+  //    (2026-08-09에 화면에서 확인). 시리즈 이름은 갯수가 적으니 여기 다 적는다.
+  'ダイヤモンド＆パール': '다이아몬드 & 펄',
+  'プラチナ': '플래티나',
+  'ハートゴールド＆ソウルシルバー': '하트골드 & 소울실버',
   // 영문판
   Miscellaneous: '기타',
   Gym: '짐',
@@ -68,6 +83,11 @@ const SERIE_LABEL: Record<string, string> = {
 };
 const koSerie = (ed: 'ja' | 'en', serie: string) => SERIE_LABEL[serie] ?? koSet(ed, serie);
 const shortDate = (d: string) => (d ? d.slice(0, 7).replace('-', '.') : '');
+// ⚠️ **아직 안 나온 세트가 목록에 선다.** 저쪽(PPT)이 예약 판매가 열린 카드를 발매 한참
+//    전부터 주기 때문이다 — 30주년(en-ME)은 발매 한 달 전에 19장이 들어와 있었다.
+//    그냥 「2026.09 발매」라고만 적으면 이미 나온 세트로 읽히고, 카드가 19장뿐인 것이
+//    빠진 것처럼 보인다. 그래서 앞으로 나올 세트는 「발매 예정」이라고 밝힌다.
+const 아직안나옴 = (d: string) => !!d && d > kstDateStr();
 
 // 세트의 간판 카드. 레어도가 높은 순으로 고르되 포켓몬이 그려진 카드만 본다 —
 // 등급만 보면 금박 에너지·스타디움 카드가 올라오는데(SV 시리즈의 맨 끝 카드들),
@@ -163,28 +183,13 @@ export function SetsView({
     // 화면에 뜨는 이름 그대로 남긴다. koSet을 쓰면 통계에만 옛 이름("포켓몬카드게임 MEGA")이
     // 남아 같은 시리즈가 두 줄로 갈린다.
     trackEvent('series', koSerie(hit.ed, hit.serie ?? ''));
-    // ⚠️ 그 시리즈가 "더 보기" 밖이면 화면에 아예 없어서 스크롤할 자리도 없다.
-    //    소드&실드는 영문판 목록 아래쪽이라, 검색으로 들어와도 맨 위(2026년 신상)만
-    //    보였다(2026-08-07 점검 중 발견).
-    //
-    // ⚠️ 몇 개나 펼쳐야 하는지 **미리 셀 수 없다.** 목록은 발매일 순이라 시리즈가
-    //    이어 붙어 있지 않다 — 영문판에서 스칼렛&바이올렛(8번째부터) 사이에 맥도날드
-    //    컬렉션(13번째부터)이 끼어든다. 그래서 자리를 세는 대신 **찾을 때까지 펼친다.**
-    //
-    // ⚠️ 펼치기는 탭이 바뀐 뒤에 해야 한다. 탭이 바뀌면 목록 개수를 처음으로 되돌리는
-    //    effect가 있어서, 그 전에 늘려 봐야 곧바로 덮인다.
-    let 시도 = 0;
-    const 찾아가기 = () => {
-      const 자리 = document.getElementById(`serie-${initialSerie}`);
-      if (자리) {
-        자리.scrollIntoView({ block: 'start' });
-        return;
-      }
-      if (시도++ >= 12) return; // 못 찾으면 조용히 그만둔다 — 목록은 그대로 보인다
-      set세트보임((n) => n + 30);
-      setTimeout(찾아가기, 160);
-    };
-    setTimeout(찾아가기, 300);
+    // ⚠️ 이제 시리즈는 접혀 있다. 주소로 들어온 시리즈는 **펴 주고** 그 자리로 옮긴다.
+    //    (예전엔 "더 보기"를 찾을 때까지 눌러 대는 방식이었다. 접기로 바뀌어 필요 없다.)
+    // ⚠️ 펴기는 탭이 바뀐 뒤에 해야 한다 — 탭이 바뀌면 펴 둔 것을 접는 effect가 있다.
+    setTimeout(() => {
+      set열린묶음(new Set([hit.serie ?? '']));
+      setTimeout(() => document.getElementById(`serie-${initialSerie}`)?.scrollIntoView({ block: 'start' }), 120);
+    }, 60);
   }, [initialSerie, index]);
 
   const [cards, setCards] = useState<SetCard[] | null>(null);
@@ -201,6 +206,7 @@ export function SetsView({
   const [hitAt, setHitAt] = useState<number>(0);
   // 힛카드 값을 원화로 보여주려고 환율을 한 번 받아 둔다. 못 받으면 달러로 적는다.
   const [usdToKrw, setUsdToKrw] = useState<number | null>(null);
+
   // 값이 제일 높은 카드를 세트 표지로 쓴다. 원본이 주는 표지는 그 세트의 1번 카드라
   // 대개 평범한 카드다 — 목록에서 어떤 세트인지 알아보기 어렵다.
   // 시세를 받아 둔 세트만 온다. 없으면 지금까지 쓰던 표지를 그대로 쓴다.
@@ -223,10 +229,20 @@ export function SetsView({
   //    모자라게 실행돼 화면이 통째로 깨진다(React #300). 실제로 그렇게 짰다가 세트를
   //    누르면 "화면을 표시하지 못했습니다"가 떴다(2026-08-05 배포 전 점검에서 발견).
   //    쓰는 자리 가까이 두고 싶어도 훅은 조건·return보다 먼저여야 한다.
-  const 세트한번에 = 30;
-  const [세트보임, set세트보임] = useState(세트한번에);
+  // ⚠️ **시리즈는 처음에 다 접어 둔다.** 세트가 683개가 되면서 다 펴면 폰에서 끝없이
+  //    내려가고, 어떤 시리즈가 있는지조차 한눈에 안 들어온다(2026-08-09 사장님 지적).
+  //    이름만 죽 세워 두고, 누른 것만 편다.
+  const [열린묶음, set열린묶음] = useState<Set<string>>(new Set());
+  const 펴기 = (serie: string) =>
+    set열린묶음((s) => {
+      const n = new Set(s);
+      if (n.has(serie)) n.delete(serie);
+      else n.add(serie);
+      return n;
+    });
   // 찾는 말이나 판(일본/북미/포켓)을 바꾸면 처음부터 다시 센다.
-  useEffect(() => set세트보임(세트한번에), [query, tab]);
+  // 탭을 옮기면 펴 둔 것을 접는다 — 딴 판의 시리즈를 편 채로 넘어가면 어수선하다.
+  useEffect(() => set열린묶음(new Set()), [tab]);
 
   const indexRef = useRef<SetIndexEntry[] | null>(null);
   indexRef.current = index;
@@ -333,6 +349,7 @@ export function SetsView({
       setNameKo: koSet(selected.ed, selected.name),
       num: c.n,
       jp: selected.ed !== 'en',
+      tcg: c.tcg,
       // 마켓에 값이 없을 때 "무엇을 찾고 있는지" 보여줄 그림.
       img: usable(c.img) ? c.img : '',
     });
@@ -377,7 +394,13 @@ export function SetsView({
               </span>
               <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{selected.count}종</span>
               {selected.releaseDate && (
-                <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{shortDate(selected.releaseDate)} 발매</span>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                    아직안나옴(selected.releaseDate) ? 'bg-amber-100 text-amber-800' : 'bg-neutral-100 text-neutral-600'
+                  }`}
+                >
+                  {shortDate(selected.releaseDate)} {아직안나옴(selected.releaseDate) ? '발매 예정' : '발매'}
+                </span>
               )}
               {selected.serie && (
                 <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{koSerie(selected.ed, selected.serie)}</span>
@@ -480,9 +503,10 @@ export function SetsView({
                             {nm}
                           </p>
                           <span className="flex-shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-neutral-500">
-                            {c.n}
+                            {c.printNo ? `No.${c.printNo}` : 보일번호(c.n)}
                           </span>
                         </div>
+                        {보일레어도(c.r) && <p className="text-[10px] leading-tight text-neutral-400">{보일레어도(c.r)}</p>}
                         {(() => {
                           const usd = usdByNum.get(번호열쇠(c.n));
                           if (!usd) return null;
@@ -533,9 +557,12 @@ export function SetsView({
                     <div className="mt-1.5 flex items-start justify-between gap-1.5">
                       <p className="line-clamp-2 text-xs font-bold leading-snug text-black">{nm}</p>
                       <span className="flex-shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-neutral-500">
-                        {c.n}
+                        {c.printNo ? `No.${c.printNo}` : 보일번호(c.n)}
                       </span>
                     </div>
+                    {/* ⚠️ **레어도를 세트 목록에서도 보여준다.** 같은 이름 카드가 여럿일 때
+                        (기본판·SR·SAR) 이게 없으면 어느 것인지 못 가린다(2026-08-09 지시). */}
+                    {보일레어도(c.r) && <p className="mt-0.5 text-[10px] leading-tight text-neutral-400">{보일레어도(c.r)}</p>}
                   </button>
                 );
               })}
@@ -563,35 +590,27 @@ export function SetsView({
   const list = (index ?? [])
     .filter((s) => (tab === 'pocket' ? isPocket(s) : s.ed === tab && !isPocket(s)))
     .filter((s) => !q || s.name.toLowerCase().includes(q) || koSet(s.ed, s.name).toLowerCase().includes(q));
-  // 시리즈별로 묶는다(등장 순서 = 발매 최신순 유지). 평평한 나열보다 훨씬 정돈돼 보인다.
-  const groups: { serie: string; sets: SetIndexEntry[] }[] = [];
+  // 시리즈별로 묶는다.
+  const groups: { serie: string; sets: SetIndexEntry[]; 카드: number; 최신: string }[] = [];
   for (const s of list) {
     const key = s.serie || '기타';
     const g = groups.find((x) => x.serie === key);
     if (g) g.sets.push(s);
-    else groups.push({ serie: key, sets: [s] });
+    else groups.push({ serie: key, sets: [s], 카드: 0, 최신: '' });
   }
-
-  // ⚠️ 세트 157개를 한 번에 펴면 폰에서 17.7화면(14,387px)이 된다(운영자 지적
-  //    2026-08-05). 시리즈 묶음 단위로 잘라 처음엔 6묶음만 보이고, 눌러서 늘린다.
-  //    ⚠️ 세트를 세지 않고 **시리즈를 센다**. 세트로 자르면 묶음 가운데가 잘려
-  //       "이 시리즈는 세트가 3개뿐인가?" 하고 오해한다.
-  //    ⚠️ 찾는 중일 때는 안 자른다 — 찾으려던 세트가 잘리면 "없다"고 오해한다.
-  //    ⚠️ 묶음 개수로 자르면 안 된다. 시리즈마다 세트 수가 3개에서 30개까지 제각각이라,
-  //       6묶음만 남겨도 14화면이었다(실측). **세트 수**로 세되 묶음은 안 쪼갠다.
-  const 볼묶음 = (() => {
-    if (q.trim()) return groups;
-    const out: typeof groups = [];
-    let n = 0;
-    for (const g of groups) {
-      if (out.length && n >= 세트보임) break;
-      out.push(g);
-      n += g.sets.length;
-    }
-    return out;
-  })();
-  const 남은묶음 = groups.length - 볼묶음.length;
-  const 남은세트 = groups.slice(볼묶음.length).reduce((n, g) => n + g.sets.length, 0);
+  // ⚠️ **발매 최신순으로 세운다.** 예전엔 index.json에 적힌 차례를 그대로 믿었는데,
+  //    2026-08-09에 세트 98개를 뒤에 이어 붙이면서 그 차례가 무너졌다. 여기서 직접 센다.
+  // ⚠️ 발매일이 **없는 세트가 많다**(일본판 683개 중 절반 가까이). 날짜 없는 것을 위로
+  //    올리면 옛 프로모가 신상 자리를 차지한다 — 없으면 맨 뒤로 보낸다.
+  const 늦은쪽 = (a: string, b: string) => (a > b ? a : b);
+  for (const g of groups) {
+    g.sets.sort((a, b) => String(b.releaseDate ?? '').localeCompare(String(a.releaseDate ?? '')));
+    g.카드 = g.sets.reduce((n, s) => n + Number(s.count ?? 0), 0);
+    g.최신 = g.sets.reduce((d, s) => 늦은쪽(d, String(s.releaseDate ?? '')), '');
+  }
+  groups.sort((a, b) => (b.최신 || '0').localeCompare(a.최신 || '0'));
+  // 찾는 중에는 걸린 시리즈를 다 펴 준다 — 접힌 채로 두면 "없다"고 오해한다.
+  const 펴짐 = (serie: string) => !!q || 열린묶음.has(serie);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -681,16 +700,34 @@ export function SetsView({
           <p className="mt-1 text-xs text-neutral-400">다른 이름으로 찾아보세요.</p>
         </div>
       ) : (
-        볼묶음.map((grp) => (
-          <section key={grp.serie} id={`serie-${serieSlug(grp.serie)}`} className="mb-8 scroll-mt-24">
-            {/* 시리즈 헤더 */}
-            <div className="mb-3 flex items-baseline gap-2">
-              <h3 className="text-sm font-extrabold text-neutral-900">{koSerie(grp.sets[0]?.ed ?? 'en', grp.serie)}</h3>
-              <span className="text-[11px] font-semibold text-neutral-400">{grp.sets.length}개 세트</span>
-              <span className="ml-1 h-px flex-1 bg-neutral-100" />
-            </div>
+        groups.map((grp) => (
+          <section key={grp.serie} id={`serie-${serieSlug(grp.serie)}`} className="mb-2 scroll-mt-24">
+            {/* 시리즈 줄 — 누르면 펴지고 다시 누르면 접힌다. */}
+            <button
+              type="button"
+              onClick={() => 펴기(grp.serie)}
+              aria-expanded={펴짐(grp.serie)}
+              className="flex w-full items-center gap-2 border-b border-neutral-100 py-3 text-left hover:bg-neutral-50"
+            >
+              <svg
+                className={`h-4 w-4 flex-shrink-0 text-neutral-400 transition-transform ${펴짐(grp.serie) ? 'rotate-90' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+              <h3 className="min-w-0 flex-1 truncate text-sm font-extrabold text-neutral-900">
+                {koSerie(grp.sets[0]?.ed ?? 'en', grp.serie)}
+              </h3>
+              <span className="flex-shrink-0 text-[11px] font-semibold tabular-nums text-neutral-400">
+                세트 {grp.sets.length} · 카드 {grp.카드.toLocaleString()}
+                {grp.최신 ? ` · ~${shortDate(grp.최신)}` : ''}
+              </span>
+            </button>
             {/* 세로 갤러리 타일: 대표 카드(1번 카드)로 통일 — 전 세트 100% 일관 */}
-            <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {펴짐(grp.serie) && (
+            <div className="mb-6 mt-3 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {grp.sets.map((s) => (
                 <button key={s.slug} type="button" onClick={() => openSet(s)} className="group text-left">
                   <div className="aspect-[5/7] overflow-hidden rounded-xl bg-neutral-100 ring-1 ring-neutral-200/70 transition group-hover:shadow-lg group-hover:ring-neutral-300">
@@ -718,23 +755,14 @@ export function SetsView({
                   </p>
                   <p className="mt-0.5 text-[11px] tabular-nums text-neutral-400">
                     {s.count}종{s.releaseDate ? ` · ${shortDate(s.releaseDate)}` : ''}
+                    {아직안나옴(s.releaseDate ?? '') && <span className="ml-1 font-semibold text-amber-600">발매 예정</span>}
                   </p>
                 </button>
               ))}
             </div>
+            )}
           </section>
         ))
-      )}
-      {남은묶음 > 0 && (
-        <div className="mt-2 text-center">
-          <button
-            type="button"
-            onClick={() => set세트보임((n) => n + 세트한번에)}
-            className="rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-          >
-            더 보기 <span className="text-neutral-400">(세트 {남은세트}개 · 시리즈 {남은묶음}개 남음)</span>
-          </button>
-        </div>
       )}
     </div>
   );

@@ -16,7 +16,39 @@ import path from 'node:path'
 
 const OUT = path.resolve(process.cwd(), 'public/sets')
 const WRITE = process.argv.includes('--write')
-const slugs = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+// "슬러그=코드"도 받는다 — PPT가 만든 세트(ppt-*)는 id가 limitless 코드가 아니라서,
+// 진짜 코드를 옆에 적어 준다. 예: ja-ex-battle-boost=EBB
+const 코드지정 = new Map()
+const slugs = process.argv
+  .slice(2)
+  .filter((a) => !a.startsWith('--'))
+  .map((a) => {
+    const [slug, code] = a.split('=')
+    if (code) 코드지정.set(slug, code)
+    return slug
+  })
+
+// ⚠️ 도감을 PPT로 갈아엎은 뒤(2026-08-09) 일본판 세트도 카드 이름이 **영문**이다.
+//    limitless 일본 목록은 일본어 이름이라 그대로 견주면 전부 어긋난다(ja-SI에서 실측).
+//    포켓몬 1,025종의 영↔일 표(pokemonNames.json)로 **영문 이름을 일본어로 바꿔서도**
+//    견준다. 트레이너·굿즈는 표가 없으니 여전히 못 채운다 — 그건 빈칸이 정답이다.
+import { readFileSync } from 'node:fs'
+const 포켓몬표 = JSON.parse(readFileSync(path.resolve(process.cwd(), 'src/data/pokemonNames.json'), 'utf8'))
+// ⚠️ 긴 이름부터 — "Mew"가 "Mewtwo"를 가로채면 안 된다.
+const 영일 = new Map(
+  포켓몬표
+    .filter((p) => p.en && p.ja)
+    .sort((x, y) => String(y.en).length - String(x.en).length)
+    .map((p) => [String(p.en).toLowerCase(), String(p.ja)]),
+)
+// "Charizard EX" → "リザードンEX" (앞의 포켓몬 이름만 바꾸고 꼬리는 그대로)
+const 일본어짐작 = (en) => {
+  const s = String(en ?? '')
+  for (const [e, j] of 영일) {
+    if (s.toLowerCase().startsWith(e)) return j + s.slice(e.length)
+  }
+  return null
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // limitless가 &#039;·&amp; 같은 HTML 기호로 내보내는 이름이 있다. 풀어 두지 않으면
 // "N's Zekrom"과 "N&#039;s Zekrom"이 다른 이름으로 보여 그림을 못 채운다.
@@ -74,7 +106,7 @@ for (const slug of slugs) {
     continue
   }
   const lang = slug.startsWith('ja-') ? 'jp/' : ''
-  const html = await get(`https://limitlesstcg.com/cards/${lang}${d.id}?display=list`)
+  const html = await get(`https://limitlesstcg.com/cards/${lang}${코드지정.get(slug) ?? d.id}?display=list`)
   if (!html) {
     console.log(`  ${slug}: limitless에서 못 받음`)
     continue
@@ -92,12 +124,15 @@ for (const slug of slugs) {
   const skipped = []
   let dead = 0
   for (const c of d.cards ?? []) {
-    const hit = src.get(c.n)
+    // ⚠️ PPT로 갈아엎은 도감은 번호가 "1"이고 limitless는 "001"이다. 양쪽 꼴로 찾는다.
+    const hit = src.get(c.n) ?? src.get(String(c.n).padStart(3, '0'))
     if (!hit) continue
     const blank = !(c.img || '').trim()
     const seller = (c.img || '').includes('snkrdunk')
     if (!blank && !seller) continue
-    if (norm(c.name) !== norm(hit.name)) {
+    // 영문 이름 그대로, 또는 일본어로 바꿔서(포켓몬만) 둘 중 하나가 맞아야 한다.
+    const 짐작 = 일본어짐작(c.name)
+    if (norm(c.name) !== norm(hit.name) && (!짐작 || norm(짐작) !== norm(hit.name))) {
       if (skipped.length < 3) skipped.push(`${c.n} ${c.name}≠${hit.name}`)
       continue
     }

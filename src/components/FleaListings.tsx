@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { FLEA_SET_SET } from '../lib/fleaSets';
 import {
   answerOffer,
   closeListing,
@@ -91,7 +92,7 @@ function NewListingForm({
   // 카드는 반드시 카탈로그에서 고른다. 자유 입력이면 같은 카드가 여러 갈래로
   // 흩어져 시세가 안 모인다.
   const card = initialCard;
-  // 판본은 어느 탭(일본판·영문판·한글판)에서 들어왔는지로 이미 정해져 있다.
+  // 판본은 어느 탭(일본판·한글판)에서 들어왔는지로 이미 정해져 있다.
   const edition = initialCard.ed;
   const [grade, setGrade] = useState('A');
   const [certNo, setCertNo] = useState('');
@@ -676,7 +677,6 @@ function CardMarket({
 // ── 카드 고르기(첫 화면) ─────────────────────────────────────────────────────
 // 최신 세트 몇 개만 깔아 둔다. 전체 284개를 다 열면 매물 없는 카드가 3만 장이라
 // 둘러볼 수가 없다. 늘리는 건 나중에 매물이 붙는 걸 보고 정한다.
-const FEATURED = 4;
 
 export function FleaListings() {
   // 판본을 먼저 고른다. 한글판은 카탈로그가 따로 없고, 일본판 세트에 포켓몬코리아
@@ -700,17 +700,18 @@ export function FleaListings() {
     loadKoSets().then(setKoSets).catch(() => undefined);
   }, []);
 
-  // 판본별로 발매일이 가장 최근인 세트 몇 개.
+  // 다룰 확장팩만 골라 발매일 최근 순으로.
   useEffect(() => {
     loadSetIndex()
       .then((list) => {
         const live = list
-          .filter((s) => !s.slug.includes('pocket'))
-          .filter((s) =>
-            ed === 'na' ? s.ed === 'en' : ed === 'kr' ? koSets.includes(s.slug) : s.ed === 'ja',
-          )
-          .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''))
-          .slice(0, FEATURED);
+          // ⚠️ 어느 확장팩을 다루는지는 **src/lib/fleaSets.ts 한 곳**에서 정한다(서버도
+          //    같은 것을 본다). 여기서 따로 고르면 화면과 서버가 어긋난다.
+          .filter((s) => FLEA_SET_SET.has(s.slug))
+          // 한글판은 그중에서도 **한글 자료가 실제로 붙은 세트**만. 한국 미발매 세트가
+          // 섞이면 카드 그림이 빈 칸으로 나온다.
+          .filter((s) => ed !== 'kr' || koSets.includes(s.slug))
+          .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''));
         setSets(live);
         setSetIdx(0);
       })

@@ -1,5 +1,6 @@
 import { formatGradeLabel, 대표등급, mainPrice, type EbayCard } from '../api/ebayPrices';
 import { 상태글 } from '../lib/tcgCondition';
+import { 레어도한글 } from '../lib/rarityCode';
 import { Price } from './KrwHint';
 import { CardImg } from './CardImg';
 
@@ -15,7 +16,7 @@ export function EbayCardTile({
   card: EbayCard;
   selected: boolean;
   onSelect: (id: string) => void;
-  // 비교 담기(운영자 베타). onCompare가 있을 때만 버튼이 뜬다.
+  // 비교 담기. onCompare가 있을 때만 버튼이 뜬다(등급표를 견주는 것이라 eBay 눈에서만 준다).
   onCompare?: (card: EbayCard) => void;
   inCompare?: boolean;
   // 'ebay'면 등급별 대표가, 'tcgplayer'면 TCGplayer 마켓가를 대표가로 보여준다.
@@ -34,11 +35,14 @@ export function EbayCardTile({
         selected ? 'ring-2 ring-black ring-offset-2' : ''
       }`}
     >
-      <div className="h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
+      {/* ⚠️ `card-dim` — **어두운 화면에서만** 사진 밝기를 살짝 낮춘다(index.css).
+          바탕만 어둡게 하면 밝은 카드 사진이 어두운 판에 박혀 더 눈부시다. 마우스를
+          올리면 원래 밝기로 돌아온다. 밝은 화면에서는 아무 일도 안 한다. */}
+      <div className="card-dim h-36 w-full rounded-lg mb-3 overflow-hidden bg-neutral-100">
         {/* TCGplayer 이미지는 원본이 이미 400px로 작아서 축소(wsrv)를 거치지 않는다.
             거치면 wsrv가 tcgplayer CDN을 못 불러와 이미지가 깨진다. */}
         {card.imageUrl ? (
-          <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" />
+          <CardImg src={card.imageUrl} alt={card.name} className="h-full w-full object-contain" 일반판그림={card.imgBase} />
         ) : (
           // ⚠️ 빈 회색 상자만 두면 고장난 것처럼 보인다. 왜 없는지 한 줄로 밝힌다.
           //    저쪽이 여러 카드를 한 칸에 묶어 둔 것을 우리가 번호로 갈랐는데, 그 사진은
@@ -57,7 +61,13 @@ export function EbayCardTile({
           값을 믿지 마세요 · 여러 카드가 섞임
         </p>
       )}
-      <p className="text-xs text-neutral-400 mb-1 line-clamp-1">{card.setName}</p>
+      {/* ⚠️ **레어도를 목록에서도 보여준다.** 같은 이름의 카드가 여러 장일 때(기본판·SR·SAR)
+          레어도가 없으면 어느 것인지 못 가린다 — 값이 크게 갈리는 자리다(2026-08-09 지시).
+          한글은 `레어도한글` 한 벌만 쓴다(팝수 화면과 같은 것). */}
+      <p className="text-xs text-neutral-400 mb-1 line-clamp-1">
+        {card.setName}
+        {card.rarity ? ` · ${레어도한글(card.rarity)}` : ''}
+      </p>
       {variant === 'tcgplayer'
         ? tcg && (
             <>

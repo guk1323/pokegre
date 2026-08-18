@@ -1,12 +1,13 @@
-import { 번호열쇠 } from '../lib/cardNo.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { 은는 } from '../lib/josa';
+import { 시트가스스로닫힘 } from '../lib/sheetHistory';
 import { CardImg } from './CardImg';
 import { trackEvent } from '../api/localStats';
-import { loadNameDict, warmNameDict } from '../lib/nameDict';
+import { warmNameDict } from '../lib/nameDict';
 import { koName } from '../lib/koCardName';
-import { pptSetKoMany } from '../lib/pptSetKo';
-import { 레어도떼기, 레어도맞나, 마켓전용말떼기 } from '../lib/rarityCode';
+import { 레어도떼기, 레어도맞나, 레어도한글, 마켓전용말떼기 } from '../lib/rarityCode';
 import { SearchSuggestions } from './SearchSuggestions';
+import { CardScanButton } from './CardScanButton';
 
 // 팝수(감정 수량) 조회.
 //
@@ -20,12 +21,20 @@ import { SearchSuggestions } from './SearchSuggestions';
 //    나가므로 낭비가 없다.
 
 interface 찾은카드 {
+  /** 감정 수량. 도감에서 찾을 때 같이 온다 — 목록을 세우는 잣대이자 화면에 적는 숫자다. */
+  population?: { all?: number } | null;
   tcgPlayerId: string;
   name: string;
   setName: string;
   cardNumber: string;
   rarity: string;
   imageUrl: string;
+  // ⚠️ 저쪽 `search`는 세트 이름까지 뒤져서 엉뚱한 카드가 같이 올라온다("Bulbasaur"를 찾으면
+  //    「Intro Pack (Bulbasaur)」 세트의 포션·에너지까지). 서버가 대조표로 확인해 **세트 목록에
+  //    있는 카드를 위로** 올려 준다. 화면에 따로 적지는 않는다 — 방문자에겐 "우리 것/저쪽 것"이
+  //    아무 뜻도 없고, 애초에 목록을 채워서 없어져야 할 구분이다(2026-08-09 사장님 지적).
+  우리세트?: string | null;
+  우리번호?: string | null;
 }
 interface 기관자료 {
   total: number;
@@ -65,7 +74,6 @@ const 보일이름 = (판: 'japanese' | 'english', name: string) => koName(판 =
 export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; lang?: string } | null }) {
   const [말, set말] = useState('');
   const [판, set판] = useState<'japanese' | 'english'>('japanese');
-  const [찾는중, set찾는중] = useState(false);
   const [결과, set결과] = useState<찾은카드[] | null>(null);
   // 저쪽이 주는 최대치에 걸려 잘렸나(잘리면 값이 낮은 카드가 안 온다).
   const [잘림, set잘림] = useState(false);
@@ -76,9 +84,11 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
   // 저쪽이 모르는 말(":1ED")을 빼고 찾았을 때 그 말. 빈 화면 대신 알려 주려는 것이다.
   const [뺀말, set뺀말] = useState('');
   // 처음 들어왔을 때 보여 줄 **실제 카드**(홈의 신팩 힛카드를 그대로 쓴다).
-  const [맛보기, set맛보기] = useState<{ 세트: string; 카드: { n: string; 이름: string; img: string }[] }>({ 세트: '', 카드: [] });
-  // 저쪽 세트 이름 → 우리 한글 이름. 결과가 오면 그때 한 번 만든다(공용 대조표).
-  const [세트한글, set세트한글] = useState<Map<string, string>>(new Map());
+  // ⚠️ 세트 이름 대조표(`pptSetKoMany`)를 태우던 자리다. 2026-08-13에 찾기를 도감으로
+  //    바꾸면서 **세트 이름이 이미 우리 한글로 온다** — 더 바꿀 것이 없어 뺐다.
+  // 찾는 중 표시. ⚠️ 「찾기」 단추를 없앤 뒤로는 **이 한 줄이 유일한 신호**다 —
+  //    단추가 「찾는 중…」으로 바뀌던 것을 대신한다.
+  const [찾는중, set찾는중] = useState(false);
   const [고른것, set고른것] = useState<찾은카드 | null>(null);
   const [자료, set자료] = useState<상세 | null>(null);
   const [자료받는중, set자료받는중] = useState(false);
@@ -96,10 +106,15 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     set오류(null);
     fetch(`/api/local/population-detail?id=${encodeURIComponent(id)}${lang ? `&lang=${lang}` : ''}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { detail: 상세 | null } | null) => {
+      .then((j: { detail: 상세 | null; card?: 찾은카드 | null } | null) => {
         if (표 !== 마지막요청.current) return;
         set자료(j?.detail ?? null);
         set자료받는중(false);
+        // ⚠️⚠️ **어느 카드의 표인지 화면에 세운다.** 카드 상세에서 「자세히 →」로 들어오면
+        //    번호만 들고 오므로 예전에는 표만 덩그러니 뜨고 **무슨 카드인지 한 줄도
+        //    없었다**(사장님 지적 2026-08-13). 서버가 같이 보내 주는 카드를 여기서 세운다.
+        // ⚠️ 이미 고른 카드가 있으면 안 덮는다 — 찾기로 고른 카드는 그쪽이 주인이다.
+        set고른것((전) => 전 ?? (j?.card ? { ...j.card, rarity: '' } : null));
         if (j?.detail) trackEvent('population_detail');
       })
       .catch(() => {
@@ -142,35 +157,28 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     set뺀말(뗀말);
     set고른것(null);
     set자료(null);
-    // ⚠️ 저쪽(PPT)은 **영문 이름만 알아듣는다**. 한글로 치면 0건이 된다
-    //    (2026-08-07 사장님이 발견). 검색창과 똑같이 사전으로 영문으로 바꿔 보낸다.
-    //    한글이 없으면 손대지 않는다 — "Charizard 4/102"처럼 이미 영문인 것을
-    //    번역기에 넣으면 오히려 망가진다.
-    let q = 친것;
-    if (/[가-힣]/.test(친것)) {
-      try {
-        q = (await loadNameDict()).translateSearchQueryToEnglish(친것, 그판);
-      } catch {
-        set찾는중(false);
-        set오류('이름 사전을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
-        return;
-      }
-      // ⚠️ 사전에 없는 한글은 **그대로 남는다**. 그걸 보내면 저쪽이 0장을 주고,
-      //    화면엔 "찾은 카드가 없습니다"가 떠서 우리가 그 카드를 안 다루는 것처럼
-      //    보인다. 무엇이 문제인지 밝혀 준다.
-      if (/[가-힣]/.test(q)) {
-        set찾는중(false);
-        set오류(`'${친것}'의 영문 이름을 몰라 찾지 못했습니다. 영문으로 쳐 보시겠어요?`);
-        return;
-      }
-    }
-    fetch(`/api/local/card-find?search=${encodeURIComponent(q)}&lang=${그판}`)
+    // ⚠️⚠️ **우리 도감에서 찾는다**(2026-08-13에 갈아엎었다). 시세 검색과 같은 길이다.
+    //    예전에는 저쪽(PPT)에 물어봤는데, 재 보니 이랬다:
+    //      · **한 번에 200크레딧** (실측 198,260 → 198,059). 하루치 20만이니 천 번이면 끝난다.
+    //      · **200장에서 잘렸다** — 「피카츄」는 실제로 338장이다.
+    //      · **한글로는 못 찾았다** — 사전으로 영문으로 바꿔 보냈고, 사전에 없으면 빈손이었다.
+    //      · 이름·세트가 저쪽 표기 그대로였다(「M Charizard EX - 091/087」).
+    //    그런데 **감정 수량은 이미 우리 파일에 다 있다**(19,342장). 저쪽에 물을 이유가 없었다.
+    //    도감에 있는 것이 19,334장(100.0%)이라 잃는 것은 8장뿐이다.
+    // ⚠️ 이 응답에는 **감정 수량이 이미 들어 있다** — 여기서 걸러 쓴다(따로 안 부른다).
+    fetch(`/api/local/card-board?q=${encodeURIComponent(친것)}&lang=${그판 === 'english' ? 'english' : 'japanese'}`)
       .then(async (r) => {
-        if (!r.ok) throw new Error(r.status === 429 ? '오늘 조회량을 다 썼습니다.' : '찾지 못했습니다.');
+        if (!r.ok) throw new Error('찾지 못했습니다.');
         return r.json();
       })
-      .then((j: { cards: 찾은카드[]; capped?: boolean }) => {
-        const 전부 = j.cards ?? [];
+      .then((j: { cards: (찾은카드 & { population?: { all?: number } | null })[]; 잘림?: number }) => {
+        // ⚠️⚠️ **감정 수량이 있는 카드만 낸다.** 없는 카드를 목록에 두면 눌러 봐야
+        //    「기록 없습니다」라, 방문자에게는 헛걸음이다. 팝수 화면의 일은 값이
+        //    **있는** 것을 보여 주는 것이다.
+        const 전부 = (j.cards ?? [])
+          .filter((c) => (c.population?.all ?? 0) > 0)
+          // 감정 많은 순. 많이 감정된 카드가 대개 사람들이 찾는 그 카드다.
+          .sort((a, b) => (b.population?.all ?? 0) - (a.population?.all ?? 0));
         // ⚠️ 레어도로 걸러 **0장이 되면 거르지 않은 목록을 보여 준다.** 빈 화면을 주면
         //    그 카드를 우리가 아예 안 다루는 줄 안다. 대신 왜 안 걸러졌는지 적는다.
         const 걸러진 = 레어도
@@ -180,9 +188,10 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         set좁힌레어도(레어도 && 걸러진.length > 0 ? 레어도 : '');
         set못찾은레어도(레어도 && 걸러진.length === 0 ? 레어도 : '');
         set결과(쓸것);
-        set잘림(Boolean(j.capped) && 쓸것 === 전부);
-        // 세트 이름은 **공용 대조표** 한 벌로 바꾼다(api/ebayPrices.ts와 같은 것).
-        void pptSetKoMany(쓸것.map((c) => c.setName)).then(set세트한글).catch(() => undefined);
+        // 천장(2,000장)에 걸렸을 때만 「잘렸다」. 예전 200장 상한과 달리 진짜 카드
+        // 이름으로는 걸릴 일이 없다(「ex」처럼 이름이 아닌 말만 걸린다).
+        set잘림(Boolean(j.잘림) && 쓸것 === 전부);
+        // ⚠️ 세트 이름은 이미 우리 한글이다(도감에서 왔다) — 대조표를 안 태운다.
         set찾는중(false);
         trackEvent('population_search');
       })
@@ -196,6 +205,56 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     e?.preventDefault();
     void 찾기실행(말, 판);
   };
+
+  // ⚠️⚠️ **치는 대로 찾는다 — 「찾기」 단추를 없앴다**(사장님 지시 2026-08-13:
+  //    "홈화면이랑 같은 맥락으로"). 홈 검색창과 **같은 250ms**를 기다렸다 보낸다.
+  //    예전에는 단추를 눌러야 찾았다. 까닭은 **한 번에 200크레딧**이 나갔기 때문인데,
+  //    이제 우리 도감을 읽어 **0크레딧**이라 그 까닭이 사라졌다.
+  // ⚠️ 카드를 이미 골라 등급표를 보고 있으면 안 건드린다 — 글자가 그대로 남아 있다고
+  //    보던 표를 뒤에서 갈아엎으면 안 된다.
+  const 마지막친말 = useRef('');
+  useEffect(() => {
+    const 친것 = 말.trim();
+    if (친것.length < 2) return;
+    if (고른것) return;
+    if (마지막친말.current === `${판}:${친것}`) return;
+    const t = setTimeout(() => {
+      마지막친말.current = `${판}:${친것}`;
+      void 찾기실행(친것, 판);
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [말, 판, 고른것]);
+
+  // ⚠️⚠️ **카드를 열면 뒤로가기로 닫힌다.**
+  //    이게 없으면 목록에서 카드를 누른 뒤 뒤로가기가 **홈으로 튕겼다**(사장님 지적
+  //    2026-08-13, 실측으로 재현). 등급표는 주소가 안 바뀌는 화면 안 상태라, 뒤로가기가
+  //    「팝수 화면에 들어오기 전」으로 한 칸에 건너뛰었기 때문이다.
+  //    시세 화면은 카드가 **시트**(`DetailSheet`)로 열려 그 부품이 같은 일을 해 준다 —
+  //    팝수는 등급표를 화면 안에 그대로 그리므로 여기서 직접 한다. **방식은 똑같다.**
+  // ⚠️ 되돌아가는 칸에는 「카드를 열기 전」 화면 상태가 적혀 있어, App이 그걸 복원하면
+  //    그 사이 바뀐 것이 되돌아간다. 그래서 표식을 세워 그 복원만 건너뛴다
+  //    (`lib/sheetHistory.ts` — DetailSheet가 쓰는 것과 같은 표식이다).
+  useEffect(() => {
+    // ⚠️⚠️ **목록에서 고른 카드일 때만** 건다(`결과`가 있을 때). 카드 상세의 「자세히 →」로
+    //    바로 들어온 경우(`?id=`)에는 **돌아갈 목록이 없다** — 그때 이걸 걸면 뒤로가기가
+    //    빈 팝수 화면에 사람을 세워 둔다. 왔던 카드로 나가는 게 맞다(실측으로 잡았다).
+    //    「← 찾은 목록으로」 단추를 `결과`가 있을 때만 내는 것과 **같은 잣대**다.
+    if (!고른것 || !결과) return;
+    const 닫기 = () => {
+      set고른것(null);
+      set자료(null);
+    };
+    window.history.pushState({ sheet: true }, '');
+    window.addEventListener('popstate', 닫기);
+    return () => {
+      window.removeEventListener('popstate', 닫기);
+      if (window.history.state?.sheet) {
+        시트가스스로닫힘.on = true;
+        window.history.back();
+      }
+    };
+  }, [고른것, 결과]);
 
   // ⚠️ **판을 바꾸면 다시 찾는다.** 예전엔 일본판/영문판을 눌러도 화면에 그대로 옛
   //    결과가 남아 있어서, 판을 바꾼 줄 알고 보다가 반대쪽 카드를 보게 됐다.
@@ -229,58 +288,18 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
   // ⚠️ **처음 화면이 비어 있으면 뭘 하는 자리인지 모른다.** 도감 화면들은 들어가자마자
   //    목록이 보이는데 여기만 검색칸 하나뿐이라 본문이 174px밖에 안 됐다(2026-08-08).
-  //    ① 처음엔 글자 알약(인기 검색어)을 뒀는데 **아무 정보가 없어 밋밋했다** —
-  //       이름만 적힌 동그라미는 이 화면이 무엇을 해 주는지 하나도 안 알려 준다.
-  //    ② 그래서 홈의 **신팩** 힛카드를 썼는데 이것도 틀렸다. **갓 나온 세트는 감정된
-  //       카드가 없다** — 스톰에메랄다(7/31 발매) 라이코 ex를 눌러 보니 팝수 자료가
-  //       아예 없었다(2026-08-08 실측). 팝수 화면에서 팝수가 없는 카드를 권한 셈이다.
-  //    → **발매한 지 1년이 넘은 세트**의 힛카드를 쓴다. 그쯤이면 감정이 쌓인다
-  //      (메가브레이브 2025-08 메가루카리오 ex: PSA·BGS·SGC 합쳐 6,834장).
-  //      세트 목록은 우리 파일이라 공짜고, 힛카드도 서버에 담겨 있어 크레딧이 안 든다.
-  //      그림·한글 이름은 우리 세트 파일에서 이어 붙인다.
-  useEffect(() => {
-    let 취소 = false;
-    const 한해전 = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
-    void (async () => {
-      try {
-        const idx = (await (await fetch('/sets/index.json')).json()) as {
-          slug: string; name: string; releaseDate?: string; serie?: string;
-        }[];
-        // 발매일이 1년 넘은 것 중 가장 최근 세트부터 훑는다. 힛카드가 없는 세트도 있어
-        // 몇 개는 그냥 넘어간다(모바일 포켓은 실물이 없어 감정 자체가 없다).
-        const 후보 = idx
-          .filter((s2) => s2.releaseDate && s2.releaseDate <= 한해전 && !(s2.serie ?? '').includes('Pocket'))
-          .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
-          .slice(0, 8);
-        for (const 세트 of 후보) {
-          if (취소) return;
-          const 힛 = (await (await fetch(`/api/local/set-hit-cards?slug=${encodeURIComponent(세트.slug)}`)).json()) as {
-            cards?: { n: string; usd: number; name: string }[];
-          };
-          const 목록 = 힛.cards ?? [];
-          if (목록.length < 3) continue;
-          const 카드자료 = (await (await fetch(`/sets/${세트.slug}.json`)).json()) as {
-            cards?: { n: string; name: string; img?: string }[];
-          };
-          const 번호로 = new Map((카드자료.cards ?? []).map((c) => [번호열쇠(c.n), c]));
-          const 카드 = 목록
-            .map((h) => ({ h, c: 번호로.get(번호열쇠(h.n)) }))
-            .filter((x) => x.c?.img)
-            .map((x) => ({ n: String(x.h.n), 이름: 보일이름('japanese', x.c!.name), img: String(x.c!.img) }))
-            .slice(0, 6);
-          if (카드.length >= 3) {
-            if (!취소) set맛보기({ 세트: 세트.name, 카드 });
-            return;
-          }
-        }
-      } catch {
-        // 맛보기는 있으면 좋은 것이라, 실패하면 조용히 넘어간다.
-      }
-    })();
-    return () => {
-      취소 = true;
-    };
-  }, []);
+  //    ① 처음엔 글자 알약(인기 검색어)을 뒀는데 **아무 정보가 없어 밋밋했다**.
+  //    ② 홈의 **신팩 힛카드**를 썼더니 **갓 나온 세트는 감정된 카드가 없었다**.
+  //    ③ **발매 1년 지난 세트의 힛카드**로 바꿨는데 이것도 틀렸다 — 그건 **시세** 기준이라
+  //       감정 수량과 아무 상관이 없다. 사장님 지적(2026-08-11)대로 **12장 전부**
+  //       「등급 매물 없음」이 떴다(실측). 게다가 그림 주소가 죽은 카드까지 섞였다(403).
+  //    → **우리가 실제로 가진 팝수 자료에서** 감정 수량이 많은 순으로 고른다
+  //      (`/api/local/population-samples`). 팝수 화면의 맛보기는 팝수가 있는 카드여야 한다.
+  //      서버에 담긴 자료라 크레딧이 안 든다.
+  // ⚠️ (없앰) 맛보기 12장을 받아 오던 자리(`/api/local/population-samples`).
+  //    2026-08-13에 그 블록을 빼면서 같이 없앴다 — 화면이 안 쓰는 것을 받아 올 이유가 없다.
+  //    ⚠️ 서버 엔드포인트는 **남겨 뒀다**. 되살릴 때 쓴다(위 없앰 설명 참고).
+
 
   const 추천고르기 = (term: string) => {
     set말(term);
@@ -304,16 +323,36 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-lg font-bold text-black">팝수 조회</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        감정 기관이 이 카드에 매긴 등급이 각각 몇 장인지 전부 보여 드립니다. 10등급이 적을수록 구하기 어려운 카드입니다.
-      </p>
+      {/* ⚠️ **머리를 카드 한 장처럼 짠다**(사장님 지시 2026-08-11 — "너무 텅텅빈 느낌").
+          예전엔 제목·설명 두 줄 뒤에 곧장 흰 여백이라, 검색 전 화면이 비어 보였다.
+          제목 옆에 **팝수가 무엇인지**를 짧게 붙이고, 아래에 읽는 법 세 칸을 둔다. */}
+      <div className="rounded-2xl border border-neutral-200 bg-gradient-to-b from-neutral-50 to-white p-5">
+        <h1 className="text-lg font-bold text-black">팝수 조회</h1>
+        <p className="mt-1 text-sm text-neutral-600">
+          감정 기관이 이 카드에 매긴 등급이 각각 몇 장인지 전부 보여 드립니다. <b className="text-neutral-800">10등급이
+          적을수록 구하기 어려운 카드</b>입니다.
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {[
+            ['전체 장수', '지금까지 감정받은 총 장수입니다. 적을수록 귀합니다.'],
+            ['10등급 비율', '전체 중 만점을 받은 비율. 낮을수록 만점 받기 어려운 카드입니다.'],
+            ['기관별 표', 'PSA·BGS·CGC·SGC가 매긴 등급을 반칸(9.5)까지 빠짐없이 봅니다.'],
+          ].map(([제목, 설명]) => (
+            <div key={제목} className="rounded-xl bg-white/70 p-3 ring-1 ring-neutral-200/70">
+              <p className="text-xs font-bold text-neutral-800">{제목}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-neutral-500">{설명}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ⚠️ **도감 화면들과 같은 뼈대로 맞춘다.** 예전엔 [판][검색칸][찾기]가 한 줄이라
           핸드폰에서 입력칸이 146px밖에 안 되어 안내문이 잘렸다(2026-08-08 실측).
           세트 화면처럼 **검색칸을 전체 폭으로 쓰고 판 고르기는 그 아래**에 둔다. */}
       <form onSubmit={찾기} className="mt-4">
-        <div className="flex gap-2">
+        {/* ⚠️ `items-start` — 자동완성 목록이 입력칸 아래로 겹쳐 뜨느라 감싼 div가 길어진다.
+            기본값(stretch)이면 옆의 사진 단추가 그만큼 같이 늘어난다. */}
+        <div className="flex items-start gap-2">
         {/* 자동완성 목록이 입력칸 바로 아래에 겹쳐 떠야 해서 감싼다. */}
         <div className="relative min-w-0 flex-1">
           <input
@@ -329,6 +368,10 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
             // 목록의 버튼은 onMouseDown을 막아 두어 이 blur보다 클릭이 먼저 처리된다.
             onBlur={() => set추천열림(false)}
             onKeyDown={(e) => {
+              // ⚠️ **한글을 조합하는 중에는 손대지 않는다.** 아직 안 끝난 글자 위에서
+              //    엔터·방향키를 가로채면 그 글자가 한 번 더 들어가거나 깨진다
+              //    (홈 검색창에서 실제로 "리자몽"이 "리자몽몽"이 됐다 · 2026-08-10).
+              if (e.nativeEvent.isComposing) return;
               if (!추천열림 || 추천.length === 0) return;
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -350,19 +393,59 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
             aria-expanded={추천열림 && 추천.length > 0}
             aria-controls="search-suggestions"
             autoComplete="off"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            // ⚠️⚠️ **홈 검색바와 치수를 똑같이 맞춘다**(사장님 지시 2026-08-13:
+            //    "사진으로 찾기가 검색바랑 위치나 높이 일치해야지").
+            //    `py-3` + `text-sm` + 테두리 = **46px**이고, 그게 `CardScanButton`의
+            //    `h-[46px]`와 같은 값이다. 예전엔 `py-2`(38px)라 옆 단추만 8px 더 컸다.
+            //    ⚠️ 둘 중 하나를 고치면 다른 쪽도 봐야 한다 — 높이를 정하는 자리가 둘이다.
+            className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-3 pr-10 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black"
           />
+          {/* 검색어가 있을 때만 오른쪽 끝에 지우기(X). **홈 검색바와 같은 부품·같은 크기**다
+              (`components/SearchBar.tsx`). 보이는 동그라미는 24px 그대로 두고 누를 자리만
+              44px로 넓힌다 — 24px은 손가락으로 놓치기 쉽다.
+              ⚠️ `onMouseDown`으로 blur를 막는다. 안 막으면 자동완성이 닫히는 동작과 겹쳐
+                 클릭이 씹힌다(홈에서 겪은 그대로다). */}
+          {말 && (
+            <button
+              type="button"
+              aria-label="검색어 지우기"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                set말('');
+                set추천열림(false);
+                set결과(null);
+                set고른것(null);
+                set자료(null);
+                set오류(null);
+              }}
+              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 before:absolute before:-inset-2.5 before:content-['']"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           {추천열림 && (
             <SearchSuggestions items={추천} active={추천고른줄} onSelect={추천고르기} />
           )}
         </div>
-          <button
-            type="submit"
-            disabled={찾는중 || 말.trim().length < 2}
-            className="flex-shrink-0 rounded-lg bg-black px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
-          >
-            {찾는중 ? '찾는 중…' : '찾기'}
-          </button>
+          {/* 사진으로 찾기 — 시세 화면과 **같은 부품**을 쓴다(사장님 지시 2026-08-11).
+              팝수는 "내 카드가 몇 장이나 있나"를 보는 곳이라 사진으로 들어오는 게 자연스럽다.
+              ⚠️ 스캔이 판(일/영문)까지 읽어 주므로 판 토글도 같이 맞춘다 — 안 맞추면
+                 일본판 카드를 찍었는데 영문판에서 0장이 나온다. */}
+          <CardScanButton
+            onResult={({ result }) => {
+              const ed = result.edition === 'english' ? 'english' : 'japanese';
+              const 번호 = result.cardNumber;
+              // 번호를 읽었으면 "이름 번호"로 좁히고, 못 읽었으면 이름만으로 후보를 낸다.
+              const 말2 = [result.pokemonNameEn ?? '', 번호 ?? ''].filter(Boolean).join(' ').trim();
+              if (!말2) return;
+              set판(ed);
+              set말(말2);
+              set추천열림(false);
+              void 찾기실행(말2, ed);
+            }}
+          />
         </div>
 
         {/* 판 고르기는 검색칸 **아래**에 둔다(세트 화면과 같은 자리). */}
@@ -382,39 +465,17 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         </div>
       </form>
 
+      {찾는중 && <p className="mt-3 text-sm text-neutral-400">찾는 중…</p>}
       {오류 && <p className="mt-3 text-sm text-amber-600">{오류}</p>}
 
-      {!결과 && !고른것 && !찾는중 && 맛보기.카드.length > 0 && (
-        <div className="mt-6">
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold text-black">이런 카드의 팝수를 볼 수 있습니다</p>
-            {맛보기.세트 && <span className="shrink-0 text-[11px] text-neutral-400">{맛보기.세트}</span>}
-          </div>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {맛보기.카드.map((c) => (
-              <button
-                key={`${c.n}-${c.이름}`}
-                type="button"
-                onClick={() => {
-                  set말(c.이름);
-                  void 찾기실행(c.이름, 판);
-                }}
-                className="group text-left"
-              >
-                <div className="overflow-hidden rounded-lg bg-neutral-100">
-                  <CardImg
-                    src={c.img}
-                    alt={c.이름}
-                    className="aspect-[63/88] w-full object-contain transition group-hover:-translate-y-0.5"
-                  />
-                </div>
-                <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-tight text-neutral-800">{c.이름}</p>
-                <p className="text-[10px] text-neutral-400">{c.n}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ⚠️⚠️ (없앰) **「이런 카드의 팝수를 볼 수 있습니다」 맛보기 12장.** 2026-08-13에 뺐다.
+          까닭 — **눌러도 그 카드가 안 열렸다.** 카드 이름을 검색어에 넣고 이름으로 다시
+          찾는 방식이라, 「메가리자몽 X ex - 023」처럼 꼬리표가 붙은 이름은 그대로 들어가
+          **「카드가 없습니다」가 떴다**(실측). 그림 12장이 첫 화면을 통째로 먹으면서
+          누르면 빈손이 나는 자리였다(사장님 지적: "굳이 꺼내둬야 하는지 모르겠네").
+          ⚠️ 되살리려면 **이름이 아니라 그 카드를 바로 열어야 한다** — 서버가 주는
+             `population-samples`에 `id`가 들어 있으니 `등급표받기(id, 판)`을 부르면 된다.
+             이름으로 다시 찾는 방식으로는 되살리지 말 것. */}
 
       {결과 && !고른것 && (
         <div className="mt-4">
@@ -435,7 +496,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                   ? `'${못찾은레어도}' 카드가 없어 전체 ${결과.length}장을 보여 드립니다${잘림 ? ' (값이 높은 순)' : ''}.`
                   : 잘림
                     ? `이름에 맞는 카드가 많아 값이 높은 ${결과.length}장만 보여 드립니다. 이름을 더 자세히 치면 좁혀집니다.`
-                    : `카드 ${결과.length}장을 찾았습니다. 누르면 등급표를 봅니다.`}
+                    : `감정 기록이 있는 카드 ${결과.length}장입니다. 누르면 등급표를 봅니다.`}
             </p>
             <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200">
               {결과.map((c) => (
@@ -448,14 +509,22 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                     <div className="h-12 w-9 flex-shrink-0 overflow-hidden rounded bg-neutral-100">
                       {c.imageUrl && <CardImg src={c.imageUrl} alt={c.name} className="h-full w-full object-contain" />}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-neutral-800">{보일이름(판, c.name)}</p>
                       <p className="truncate text-[11px] text-neutral-400">
-                        {세트한글.get(c.setName) ?? c.setName}
+                        {c.setName}
                         {c.cardNumber ? ` · ${c.cardNumber}` : ''}
-                        {c.rarity ? ` · ${c.rarity}` : ''}
+                        {c.rarity ? ` · ${레어도한글(c.rarity)}` : ''}
                       </p>
                     </div>
+                    {/* ⚠️ **줄 세운 잣대를 적어 준다.** 감정 많은 순으로 세우는데 그 수가
+                        화면에 없으면 순서가 뜬금없어 보인다. 여기가 팝수 화면이니
+                        방문자가 제일 알고 싶은 숫자이기도 하다. */}
+                    {(c.population?.all ?? 0) > 0 && (
+                      <span className="flex-shrink-0 text-[11px] tabular-nums text-neutral-500">
+                        {(c.population!.all as number).toLocaleString()}장
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -465,7 +534,10 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         </div>
       )}
 
-      {고른것 && (
+      {/* ⚠️ **찾은 목록이 있을 때만 낸다.** 카드 상세의 「자세히 →」로 바로 들어오면
+          돌아갈 목록이 아예 없는데 「← 찾은 목록으로」가 떠 있었다(2026-08-13).
+          누르면 맛보기 카드들이 나와서, 보던 카드가 사라진 것처럼 보인다. */}
+      {고른것 && 결과 && (
         <button
           type="button"
           onClick={() => {
@@ -490,7 +562,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
               <div className="min-w-0">
                 <p className="truncate text-base font-bold text-black">{보일이름(판, 고른것.name)}</p>
                 <p className="truncate text-xs text-neutral-400">
-                  {세트한글.get(고른것.setName) ?? 고른것.setName}
+                  {고른것.setName}
                   {고른것.cardNumber ? ` · ${고른것.cardNumber}` : ''}
                 </p>
               </div>
@@ -501,7 +573,12 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
           {!자료받는중 && !자료 && (
             <p className="py-10 text-center text-sm text-neutral-400">
-              이 카드는 감정 기록이 없습니다. 아직 아무도 감정을 안 맡겼거나, 자료에 안 잡힌 카드입니다.
+              {/* ⚠️ **어느 카드인지 밝힌다.** 그냥 "이 카드는"이라고만 적으면, 번호로 바로
+                  들어온 사람은 무엇이 없다는 말인지 알 수가 없다(2026-08-13). */}
+              {고른것
+                ? `${보일이름(판, 고른것.name)}${은는(보일이름(판, 고른것.name))} `
+                : '이 카드는 '}
+              감정 기록이 없습니다. 아직 아무도 감정을 안 맡겼거나, 자료에 안 잡힌 카드입니다.
             </p>
           )}
 

@@ -1,19 +1,18 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { CardImg } from './components/CardImg';
+import { OnboardingBanner } from './components/OnboardingBanner';
+import { ThemeToggle } from './components/ThemeToggle';
+// 세트 이름 한글 목록(자동완성에서 고르면 그 세트로 간다). scripts/gen-set-name-suggestions.mts
+import setNamesKo from './data/setNamesKo.json';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchMoreUniqueCards, type SnkrdunkCard } from './api/snkrdunk';
 import { fetchPopularSearches, trackEvent, trackSearch, trackVisit, type PopularSearch } from './api/localStats';
 import { fetchPokemonNews, type KoreanNewsItem } from './api/koreanNews';
 import { fetchRemoteSuggestions } from './api/suggestions';
-import {
-  searchEbayCards,
-  fetchCardNameById,
-  EBAY_RATE_LIMITED,
-  EBAY_DAILY_LIMIT,
-  EBAY_PAGE_SIZE,
-  type CardEdition,
-  type EbayCard,
-} from './api/ebayPrices';
+// ⚠️ `ebayPrices.ts`에는 이제 **꼴과 도우미만** 남아 있다(EbayCard·대표등급·등급 이름…).
+//    저쪽에 매물을 물어보던 함수들은 2026-08-13에 옛 길과 함께 지웠다.
+import type { CardEdition, EbayCard } from './api/ebayPrices';
+import { searchCardBoard, fetchBoardDetail, type BoardCard } from './api/cardBoard';
 import {
   도감검색어,
   도감검색어들,
@@ -22,10 +21,8 @@ import {
   값없음문구,
   값없음이유,
   같은카드인가,
-  pptSetName,
   짧은세트,
   type 도감카드정보,
-  저쪽번호를우리번호로,
 } from './lib/pokedexRoute';
 import { 시트가스스로닫힘 } from './lib/sheetHistory';
 // 사전을 하나도 안 가져오는 파일이라 첫 화면 무게가 늘지 않는다(lib/cardImg.ts 머리말).
@@ -53,7 +50,9 @@ import { CardDetail } from './components/CardDetail';
 import { CardRow } from './components/CardRow';
 import { PopularSearches } from './components/PopularSearches';
 import { PokemonNews } from './components/PokemonNews';
-import { PackShelfPromo } from './components/PackShelfPromo';
+// ⚠️ PackShelfPromo(오늘의 상점 홍보칸)는 홈에서 뺐다(2026-08-12). 되돌리려면 이 줄과
+//    아래 홈 곁다리 구역의 주석을 같이 살리면 된다.
+// import { PackShelfPromo } from './components/PackShelfPromo';
 import { NewSetHitCards } from './components/NewSetHitCards';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
@@ -61,10 +60,9 @@ import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
 import { CardScanButton } from './components/CardScanButton';
 import { reportScanMiss, scanCard, type CardScanResult } from './api/cardScan';
 import { findCardByIllustrator } from './lib/findCardByIllustrator';
-// 한글판 화면은 카드 이름 사전을 쓴다. 첫 화면에는 안 나오므로 나중에 불러온다.
-const KoreanEbayView = lazy(() => import('./components/KoreanEbayView').then((m) => ({ default: m.KoreanEbayView })));
 const Community = lazy(() => import('./Community').then((m) => ({ default: m.Community })));
 import { Footer } from './components/legal/Footer';
+import { PullBanner } from './components/PackShelfPromo';
 import { NicknameSetup } from './components/NicknameSetup';
 import { LoginModal } from './components/LoginModal';
 const MyPage = lazy(() => import('./components/MyPage').then((m) => ({ default: m.MyPage })));
@@ -72,11 +70,14 @@ const ReportInbox = lazy(() => import('./components/ReportInbox').then((m) => ({
 const VisitStats = lazy(() => import('./components/VisitStats').then((m) => ({ default: m.VisitStats })));
 const ScanTest = lazy(() => import('./components/ScanTest').then((m) => ({ default: m.ScanTest })));
 const FleaAdmin = lazy(() => import('./components/FleaAdmin').then((m) => ({ default: m.FleaAdmin })));
+// ⚠️ 게임은 도트 그림·규칙 자료가 딸려 와 무겁다. **지연 import로 두어** 첫 화면에 안 실리게 한다.
+const PokeDefense = lazy(() => import('./components/PokeDefense').then((m) => ({ default: m.PokeDefense })));
 const PackSim = lazy(() => import('./components/PackSim').then((m) => ({ default: m.PackSim })));
 const SetsView = lazy(() => import('./components/SetsView').then((m) => ({ default: m.SetsView })));
 const TitleFeedbackList = lazy(() => import('./components/TitleFeedbackList').then((m) => ({ default: m.TitleFeedbackList })));
 const CenteringTool = lazy(() => import('./components/CenteringTool').then((m) => ({ default: m.CenteringTool })));
 const PopulationView = lazy(() => import('./components/PopulationView').then((m) => ({ default: m.PopulationView })));
+const SealedPricesView = lazy(() => import('./components/SealedPricesView').then((m) => ({ default: m.SealedPricesView })));
 const ArtistsView = lazy(() => import('./components/ArtistsView').then((m) => ({ default: m.ArtistsView })));
 const PokedexView = lazy(() => import('./components/PokedexView').then((m) => ({ default: m.PokedexView })));
 import { DetailSheet } from './components/DetailSheet';
@@ -93,7 +94,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'pokedex' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea' | 'population';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'pokedex' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea' | 'population' | 'sealed' | 'pokedefense';
 
 // 화면 → 주소. 카테고리를 누르면 주소창도 같이 바뀌게 한다(운영자 지적 2026-08-05 —
 // 카테고리를 옮겨 다녀도 주소가 pokegre.com 그대로라 링크를 복사해 줄 수가 없었다).
@@ -108,6 +109,7 @@ const VIEW_PATH: Partial<Record<MainView, string>> = {
   pokedex: '/pokedex',
   centering: '/centering',
   population: '/population',
+  sealed: '/sealed',
   packsim: '/packsim',
   community: '/community',
 };
@@ -132,12 +134,14 @@ const VIEW_TITLE: Partial<Record<MainView, string>> = {
   pokedex: '포켓몬·트레이너별 카드 목록 | pokegre',
   centering: '포켓몬 카드 센터링 측정 | pokegre',
   population: '포켓몬 카드 감정 수량(팝수) 조회 | pokegre',
+  sealed: '포켓몬 카드 미개봉 시세 — 박스·팩 | pokegre',
   packsim: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
   community: '커뮤니티 | pokegre',
   mypage: '마이페이지 | pokegre',
   reports: '신고함 | pokegre',
   stats: '방문 통계 | pokegre',
   scantest: '스캔 테스트 | pokegre',
+  pokedefense: '포켓몬 디펜스 시즌1 | pokegre',
   flea: '플리마켓 | pokegre',
 };
 
@@ -157,11 +161,32 @@ function viewFromPath(p: string): MainView | null {
   if (/^\/pokedex\/?$/.test(p)) return 'pokedex';
   if (/^\/centering\/?$/.test(p)) return 'centering';
   if (/^\/population\/?$/.test(p)) return 'population';
+  if (/^\/sealed\/?$/.test(p)) return 'sealed';
   if (/^\/packsim\/?$/.test(p)) return 'packsim';
   if (/^\/community\/?$/.test(p)) return 'community';
   return null;
 }
-type PriceSource = 'snkrdunk' | 'ebay' | 'tcgplayer';
+// ⚠️ `cardboard`는 2026-08-12에 붙인 **새 길**이다. 옛 ebay·tcgplayer는 그대로 산다 —
+//    사장님 지시로 나란히 놓고 견주는 중이다(src/api/cardBoard.ts 설명 참고).
+// ⚠️ 새 길도 **마켓마다 하나씩** 둔다(`cardboard`=eBay 낙찰 · `cardboard_tcg`=TCGplayer 시세).
+//    검색창 왼쪽 칩이 마켓을 고르는 자리인데 그 칩은 `source`를 보고 그리므로, 마켓이
+//    하나뿐이면 고를 수가 없다. 옛 두 마켓(ebay·tcgplayer)과 같은 꼴이다.
+//    ⚠️ 둘은 **같은 응답을 나눠 본다** — 새 길은 한 번에 두 값을 다 들고 오므로 칩을
+//       바꿔도 다시 안 부른다(아래 `board켬`이 검색 조건에서 마켓을 뺀 까닭).
+type PriceSource = 'snkrdunk' | 'cardboard' | 'cardboard_tcg';
+
+/**
+ * 옛 「해외 시세」 탭이 쓰던 소스를 **새 길의 같은 마켓으로** 옮긴다.
+ *
+ * ⚠️⚠️ 탭을 없애도 `ebay`·`tcgplayer`는 **사람들 브라우저에 남아 있다** —
+ *    ① 방문기록(`savedNav`, localStorage) ② 뒤로가기에 쌓인 화면 상태(history.state).
+ *    그대로 되살리면 **이제 없는 탭**을 보게 되어, 탭 표시는 「해외 시세」인데 화면은
+ *    옛 길이 그리는 어긋난 상태가 된다. 되살리는 자리마다 이걸 거쳐야 한다.
+ */
+const 새길로 = (s: string | null | undefined): PriceSource =>
+  s === 'ebay' || s === 'cardboard' ? 'cardboard'
+  : s === 'tcgplayer' || s === 'cardboard_tcg' ? 'cardboard_tcg'
+  : 'snkrdunk';
 // 사람이 검색어를 "확정한" 방법. 인기 검색어 집계가 타이핑 조각을 거르면서도
 // 확실한 검색은 안 놓치게 하는 데 쓴다(2026-08-04).
 //   scan=사진으로 찾기 · pick=자동완성에서 고름 · popular=인기 검색어를 누름 · enter=엔터
@@ -182,10 +207,13 @@ function DetailLayout({
   main,
   detail,
   onCloseDetail,
+  아래막힘 = 0,
 }: {
   main: React.ReactNode;
   detail: React.ReactNode | null;
   onCloseDetail?: () => void;
+  /** 화면 아래에 깔린 고정 띠(비교 담기 바)의 높이(px). 시트가 그만큼 비켜 준다. */
+  아래막힘?: number;
 }) {
   return (
     <>
@@ -199,7 +227,7 @@ function DetailLayout({
         <div>{main}</div>
       )}
 
-      <DetailSheet open={detail != null} onClose={() => onCloseDetail?.()}>
+      <DetailSheet open={detail != null} onClose={() => onCloseDetail?.()} 아래막힘={아래막힘}>
         {detail}
       </DetailSheet>
     </>
@@ -217,21 +245,16 @@ function savedNav(): {
   scanQueries?: { snkrdunk: string; ebay: string } | null
 } {
   try {
-    return (window.history.state as { nav?: Record<string, unknown> } | null)?.nav ?? {};
+    const nav = (window.history.state as { nav?: Record<string, unknown> } | null)?.nav ?? {};
+    // ⚠️ **없앤 판이 남아 있을 수 있다.** 한글판을 보다가 뒤로 가거나 새로고침하면
+    //    `edition: 'korean'`이 그대로 살아 돌아온다(2026-08-10에 한글판을 뺐다).
+    //    그대로 두면 판 토글이 아무것도 안 눌린 것처럼 보이고, 저쪽에 없는 판 이름이
+    //    넘어간다. 모르는 값은 일본판으로 되돌린다.
+    if (nav.edition !== 'japanese' && nav.edition !== 'english') delete nav.edition;
+    return nav;
   } catch {
     return {};
   }
-}
-
-// "3시간 전"·"어제" 처럼 사람이 읽는 말로 바꾼다. 정확한 시각보다 이게 읽기 쉽다.
-function asOfLabel(iso: string): string {
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return '조금 전';
-  const h = Math.floor((Date.now() - t) / 3_600_000);
-  if (h < 1) return '조금 전';
-  if (h < 24) return `${h}시간 전`;
-  const d = Math.floor(h / 24);
-  return d === 1 ? '어제' : `${d}일 전`;
 }
 
 function App() {
@@ -242,7 +265,7 @@ function App() {
   );
   // 상단 드롭다운(도감·도구·운영) 중 열린 것. 뒤 백드롭 클릭으로 닫는다(z-index로만 처리).
   const [openMenu, setOpenMenu] = useState<'find' | 'tools' | 'admin' | null>(null);
-  const [source, setSource] = useState<PriceSource>(() => savedNav().source ?? 'snkrdunk');
+  const [source, setSource] = useState<PriceSource>(() => 새길로(savedNav().source));
   const [query, setQuery] = useState(() => savedNav().query ?? '');
   // 방금 스캔한 결과. "이 카드가 아닙니다" 신고에 쓰고, 사용자가 직접 타이핑하면 지운다.
   const [scannedResult, setScannedResult] = useState<CardScanResult | null>(null);
@@ -471,29 +494,33 @@ function App() {
   const [suggestActive, setSuggestActive] = useState(-1);
   const [news, setNews] = useState<KoreanNewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
-  const [ebayItems, setEbayItems] = useState<EbayCard[]>([]);
-  const [ebayLoading, setEbayLoading] = useState(false);
-  const [ebayError, setEbayError] = useState<string | null>(null);
-  // 지금 받은 게 아니라 지난번 값일 때 그 시각. 크레딧을 다 썼거나 통신이 실패하면
-  // 서버가 지난 시세를 대신 준다 — 화면에 언제 기준인지 밝혀야 오해가 없다.
-  const [ebayAsOf, setEbayAsOf] = useState<string | null>(null);
-  // 뒤에 붙은 레어도로 좁혔을 때 그 코드. 못 찾았으면 rarityMissing에 담긴다.
-  const [ebayRarity, setEbayRarity] = useState<{ 좁힘?: string; 없음?: string; 이름없음?: string; 뺀말?: string }>({});
-  // 이베이에 실제로 보낸 영문 검색어. 결과가 없을 때 "직접 찾아보기" 링크에 쓴다.
-  const [ebayQueryEn, setEbayQueryEn] = useState('');
-  const [ebaySelectedId, setEbaySelectedId] = useState<string | null>(null);
-  // 공유 링크(/e/·/t/)로 들어왔을 때 열어야 할 카드. 번호로 미리 받아 두고, 검색 결과가
-  // 오면 그 안에서 고른다. 결과에 없으면(다른 세트가 먼저 잡히는 등) 받아 둔 카드를
-  // 목록 맨 앞에 꽂아서 반드시 열리게 한다.
-  const [pendingCardId, setPendingCardId] = useState<string | null>(null);
+  // ⚠️ 옛 해외 시세가 쓰던 칸(ebayItems·ebayLoading·ebayOffset…)은 2026-08-13에 길과
+  //    함께 지웠다. 지금은 아래 「해외 시세 전용 칸」 하나뿐이다.
+  /**
+   * 공유 링크(`/e/<번호>`)로 들어와 열어야 할 카드. 색인에서 찾은 slug·번호를 담아
+   * 두면, 아래 새 길 검색이 그 카드를 **맨 앞에 세우고 펼친다**(도감에서 눌러 온 것과 같은 길).
+   * ⚠️ 한 번 쓰고 비운다 — 안 비우면 그 뒤 검색마다 엉뚱한 카드가 맨 앞에 선다.
+   */
+  const 공유카드ref = useRef<{ slug: string; no: string } | null>(null);
   const [pendingSnkr, setPendingSnkr] = useState<SnkrdunkCard | null>(null);
   // 공유 링크로 들어와 카드를 찾는 중. 이 동안에는 주소를 건드리지 않는다 —
   // 카드가 아직 안 골라졌다고 주소를 /로 되돌려 버리면 링크가 무용지물이 된다.
   const [restoringShare, setRestoringShare] = useState(() => /^\/[cet]\//.test(window.location.pathname));
-  // "더 보기"용. ebayOffset은 지금까지 요청한 원본 카드 수(페이지 크기의 배수)다.
-  const [ebayOffset, setEbayOffset] = useState(0);
-  const [ebayHasMore, setEbayHasMore] = useState(false);
-  const [ebayLoadingMore, setEbayLoadingMore] = useState(false);
+  // ── 해외 시세 전용 칸 ──────────────────────────────────────────────────────
+  const [boardItems, setBoardItems] = useState<BoardCard[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [boardTotal, setBoardTotal] = useState(0);
+  // 천장(2,000장)에 걸려 잘렸을 때 그 수. 0이면 안 잘렸다 — 즉 **찾은 것이 다 나와 있다.**
+  // ⚠️ 「더 보기」·쪽 나누기는 없다. 옛 길이 쪽을 나눈 것은 크레딧 때문인데 여기는 0이다.
+  const [board잘림, setBoard잘림] = useState(0);
+  const [boardSelectedId, setBoardSelectedId] = useState<string | null>(null);
+  // 새 길에서 지금 보는 마켓. **따로 기억하지 않고 `source`에서 읽는다** —
+  // 마켓을 고르는 자리는 검색창 왼쪽 칩 하나뿐이고, 그 칩은 `source`를 보고 그린다
+  // (사장님 지시 2026-08-12: "어차피 검색바에 마켓 변경 할수있으니까 마켓 토글은 없애줘").
+  // 따로 들고 있으면 **칩과 토글 두 군데가 같은 것을 말해** 서로 어긋난다.
+  const board켬 = source === 'cardboard' || source === 'cardboard_tcg';
+  const board마켓: 'ebay' | 'tcgplayer' = source === 'cardboard_tcg' ? 'tcgplayer' : 'ebay';
+  const [board받은날, setBoard받은날] = useState<{ 시세: string | null; 낙찰: string | null; 팝수: string | null } | null>(null);
   const [edition, setEdition] = useState<CardEdition>(() => savedNav().edition ?? 'japanese');
   const [nickname, setNickname] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -501,13 +528,27 @@ function App() {
   // 신고함 탭을 보여줄지 정하는 값일 뿐이다. 이걸 위조해도 서버가 신고 목록을
   // 안 주므로 아무것도 못 본다.
   const [isAdmin, setIsAdmin] = useState(false);
+  /**
+   * **개발 서버에서만** 열리는 화면. 지금은 만드는 중인 게임(디펜스) 하나뿐이다.
+   *
+   * ⚠️⚠️ 왜: 게임은 운영자 전용인데 **로컬에는 계정이 아예 없어** 로컬에서도 막혔다.
+   *    그래서 고칠 때마다 배포해야 했는데 배포는 한 번에 7초씩 멈춘다(사장님 2026-08-17:
+   *    "수정할때마다 배포하는거 좀 그런데 그냥 로컬서버에서 하면어때").
+   * ⚠️ `import.meta.env.DEV`는 **빌드하면 false**라 운영에는 안 나간다. 운영에서는 여전히
+   *    운영자만 본다. **이 값을 다른 화면(신고함·통계·플리마켓)에 쓰지 말 것** — 그쪽은
+   *    진짜 자료가 걸려 있다.
+   */
+  const 개발중 = import.meta.env.DEV;
   // 검색·공유로 들어온 주소(/set/…·/artist/…·/series/…·/centering, 그리고 카테고리
   // 대문 /sets·/artists·/packsim·/community)로 들어오면 서버가 그 화면의 내용을 글자로
   // 미리 넣어 보낸다. 앱이 뜨면 그 조각을 걷어 낸다 — 화면은 위 useState에서 이미 그
   // 주소에 맞춰 열렸다(viewFromPath).
   // ⚠️ 주소는 그대로 둔다. 새로고침·공유해도 같은 자리가 열려야 한다.
+  // ⚠️⚠️ **조건을 걸지 않는다.** 예전엔 `viewFromPath(...)`가 빈 값이면 걷어 내지 않았는데,
+  //    홈(`/`)은 특정 화면이 아니라 늘 빈 값이다. 2026-08-18에 홈에도 안쪽 링크를 넣어
+  //    보내기 시작하자 **홈에서만 이 조각이 화면에 그대로 남았다**(앱은 멀쩡히 떠 있었다).
+  //    이 조각은 서버가 크롤러를 위해 넣은 것이라, 앱이 떴으면 어느 주소든 지우는 게 맞다.
   useEffect(() => {
-    if (!viewFromPath(window.location.pathname)) return;
     document.getElementById('seo-fallback')?.remove();
   }, []);
   // 팩 개봉의 "수록 카드 보기" → 세트 목록에서 그 세트를 바로 연다.
@@ -531,25 +572,34 @@ function App() {
   function removeCompare(id: number) {
     setCompareCards((prev) => prev.filter((c) => c.apparelId !== id));
   }
-  // 이베이 카드 비교(운영자 베타). SNKRDUNK와 별개 트레이 — 소스가 다르면 비교 의미가 없다.
+  // 이베이 카드 비교. SNKRDUNK와 별개 트레이 — 소스가 다르면 비교 의미가 없다.
   const [compareEbay, setCompareEbay] = useState<EbayCard[]>([]);
   function toggleCompareEbay(card: EbayCard) {
+    const 이미담김 = compareEbay.some((c) => c.tcgPlayerId === card.tcgPlayerId);
     setCompareEbay((prev) => {
       if (prev.some((c) => c.tcgPlayerId === card.tcgPlayerId)) return prev.filter((c) => c.tcgPlayerId !== card.tcgPlayerId);
       return [...prev, card].slice(-2);
     });
+    // ⚠️⚠️ **새 길 카드는 목록에 등급이 대표 하나뿐이다.** 그대로 담으면 비교표에
+    //    한 줄만 나와 「PSA 10만 있는 카드」로 보인다. 담는 순간 전부 받아 채운다
+    //    (크레딧 0 — 서버가 쌓아 둔 것을 읽는다).
+    const b = card as BoardCard;
+    if (!이미담김 && b.gradesTrimmed && /^\d/.test(card.tcgPlayerId)) {
+      void fetchBoardDetail(card.tcgPlayerId, edition, undefined, true)
+        .then(({ grades }) => {
+          if (!grades.length) return;
+          setCompareEbay((prev) =>
+            prev.map((c) => (c.tcgPlayerId === card.tcgPlayerId ? { ...c, grades, gradesTrimmed: false } : c)),
+          );
+        })
+        .catch(() => undefined);
+    }
   }
   function removeCompareEbay(id: string) {
     setCompareEbay((prev) => prev.filter((c) => c.tcgPlayerId !== id));
   }
   // 소스(스니덩크↔이베이)를 바꾸면 열려 있던 비교 표는 닫는다(소스별 표가 달라서).
   useEffect(() => setCompareOpen(false), [source]);
-  // 한글판은 이베이 전용 판이라, 이베이가 아닌 소스로 옮기면 일본판으로 되돌린다
-  // (안 그러면 TCGplayer에서 '한글판' 상태가 남아 PPT에 잘못된 판이 넘어간다).
-  useEffect(() => {
-    if (source !== 'ebay' && edition === 'korean') setEdition('japanese');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
   const [providers, setProviders] = useState<LoginProvider[]>([]);
   const [needsNickname, setNeedsNickname] = useState(false);
   // 로그인 모달은 마이페이지·커뮤니티 어디서든 열리므로 App이 들고 있는다.
@@ -631,7 +681,8 @@ function App() {
       // 지금 화면은 setView의 함수형으로 읽는다 — 이 효과는 한 번만 돌아야 해서
       // view를 의존성에 넣을 수 없다.
       setView((v) => {
-        const adminOnly = v === 'reports' || v === 'stats' || v === 'scantest' || v === 'flea';
+        const adminOnly = v === 'reports' || v === 'stats' || v === 'scantest' || v === 'flea'
+          || (v === 'pokedefense' && !개발중);
         if (adminOnly && !me.isAdmin) return 'cards';
         if (v === 'packsim' && !me.loggedIn) return 'cards';
         return v;
@@ -681,7 +732,7 @@ function App() {
     if (next.view !== undefined && next.view !== 'cards') setBackToPacksim(false);
     if (next.view !== undefined) setView(snap.view);
     if (next.query !== undefined) setQuery(snap.query);
-    if (next.source !== undefined) setSource(snap.source);
+    if (next.source !== undefined) setSource(새길로(snap.source));
     if (next.edition !== undefined) setEdition(snap.edition);
     // 소스별 검색어도 새 방문기록에 실어 둔다. 안 그러면 커뮤니티 등에 갔다 뒤로 왔을 때
     // 탭을 바꿔도 검색어가 안 갈린다(위 scanQueriesRef 설명).
@@ -691,8 +742,20 @@ function App() {
   // 처음 화면(카드 시세 홈)으로. 검색·선택·화면을 비우고 맨 위로 올린다.
   const goHome = () => {
     setSelectedId(null);
-    setEbaySelectedId(null);
+    setBoardSelectedId(null);
     setInterestSelectedId(null);
+    // ⚠️⚠️ **스캔 자취도 여기서 거둔다.** 안 거두면 홈으로 와도 검색바 밑에 「찾는 카드가
+    //    아닌가요? / 스캔이 틀렸습니다」가 그대로 남는다 — 아무것도 안 찾고 있는 화면에
+    //    무엇이 틀렸다는 말인지 알 수 없다(사장님 지적 2026-08-13: "스캔 다 하고 볼거 다
+    //    보고 홈에 갔는데 … 스캔이 틀렸나요? 라고 뜨는 거").
+    //    지우기(X)에는 이 처리가 있었는데 **홈 단추·로고에는 없었다** — 나가는 길이 둘인데
+    //    한쪽만 치우고 있었다. 여기 모아서 두 길이 같아진다.
+    setScannedResult(null);
+    setScanReported(false);
+    setScanFellBack(false);
+    setScanFoundByArtist(0);
+    scanFallbackRef.current = null;
+    scanQueriesRef.current = null;
     navigate({ view: 'cards', query: '' });
     window.scrollTo({ top: 0 });
   };
@@ -701,7 +764,55 @@ function App() {
   // 번호는 구석에 아주 작게 있어 사진이 조금만 잘려도 못 읽는데, 일러스트레이터 이름은
   // 그림 바로 아래라 웬만하면 찍힌다. "작가 + 카드이름"이면 86%가 한 장으로 좁혀진다.
   // 못 찾으면 원래대로 이름으로만 검색한다(조용히 넘어간다).
+  /**
+   * **스캔이 읽은 「세트+번호」가 「이름」과 맞는지 도감에 대 본다.**
+   *
+   * ⚠️⚠️ 스캔은 **카드 이름은 잘 읽는데 세트 코드를 자주 틀린다.** 세트 코드는 카드 구석에
+   *    작게 있어 사진이 조금만 흐려도 놓친다. 신고함에 쌓인 것을 확인해 보니 그랬다
+   *    (2026-08-13): 「M3 052 = Iron Valiant ex」라 했는데 M3 052는 **이벨타르 ex**이고,
+   *    「S12a 242 = Jasmine」은 실제로 **원규**, 「S-P 157 = Regigigas」는 **밀라**였다.
+   *    그 번호로 찾으면 **엉뚱한 카드의 시세**가 뜬다 — 빈손보다 나쁘다.
+   * ⚠️ 반대로 신고된 것 중 **맞았던 것도 있다**(s6a 089 = 리피아 VMAX = Leafeon VMAX).
+   *    한글 이름이 낯설어 다른 카드로 오해하신 것이다. 그러니 **무턱대고 번호를 버리면 안 된다.**
+   * → 도감이 그 번호를 **딱 한 장**으로 짚어 줄 때만 이름을 견주고, **다른 포켓몬이라고
+   *   확실히 판정될 때만** 번호를 버린다(`같은카드인가`는 애매하면 null을 준다).
+   *   크레딧 0 — 우리 도감만 읽는다.
+   */
+  const 스캔번호믿을만한가 = async (result: CardScanResult): Promise<boolean> => {
+    if (!result.setCode || !result.cardNumber || !result.pokemonNameEn) return true;
+    try {
+      const ed: CardEdition = result.edition === 'english' ? 'english' : 'japanese';
+      const r = await searchCardBoard(`${result.setCode} ${result.cardNumber}`, ed);
+      // 한 장으로 안 좁혀지면 판단할 근거가 없다 — 그대로 둔다.
+      if (r.cards.length !== 1) return true;
+      const 도감이름 = r.cards[0].name;
+      const 스캔한글 = (await loadNameDict()).koreanizeEnglishCardName(result.pokemonNameEn);
+      const 같나 = await 같은카드인가(도감이름, 스캔한글);
+      if (같나 !== null) return 같나;
+      // ⚠️⚠️ **트레이너·굿즈는 여기로 온다.** `같은카드인가`는 **포켓몬 이름이 잡힐 때만**
+      //    판정하고 아니면 null을 준다 — 그래서 신고된 「S-P 157 = Regigigas」(실제 밀라)와
+      //    「S12a 242 = Jasmine」(실제 원규)이 그냥 통과했다. 이름끼리 직접 견줘 한 번 더 막는다.
+      // ⚠️ 한쪽이 다른 쪽을 품기만 해도 같은 것으로 본다 — 도감은 「규리의 눈빛」인데 스캔은
+      //    「규리」처럼 짧게 읽는 일이 흔하다. 여기서 엄격하게 굴면 멀쩡한 번호를 버린다.
+      // ⚠️ 잘못 버려도 손해가 작다 — **번호만 빼고 이름으로 찾는다**(빈손이 아니다).
+      const 다듬 = (x: string) => x.toLowerCase().replace(/[\s·:()[\]{}'".-]/g, '');
+      const a = 다듬(도감이름);
+      const b = 다듬(스캔한글);
+      if (!a || !b) return true;
+      return a.includes(b) || b.includes(a);
+    } catch {
+      return true; // 못 물어보면 그대로 둔다(스캔을 막을 이유는 없다)
+    }
+  };
+
   const applyScanWithLookup = async (result: CardScanResult) => {
+    // ⚠️ **번호가 이름과 어긋나면 번호를 버리고 이름으로 찾는다.** 아래 작가로 번호를
+    //    채우는 길보다 **먼저** 본다 — 틀린 번호를 들고 그 길로 들어가면 안 된다.
+    if (!(await 스캔번호믿을만한가(result))) {
+      applyScanResult({ ...result, cardNumber: null, setCode: null });
+      setScanFellBack(true);
+      return;
+    }
     // ⚠️ 영문판일 때만 쓴다. 작가별 카드 목록이 영문판 기준이라, 일본판 카드에 쓰면
     // 같은 그림의 "영문판 번호"가 나와 스니커덩크에서 엉뚱한 카드를 찾게 된다
     // (일본판 메가리자몽Y ex는 MC 766/742인데 목록은 영문판 294를 준다).
@@ -720,10 +831,21 @@ function App() {
   // 스캔 결과를 검색어·소스·판(일/북미)에 반영한다. 카메라 버튼과 센터링 도구가 공유한다.
   const applyScanResult = (result: CardScanResult) => {
     const num = result.cardNumber;
-    const snkrdunk = num ? [result.setCode, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
-    const ebay = num ? [result.pokemonNameEn, num].filter(Boolean).join(' ') : (result.pokemonNameEn ?? '');
+    // ⚠️⚠️ **해외 시세도 「세트코드 + 번호」로 찾는다**(2026-08-16에 바꿈).
+    //    예전엔 「영문 이름 + 번호」였는데, 실제 스캔 기록으로 재 보니 그게 제일 나빴다:
+    //        세트코드+번호 99% · 이름만 100% · **이름+번호 90%**
+    //    이름에 꼬리표가 붙어 있어서다 —「Gardevoir ex (Delta Species) 5」처럼.
+    //    CLAUDE.md에 「영문판은 세트코드가 일본 꼴이라 이름 쪽이 확실하다」고 적혀 있었는데,
+    //    새 검색이 **우리 도감**을 뒤지게 바뀌면서 그 판단이 뒤집혔다.
+    // ⚠️ 세트코드를 못 읽었으면 이름으로 간다(둘 다 없으면 아래에서 이름만 쓴다).
+    const 코드번호 = num ? [result.setCode, num].filter(Boolean).join(' ') : '';
+    const snkrdunk = 코드번호 || (result.pokemonNameEn ?? '');
+    const ebay = (result.setCode && 코드번호) || (num ? [result.pokemonNameEn, num].filter(Boolean).join(' ') : '') || (result.pokemonNameEn ?? '');
     const ed: 'japanese' | 'english' = result.edition === 'english' ? 'english' : 'japanese';
-    const target = ed === 'english' ? 'ebay' : source;
+    // ⚠️ 영문판 카드는 스니커덩크(일본 마켓)에 없으므로 해외 시세로 보낸다.
+    //    2026-08-13까지 여기가 옛 길(`ebay`)을 가리키고 있었다 — 탭을 없애면서 같이
+    //    옮겼다. 안 옮겼으면 **사진으로 찾은 영문 카드가 없는 탭으로 가서 빈손**이 된다.
+    const target = ed === 'english' ? 'cardboard' : source;
     // 번호로 검색하는 경우에만 이름 백업을 둔다. 번호로 0건이면 이름으로 다시 찾는다.
     scanFallbackRef.current = num && result.pokemonNameEn ? result.pokemonNameEn : null;
     scanQueriesRef.current = { snkrdunk, ebay };
@@ -731,7 +853,9 @@ function App() {
     setScanFoundByArtist(0);
     setEdition(ed);
     setSource(target);
-    const scanQuery = target === 'ebay' ? ebay : snkrdunk;
+    // 스니커덩크는 세트코드+번호("M4 086/083")로 찾고, 해외 시세는 영문 이름+번호로
+    // 찾는다. 새 길은 두 꼴을 다 알아듣지만, 영문판은 세트코드가 일본 꼴이라 이름 쪽이 확실하다.
+    const scanQuery = target === 'snkrdunk' ? snkrdunk : ebay;
     // 사진으로 찾은 건 타이핑 조각일 수가 없다. 결과가 늦게 와도 인기 검색어에 세도록
     // 확정으로 표시한다(예전엔 1.5초를 넘기면 통째로 누락됐다 — 사용자 지적 2026-08-04).
     confirmSearch(scanQuery, 'scan');
@@ -744,11 +868,55 @@ function App() {
   // 안 그러면 스니커덩크에서 "M4 086/083"으로 잘 나온 카드가, 이베이로 옮기는 순간
   // 그 세트코드를 그대로 들고 가서 0건이 된다(사용자 제보).
   // 검색어를 손으로 고친 뒤라면 그대로 둔다(둘 중 어느 것과도 같지 않으면 손댄 것이다).
+  // ── 마켓 바꾸기 (스니커덩크 / eBay / TCGplayer) ─────────────────────────────
+  // ⚠️⚠️ **고르는 자리는 검색창 왼쪽 칩 하나뿐이다.** 2026-08-09부터 위에 탭 막대가
+  //    따로 있었는데(「일본 매물 / 해외 시세」) 2026-08-13에 없앴다.
+  //    가른 까닭은 **통하는 말의 꼴이 달라서**였다 — 옛 해외 시세는 저쪽(PPT)에 매물을
+  //    물어봐서 영문 이름이 있어야 했다. 새 길은 **우리 도감을 한글·영문 이름으로**
+  //    뒤지고 스니커덩크도 두 꼴을 다 알아들어, 그 까닭이 사라졌다.
+  //    같은 것을 말하는 자리가 둘이면 서로 어긋나기만 한다.
+  // ⚠️ **검색어는 마켓을 바꿔도 그대로 간다.** 손으로 친 말은 건드리지 않는다.
+  //    아래에서 갈아 끼우는 것은 **우리가 만들어 넣은 말**뿐이다 —
+  //    ① 도감·세트에서 눌러 온 카드 ② 사진으로 찾아 넣은 "M4 086/083" 꼴.
+  //    그 둘은 마켓마다 통하는 꼴이 달라, 안 갈면 옮기는 순간 0건이 된다(사용자 제보).
   const switchSource = (next: PriceSource) => {
     // 도감에서 온 카드를 보고 있으면, 옮겨 간 마켓에 맞는 검색어로 갈아 준다.
     // 이게 없으면 스니커덩크용 "SV6 050"을 이베이에 그대로 넣어 0건이 된다
     // (운영자 지적 2026-08-06).
     const c = 도감카드(query);
+    // 새 길은 **우리 도감을 한글 이름으로** 뒤진다. 옛 길에 맞춰 만든 검색어("M6 113"·
+    // 영문 이름)를 그대로 들고 오면 0장이 된다 — 카드 이름으로 갈아 준다.
+    // ⚠️ 판(일본/영문)은 그 카드가 실제로 속한 쪽으로 맞춘다. 안 맞추면 일본판 카드를
+    //    영문판 서랍에서 찾게 되어 역시 0장이다.
+    if (next === 'cardboard' || next === 'cardboard_tcg') {
+      자동이동ref.current = false;
+      set도감안내(null);
+      // ⚠️ **TCGplayer 눈으로 바꾼 것을 센다.** 검색은 `cardboard_search` 하나로만
+      //    세므로, 이걸 안 세면 두 마켓 중 어느 쪽을 보는지 통계에서 통째로 빠진다
+      //    (옛 길의 'tcgplayer'가 세던 몫을 이 줄이 이어받는다).
+      if (next === 'cardboard_tcg' && source !== 'cardboard_tcg') trackEvent('cardboard_tcg');
+      // ⚠️ **마켓 칸도 맞춰 둔다.** 안 맞추면 나중에 스니커덩크로 돌아갔을 때
+      //    `다음마켓으로`가 엉뚱한 칸에서 세기 시작한다(칸이 0인 채로 남는다).
+      if (c) {
+        const i = 마켓순서(c.jp).findIndex((m) => m.source === 'cardboard');
+        if (i >= 0) 마켓칸ref.current = i;
+      }
+      // ⚠️ 새 길 안에서 마켓만 바꾸는 것(eBay↔TCGplayer)일 때는 검색어를 안 건드린다.
+      //    같은 응답을 나눠 보는 것뿐이라, 여기서 갈아 끼우면 보던 자리를 잃는다.
+      if (c && !board켬) {
+        setEdition(c.jp ? 'japanese' : 'english');
+        setQuery(c.ko);
+      }
+      // 사진으로 찾은 카드라면 이 마켓에 맞는 검색어로 갈아 준다. 아래 같은 처리가
+      // 이미 있지만 여기서 먼저 빠져나가므로 안 거친다 — 없으면 스니커덩크용
+      // "M4 086/083"을 그대로 들고 온다(2026-08-13에 옛 탭을 없애며 드러난 자리다).
+      if (!c && !board켬) {
+        const qs = scanQueriesRef.current;
+        if (qs && query === qs.snkrdunk && qs.ebay && qs.ebay !== query) setQuery(qs.ebay);
+      }
+      setSource(next);
+      return;
+    }
     if (c) {
       const 순서 = 마켓순서(c.jp);
       const i = 순서.findIndex((m) => m.source === next);
@@ -808,12 +976,12 @@ function App() {
       if (!nav) return;
       setView(nav.view);
       setQuery(nav.query);
-      setSource(nav.source);
+      setSource(새길로(nav.source));
       setEdition(nav.edition);
       // 소스별 검색어도 같이 되살린다 — 없으면 뒤로 온 뒤 탭을 바꿔도 안 갈린다.
       scanQueriesRef.current = nav.scanQueries ?? null;
       setSelectedId(null);
-      setEbaySelectedId(null);
+      setBoardSelectedId(null);
       setInterestSelectedId(null);
     };
     window.addEventListener('popstate', onPop);
@@ -851,7 +1019,7 @@ function App() {
     // 운영자가 로그아웃했는데 운영자 전용 화면이 그대로 열려 있으면 빈 화면만 남는다.
     // (세트별 목록은 공개 화면이라 제외 — 로그아웃해도 그대로 볼 수 있다.)
     // packsim은 이제 이용자 화면이지만 로그인 필요라, 로그아웃하면 홈으로 보낸다.
-    if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'packsim')
+    if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'pokedefense' || view === 'packsim')
       setView('cards');
   }
 
@@ -899,30 +1067,30 @@ function App() {
       return;
     }
 
-    // 이베이·TCGplayer는 카드 번호(tcgPlayerId)로 찾는다. 번호로 카드를 한 장 받아
-    // 그 이름으로 검색을 태우고, 목록이 오면 아래 효과가 그 카드를 골라 준다.
-    // 이베이·TCGplayer는 카드 번호만으로 조회할 방법이 없다(PPT가 tcgPlayerId 단건
-    // 조회를 안 받는다). 그래서 주소에 짧은 이름을 같이 실어 그 이름으로 검색하고,
-    // 결과에서 번호가 같은 카드를 골라 연다.
-    setSource(kind === 'e' ? 'ebay' : 'tcgplayer');
-    const shared = new URLSearchParams(window.location.search).get('n');
-    setPendingCardId(id);
-    if (shared) {
-      setQuery(shared);
-      return;
-    }
-    // ⚠️ 이름이 안 실린 링크(요즘 만드는 꼴)에서는 예전에 아무것도 안 하고 끝나서
-    //    홈 화면이 됐다(2026-08-07 운영자 제보). 위 주석에 'PPT가 tcgPlayerId 단건
-    //    조회를 안 받는다'고 적혀 있었는데 **받는다** — 그걸로 이름을 알아내
-    //    예전 길(이름으로 검색 → 번호가 같은 카드를 고름)을 그대로 태운다.
-    void fetchCardNameById(id, kind === 'e' ? 'ebay' : 'tcgplayer')
-      .then((찾음) => {
-        if (!찾음) {
+    // ── 이베이·TCGplayer 공유 링크(`/e/<번호>`·`/t/<번호>`) ──────────────────────
+    //
+    // ⚠️⚠️ **저쪽에 안 묻는다.** 예전에는 번호로 저쪽에 이름을 물어 그 이름으로 검색을
+    //    태웠다 — 크레딧이 나가서 하루 상한(500번)까지 걸어 뒀고, 상한을 넘으면 링크를
+    //    열어도 홈이 떴다. 우리 색인에 저쪽 번호가 **57,344장** 들어 있으므로 우리가
+    //    바로 찾으면 된다(2026-08-13에 새 길로 옮겼다. **크레딧 0**).
+    // ⚠️ 이미 나간 링크는 그대로 산다 — 번호가 같은 번호다.
+    setSource(kind === 'e' ? 'cardboard' : 'cardboard_tcg');
+    fetch(`/api/local/card-board?id=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { card?: { slug: string; no: string; name: string; edition: CardEdition } | null } | null) => {
+        const c = j?.card;
+        if (!c) {
+          // 우리 도감에 없는 번호다(옛 프로모 등). 주소에 실린 이름이라도 있으면 그걸로 찾는다.
+          const 실린이름 = new URLSearchParams(window.location.search).get('n');
+          if (실린이름) setQuery(실린이름);
           setRestoringShare(false);
           return;
         }
-        setEdition(찾음.edition);
-        setQuery(찾음.query);
+        setEdition(c.edition);
+        setQuery(c.name);
+        // 그 카드를 맨 앞에 세우고 펼치도록 검색에 같이 넘긴다(도감에서 눌러 온 것과 같은 길).
+        공유카드ref.current = { slug: c.slug, no: c.no };
+        setRestoringShare(false);
       })
       .catch(() => setRestoringShare(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1110,7 +1278,9 @@ function App() {
             //    switchSource가 "사람이 손으로 고쳤다"고 보고, 탭을 되돌려도 원래
             //    검색어로 안 돌아온다(사진으로 찾은 인도네시아 피카츄가 이베이에서
             //    "Pikachu"로 대체된 뒤, 스니커덩크로 와도 계속 "Pikachu"였다).
-            if (scanQueriesRef.current) scanQueriesRef.current = { ...scanQueriesRef.current, snkrdunk: fb };
+            // ⚠️ **두 마켓 자리에 다 적는다.** 되찾은 말은 이름이라 어느 마켓에서도 통한다.
+            //    한쪽만 적으면 마켓을 옮길 때 다시 0건이 나던 말로 되돌아간다.
+            if (scanQueriesRef.current) scanQueriesRef.current = { snkrdunk: fb, ebay: fb };
             setQuery(fb);
             return;
           }
@@ -1161,233 +1331,71 @@ function App() {
     };
   }, [query, source, retryTick]);
 
-  // 이베이 쪽은 검색당 크레딧이 소모돼서(1회 36크레딧) 스니덩크보다 더 기다린다.
+  // ── 새 길(cardboard) 검색 ──────────────────────────────────────────────────
+  //
+  // ⚠️ **기다리는 시간이 짧다.** 옛 길은 크레딧이 들어(1회 36) 600ms를 기다렸는데,
+  //    여기는 우리 파일만 읽어 **크레딧 0 · 0.02초**라 굳이 참을 이유가 없다.
+  // ⚠️ 옛 길이 하던 것 중 **여기서 필요 없어진 것들**: 영어로 옮기기·번호 붙여 좁히기·
+  //    세트 대응표·되돌아온 세트 대조·레어도 꼬리 떼기. 카드를 우리가 골랐으므로
+  //    "정말 그 카드인가"를 되물을 일이 없다. **잃은 기능이 아니라 필요가 없어진 것**이다.
+  // ⚠️ 조건에 **마켓이 없다**(`board켬`은 켜졌나만 본다). 새 길은 두 마켓 값을 한 번에
+  //    들고 오므로, 칩으로 eBay↔TCGplayer를 바꿔도 **다시 안 부른다** — 넣어 두면
+  //    칩을 누를 때마다 목록이 새로 그려지고 보던 카드 선택이 풀린다.
   useEffect(() => {
-    if (source !== 'ebay' && source !== 'tcgplayer') return;
-    // 한글판(이베이)은 PPT가 아니라 Browse API(KoreanEbayView가 자체 조회)라 여기선 건너뛴다.
-    if (source === 'ebay' && edition === 'korean') return;
-    // 이베이·TCGplayer는 같은 PPT 데이터를 쓰되, 서버가 소스별로 카드를 추려 준다.
-    const market = source === 'tcgplayer' ? 'tcgplayer' : 'ebay';
-
+    if (!board켬) return;
     const trimmed = query.trim();
     if (!trimmed) {
-      setEbayItems([]);
-      setEbayError(null);
-      setEbayLoading(false);
+      setBoardItems([]);
+      setBoardTotal(0);
+      setBoardLoading(false);
       return;
     }
-    // 스니커덩크와 같은 기준. 한 글자로는 안 부른다 — 여기는 크레딧까지 든다.
     if (trimmed.length < MIN_SEARCH_LEN) {
-      setEbayLoading(false);
+      setBoardLoading(false);
       return;
     }
-
-    // 기다리는 동안에도 "검색 중"으로 둔다(스니커덩크 쪽 설명 참고).
-    setEbayLoading(true);
-
+    setBoardLoading(true);
+    const ac = new AbortController();
+    // 도감·세트·작가에서 카드 한 장을 눌러 왔으면 그 카드를 맨 앞에 세우고 **바로 펼친다.**
+    // ⚠️ 옛 길이 하던 일이다(그쪽은 아예 그 한 장만 보여 준다). 안 하면 눌러 온 카드가
+    //    목록 어딘가에 묻혀, 눌렀는데 아무 반응이 없는 것처럼 보인다.
+    // 도감에서 눌러 왔거나, 공유 링크로 들어왔거나 — 둘 다 「그 카드를 맨 앞에」다.
+    const 도감것 = 도감카드(trimmed);
+    const 콕 = 도감것 ? { slug: 도감것.slug, no: 도감것.num } : 공유카드ref.current;
     const timer = setTimeout(() => {
-      setEbayLoading(true);
-      setEbayError(null);
-      // 도감에서 온 카드면 그 세트로 좁힌다. PPT 세트 이름은 우리 것과 달라서
-      // 대응표(pptSetNames)를 쓴다 — ja-PMCG1 → "Expansion Pack".
-      const 도감 = 도감카드(trimmed);
-      // ⚠️ 검색어에 **번호를 붙이면 그 한 장으로 좁혀진다**. 처음엔 "번호를 붙이면
-      //    0건"이라고 결론 냈는데 틀렸다 — 원본은 오는데 낙찰 필터에 걸린 것을 0건으로
-      //    본 것이었다(rawCount를 안 봤다, 2026-08-06 정정). 실제로 "Charizard ex 125"는
-      //    setName과 함께 쓰면 딱 1건, 세트 조건 없이도 4건까지 줄어든다.
-      //    세트 대응표가 틀리거나 없어도 번호가 지켜 준다.
-      //    다만 번호 표기가 안 맞는 카드도 있으므로, 0건이면 이름만으로 한 번 더 찾는다.
-      const 번호붙임 = 도감?.num ? `${trimmed} ${도감.num.replace(/^0+/, '') || 도감.num}` : trimmed;
-      searchEbayCards(번호붙임, edition, 0, market, 도감 ? pptSetName(도감) : undefined)
-        .then(async (r) =>
-          도감 && r.cards.length === 0 && 번호붙임 !== trimmed
-            ? await searchEbayCards(trimmed, edition, 0, market, pptSetName(도감))
-            : r,
-        )
-        .then(({ cards, hasMore, translated, asOf, rarity, rarityMissing, rarityOnly, droppedTerm }) => {
-          setEbayQueryEn(translated ?? '');
-          // 스캔한 "이름+번호"가 0건이면 이름만으로 자동 재검색(번호 표기가 안 맞는 경우).
-          const fb = scanFallbackRef.current;
-          if (cards.length === 0 && fb && fb.trim() && fb.trim() !== trimmed) {
-            scanFallbackRef.current = null;
-            setScanFellBack(true);
-            // ⚠️ 대체한 검색어를 그 소스 자리에 다시 적어 둔다. 안 그러면 아래
-            //    switchSource가 "사람이 손으로 고쳤다"고 보고, 탭을 되돌려도 원래
-            //    검색어로 안 돌아온다(사진으로 찾은 인도네시아 피카츄가 이베이에서
-            //    "Pikachu"로 대체된 뒤, 스니커덩크로 와도 계속 "Pikachu"였다).
-            if (scanQueriesRef.current) scanQueriesRef.current = { ...scanQueriesRef.current, ebay: fb };
-            setQuery(fb);
-            return;
-          }
-          // 카드 번호 비교용 열쇠. 빗금 앞만 보고, 앞의 0을 떼고, 대소문자를 맞춘다.
-          //   "125/197" → 125 · "030/XY-P" → 30 · "XY133" → XY133 · "SM169" → SM169
-          // ⚠️ 숫자로 바꿔 비교하면 안 된다. 프로모 번호는 글자가 섞여 있어(XY133·BW97)
-          //    Number()가 NaN이 되고, NaN끼리는 절대 같지 않아 **전부 못 찾는다**
-          //    (운영자 발견 2026-08-06 — 지우개굴닌자 EX XY133이 눈앞에 있는데도
-          //    "찾지 못해"라고 나왔다).
-          // ⚠️ 세트에 따라 저쪽(PPT)이 **다른 번호 체계**를 쓴다. 셀레브레이션즈 클래식
-          //    컬렉션은 우리가 CC001~CC025로 두는데 저쪽은 원본 카드 번호(4/102)다.
-          //    그대로 견주면 그 25장은 영원히 '그 카드가 아니다'가 되어 시세가 안 뜬다
-          //    (2026-08-07 덤프 대조로 찾았다). 견주기 전에 우리 번호로 되돌린다.
-          const 번호열쇠 = (s: string, 이름?: string) => {
-            const 되돌린 = 도감 ? 저쪽번호를우리번호로(도감.slug, String(s), 이름) : String(s);
-            return 되돌린.split('/')[0].trim().toUpperCase().replace(/^0+(?=[0-9])/, '');
-          };
-          // ⚠️ 이름 비교에서 괄호를 지우면 안 된다. "히스이 미끄네일"과 "히스이 미끄네일
-          //    (Mirror Holofoil)"이 같은 이름이 되어 버린다. 괄호는 다른 인쇄를 가리키는
-          //    표시이므로 그대로 두고 정확히 맞춘다.
-          // ⚠️ PPT는 이름 뒤에 번호를 붙여 준다("모란 - 105/078"). 그건 다른 인쇄가
-          //    아니라 같은 카드다 — 안 떼면 멀쩡한 카드에도 "다른 인쇄만 값이 있다"는
-          //    안내가 붙는다(점검 중 발견 2026-08-06). 꼬리 번호만 떼고, **괄호는
-          //    그대로 둔다**(괄호는 진짜 다른 인쇄를 가리킨다).
-          const 다듬 = (s: string) =>
-            String(s)
-              .toLowerCase()
-              // 꼬리에 붙는 번호를 뗀다. PPT는 두 가지 꼴로 붙인다:
-              //   "모란 - 105/078"  ·  "신뇽 (4)"
-              .replace(/\s*-\s*[0-9a-z]+(?:\/[0-9a-z-]+)?\s*$/i, '')
-              // ⚠️ 괄호 안이 **번호뿐일 때만** 뗀다. 글자가 들었으면 다른 인쇄를
-              //    가리키므로(Master Ball Pattern · Holo Common) 남겨야 구분이 된다.
-              .replace(/\s*\(\s*[0-9]+(?:\/[0-9]+)?\s*\)\s*$/, '')
-              .replace(/\s+/g, ' ')
-              .trim();
-          // 같은 번호에 인쇄 변형이 여럿 있다(054/071이 일반 · Mirror Holofoil 두 장).
-          // 그냥 첫 장을 고르면 값이 높은 쪽이 걸려, 054를 눌렀는데 미러가 열린다
-          // (점검 중 발견 2026-08-06). 이름이 정확히 같은 것을 먼저 본다.
-          // ⚠️ **번호만 봐서는 안 된다.** PPT의 세트 조건은 부분 일치라, "Team Rocket"을
-          //    걸면 "EX Team Rocket Returns"가 함께 오고 두 세트는 번호가 83개나 겹친다
-          //    ("Expansion Pack"↔"CP6: Expansion Pack 20th Anniversary"는 102개).
-          //    그러면 남의 카드 값을 그 카드인 양 보여 주게 된다(2026-08-07 전수 확인).
-          //    보낸 세트 이름이 있으면 **돌아온 세트도 그것이어야** 그 카드로 인정한다.
-          //    ⚠️ 대응표에 없어 세트를 안 보낸 경우(빈 값)에는 이 검사를 건너뛴다 —
-          //       걸지도 않은 조건으로 걸러내면 값이 있는 카드까지 놓친다.
-          const 보낸세트 = 도감 ? pptSetName(도감) : '';
-          const 세트열쇠 = (s: string) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          // ⚠️ setName은 화면용으로 한글화된 값이다("팀 로켓"). 견줄 때는 반드시
-          //    원본 영문(setNameEn)을 쓴다 — 한글과 영문을 견주면 늘 어긋나서
-          //    모든 카드가 "그 카드가 아님"이 된다(2026-08-07에 한 번 그렇게 깨뜨렸다).
-          const 세트맞음 = (c: { setNameEn?: string }) =>
-            !보낸세트 || 세트열쇠(c.setNameEn ?? '') === 세트열쇠(보낸세트);
-          const 번호맞음 = 도감
-            ? cards.filter(
-                // ⚠️ cardNumber가 비어도 버리면 안 된다. 옛 일본판은 저쪽에 번호가 없어
-                //    이름으로만 짝지을 수 있다(표의 NAME: 항목).
-                (c) => 번호열쇠(c.cardNumber ?? '', c.nameEn ?? c.name) === 번호열쇠(도감.num) && 세트맞음(c),
-              )
-            : [];
-          const 이름까지맞음 = 번호맞음.find((c) => 다듬(c.name) === 다듬(도감!.ko));
-          const 그카드 = 번호맞음.length ? (이름까지맞음 ?? 번호맞음[0]) : undefined;
-          // 번호는 맞는데 이름 끝에 인쇄 표기가 붙어 있는 경우다
-          //  ("펜드라 (Master Ball Pattern)" · "레지드래고 V (Alternate Full Art)").
-          //
-          // ⚠️ 이게 "다른 카드"인지 "그 번호가 원래 그 인쇄"인지는 우리 데이터로 가릴 수
-          //    없다. 실버 템페스트 184번은 번호 자체가 Alternate Full Art인데, 예전 문구는
-          //    "다른 인쇄만 값이 있다"고 단정해 멀쩡한 카드를 의심하게 만들었다(점검 중
-          //    발견 2026-08-06). 번호가 같으면 그 카드가 맞다 — 단정하지 말고 어떤 표기로
-          //    값이 잡혔는지만 알린다.
-          const 인쇄표기 = 그카드 && !이름까지맞음 ? 그카드.name : '';
-          // "그 카드가 아님이 확실한가". 돌아온 카드 전부에 번호가 붙어 있는데 그중
-          // 우리 번호가 없으면 확실히 아니다.
-          //
-          // ⚠️ 결과가 있다고 찾은 게 아니다. XY 프로모에는 같은 이름의 리자몽 EX가 넉
-          //    장(030·075·213·276) 있는데, 276을 눌러도 값이 있는 030만 돌아온다. 예전엔
-          //    그걸 그 카드인 양 열어서 135만원짜리 남의 카드를 보여 줬다(운영자 발견
-          //    2026-08-06). 번호가 어긋나면 열지 않고 다음 마켓으로 간다.
-          // ⚠️ 반대로 PPT 일본판은 번호 칸이 비어 있는 카드가 많다. 그건 "아니다"라고
-          //    단정할 수 없으므로 그대로 둔다 — 아니면 값이 있는데도 계속 넘어간다.
-          const 확실히아님 =
-            Boolean(도감) && !그카드 && cards.length > 0 && cards.every((c) => Boolean(c.cardNumber));
-          if (도감 && (cards.length === 0 || 확실히아님)) {
-            if (다음마켓으로(도감)) return;
-            // 더 갈 곳이 없거나 사람이 직접 고른 마켓이다. 앞서 뜬 안내를 그대로 두면
-            // 결과가 없는데 "값을 보여 드립니다"가 남는다.
-            // 카드 자체를 못 찾은 것이라 "안 팔렸다"가 아니다. 마켓에 맞는 말로 알린다.
-            set도감안내(
-              `${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에 ` +
-                `${값없음문구(마켓순서(도감.jp)[마켓칸ref.current].source, false)}.`,
-            );
-          }
-          // 세트로 좁혀도 그 세트에 같은 이름이 여러 장 있다(리자몽 ex가 4장). 번호로
-          // 그 한 장을 맨 앞에 세우고 골라 둔다. 나머지는 지우지 않는다 — 번호 표기가
-          // 어긋나면(228/197처럼 빗금이 붙거나 일본판은 아예 비어 있다) 아무것도 안
-          // 남을 수 있다.
-          let 정렬됨 = cards;
-          let 고를것: string | null = null;
-          if (도감) {
-            if (그카드) {
-              정렬됨 = [그카드, ...cards.filter((c) => c !== 그카드)];
-              고를것 = 그카드.tcgPlayerId;
-            } else if (pptSetName(도감) && cards.every((c) => !c.cardNumber)) {
-              // ⚠️ PPT 일본판은 번호 칸이 비어 있어 번호로 못 맞춘다. 그럴 땐 **이름이
-              //    정확히 같은 것**을 고른다. 그냥 첫 장을 열면 같은 카드의 다른 인쇄가
-              //    걸린다 — 히스이 미끄네일 054를 눌렀는데 "(Mirror Holofoil)"이 열렸다
-              //    (점검 중 발견 2026-08-06).
-              const 이름같음 = cards.filter((c) => 다듬(c.name) === 다듬(도감.ko));
-              // 딱 한 장일 때만 연다. 여럿이면 어느 것인지 알 수 없으므로 목록만 보여 준다.
-              if (이름같음.length === 1) {
-                정렬됨 = [이름같음[0], ...cards.filter((c) => c !== 이름같음[0])];
-                고를것 = 이름같음[0].tcgPlayerId;
-              } else if (cards.length === 1) {
-                고를것 = cards[0].tcgPlayerId;
-              }
-            }
-            // 왜 이 결과를 보고 있는지 한 줄로 밝힌다. 틀린 것보다 빈칸이 낫고,
-            // 빈칸보다는 사실이 낫다.
-            const 칸 = 마켓칸ref.current;
-            const 순서 = 마켓순서(도감.jp);
-            if (고를것) trackEvent('card_found', 순서[칸].label);
-            set도감안내(
-              // ⚠️ 보여 줄 카드가 하나도 없는데 "다른 카드를 보여 드립니다"라고 하면
-              //    거짓말이 된다(점검 중 발견 2026-08-06).
-              cards.length === 0
-                ? `${도감.ko} · ${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에 ${값없음문구(순서[칸].source, false)}.`
-                : 인쇄표기
-                  ? `${짧은세트(도감.setNameKo)} ${도감.num}번은 “${인쇄표기}”로 값이 잡힙니다.`
-                : !고를것
-                  ? `${짧은세트(도감.setNameKo)} ${도감.num}번은 이 마켓에서 찾지 못해, 같은 이름의 다른 카드를 보여 드립니다.`
-                  : 자동이동ref.current && 칸 > 0
-                    ? `${순서[칸 - 1].label}에 ${값없음이유(순서[칸 - 1].source)} ${순서[칸].label} 값을 보여 드립니다.`
-                    : null,
-            );
-          }
-          setEbayItems(정렬됨);
-          setEbayAsOf(asOf ?? null);
-          setEbayRarity({ 좁힘: rarity, 없음: rarityMissing, 이름없음: rarityOnly, 뺀말: droppedTerm });
-          searchResultRef.current = { query: trimmed, count: 정렬됨.length, source };
-          setResultTick((n) => n + 1);
-          setEbayOffset(EBAY_PAGE_SIZE);
-          setEbayHasMore(hasMore);
-          setEbaySelectedId((prev) =>
-            // 도감에서 눌러 온 그 카드가 있으면 폰에서도 바로 연다 — 그 한 장을 보러
-            // 온 것이므로, 목록만 띄우고 다시 누르게 하는 건 한 번 더 시키는 셈이다.
-            고를것 ??
-            (정렬됨.some((c) => c.tcgPlayerId === prev)
-              ? prev
-              : isWideScreen()
-                ? (정렬됨[0]?.tcgPlayerId ?? null)
-                : null),
-          );
+      searchCardBoard(trimmed, edition, ac.signal, 콕)
+        .then((r) => {
+          setBoardItems(r.cards);
+          setBoardTotal(r.total);
+          setBoard잘림(r.잘림 ?? 0);
+          setBoard받은날(r.받은날 ?? null);
+          // 서버가 그 카드를 맨 앞에 세워 준다. **세트와 번호가 둘 다 맞을 때만** 펼친다 —
+          // 못 찾았는데 첫 장을 펼치면 **딴 카드를 그 카드인 양** 보여 주게 된다.
+          const 맨앞 = r.cards[0];
+          const 번호열쇠 = (s: string) => String(s ?? '').trim().replace(/^0+(?=\d)/, '').toUpperCase();
+          const 맞나 =
+            !!콕 && !!맨앞 && 맨앞.slug === 콕.slug && 번호열쇠(맨앞.cardNumber ?? '') === 번호열쇠(콕.no);
+          setBoardSelectedId(맞나 ? 맨앞.tcgPlayerId : null);
+          // 공유 링크로 온 것은 한 번 쓰고 비운다(다음 검색까지 따라다니면 안 된다).
+          공유카드ref.current = null;
+          trackEvent('cardboard_search');
         })
-        .catch((err: Error) => {
-          setEbayError(
-            err.message === EBAY_DAILY_LIMIT
-              ? '오늘 볼 수 있는 시세 조회량을 다 썼습니다. 내일 오전 9시에 다시 열립니다.'
-              : err.message === EBAY_RATE_LIMITED
-                ? '지금 조회가 몰렸습니다. 30초쯤 뒤에 다시 눌러 주세요.'
-                : '시세를 불러오지 못했습니다.',
-          );
-          // 이전 검색 결과가 남아 있으면 에러 문구 아래에 엉뚱한 카드가 계속
-          // 보이므로(특히 발매판을 바꿨을 때) 같이 비워준다.
-          setEbayItems([]);
-          setEbayAsOf(null);
-          setEbaySelectedId(null);
-          setEbayHasMore(false);
+        .catch((e) => {
+          if (ac.signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
+          setBoardItems([]);
+          setBoardTotal(0);
+          setBoard잘림(0);
         })
-        .finally(() => setEbayLoading(false));
-    }, 600);
+        .finally(() => {
+          if (!ac.signal.aborted) setBoardLoading(false);
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      ac.abort();
+    };
+  }, [query, board켬, edition]);
 
-    return () => clearTimeout(timer);
-  }, [query, source, edition]);
 
   // 인기 검색어 집계. "결과가 도착했나"를 보고 움직인다(resultTick).
   //
@@ -1415,15 +1423,10 @@ function App() {
       //    인기 검색어에는 안 올리되(오타가 순위를 더럽히면 안 되니까), 어느 소스를
       //    몇 번 불렀는지는 결과와 상관없이 센다.
       if (r.query !== trimmed) return;
-      if (r.count === 0) {
-        if (r.source === 'ebay' || r.source === 'tcgplayer') {
-          if (trackedQueryRef.current !== trimmed) {
-            trackedQueryRef.current = trimmed;
-            trackEvent(r.source === 'ebay' ? 'ebay_search' : 'tcgplayer');
-          }
-        }
-        return;
-      }
+      // ⚠️ 빈손인 검색을 세던 자리는 **옛 해외 시세 전용**이었다(2026-08-13에 지웠다).
+      //    까닭이 「검색당 크레딧 36이 나가는데 통계에는 0번으로 잡힌다」였는데, 새 길은
+      //    검색에 크레딧을 안 쓰므로 그 까닭이 사라졌다. 스니커덩크는 예전에도 안 셌다.
+      if (r.count === 0) return;
       // 결과는 여러 번 도착할 수 있다(소스를 바꾸거나 "다시 시도"). 한 번만 센다.
       if (trackedQueryRef.current === trimmed) return;
       trackedQueryRef.current = trimmed;
@@ -1435,7 +1438,8 @@ function App() {
         if (term) trackSearch(term);
       });
       // 어느 소스로 실제 검색이 이뤄졌는지만 센다(개인정보 없음).
-      trackEvent(r.source === 'ebay' ? 'ebay_search' : r.source === 'tcgplayer' ? 'tcgplayer' : 'snkrdunk_search');
+      // 해외 시세는 제 자리(`cardboard_search`)에서 따로 센다 — 여기는 스니커덩크만.
+      if (r.source === 'snkrdunk') trackEvent('snkrdunk_search');
       // 이 한 표가 어떻게 확정된 것인지도 같이 센다. 위 검색 횟수와 합계가 같다.
       const via = confirmed ? confirmedSearchRef.current!.via : null;
       trackEvent(
@@ -1471,30 +1475,50 @@ function App() {
       .finally(() => setLoadingMore(false));
   }
 
-  function loadMoreEbay() {
-    setEbayLoadingMore(true);
-    searchEbayCards(
-      query.trim(),
-      edition,
-      ebayOffset,
-      source === 'tcgplayer' ? 'tcgplayer' : 'ebay',
-      (() => {
-        const c = 도감카드(query.trim());
-        return c ? pptSetName(c) : undefined;
-      })(),
-    )
-      .then(({ cards, hasMore }) => {
-        // offset 페이지가 겹쳐 같은 카드가 들어오는 일을 막는다.
-        setEbayItems((prev) => {
-          const seen = new Set(prev.map((c) => c.tcgPlayerId));
-          return [...prev, ...cards.filter((c) => !seen.has(c.tcgPlayerId))];
-        });
-        setEbayOffset((prev) => prev + EBAY_PAGE_SIZE);
-        setEbayHasMore(hasMore);
+  // ⚠️ **새 길에는 「더 보기」가 없다.** 한 번에 다 온다 — 옛 길이 쪽을 나눈 것은
+  //    한 쪽마다 크레딧 36이 나가서인데, 여기는 우리 파일만 읽어 0이다.
+
+  // 카드를 열면 그 카드의 **등급 전부 + 추이 + 낱개 낙찰**을 받아 채운다.
+  //
+  // ⚠️ 목록에는 대표 등급 하나만 실려 있다 — 17줄을 다 실으면 덩치의 83%가 안 쓰는
+  //    것이라 한 번에 몇 장 못 냈다. 여기서 채우므로 상세는 옛 길과 똑같이 다 나온다.
+  // ⚠️ 추이·낱개는 **덤프에 없어서 저쪽에 물어야 나온다**(카드당 3크레딧). 서버가 받은
+  //    것을 쌓아 두고 이레 동안 다시 안 물으므로, 이미 본 카드는 크레딧이 안 든다.
+  useEffect(() => {
+    if (!boardSelectedId) return;
+    const c = boardItems.find((x) => x.tcgPlayerId === boardSelectedId);
+    if (!c || c.채워짐) return; // 이미 채운 카드는 다시 안 부른다
+    const ac = new AbortController();
+    fetchBoardDetail(boardSelectedId, edition, ac.signal)
+      .then(({ grades, tcgHistory, population }) => {
+        if (ac.signal.aborted) return;
+        setBoardItems((prev) =>
+          prev.map((x) =>
+            x.tcgPlayerId === boardSelectedId
+              ? {
+                  ...x,
+                  grades: grades.length ? grades : x.grades,
+                  gradesTrimmed: false,
+                  채워짐: true,
+                  // 감정 수량도 이 한 번에 온다 — 화면이 옛 길(`card-extra`)을 따로 안 부른다.
+                  population,
+                  // TCGplayer 칸에 추이를 얹는다. `historyCondition`이 있어야 화면이
+                  // 「어느 상태의 추이인지」를 제목에 밝힐 수 있다.
+                  tcgplayer: x.tcgplayer
+                    ? {
+                        ...x.tcgplayer,
+                        history: tcgHistory?.history ?? [],
+                        historyCondition: tcgHistory?.condition ?? null,
+                      }
+                    : x.tcgplayer,
+                }
+              : x,
+          ),
+        );
       })
-      .catch(() => setEbayHasMore(false))
-      .finally(() => setEbayLoadingMore(false));
-  }
+      .catch(() => undefined);
+    return () => ac.abort();
+  }, [boardSelectedId, boardItems, edition]);
 
   const boxResults = useMemo(() => items.filter((c) => c.category === 'box'), [items]);
   const cardResults = useMemo(() => items.filter((c) => c.category === 'card'), [items]);
@@ -1554,10 +1578,20 @@ function App() {
   }
 
   function handleSelectSuggestion(term: string) {
-    confirmSearch(term, 'pick');
-    setQuery(term);
     setSuggestionsOpen(false);
     setSuggestActive(-1);
+    // ⚠️ 고른 말이 **세트 이름**이면 카드 검색이 아니라 그 세트 화면으로 보낸다.
+    //    세트 이름을 검색창에 넣어 봐야 저쪽은 그런 카드를 모르고 0건이 된다
+    //    ("Pt3 프론티어의 고동"으로 카드를 찾을 수는 없다).
+    const 세트 = (setNamesKo as { ko: string; slug: string }[]).find((x) => x.ko === term);
+    if (세트) {
+      trackEvent('sets', term);
+      setSetsInitialSlug(세트.slug);
+      navigate({ view: 'sets' });
+      return;
+    }
+    confirmSearch(term, 'pick');
+    setQuery(term);
   }
 
   // 자동완성 목록 키보드 조작. 처리했으면 true를 돌려줘 브라우저 기본 동작을 막는다.
@@ -1593,20 +1627,10 @@ function App() {
     setRestoringShare(false);
   }, [items, pendingSnkr]);
 
-  useEffect(() => {
-    if (!pendingCardId) return;
-    if (ebayItems.length === 0) return;
-    // 결과에 있으면 그 카드를 편다. 없으면(다른 세트가 먼저 잡힌 경우) 목록만 두고
-    // 표시만 지운다 — 검색어가 그 카드 이름이라 사용자가 바로 찾을 수 있다.
-    if (ebayItems.some((c) => c.tcgPlayerId === pendingCardId)) setEbaySelectedId(pendingCardId);
-    setPendingCardId(null);
-    setRestoringShare(false);
-  }, [ebayItems, pendingCardId]);
-
   const selectedCard = items.find((c) => c.apparelId === selectedId) ?? null;
+  const boardSelectedCard = boardItems.find((c) => c.tcgPlayerId === boardSelectedId) ?? null;
   const interestSelectedCard =
     [...recentlyViewed, ...favorites].find((c) => c.apparelId === interestSelectedId) ?? null;
-  const ebaySelectedCard = ebayItems.find((c) => c.tcgPlayerId === ebaySelectedId) ?? null;
 
   // 상세를 열면 주소창을 그 카드의 공유 링크(/c/<id>?n=<이름>)로 바꾼다. replaceState라
   // 히스토리 스택은 안 건드려서 기존 뒤로가기 처리와 충돌하지 않는다. 이걸로 사용자가
@@ -1624,10 +1648,10 @@ function App() {
             // 주소창에서 그대로 복사해 붙이는 사람이 많은데, 한글이 %EB%A6%AC…로 늘어나면
             // 91자짜리 알 수 없는 주소가 된다.
             `/c/${selectedCard.apparelId}`
-          : source === 'ebay' && ebaySelectedCard
-            ? `/e/${ebaySelectedCard.tcgPlayerId}`
-            : source === 'tcgplayer' && ebaySelectedCard
-              ? `/t/${ebaySelectedCard.tcgPlayerId}`
+          : source === 'cardboard' && boardSelectedCard
+            ? `/e/${boardSelectedCard.tcgPlayerId}`
+            : source === 'cardboard_tcg' && boardSelectedCard
+              ? `/t/${boardSelectedCard.tcgPlayerId}`
               : null;
     // ⚠️ ?notrack=1 같은 물음표 뒤는 지우지 않는다. 예전엔 주소를 바꿀 때마다 통째로
     //    날아가서, 운영자가 확인하려고 붙인 notrack이 카테고리 한 번 누르면 풀렸다.
@@ -1636,7 +1660,7 @@ function App() {
     if (path) {
       if (cur !== path) window.history.replaceState(window.history.state, '', path + q);
       // 탭 제목도 그 카드로. 서버가 /c/<번호>에 붙이는 것과 같은 모양이다.
-      const nm = selectedCard?.title ?? ebaySelectedCard?.name ?? '';
+      const nm = selectedCard?.title ?? boardSelectedCard?.name ?? '';
       document.title = nm ? `${공유이름(nm)} 시세 | pokegre` : HOME_TITLE;
       return;
     }
@@ -1655,7 +1679,7 @@ function App() {
     const want = VIEW_PATH[view] ?? '/';
     if (cur !== want) window.history.replaceState(window.history.state, '', want + q);
     document.title = VIEW_TITLE[view] ?? HOME_TITLE;
-  }, [selectedCard, ebaySelectedCard, view, source, restoringShare]);
+  }, [selectedCard, boardSelectedCard, view, source, restoringShare]);
 
   // ⚠️ "'저지맨' → 'ジャッジマン'로 검색했습니다" 안내를 뺐다(운영자 지시 2026-08-05).
   //    무슨 말로 바꿔 찾았는지는 우리 사정이지 보러 온 사람이 알아야 할 값이 아니다.
@@ -1694,15 +1718,36 @@ function App() {
           있는지"를 보여주는 자리라 검색창에서 멀면 뜻이 없다.
           그때 상점을 위에 둔 이유(폰에서 팩 사진이 잘린다)는 그대로 살아 있으므로,
           상점은 인기 검색어 바로 다음에 둔다 — 뉴스보다는 위다. */}
-      {/* ⚠️ 공지 배너(OnboardingBanner)를 홈에서 뺐다(2026-08-05, 운영자 지시).
-          컴포넌트 파일은 남겨 두었으니 다시 붙이려면 여기에 <OnboardingBanner />만
-          되살리면 된다. */}
-      {/* ⚠️ **신팩 힛카드를 인기 검색어보다 위로 올렸다**(2026-08-08).
-          예전엔 인기 검색어 아래였는데(운영자 지시 2026-08-05), 그러면 첫 화면
-          900px에 **빈 검색창과 이름만 적힌 순위표 10줄**만 들어오고 카드 그림은
-          523px 아래에서야 걸쳤다 — 포켓몬 카드 사이트인데 첫인상이 글자뿐이었다.
-          ⚠️ 되돌리려면 이 블록과 아래 <PopularSearches> 블록의 순서만 맞바꾸면 된다.
-          검색을 한 번도 안 해도 지금 제일 비싼 카드가 얼마인지 보이게 하려는 자리다.
+      {/* ⚠️ 공지 배너. 2026-08-05에 뺐다가 2026-08-14에 되살렸다(사장님 지시).
+          내릴 때는 이 한 줄만 지우면 되고, 새 공지는 OnboardingBanner.tsx의
+          제목·날짜·본문과 **DISMISS_KEY 뒤 날짜**를 같이 바꾼다(안 바꾸면 전에 닫은
+          사람에게는 새 공지가 안 뜬다). */}
+      <div className="mb-6">
+        <OnboardingBanner />
+      </div>
+      {/* ⚠️ **인기 검색어를 신팩 힛카드보다 위로 올렸다**(2026-08-09 사장님 지시).
+          2026-08-08에 반대로 올렸던 것을 되돌린 것이다. 그때 이유는 "첫 화면에 글자만
+          보인다"였는데, 지금은 검색바 아래 바로 사람들이 뭘 찾는지가 보이는 쪽을 택했다.
+          ⚠️ 다시 되돌리려면 이 <PopularSearches>와 아래 <NewSetHitCards>의 순서만
+          맞바꾸면 된다. */}
+      <PopularSearches
+        items={popularSearches}
+        asOf={popularAsOf}
+        loading={popularLoading}
+        onSelect={(term) => {
+          // 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다.
+          confirmSearch(term, 'popular');
+          setQuery(term);
+        }}
+      />
+      {/* ⚠️ 홈 순서: 인기 검색어 → 이번 주 TOP 5 → 힛카드.
+          ⚠️ 커피값 상자(SupportBox)는 **뺐다**(사장님 지시 2026-08-12) — 카카오페이 송금
+             링크가 모바일 사이트에서 열리지 않았다. 컴포넌트 파일은 남겨 두었으니
+             쓸 만한 링크가 생기면 여기에 <SupportBox />만 되살리면 된다.
+          ⚠️ 오늘의 상점은 「도구 ▾」로 옮겼지만 TOP 5는 홈에 남긴다 — 뽑기를 안 하는
+             사람도 "다른 사람이 뭘 뽑았나"는 보게 된다. */}
+      <PullBanner onEnter={() => navigate({ view: 'packsim' })} />
+      {/* 검색을 한 번도 안 해도 지금 제일 비싼 카드가 얼마인지 보이게 하려는 자리다.
           어느 세트를 띄울지는 서버가 고른다 — 발매일이 제일 최근이면서 시세가 있는
           세트다. 여기에 세트를 박아 두면 새 팩이 나올 때마다 사람이 고쳐야 한다. */}
       <NewSetHitCards
@@ -1728,22 +1773,14 @@ function App() {
           navigate({ view: 'sets' });
         }}
       />
-      <PopularSearches
-        items={popularSearches}
-        asOf={popularAsOf}
-        loading={popularLoading}
-        onSelect={(term) => {
-          // 인기 검색어를 눌러 검색한 것도 "확정한 검색"이다 — 결과만 오면 바로 센다.
-          confirmSearch(term, 'popular');
-          setQuery(term);
-        }}
-      />
-      {/* ⚠️ **곁다리 구역은 한 덩이로 묶는다.** 제목 크기만 낮춰서는 다섯 구역이 여전히
+      {/* ⚠️ **곁다리 구역은 한 덩이로 묶는다.** 제목 크기만 낮춰서는 여러 구역이 여전히
           같은 간격으로 늘어서 보인다 — 위(시세)와 아래(그 밖)를 눈이 가르지 못한다.
           엷은 바탕과 위쪽 선으로 묶어 "여기부터는 곁다리"를 한눈에 알린다.
-          기준은 실제 쓰임이다: 시세 검색 2,885회(79%) ↔ 뽑기 424회(12%). */}
+          기준은 실제 쓰임이다: 시세 검색 2,885회(79%) ↔ 뽑기 424회(12%).
+          ⚠️ 오늘의 상점(PackShelfPromo)은 **홈에서 뺐다**(사장님 지시 2026-08-12).
+             상단 「도구 ▾」로 옮겼다. 컴포넌트는 남겨 두었으니 되돌리려면 여기에
+             <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} /> 만 넣으면 된다. */}
       <div className="mt-8 space-y-6 border-t border-neutral-200 pt-6">
-        <PackShelfPromo onEnter={() => navigate({ view: 'packsim' })} />
         <PokemonNews items={news} loading={newsLoading} />
       </div>
     </div>
@@ -1862,121 +1899,88 @@ function App() {
     </>
   );
 
-  const isTcg = source === 'tcgplayer';
-  const ebayMain = (
+  // ── 새 길(cardboard) 결과 ──────────────────────────────────────────────────
+  //
+  // ⚠️ **부품은 옛 길 것을 그대로 쓴다**(EbayCardTile · EbayCardDetail). 사장님 지시가
+  //    "기존에 나오는거랑 형태는 똑같이"라, 겉모습을 새로 그리면 무엇이 달라졌는지
+  //    견줄 수가 없다. 다른 것은 **어떻게 찾았나**뿐이다.
+  const boardMain = (
     <>
-      {!ebayError && (
-        <p className="text-sm text-neutral-500 mb-3">
-          {ebayLoading
-            ? '검색 중...'
-            : `${isTcg ? 'TCGplayer 시세' : 'eBay 등급 데이터'} ${ebayItems.length}종 표시`}
-        </p>
-      )}
+      {/* ⚠️ 「몇 장 중 몇 장」을 안 적는다 — **찾은 것이 다 나와 있기 때문**이다.
+          잘린 때(2,000장 천장)만 아래 줄로 따로 밝힌다. */}
+      <p className="text-sm text-neutral-500 mb-3">
+        {boardLoading ? '찾는 중...' : `우리 도감에서 ${boardTotal.toLocaleString()}장 찾았습니다.`}
+      </p>
 
-      {/* 지금 받은 값이 아닐 때만 밝힌다. 아무것도 안 보여주는 것보다 낫지만,
-          언제 기준인지 안 적으면 지금 시세로 오해한다. */}
-      {!ebayError && !ebayLoading && ebayAsOf && (
-        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          오늘 볼 수 있는 시세 조회량을 다 써서 {asOfLabel(ebayAsOf)} 받아 둔 시세를 보여드립니다. 오전 9시에 다시 열립니다.
-        </p>
-      )}
+      {/* ⚠️ **값이 언제 것인지 밝힌다.** 이 길은 실시간이 아니라 받아 둔 덤프를 읽는다 —
+          안 밝히면 지금 시세로 오해한다. 옛 길은 크레딧을 다 썼을 때만 이 안내를 냈지만,
+          여기는 **늘 받아 둔 값**이라 늘 밝히는 것이 맞다.
+          ⚠️ **모르는 날짜는 아예 안 적는다.** 「날짜 모름」이라고 적으면 값까지 못 믿을 것처럼
+             읽힌다 — 아는 것만 적고, 하나도 모르면 이 줄을 안 그린다. */}
+      {!boardLoading &&
+        (() => {
+          const 적을것 = [
+            board받은날?.시세 ? `TCGplayer 시세 ${board받은날.시세}` : '',
+            board받은날?.낙찰 ? `eBay 낙찰 ${board받은날.낙찰}` : '',
+          ].filter(Boolean);
+          if (!적을것.length) return null;
+          return <p className="mb-3 text-xs text-neutral-400">{적을것.join(' · ')} 기준으로 받아 둔 값입니다.</p>;
+        })()}
 
-      {/* ⚠️ 뒤에 붙은 레어도로 좁혔으면 그렇다고 밝힌다. 안 밝히면 "왜 몇 장뿐이지"가 된다.
-          못 찾았을 때는 **전체를 보여 주고 까닭을 적는다** — 빈 화면을 주면 우리가 그 카드를
-          아예 안 다루는 줄 안다(2026-08-08). 조사(가/이)가 코드마다 달라져 따옴표로 묶었다. */}
-      {!ebayError && !ebayLoading && (ebayRarity.좁힘 || ebayRarity.없음 || ebayRarity.이름없음 || ebayRarity.뺀말) && (
-        <p className={`mb-3 text-xs ${ebayRarity.이름없음 ? 'text-amber-600' : 'text-neutral-500'}`}>
-          {/* ⚠️ ':1ED'는 스니커덩크에서만 통한다. 그대로 보내면 0장이라 빼고 찾는데,
-                 말없이 빼면 초판만 보려던 사람이 전체를 보고도 모른다. */}
-          {ebayRarity.이름없음
-            ? `'${ebayRarity.이름없음}'만으로는 찾을 수 없습니다. 카드 이름을 같이 쳐 주세요 (예: 리자몽 ${ebayRarity.이름없음}).`
-            : ebayRarity.뺀말
-              ? `'${ebayRarity.뺀말}'는 SNKRDUNK에서만 됩니다. 빼고 찾았습니다.`
-              : ebayRarity.좁힘
-                ? `${ebayRarity.좁힘} 카드만 보고 있습니다.`
-                : `'${ebayRarity.없음}' 카드가 없어 전체를 보여 드립니다.`}
-        </p>
-      )}
-
-      {ebayError ? (
-        <p className="text-sm text-rose-500 py-12 text-center">{ebayError}</p>
-      ) : !ebayLoading && ebayItems.length === 0 ? (
-        // 왜 없는지까지 알려준다. 그냥 "없습니다"만 뜨면 고장난 줄 안다.
-        // 이베이·TCGplayer 시세는 PPT를 통해 보는데, PPT는 영문판·일본판만 다룬다.
-        // 인도네시아·중국·태국판 같은 지역 한정 카드는 거기에 아예 없다(사용자 제보:
-        // 사진으로 찾은 인도네시아 프로모 피카츄가 스니커덩크에는 있는데 여기선 빈 화면).
-        // ⚠️ 왜 없는지는 단정하지 않는다. 우리 데이터에 있는데 검색어가 안 맞아 못
-        //    찾는 것일 수도 있고, 이베이에는 매물이 있는데 우리 데이터에만 없는 것일
-        //    수도 있다. 확인할 방법이 없는 것을 사실처럼 적으면 안 된다.
-        //    대신 다음에 해볼 수 있는 것을 준다.
+      {!boardLoading && boardItems.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-sm text-neutral-500">
-            {isTcg ? 'TCGplayer에서 이 검색어로 찾지 못했습니다.' : 'eBay에서 이 검색어로 찾지 못했습니다.'}
+          {/* ⚠️ 옛 길과 **없는 까닭이 다르다.** 저쪽에 안 물어봤으므로 "이베이에 없다"가
+              아니라 **우리 도감에 그 이름이 없다**는 뜻이다. 그대로 말해 준다. */}
+          <p className="text-sm text-neutral-500">우리 도감에 그 이름의 카드가 없습니다.</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
+            카드 이름의 일부만 쳐 보시거나, 위에서 판(일본판·영문판)을 바꿔 보세요.
           </p>
-          {/* ⚠️ **영어로 못 옮긴 낱말이 있으면 그걸 짚어 준다.** 저쪽(PPT)은 영문
-              이름만 알아들어서, 우리가 모르는 한글이 섞이면 그대로 나가 0장이 된다.
-              "리자몽 구뒷면"의 '구뒷면'처럼 **스니커덩크에서만 쓰는 말**이 대부분이라
-              (2026-08-08 집계: 이런 검색이 16번) 아래 "스니커덩크에서 찾아보기"가
-              바로 답이다. 그냥 "영어로 바꿔 보라"고만 하면 있지도 않은 영어를 찾게 된다.
-              팝수 화면은 이미 이렇게 알려 주고 있었다 — 화면끼리 맞춘다. */}
-          {(() => {
-            const 남은한글 = (ebayQueryEn.match(/[가-힣]+/g) ?? []).join(' ');
-            return (
-              <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
-                {남은한글
-                  ? `'${남은한글}'의 영어 이름을 몰라 그대로 보냈습니다. 스니커덩크에서만 쓰는 말이면 아래에서 찾아보세요.`
-                  : '카드 번호 대신 카드 이름으로, 또는 영어 이름으로 바꿔 보시면 나올 수 있습니다.'}
-              </p>
-            );
-          })()}
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => switchSource('snkrdunk')}
-              className="rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black hover:text-black"
-            >
-              스니커덩크에서 찾아보기
-            </button>
-            <a
-              href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(ebayQueryEn || query.trim())}`}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border border-neutral-300 px-4 py-2 text-xs font-semibold text-neutral-700 hover:border-black hover:text-black"
-            >
-              이베이에서 직접 찾아보기 ↗
-            </a>
-          </div>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-            {ebayItems.map((card) => (
+            {boardItems.map((card) => (
               <EbayCardTile
                 key={card.tcgPlayerId}
                 card={card}
-                variant={isTcg ? 'tcgplayer' : 'ebay'}
-                selected={card.tcgPlayerId === ebaySelectedId}
-                onSelect={setEbaySelectedId}
-                onCompare={!isTcg && showCompare ? toggleCompareEbay : undefined}
+                variant={board마켓}
+                selected={card.tcgPlayerId === boardSelectedId}
+                onSelect={setBoardSelectedId}
+                // ⚠️ 비교표는 **등급별 표**라 eBay 눈일 때만 붙인다(TCGplayer 눈에는 등급이 없다).
+                //    옛 탭이 `!isTcg`로 하던 것과 같은 판단이다.
+                onCompare={board마켓 === 'ebay' && showCompare ? toggleCompareEbay : undefined}
                 inCompare={compareEbay.some((c) => c.tcgPlayerId === card.tcgPlayerId)}
               />
             ))}
           </div>
 
-          {ebayHasMore && (
-            <button
-              type="button"
-              onClick={loadMoreEbay}
-              disabled={ebayLoadingMore}
-              className="mt-4 w-full rounded-lg border border-neutral-300 py-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-            >
-              {ebayLoadingMore ? '더 불러오는 중...' : '결과 더 보기'}
-            </button>
+          {/* ⚠️ **「더 보기」는 없다 — 찾은 것이 이미 다 나와 있다.**
+              천장(2,000장)에 걸린 때만 그렇다고 밝힌다. 말없이 자르면 「이게 전부」로 읽힌다.
+              여기 걸리는 것은 「ex」·「에너지」처럼 카드 이름이 아닌 말뿐이라, 이름을 더
+              붙이라고 일러 준다(그게 실제로 원하는 카드에 닿는 길이다). */}
+          {board잘림 > 0 && (
+            <p className="mt-4 rounded-lg bg-neutral-50 px-3 py-3 text-center text-xs leading-relaxed text-neutral-500">
+              걸린 카드가 너무 많아 {board잘림.toLocaleString()}장까지만 보여 드립니다. 카드 이름을 더 붙이면 원하는
+              카드가 나옵니다.
+            </p>
           )}
         </>
       )}
     </>
   );
+
+  // ⚠️⚠️ **비교 담기 바가 카드 상세 시트의 맨 아랫줄을 덮고 있었다**(2026-08-14에 찾음).
+  //    둘 다 `fixed bottom-0`에 z-40인데 바가 DOM에서 뒤라 시트 위에 그려진다. 시트 안쪽
+  //    여백은 32px인데 바가 63px이라, 끝까지 내려도 **마지막 31px이 영영 안 보였다**
+  //    (실측: 바 위 749px · 시트 마지막 글 아래 780px. 「원화는 … 참고값입니다」가 반쯤 잘림).
+  //    ⚠️ 미스클릭은 아니었다 — 바의 단추는 제대로 눌린다. 문제는 **가려진 글**이다.
+  //    ⚠️ 「오늘의 상점 하단 바」와는 **원리상 겹칠 수 없다**(다른 화면이고, 상시 바가 아니라
+  //       구매 알림 토스트다). 「셋이 겹친다」는 말은 사실이 아니다.
+  const 비교바높이 = 63; // p-3(12+12) + 단추 39 — 바 높이를 바꾸면 여기도 바꿀 것
+  const 비교바떴나 =
+    showCompare &&
+    ((source === 'snkrdunk' && compareCards.length > 0) || (source === 'cardboard' && compareEbay.length > 0));
+  const 시트아래막힘 = 비교바떴나 ? 비교바높이 : 0;
 
   return (
     <div className="min-h-screen bg-neutral-100">
@@ -2011,7 +2015,14 @@ function App() {
               )}
               {/* 좁은 화면에서 메뉴 글자가 단어 중간에 꺾이지 않게, 버튼 단위로만 줄바꿈한다.
                   relative z-50 으로 버튼이 백드롭 위에 오게 해 클릭이 통한다. */}
-              <nav className="relative z-50 flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {/* ⚠️⚠️ **폰에서는 메뉴 줄이 통째로 아래로 내려온다**(위 덩어리가 flex-wrap).
+                  그때 `w-auto`면 줄이 286px에서 끝나 **오른쪽에 72px이 빈다.** 운영자에게는
+                  거기 「운영 ▾」가 들어가 안 보이지만, **일반 사용자 화면에서는 그냥 빈칸**이다
+                  (사장님 지적 2026-08-16 · 375px에서 실측). 줄을 꽉 채우고 아래 사람 아이콘을
+                  `ml-auto`로 오른쪽 끝에 붙인다 — 계정 단추가 오른쪽 끝인 것은 흔한 꼴이고,
+                  운영 메뉴가 있든 없든 자리가 안 흔들린다.
+                  ⚠️ 넓은 화면(sm↑)은 로고와 한 줄을 나눠 쓰므로 `w-auto`로 되돌린다. */}
+              <nav className="relative z-50 flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2">
                 {/* ⚠️ navigate만 부르면 **이미 시세 화면일 때 아무 일도 안 한다**. 공유
                     링크로 들어와 카드를 보다가 "홈"을 눌러도 그 카드에 갇혔다(점검 중
                     발견 2026-08-06). 검색 중에 눌러도 마찬가지였다. 로고(pokegre)와
@@ -2055,9 +2066,21 @@ function App() {
                       // ⚠️ **베타 배지는 뗐다.** 넷 중 넷이 베타라 배지가 뜻을 잃었고,
                       //    오히려 "아직 덜 됐나 보다" 싶어 안 누르게 만든다(2026-08-08).
                       //    다시 붙일 일이 있으면 beta: true 한 줄이면 된다.
+                      // ⚠️ 차례는 **포켓몬 · 작가 · 세트**다(2026-08-09 사장님 지시).
+                      //    앞의 둘은 생김새가 같은 화면이라 붙여 두고, 성격이 다른
+                      //    세트를 뒤에 둔다.
                       { v: 'pokedex', label: '포켓몬' },
-                      { v: 'sets', label: '세트' },
                       { v: 'artists', label: '작가' },
+                      { v: 'sets', label: '세트' },
+                      // 미개봉(박스·팩) 시세 모음. 세트마다 흩어 두지 말고 한곳에서
+                      // 줄 세워 보게 하라는 지시(2026-08-11)로 도감 갈래에 두었다.
+                      // ⚠️ 「미개봉 시세」가 아니라 **「미개봉 박스·팩」**이다(사장님 지시
+                      //    2026-08-14: "미개봉 시세가 좀 애매해"). 이 사이트는 전체가
+                      //    시세라 메뉴에서 「시세」는 알려 주는 게 없고, 정작 **안에 뭐가
+                      //    있는지**가 빠져 있었다(부스터 박스·부스터 팩·엘리트 트레이너 박스).
+                      //    ⚠️ 검색엔진용 제목·설명(App.tsx의 `sealed` 제목, server/index.ts)에는
+                      //       **「미개봉 시세」를 그대로 둔다** — 사람들이 그 말로 검색한다.
+                      { v: 'sealed', label: '미개봉 박스·팩' },
                     ],
                   },
                   {
@@ -2067,8 +2090,17 @@ function App() {
                       // ⚠️ 도감 쪽과 마찬가지로 **한 낱말**로 맞춘다. 무엇을 하는지는
                       //    들어가면 바로 아래 한 줄로 설명한다 — 메뉴에 설명을 넣으면
                       //    길어지기만 한다.
+                      // ⚠️ 오늘의 상점을 홈에서 여기로 옮겼다(사장님 지시 2026-08-12).
+                      //    홈은 시세를 보러 오는 자리인데(시세 검색 2,885회 ↔ 뽑기 424회)
+                      //    상점이 한 칸을 크게 먹고 있었다. 메뉴에 두면 찾는 사람은 찾는다.
+                      { v: 'packsim', label: '오늘의 상점' },
                       { v: 'population', label: '팝수' },
-                      { v: 'centering', label: '센터링' },
+                      // ⚠️ 「센터링」이 아니라 **「센터링 측정」**이다(2026-08-14). 눌러서 뭘
+                      //    하는지가 이름에 있어야 한다. 화면 제목·페이지 제목·통계 항목·
+                      //    검색엔진 설명이 **이미 다 「센터링 측정」**이라, 메뉴만 짧아서
+                      //    혼자 달랐다. 「계산기」로 하자는 안이 있었지만 사진으로 재는
+                      //    것이라 「측정」이 맞고, 낱말을 하나 더 만들 이유도 없다.
+                      { v: 'centering', label: '센터링 측정' },
                     ],
                   },
                 ] as { key: 'find' | 'tools'; label: string; items: { v: MainView; label: string; beta?: boolean }[] }[]).map(
@@ -2103,6 +2135,16 @@ function App() {
                               {it.beta && <span className="ml-1 text-[10px] text-amber-500">베타</span>}
                             </button>
                           ))}
+                          {/* ⚠️⚠️ 화면 색 단추는 여기 하나뿐이다(머리말에도 마이페이지에도
+                              없다). **위 항목들은 다 「다른 화면으로 가는」 것이고 이것만
+                              그 자리에서 색을 바꾼다** — 그래서 줄을 그어 갈라 놓는다.
+                              까닭과 지금까지 옮겨 다닌 자취는 ThemeToggle.tsx에 적어 뒀다. */}
+                          {그룹.key === 'tools' && (
+                            <>
+                              <div className="my-1 border-t border-neutral-200" />
+                              <ThemeToggle onDone={() => setOpenMenu(null)} />
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2119,13 +2161,13 @@ function App() {
                 </button>
                 {/* 운영: 운영자 전용 화면(신고함·통계)을 드롭다운 하나로 묶어 상단을 깔끔히 둔다.
                     실제 차단은 서버가 한다 — 주소를 직접 쳐도 데이터를 안 준다. */}
-                {isAdmin && (
+                {(isAdmin || 개발중) && (
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => setOpenMenu(openMenu === 'admin' ? null : 'admin')}
                       className={`whitespace-nowrap rounded-full px-3 py-2.5 text-sm font-semibold sm:px-4 ${
-                        view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea'
+                        view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'pokedefense'
                           ? 'bg-black text-white'
                           : 'text-neutral-600 hover:bg-neutral-100'
                       }`}
@@ -2139,6 +2181,7 @@ function App() {
                           { v: 'stats', label: '통계' },
                           { v: 'flea', label: '플리마켓' },
                           { v: 'scantest', label: '스캔 테스트' },
+                          { v: 'pokedefense', label: '디펜스 시즌1' },
                         ] as { v: MainView; label: string }[]).map((it) => (
                           <button
                             key={it.v}
@@ -2172,24 +2215,29 @@ function App() {
                   onClick={() => navigate({ view: 'mypage' })}
                   aria-label={loggedIn ? `마이페이지 (${nickname ?? '로그인됨'})` : '마이페이지'}
                   title={loggedIn ? (nickname ?? '마이페이지') : '마이페이지'}
-                  className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-sm font-semibold ${
+                  /* ⚠️ `ml-auto`가 폰에서 이 단추를 줄 오른쪽 끝에 붙인다(위 nav 주석 참고). */
+                  className={`ml-auto grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-sm font-semibold sm:ml-0 ${
                     view === 'mypage' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
-                  {loggedIn && nickname ? (
-                    <span
-                      className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${
-                        view === 'mypage' ? 'bg-white text-black' : 'bg-neutral-800 text-white'
-                      }`}
-                    >
-                      {[...nickname][0]}
-                    </span>
-                  ) : (
+                  {/* ⚠️⚠️ **로그인해도 그림은 그대로고, 초록 점만 붙는다**(사장님 결정 2026-08-16).
+                      예전엔 닉네임 첫 글자를 동그라미에 넣었는데 **글자마다 폭이 달라**
+                      「W」·「ㅋ」가 어색하고 이모지 닉네임은 아예 깨졌다. 모양이 늘 같아야
+                      상단바가 안 흔들린다.
+                      ⚠️ 점 테두리는 `border-white`다 — 다크모드에서 `--color-white`가
+                         `#1a1a1a`로 바뀌어 머리말 바탕과 저절로 맞는다. */}
+                  <span className="relative grid place-items-center">
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                       <circle cx="12" cy="8" r="3.5" />
                       <path d="M4.5 20a7.5 7.5 0 0 1 15 0" strokeLinecap="round" />
                     </svg>
-                  )}
+                    {loggedIn && (
+                      <span
+                        aria-hidden
+                        className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500"
+                      />
+                    )}
+                  </span>
                 </button>
               </nav>
             </div>
@@ -2214,6 +2262,8 @@ function App() {
             <FleaAdmin />
           ) : view === 'scantest' ? (
             <ScanTest />
+          ) : view === 'pokedefense' ? (
+            <PokeDefense />
           ) : view === 'packsim' ? (
             <PackSim
               onPickCard={(t) => {
@@ -2248,6 +2298,13 @@ function App() {
             <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
           ) : view === 'centering' ? (
             <CenteringTool onSearchByPhoto={searchByPhoto} />
+          ) : view === 'sealed' ? (
+            <SealedPricesView
+              onOpenSet={(slug) => {
+                setSetsInitialSlug(slug);
+                navigate({ view: 'sets' });
+              }}
+            />
           ) : view === 'population' ? (
             // 카드 상세의 "감정 수량"을 눌러 들어오면 ?id=…&lang=… 이 붙는다.
             // 그때는 찾기 단계를 건너뛰고 그 카드 등급표를 바로 연다.
@@ -2288,11 +2345,26 @@ function App() {
                   632px뿐이었다 — **제일 많이 쓰는 기능인데(시세 검색 2,885회) 제일 작았다**
                   (2026-08-08 실측). 좁은 화면은 그대로다. */}
               <div className="mx-auto mb-4 max-w-3xl lg:max-w-5xl">
+                {/* ⚠️⚠️ **탭 막대는 2026-08-13에 없앴다. 마켓 칩 하나로 고른다.**
+                    2026-08-09에 「일본 매물 / 해외 시세」로 가른 까닭은 **통하는 말의 꼴이
+                    달라서**였다 — 옛 해외 시세는 저쪽(PPT)에 매물을 물어봐서 영문 이름이
+                    있어야 했고, "리자몽 MUR"을 그대로 보내면 늘 0건이었다.
+                    그 까닭이 사라졌다: 새 길은 **우리 도감을 한글·영문 이름으로** 뒤지고,
+                    스니커덩크도 두 꼴을 다 알아듣는다. 실측(2026-08-13, 스니커덩크에서):
+                    리자몽 23장 · Charizard 23장 · Charizard 136 1장 · 리자몽 SAR 6장 ·
+                    M6 113 1장 · 피카츄 24장 — **한 검색어가 세 마켓에 다 통한다.**
+                    → 고르는 자리가 둘(탭·칩)이면 서로 어긋나기만 한다. 칩만 남긴다
+                    (사장님 지시: "어차피 호환이 되는거면 … 마켓 교체 토글로만 바꾸게 해줘").
+                    ⚠️ 갈랐던 것을 되돌리는 것이라, 되살릴 생각이 들면 **위 실측부터 다시
+                       재 볼 것** — 까닭이 아니라 숫자가 정한다. */}
                 <div className="flex gap-2">
                   <div className="min-w-0 flex-1">
                     <SearchBar
                       source={source}
                       onSourceChange={switchSource}
+                      // 세 마켓을 한 자리에서 고른다. 검색어는 **그대로 이어진다** —
+                      // 마켓을 바꿔도 새로 칠 일이 없다(위 탭 막대 주석의 실측 참고).
+                      sources={['snkrdunk', 'cardboard', 'cardboard_tcg']}
                       value={보일검색어}
                       onChange={(v) => {
                         setQuery(v);
@@ -2311,10 +2383,7 @@ function App() {
                       //    검색 맥락·방문기록에 적힌 검색어가 남아, 홈으로 가려면 새로고침을
                       //    해야 했다. goHome은 그 넷을 한 번에 되돌린다.
                       onClear={() => {
-                        setScannedResult(null);
-                        scanFallbackRef.current = null;
-                        setScanFellBack(false);
-                        scanQueriesRef.current = null;
+                        // 스캔 자취 치우기는 goHome이 한다(나가는 길을 한 곳으로 모았다).
                         setSuggestionsOpen(false);
                         goHome();
                       }}
@@ -2328,8 +2397,21 @@ function App() {
                       onSubmit={() => {
                         // 엔터(폰 키보드의 "검색")도 확정이다. 예전엔 자동완성만 닫고 끝이라
                         // 집계에 아무 영향이 없었다.
-                        confirmSearch(query, 'enter');
                         setSuggestionsOpen(false);
+                        // ⚠️ **친 말이 세트 이름과 똑같으면 그 세트로 보낸다.**
+                        //    자동완성은 친 말과 똑같은 것을 안 보여 주므로("더 제안할 게 없다"),
+                        //    짧은 세트 이름(정글·파슬·블랙볼트)은 고를 기회 자체가 없었다.
+                        //    그대로 두면 카드 검색이 돌아 0건이 된다(2026-08-09 확인).
+                        const 세트 = (setNamesKo as { ko: string; slug: string }[]).find(
+                          (x) => x.ko === query.trim(),
+                        );
+                        if (세트) {
+                          trackEvent('sets', query.trim());
+                          setSetsInitialSlug(세트.slug);
+                          navigate({ view: 'sets' });
+                          return;
+                        }
+                        confirmSearch(query, 'enter');
                       }}
                       onKeyNav={handleSuggestKey}
                     >
@@ -2364,7 +2446,14 @@ function App() {
                   "토글 위치가 자리를 너무 많이 차지한다"). 예전엔 검색창 아래로 토글 한 줄 +
                   설명 한 줄이 따로 쌓여 결과가 그만큼 밀려 내려갔다. 왼쪽 정렬로 붙이면
                   설명이 어느 토글에 대한 말인지도 눈으로 이어진다. */}
-              <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1.5 pl-1.5">
+              {/* ⚠️⚠️ **폭 클래스를 검색줄과 똑같이 둘 것**(`max-w-3xl lg:max-w-5xl`).
+                  검색줄이 나중에 `lg:max-w-5xl`을 얻었는데 이 줄은 안 따라가서, 넓은 화면에서
+                  **검색바는 왼쪽 121px인데 이 줄만 255px에서 시작**했다(사장님 지적 2026-08-14:
+                  "검색바 밑에 설명이랑 토글 왼쪽으로 정렬해줘"). 둘 다 `mx-auto`로 가운데
+                  맞추므로 **폭이 다르면 시작점이 어긋난다.**
+                  ⚠️ `pl-1.5`(6px)는 일부러 둔 것이다 — 검색바 테두리가 아니라 **그 안의 마켓
+                     칩**과 줄을 맞춘다(칩 127px = 검색바 121 + 6). 지우지 말 것. */}
+              <div className="mx-auto mb-4 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-1.5 pl-1.5 lg:max-w-5xl">
                 {/* ⚠️ 소스(SNKRDUNK·eBay·TCGplayer) 고르는 줄을 검색창 안으로 옮겼다
                     (2026-08-05 운영자 지시). 검색창 한 줄 + 토글 한 줄로 두 줄을
                     쓰고 있었는데, 검색창 왼쪽에 넣으니 한 줄로 준다.
@@ -2381,10 +2470,10 @@ function App() {
                        그래서 발매판 토글은 아직 안 붙인다 — 고를 만큼 고르게 있지가 않다.
                        영문판 카드를 스캔하면 이베이로 보내는 것도 같은 이유다
                        (applyScanResult 참고). */}
-                {(source === 'ebay' || source === 'tcgplayer') && (
+                {board켬 && (
                   <div className="inline-flex rounded-full border border-neutral-300 p-1">
                     {/* ⚠️ 판을 **사용자가 직접** 고르면, 자동으로 옮기며 남긴 안내는 지운다.
-                        안 지우면 한글판을 보고 있는데 "이베이 낙찰(일본판)에서 찾고 있습니다"가
+                        안 지우면 영문판을 보고 있는데 "이베이 낙찰(일본판)에서 찾고 있습니다"가
                         그대로 떠 있어 사실과 어긋난다(2026-08-07 점검 중 발견).
                         마켓을 바꿀 때(switchSource)와 같은 처리다 — 자동 이동도 함께 멈춘다.
                         사람이 고른 자리에서 값이 없다고 저절로 딴 데로 옮기면 안 된다. */}
@@ -2414,58 +2503,47 @@ function App() {
                     >
                       영문판
                     </button>
-                    {/* 한글판은 이베이 전용(Browse API 호가). TCGplayer엔 한국판이 없어 안 띄운다. */}
-                    {source === 'ebay' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          set도감안내(null);
-                          자동이동ref.current = false;
-                          setEdition('korean');
-                        }}
-                        className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
-                          edition === 'korean' ? 'bg-black text-white' : 'text-neutral-600'
-                        }`}
-                      >
-                        한글판
-                      </button>
-                    )}
+                    {/* ⚠️ **한글판은 뺐다**(사장님 지시 2026-08-10). 이베이 Browse API로 받던
+                        것인데 **낙찰가가 아니라 호가**라 나머지(낙찰가)와 값의 성격이 달랐고,
+                        매물 제목으로만 찾아 세트·번호를 못 좁혔다 — 무작위 10장으로 재 봤을 때
+                        매물이 있던 카드가 **전부 다른 세트**였다(2026-08-07 실측).
+                        되살리려면 이 자리에 버튼을 넣고 server의 ebay-korean 길을 되돌리면 된다. */}
                   </div>
                 )}
-                {/* ⚠️ 스니커덩크 탭에 있던 "한글판 시세 보기" 버튼을 뺐다(2026-08-05
-                    운영자 지시). 넣었던 이유는 "한글판 시세를 볼 수 있다는 걸 아무도
-                    모른다"였는데(2026-08-04), 탭 줄에 버튼이 하나 더 붙어 어수선했다.
-                    한글판은 eBay 탭 → 판 선택에서 그대로 고를 수 있다.
-                    다시 넣고 싶으면 여기에 되살리면 된다. */}
+                {/* ⚠️ **새 길에도 마켓 토글을 따로 두지 않는다**(사장님 지시 2026-08-12:
+                    "어차피 검색바에 마켓 변경 할수있으니까 마켓 토글은 없애줘").
+                    마켓은 검색창 왼쪽 칩 한 곳에서만 고른다 — 같은 것을 말하는 자리가
+                    둘이면 서로 어긋나고, 어느 쪽이 진짜인지 헷갈린다. */}
                 {/* 어디 시세인지 한 줄로 밝힌다.
-                    ⚠️ 한글판은 같은 이베이라도 값의 성격이 다르다 — Browse API라 "지금 올라온
-                       매물 호가"이고, 나머지는 낙찰가다. 뭉뚱그리면 틀린 말이 된다.
                     ⚠️ 왼쪽 마켓 칩(SNKRDUNK·eBay·TCGplayer)에 딸린 설명이라 왼쪽에 붙인다
                        (운영자 지시 2026-08-05). 이제는 판 토글과 같은 줄에 나란히 선다. */}
                 <p className="text-xs text-neutral-400">
                   {source === 'snkrdunk'
                     ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
-                    : source === 'tcgplayer'
-                      ? 'TCGplayer — 미국 마켓가입니다.'
-                      : edition === 'korean'
-                        ? 'eBay 한글판 — 지금 올라온 매물의 호가입니다(낙찰가가 아닙니다).'
-                        : 'eBay — 등급별 낙찰가입니다.'}
+                    : // 해외 시세는 두 값을 함께 들고 온다. 지금 무엇을 보고 있는지 밝힌다.
+                      `우리 도감에서 카드를 찾아, 받아 둔 ${board마켓 === 'tcgplayer' ? 'TCGplayer 미국 마켓가' : 'eBay 등급별 낙찰가'}를 붙였습니다.`}
                 </p>
               </div>
 
               {/* 스캔 안내. "이 결과가 왜 이렇게 나왔는지"를 말하는 글이라 결과 바로
                   위에 둔다. 검색창과 판 토글 사이에 있으면 뜰 때마다 그 둘을 갈라놓는다
                   (운영자 지적 2026-08-06). 뜰 때만 자리를 차지하므로 평소엔 영향이 없다. */}
-              {(scanFoundByArtist > 0 ||
+              {/* ⚠️ **검색어가 없으면 통째로 안 낸다.** 이 안내들은 전부 「지금 찾고 있는
+                  것」에 대한 말이라, 찾는 게 없으면 할 말이 없다. 위 goHome이 상태를
+                  거두지만, 뒤로가기·주소 직접 입력처럼 그 길을 안 거치는 경우가 있어
+                  **화면에서 한 번 더** 막는다(같은 실수가 다시 나기 쉬운 자리다). */}
+              {query.trim() !== '' &&
+                (scanFoundByArtist > 0 ||
                 scanFellBack ||
                 도감안내 ||
                 // 시세를 못 받았을 때도 "무엇을 찾고 있는지" 그림을 보여준다.
-                // ⚠️ 오류 상태가 마켓마다 따로다. 스니커덩크만 보면 이베이·TCGplayer로
-                //    넘어간 카드에는 그림이 안 붙는다(2026-08-07 점검 중 발견).
-                ((error || ebayError) && 도감카드(query)) ||
-                (edition === 'korean' && 도감카드(query)) ||
+                // ⚠️ 여기 `error`는 스니커덩크 것이다. 해외 시세는 우리 파일만 읽어
+                //    통째로 실패할 일이 없다(옛 길은 저쪽을 불러서 오류 칸이 따로 있었다).
+                (error && 도감카드(query)) ||
                 scannedResult) && (
-                <div className="mx-auto mb-4 max-w-3xl pl-1.5">
+                <div className="mx-auto mb-4 max-w-3xl pl-1.5 lg:max-w-5xl">
+                  {/* ⚠️ 위 토글 줄과 같은 이유로 폭을 검색줄에 맞춘다(`lg:max-w-5xl`).
+                      이 안내들도 검색바 바로 아래에 붙는 글이라 시작점이 같아야 한다. */}
                   {scanFoundByArtist > 0 && (
                     <p className="text-xs text-neutral-400">
                       카드 번호가 안 보여서 일러스트레이터로 찾았습니다. 내 카드가 아니면 카드 이름으로 다시 검색해
@@ -2483,7 +2561,7 @@ function App() {
                   {(() => {
                     const 누른것 = 도감카드(query);
                     const 그림 = 누른것?.img;
-                    if (!도감안내 && !((error || ebayError) && 누른것)) return null;
+                    if (!도감안내 && !(error && 누른것)) return null;
                     return (
                       <div className="mt-1 flex items-start gap-2">
                         {usable(그림) && (
@@ -2498,28 +2576,6 @@ function App() {
                       </div>
                     );
                   })()}
-                  {/* ⚠️ 한글판은 이베이 **매물 제목**으로 찾는다. 세트 이름이나 번호로
-                      좁힐 방법이 없어서, 도감에서 그 한 장을 눌러 와도 같은 이름의 다른
-                      세트 매물이 섞여 나온다(밴디트 링 022 샤미드를 눌렀는데 이브이
-                      히어로즈 074 매물이 떴다 — 점검 중 발견 2026-08-06).
-                      말없이 두면 그 카드의 값으로 오해한다.
-                      ⚠️ "섞일 수 있다"고만 적었더니 실제보다 순한 말이었다. 무작위 10장으로
-                         재 보니 매물이 있던 4장이 **모두** 다른 세트였다(2026-08-07).
-                         한글판 매물 자체가 드물어(10장 중 4장) 이름만 같은 것이 올라온다.
-                         알고 고르도록 실측한 대로 적는다.
-                      ⚠️ 매물 제목에서 번호를 뽑는 것은 된다(24건 중 20건, 83%). 그래도
-                         "이건 다른 카드입니다"라고 **자동으로 판정하지는 않는다** —
-                         한국판은 서포트·굿즈 블록을 한글 가나다순으로 다시 매겨서
-                         번호가 달라도 같은 카드일 때가 있다(CLAUDE.md 카드명 번역 항목).
-                         잘못 "다른 카드"라고 붙이면 지금보다 나쁘다. 제목을 그대로 보여
-                         주고 판단은 사람에게 맡긴다. */}
-                  {edition === 'korean' && 도감카드(query) && (
-                    <p className="mt-1 text-xs text-neutral-400">
-                      한글판은 매물 제목으로만 찾아 세트·번호까지 좁히지 못합니다. 무작위 10장으로 재 보니 매물이
-                      있던 카드는 모두 다른 세트였습니다(2026-08-07 실측). 아래 제목의 세트·번호를 직접
-                      확인해 주세요.
-                    </p>
-                  )}
                   {/* 스캔 직후에만 뜨는 신고 링크. 사진은 안 보내고 "뭐라고 읽었는지"만 보낸다. */}
                   {scannedResult && (
                     <p className="mt-1 text-xs text-neutral-400">
@@ -2550,27 +2606,28 @@ function App() {
                   설정이라, 홈 화면까지 바꾸지는 않는다. */}
               {isHome ? (
                 <DetailLayout main={homeMain} detail={null} />
-              ) : source === 'ebay' && edition === 'korean' ? (
-                <DetailLayout main={<KoreanEbayView query={query.trim()} />} detail={null} />
-              ) : source === 'ebay' || source === 'tcgplayer' ? (
+              ) : board켬 ? (
+                // 새 길. 상세도 옛 것을 그대로 쓴다 — 형태를 맞추라는 지시였다.
                 <DetailLayout
-                  main={ebayMain}
+                  main={boardMain}
                   detail={
-                    ebaySelectedCard ? (
-                      source === 'tcgplayer' ? (
-                        <TcgPlayerCardDetail card={ebaySelectedCard} edition={edition} />
+                    boardSelectedCard ? (
+                      board마켓 === 'tcgplayer' ? (
+                        <TcgPlayerCardDetail card={boardSelectedCard} edition={edition} />
                       ) : (
-                        <EbayCardDetail card={ebaySelectedCard} edition={edition} />
+                        <EbayCardDetail card={boardSelectedCard} edition={edition} />
                       )
                     ) : null
                   }
-                  onCloseDetail={() => setEbaySelectedId(null)}
+                  onCloseDetail={() => setBoardSelectedId(null)}
+                  아래막힘={시트아래막힘}
                 />
               ) : (
                 <DetailLayout
                   main={searchMain}
                   detail={selectedCard ? <CardDetail card={selectedCard} /> : null}
                   onCloseDetail={() => setSelectedId(null)}
+                  아래막힘={시트아래막힘}
                 />
               )}
             </>
@@ -2582,10 +2639,10 @@ function App() {
         <Footer />
       </div>
 
-      {/* 카드 비교(운영자 베타) — 담은 카드가 있으면 하단 바, 비교하기 누르면 표.
+      {/* 카드 비교 — 담은 카드가 있으면 하단 바, 비교하기 누르면 표.
           소스(스니덩크/이베이)별로 트레이가 따로 있고, 지금 보는 소스의 것만 띄운다. */}
       {showCompare && source === 'snkrdunk' && compareCards.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] backdrop-blur">
+        <div className="compare-bar fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-2">
             <span className="flex-shrink-0 text-xs font-semibold text-neutral-500">비교 {compareCards.length}/2</span>
             <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
@@ -2617,8 +2674,8 @@ function App() {
           </div>
         </div>
       )}
-      {showCompare && source === 'ebay' && compareEbay.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] backdrop-blur">
+      {showCompare && source === 'cardboard' && compareEbay.length > 0 && (
+        <div className="compare-bar fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-2">
             <span className="flex-shrink-0 text-xs font-semibold text-neutral-500">비교 {compareEbay.length}/2</span>
             <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
@@ -2653,7 +2710,7 @@ function App() {
       {showCompare && compareOpen && source === 'snkrdunk' && compareCards.length === 2 && (
         <CompareView cards={compareCards} onClose={() => setCompareOpen(false)} onRemove={removeCompare} />
       )}
-      {showCompare && compareOpen && source === 'ebay' && compareEbay.length === 2 && (
+      {showCompare && compareOpen && source === 'cardboard' && compareEbay.length === 2 && (
         <EbayCompareView cards={compareEbay} onClose={() => setCompareOpen(false)} onRemove={removeCompareEbay} />
       )}
 

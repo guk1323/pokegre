@@ -104,7 +104,7 @@ for (const { p, 이름: 볼이름 } of 볼것) {
     continue
   }
   // 서버가 쓰는 그 함수를 그대로 돌린다 — 배포 없이 실제로 나갈 값을 본다.
-  for (const c of shapeEbayCards(await r.json(), 'ebay') as unknown as 카드[]) {
+  for (const c of (await shapeEbayCards(await r.json(), 'ebay')) as unknown as 카드[]) {
     카드수++
     // ⚠️ **갈라 담은 카드는 원래 카드 것을 물려받으면 안 된다.** 사진·레어도·TCGplayer 값은
     //    묶인 칸 하나의 것이라, 물려주면 갈라 놓은 카드가 **전부 같은 값**을 달고 나온다

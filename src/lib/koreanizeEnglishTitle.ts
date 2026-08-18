@@ -4,7 +4,7 @@ import cardNameKoEn from '../data/cardNameKoEn.json' with { type: 'json' };
 
 // 영문 카드명 → 한글. scripts/gen-ko-en-cards.mts가 만든 "한글 → 영문"을 뒤집은 것이다.
 // 왜 뒤집어 쓰는가: 같은 카드가 탭마다 다른 이름으로 보였다("올림박사의 기백"(스니커덩크)
-// vs "올림박사의 기력"(이베이)). 공식 카드명을 확인해 보면 일본어 경로 쪽이 맞다 —
+// vs "올림박사의 기상"(이베이)). 공식 카드명을 확인해 보면 일본어 경로 쪽이 맞다 —
 // 그쪽은 포켓몬코리아 공식명과 계속 대조해 왔고, 이 영문 표는 그런 검증이 없었다.
 // 그래서 아래 손 사전보다 이걸 먼저 본다.
 // 같은 영문에 한글이 둘 이상 붙은 것은 어느 쪽인지 알 수 없으므로 뺀다.
@@ -115,6 +115,12 @@ export const STRUCTURAL_EN_TO_KO: [string, string][] = [
   // e카드 시절 타입별 굿즈 8종. "Fire Cube 01"처럼 번호가 붙어 와 통짜 조회가 안 걸리므로
   // 낱말로 쪼개지기 전에 여기서 잡는다(안 그러면 "파이어큐브 01"로 띄어 나온다).
   // 일본판과 같은 꼴로 붙여 쓴다. 파이어·워터·라이트닝·사이킥은 사용자 확인(2026-08-01).
+  // ⚠️ **「Prism Star」는 카드 표기라 이름 뒤에 붙어 온다**("Diancie Prism Star").
+  //    통짜 조회로는 못 잡아 30장이 「디안시 Prism Star」로 나가고 있었다(2026-08-16).
+  //    공식 표기는 **띄어쓰기 없이 「프리즘스타」**다(사장님 확인 2026-08-16).
+  //    ⚠️ 「Team Star」·「Star Piece」·골드스타(☆)와 헷갈리면 안 되므로 **두 낱말을
+  //       통째로** 잡는다. 'Star' 한 낱말짜리 규칙을 새로 만들지 말 것.
+  ['Prism Star', '프리즘스타'],
   ['Fire Cube', '파이어큐브'],
   ['Water Cube', '워터큐브'],
   ['Lightning Cube', '라이트닝큐브'],
@@ -620,7 +626,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Billowing Smoke': '자욱한 연기',
   'Bird Keeper': '새조련사',
   Blanche: '블랑쉐',
-  'Blunder Policy': '실수보험',
+  "Blunder Policy": '헛스윙보험',
   'Boost Shake': '부스트셰이크',
   'Box of Disaster': '재앙의 상자',
   Brandon: '진철',
@@ -634,7 +640,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Cape of Toughness': '질긴의 망토',
   'Capture Energy': '캡처 에너지',
   'Capturing Aroma': '캡처아로마',
-  'Chili & Cilan & Cress': '덴트·콩두·팟',
+  "Chili & Cilan & Cress": '팟과 덴트와 콘',
   Choy: '상인',
   'Circhester Bath': '키르쿠스타운 온천',
   'Cleansing Gloves': '정화의 글러브',
@@ -747,7 +753,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Sitrus Berry': '자뭉열매',
   'Sky Seal Stone': '하늘의 봉인석',
   'Snow Leaf Badge': '눈과 잎의 배지',
-  'Sordward & Shielbert': '실디 & 소드',
+  "Sordward & Shielbert": '소도와 시실디',
   Spark: '스파크',
   'Speed Lightning Energy': '스피드 번개 에너지',
   'Spicy Seasoned Curry': '매운 맛 카레',
@@ -922,7 +928,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Rescue Stretcher': '구조키트',
   'Reset Stamp': '리셋 스탬프',
   'Return Label': '반송 라벨',
-  'Sabrina & Brycen': '초련 & 담죽',
+  "Sabrina & Brycen": '초련&담죽',
   'Sabrina\'s Suggestion': '초련의 제안',
   'Samson Oak': '송호오',
   'Sea of Nothingness': '공허의 바다',
@@ -939,7 +945,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Switch Raft': '교체 뗏목',
   'Tag Call': '태그콜',
   'Tag Switch': '태그 스위치',
-  'Tate & Liza': '풍 & 란',
+  "Tate & Liza": '풍&란',
   'Team Skull Grunt': '스컬단 조무래기',
   'The Masked Royal': '로열마스크',
   'Thunder Mountain ◇': '썬더 마운틴 ◇',
@@ -1005,7 +1011,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Here Comes Team Rocket!': '로켓단이 온다!',
   'Hex Maniac': '오컬트 마니아',
   'Jamming Net Team Flare Hyper Gear': '플레어단 하이퍼기어 재밍넷',
-  'Jaw Fossil': '턱카세키',
+  "Jaw Fossil": '턱의 화석',
   'Magnetic Storm': '자기장 폭풍',
   'Max Elixir': '맥스 엘릭서',
   'Max Revive': '기력의 덩어리',
@@ -1030,7 +1036,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Reverse Valley': '리버스 골짜기',
   'Robo Substitute Team Flare Gear': '플레어단 기어 로봇대타출동',
   'Rough Seas': '거친 바다',
-  'Sail Fossil': '지느러미카세키',
+  "Sail Fossil": '지느러미의 화석',
   'Scorched Earth': '타오르는 들판',
   'Shadow Circle': '섀도 서클',
   'Shield Energy': '실드 에너지',
@@ -1127,7 +1133,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Dual Ball': '듀얼볼',
   'Energy Amplifier': '에너지 증폭기',
   'Energy Charge': '에너지 차치',
-  'Energy Removal 2': '에너지 전송 2',
+  "Energy Removal 2": '에너지 리무브2',
   'Energy Stadium': '에너지 스타디움',
   'Fast Ball': '스피드볼',
   Fossil: '카세키',
@@ -1214,8 +1220,10 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Binding Mochi': '사슬떡',
   "Black Belt's Training": '태권왕의 특훈',
   'Black Kyurem ex': '블랙큐레무 ex',
-  'Bloodmoon Ursaluna': '다투곰 붉은 달',
-  'Bloodmoon Ursaluna ex': '다투곰 붉은 달 ex',
+  // ⚠️ 원종 ガチグマ가 **다투곰**이라 붉은 달 폼도 다투곰이다(사장님 확인 2026-08-16).
+  //    「다투곰 붉은 달」로 어순이 뒤집혀 있었다.
+  'Bloodmoon Ursaluna': '붉은 달 다투곰',
+  'Bloodmoon Ursaluna ex': '붉은 달 다투곰 ex',
   'Boomerang Energy': '부메랑 에너지',
   'Bravery Charm': '용기의 부적',
   'Brilliant Blender': '브릴리언트 블렌더',
@@ -1229,8 +1237,16 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   "Clemont's Quick Wit": '시트론의 재치',
   'Colbur Berry': '마코열매',
   'Community Center': '공통 센터',
-  'Cornerstone Mask Ogerpon': '주춧돌의 가면 오거폰',
-  'Cornerstone Mask Ogerpon ex': '주춧돌의 가면 오거폰 ex',
+  // ⚠️⚠️ **오거폰은 「오거폰 ○○의 가면」 — 포켓몬이 앞이다**(사장님 확인 2026-08-16).
+  //    실물 카드 공식 표기가 그렇고, 포켓몬코리아에서 받아 둔 공식 한글명도 그 어순이다
+  //    (`오거폰 벽록의 가면` ×5). 예전엔 여기만 「벽록의 가면 오거폰」으로 뒤집혀 있어서
+  //    **같은 카드가 두 이름으로 갈렸다** — 검색·시세 합산이 따로 놀 자리였다.
+  //    영어 이름은 「Teal Mask Ogerpon」으로 가면이 앞이라 그대로 옮기면 틀린다.
+  // 「Prism Star」 구조 규칙이 먼저 걸려 「블랙 Market 프리즘스타」가 되던 것.
+  // 통짜로 적어 두면 정확 조회가 먼저 이겨 안 쪼개진다.
+  'Black Market Prism Star': '블랙마켓 프리즘스타',
+  'Cornerstone Mask Ogerpon': '오거폰 초석의 가면',
+  'Cornerstone Mask Ogerpon ex': '오거폰 초석의 가면 ex',
   'Counter Gain': '카운터 게인',
   'Cycling Road': '사이클링 로드',
   "Cynthia's Power Weight": '난천의 파워웨이트',
@@ -1245,7 +1261,11 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Enriching Energy': '리치 에너지',
   "Erika's Invitation": '민화의 초대',
   "Ethan's Adventure": '심향의 모험',
-  "Explorer's Guidance": '탐험가의 안내',
+  // ⚠️ 이 두 줄은 **일본어 경로(검증된 쪽)와 같은 이름으로 맞춰 둔다.** 예전엔 서로 달라
+  //    ("탐험가의 안내"/"올림박사의 기상") 고칠 때마다 어느 쪽이 맞는지 헷갈렸다.
+  //    실제로 2026-08-11에 이 표만 보고 고쳤다가 되돌렸다. 파일 첫머리 설명 참고 —
+  //    일본어 경로는 포켓몬코리아 공식명과 계속 대조해 왔고, 이 영문 표는 그 검증이 없다.
+  "Explorer's Guidance": '탐험가의 선도',
   'Fan Rotom': '스핀 로토무',
   'Festival Grounds': '축제 광장',
   'Fighting Gong': '격투 징',
@@ -1258,8 +1278,8 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Gravity Mountain': '중력 산',
   'Haban Berry': '야느와르열매',
   'Handheld Fan': '핸디 팬',
-  'Hearthflame Mask Ogerpon': '화덕의 가면 오거폰',
-  'Hearthflame Mask Ogerpon ex': '화덕의 가면 오거폰 ex',
+  'Hearthflame Mask Ogerpon': '오거폰 화덕의 가면',
+  'Hearthflame Mask Ogerpon ex': '오거폰 화덕의 가면 ex',
   "Hop's Bag": '호프의 가방',
   'Hyper Aroma': '하이퍼 아로마',
   "Iris's Fighting Spirit": '아이리스의 투지',
@@ -1300,10 +1320,10 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Payapa Berry': '바나열매',
   'Pokémon League Headquarters': '포켓몬리그 본부',
   Postwick: '펄롱마을',
-  'Precious Trolley': '프레셔스 카트',
+  "Precious Trolley": '프레셔스 캐리어',
   'Premium Power Pro': '프리미엄 파워 프로',
   'Prime Catcher': '프라임 캐처',
-  "Professor Sada's Vitality": '올림박사의 기력',
+  "Professor Sada's Vitality": '올림박사의 기백',
   "Professor Turo's Scenario": '투로박사의 시나리오',
   'Protective Goggles': '방진고글',
   Raifort: '레포르',
@@ -1315,7 +1335,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Roto-Stick': '로토무 셀카봉',
   Ruffian: '불량배',
   'Sacred Ash': '성스러운재',
-  'Scoop Up Cyclone': '회수 사이클론',
+  "Scoop Up Cyclone": '회수사이클론',
   'Scramble Switch': '스크램블 교체',
   'Secret Box': '시크릿 박스',
   'Sparkling Crystal': '반짝이는 결정',
@@ -1326,8 +1346,8 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Surfing Beach': '파도타기 해변',
   'Survival Brace': '서바이벌 깁스',
   'TM Machine': '기술머신 머신',
-  'Teal Mask Ogerpon': '벽록의 가면 오거폰',
-  'Teal Mask Ogerpon ex': '벽록의 가면 오거폰 ex',
+  'Teal Mask Ogerpon': '오거폰 벽록의 가면',
+  'Teal Mask Ogerpon ex': '오거폰 벽록의 가면 ex',
   "Team Rocket's Archer": '로켓단의 아폴로',
   "Team Rocket's Ariana": '로켓단의 아테나',
   "Team Rocket's Bother-Bot": '로켓단의 방해 로봇',
@@ -1350,8 +1370,8 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Vengeful Punch': '보복의 펀치',
   "Wally's Compassion": '민진의 자비',
   'Wash Rotom': '워시 로토무',
-  'Wellspring Mask Ogerpon': '우물의 가면 오거폰',
-  'Wellspring Mask Ogerpon ex': '우물의 가면 오거폰 ex',
+  'Wellspring Mask Ogerpon': '오거폰 우물의 가면',
+  'Wellspring Mask Ogerpon ex': '오거폰 우물의 가면 ex',
   // 회복 아이템
   Potion: '상처약',
   'Super Potion': '좋은상처약',
@@ -1380,7 +1400,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   Pokédex: '포켓몬도감',
   'Pokégear 3.0': '포켓기어3.0',
   PokéNav: '포켓내비',
-  'Pal Pad': '팔패드',
+  "Pal Pad": '친구수첩',
   'Super Rod': '대단한 낚싯대',
   'Air Balloon': '풍선',
   'Rocky Helmet': '울퉁불퉁멧', // 공식 카드 SV1V 073으로 확인
@@ -1393,7 +1413,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Strength Charm': '힘의 부적',
   'Escape Rope': '탈출용밧줄',
   'Warp Point': '워프포인트',
-  'Energy Switch': '에너지 전환',
+  "Energy Switch": '에너지 갈아타기', // 공식명(사장님 확인 2026-08-16). 「갈아달기」로 적혀 있었다.
   'Energy Search': '에너지 서치',
   'Energy Retrieval': '에너지 회수',
   'Energy Recycler': '에너지 리사이클',
@@ -1417,7 +1437,7 @@ const ITEM_EN_TO_KO: Record<string, string> = {
   'Rainbow Energy': '무지개 에너지',
   'Multi Energy': '멀티 에너지',
   'Double Colorless Energy': '더블 무색 에너지',
-  'Double Rainbow Energy': '더블무지개 에너지',
+  "Double Rainbow Energy": '더블 무지개 에너지',
   'Boost Energy': '부스트 에너지',
   'Basic Water Energy': '기본 물 에너지',
   'Basic Fire Energy': '기본 불꽃 에너지',
@@ -1472,6 +1492,70 @@ const ITEM_EN_TO_KO: Record<string, string> = {
 // 넣기 전에 PPT에 그 이름으로 실제 카드가 잡히는지 하나씩 확인했다 — 이름만 맞아도
 // PPT에 그 카드가 없으면 검색은 여전히 0건이라, 확인된 것만 넣는다.
 const USER_CONFIRMED_EN_TO_KO: Record<string, string> = {
+  "Ho-Oh Legend": "칠색조 LEGEND",
+  // ── 사장님이 공식 한글명을 확인해 주신 것(2026-08-11) ─────────────────────
+  // ⚠️ 꼬리표 매칭을 고친 **뒤에** 남은 것만이다. 고치기 전 목록에는 사전에 이미
+  //    있는 이름이 섞여 있었다 — 그건 여기 넣지 않았다(넣으면 사전과 싸운다).
+  "Ancient Technical Machine [Ice]": "고대기술머신[얼음]",
+  "Ancient Technical Machine [Rock]": "고대기술머신[암석]",
+  "Ancient Technical Machine [Steel]": "고대기술머신[강철]",
+  "Ancient Technical Machine Ice": "고대기술머신[얼음]",
+  "Ancient Technical Machine Rock": "고대기술머신[암석]",
+  "Ancient Technical Machine Steel": "고대기술머신[강철]",
+  "Ash's Friendship": "지우의 우정",
+  "Audrey's Masquerain": "오드리의 비나방",
+  "Boss's Orders [Cyrus]": "보스의 지령 [태홍]",
+  "Boss's Orders [Ghetsis]": "보스의 지령 [게치스]",
+  "Boss's Orders [Lysandre]": "보스의 지령 [플라드리]",
+  "Brock's Vulpix [W Stamped]": "웅의 식스테일 [W 스탬프]",
+  "Bruno's Machamp": "시바의 괴력몬",
+  "Bruno's Technical Machine 01": "시바의 기술머신 01",
+  "Bruno's Technical Machine 02": "시바의 기술머신 02",
+  "BW trainer Kit": "BW 트레이너 키트",
+  "Crystal Tower's Entei": "결정탑의 앤테이",
+  "Darkrai & Cresselia Legend": "다크라이 & 크레세리아 LEGEND",
+  "DP trainer Kit": "DP 트레이너 키트",
+  "Entei & Raikou Legend": "앤테이 & 라이코 LEGEND",
+  "EX trainer Kit": "EX 트레이너 키트",
+  "EX trainer Kit 2": "EX 트레이너 키트 2",
+  "Folklore's Lucario ex": "전설의 루카리오 ex",
+  "Hama-chan's Slowking": "하마짱의 야도킹",
+  "HS trainer Kit": "HS 트레이너 키트",
+  "Kabuto [W Stamped]": "투구 [W 스탬프]",
+  "Kathryn's Surskit": "캐서린의 비구술",
+  "Kyogre & Groudon Legend": "가이오가 & 그란돈 LEGEND",
+  "Lugia Legend": "루기아 LEGEND",
+  "Manaphy's Egg": "마나피의 알",
+  "Misty's Psyduck [W Stamped]": "이슬의 고라파덕 [W 스탬프]",
+  "Ooyama's Pikachu": "오오야마의 피카츄",
+  "Palkia & Dialga Legend": "펄기아 & 디아루가 LEGEND",
+  "Pikachu [W Stamped]": "피카츄 [W 스탬프]",
+  "Pikachu's Summer Vacation": "피카츄의 여름방학",
+  "Poke-lun TV's Pikachu and Friends": "포케란 TV의 피카츄와 친구들",
+  "PokeTV's AD Pikachu": "포케TV의 AD 피카츄",
+  "Professor's Research [Professor Birch]": "박사의 연구 [털보박사]",
+  "Professor's Research [Professor Elm]": "박사의 연구 [공박사]",
+  "Professor's Research [Professor Kukui]": "박사의 연구 [쿠쿠이박사]",
+  "Professor's Research [Professor Magnolia]": "박사의 연구 [매그놀리아박사]",
+  "Professor's Research [Professor Oak]": "박사의 연구 [오박사]",
+  "Professor's Research [Professor Sycamore]": "박사의 연구 [플라타느박사]",
+  "Professor's Research [Professor Willow]": "박사의 연구 [윌로우박사]",
+  "R Energy": "R 에너지",
+  "Rafe's Blaziken": "레이프의 번치코",
+  "Raikou & Suicune Legend": "라이코 & 스이쿤 LEGEND",
+  "Rayquaza & Deoxys Legend": "레쿠쟈 & 테오키스 LEGEND",
+  "Rebecca's Metagross": "레베카의 메타그로스",
+  "Rescue Team DX's Pikachu": "구조대 DX의 피카츄",
+  "Sid's Blastoise": "시드의 거북왕",
+  "Sky's Rayquaza": "천공의 레쿠쟈",
+  "SM trainer Kit": "SM 트레이너 키트",
+  "Suicune & Entei Legend": "스이쿤 & 앤테이 LEGEND",
+  "Suicune & Entei Legend LEGEND": "스이쿤 & 앤테이 LEGEND",
+  "Taipei's Pikachu": "타이베이의 피카츄",
+  "Tory's Feelings": "토오이의 마음",
+  "Tree of Beginning's Mew": "시작의 나무의 뮤",
+  "Wartortle [W Stamped]": "어니부기 [W 스탬프]",
+  "XY trainer Kit": "XY 트레이너 키트",
   "Antique Dome Fossil": "오래된 껍질화석",
   "Antique Helix Fossil": "오래된 조개화석",
   "Battle Compressor": "배틀 컴프레서",
@@ -1737,11 +1821,11 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Desert Shaman": "사막의 주술사",
   "Energy Root": "에너지 뿌리",
   "Fluffy Berry": "푹신푹신 열매",
-  "Holon Research Tower": "홀론 연구탑",
+  "Holon Research Tower": "홀론의 연구탑",
   "Holon Researcher": "홀론의 연구원",
   "Holon Ruins": "홀론의 유적",
   "Holon Scientist": "홀론의 과학자",
-  "Holon Transceiver": "홀론 트랜시버",
+  "Holon Transceiver": "홀론의 트랜시버",
   "Island Cave": "작은섬 동굴",
   "Magma Energy": "마그마 에너지",
   "Mary's Request": "호두의 부탁",
@@ -1923,7 +2007,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "Professor Oak's Visit": "오박사의 방문",
   "Rival": "라이벌",
   "Rocket's Admin.": "로켓단의 간부",
-  "Rocket's Hideout": "로켓단 아지트",
+  "Rocket's Hideout": "로켓단의 아지트",
   "Rocket's Sneak Attack": "로켓단의 야습",
   "Sage's Training": "현인의 수련",
   "Scott": "에니시이다",
@@ -1973,7 +2057,7 @@ const ENGLISH_CARD_EN_TO_KO: Record<string, string> = {
   "May": "봄이",
   "Memory Light": "추억의 빛",
   "Mythical Slab": "환상의 석판",
-  "Nemona's Backpack": "네모의 가방",
+  "Nemona's Backpack": "네모의 백팩",
   "Nighttime Mine": "심야의 광산",
   "Nitro Fire Energy": "나이트로 불꽃 에너지",
   "Peculiar Plaza": "기묘한 광장",
@@ -2115,6 +2199,9 @@ for (const table of [TRAINER_EN_TO_KO, ITEM_EN_TO_KO, USER_CONFIRMED_EN_TO_KO, U
   }
 }
 
+// 꼬리표 안쪽을 옮기려고 이 함수를 다시 부르는 동안만 켜진다(아래 꼬리떼고찾기 설명).
+let 꼬리푸는중 = false;
+
 export function koreanizeEnglishCardName(rawName: string): string {
   // ⚠️ **꼬리를 붙임표로 붙인 이름을 띄어쓴 꼴로 맞춘다** — "Charizard-GX" → "Charizard GX".
   //    원본 자료가 세트마다 달라서 **같은 카드가 두 이름으로 갈렸다**(2026-08-08):
@@ -2153,24 +2240,65 @@ export function koreanizeEnglishCardName(rawName: string): string {
   const exact = lookupExact(exactKey) ?? (deaccented ? lookupExact(deaccented) : undefined);
   if (exact) return exact;
 
-  // PokemonPriceTracker는 "Levincia - 092/063"처럼 이름 뒤에 카드 번호를 붙여 준다.
-  // 번호를 뗀 뒤 찾고, 번호는 그대로 뒤에 다시 붙인다(안 그러면 영문 그대로 남는다).
-  const numbered = exactKey.match(/^(.+?)\s+-\s+([A-Za-z0-9/-]+)$/);
-  if (numbered) {
-    const found = (자동사전끄기 ? undefined : AUTO_EN_TO_KO.get(numbered[1])) ?? TRAINER_EN_TO_KO[numbered[1]] ?? ITEM_EN_TO_KO[numbered[1]] ?? USER_CONFIRMED_EN_TO_KO[numbered[1]] ?? UNVERIFIED_EN_TO_KO[numbered[1]] ?? ENGLISH_CARD_EN_TO_KO[numbered[1]];
-    if (found) return `${found} - ${numbered[2]}`;
-  }
-  // "Judge (Mirror Holo)"처럼 괄호로 인쇄 방식이 붙는 것도 같은 방식으로 처리한다.
-  const suffixed = exactKey.match(/^(.+?)\s+(\([^()]+\))$/);
-  if (suffixed) {
-    const found =
-      (자동사전끄기 ? undefined : AUTO_EN_TO_KO.get(suffixed[1])) ??
-      TRAINER_EN_TO_KO[suffixed[1]] ??
-      ITEM_EN_TO_KO[suffixed[1]] ??
-      USER_CONFIRMED_EN_TO_KO[suffixed[1]] ??
-      UNVERIFIED_EN_TO_KO[suffixed[1]];
-    if (found) return `${found} ${suffixed[2]}`;
-  }
+  // ⚠️⚠️ **이름 뒤 꼬리표를 하나씩 떼면서 사전을 찾는다.**
+  //    카드 이름 뒤에는 두 가지 꼬리가 붙는다 — 번호("Levincia - 092/063")와
+  //    변형 표시("Judge (Mirror Holo)"·"Rocket's Admin. (CLC)"). 사전은 **이름이
+  //    통째로 같아야** 찾으므로, 꼬리를 떼고 찾은 뒤 꼬리를 도로 붙여야 한다.
+  //
+  //    예전엔 이 일을 갈래 두 개로 따로 적어 두었고, 거기서 두 가지가 샜다
+  //    (2026-08-11 사장님이 "로켓단의 Admin."을 보고 지적해 찾음):
+  //      ① **괄호 갈래가 사전 표 여섯 중 다섯만 봤다** — 마지막 ENGLISH_CARD_EN_TO_KO를
+  //         빠뜨렸다. 그래서 `Rocket's Admin.`은 「로켓단의 간부」로 잘 나오는데
+  //         `Rocket's Admin. (CLC)`는 「로켓단의 Admin.」으로 나갔다. 같은 카드다.
+  //      ② **꼬리가 둘 붙으면 아무것도 못 뗐다** — `Fan Rotom - 171/217 (Dusk Ball)`.
+  //    그래서 갈래를 하나로 합치고, 표는 lookupExact 한 곳에서만 뒤진다. 표가 늘어도
+  //    여기 손댈 일이 없다 — **표를 빠뜨릴 자리 자체를 없앴다.**
+  //
+  //    ⚠️ 꼬리로 인정하는 것은 **괄호 한 덩이**와 **띄어쓰기 없는 번호 한 덩이**뿐이다.
+  //       "Ho-Oh"(앞에 공백이 없다)나 "Pikachu - Delta Species"(꼬리에 공백이 있다)는
+  //       안 걸린다 — 그건 꼬리표가 아니라 이름의 일부다.
+  //    ⚠️⚠️ **꼬리표 안쪽도 한글로 옮긴다.** 머리를 사전에서 찾았다고 곧장 돌려주면
+  //       꼬리가 영문 그대로 남는다. 처음 고쳤을 때 이걸 안 해서, 머리는 새로 옮겨졌는데
+  //       꼬리가 도로 영어가 된 이름이 66가지 나왔다(회귀 검사에서 잡음):
+  //           전 "덩쿠림보 - 10/99 (DPPt 아르세우스)"  →  후 "… (DPPt Arceus)"
+  //       꼬리는 이 함수를 다시 태워서 옮긴다 — 규칙이 한 벌뿐이라 어긋날 데가 없다.
+  //    ⚠️ 단, **`(○○ Stamped)`는 손대지 않는다.** 그 꼬리는 뒤에 오는 이름다듬기가
+  //       **세트 이름 사전**으로 옮긴다(`Black Bolt` → `블랙 볼트`. 카드 이름 사전에는
+  //       없는 이름이다). 여기서 미리 반쯤 옮겨 놓으면 그쪽이 못 찾아 「블랙 Bolt 스탬프」가
+  //       된다 — 실제로 4장이 그랬다. 영문 그대로 넘겨야 그쪽이 제 일을 한다.
+  const 꼬리옮기기 = (꼬리: string) =>
+    꼬리.startsWith('(') && !/\bStamped\)$/.test(꼬리)
+      ? `(${koreanizeEnglishCardName(꼬리.slice(1, -1))})`
+      : 꼬리;
+  const 꼬리떼고찾기 = (key: string): string | undefined => {
+    // 꼬리 안쪽을 옮기려고 이 함수를 다시 부르는데, 그 안에서 또 꼬리를 떼면 끝이 없다.
+    if (꼬리푸는중) return undefined;
+    let 머리 = key;
+    const 꼬리들: string[] = [];
+    // 꼬리가 셋 넘게 붙은 이름은 없다. 무한히 돌지 않게 횟수를 막아 둔다.
+    for (let i = 0; i < 3; i++) {
+      // 꼬리 세 가지: 괄호 `(Full Art)` · 대괄호 `[Staff]` · 번호 `- 138/162`.
+      const m = 머리.match(/^(.+?)\s+(\([^()]+\)|\[[^[\]]+\]|-\s*[A-Za-z0-9/.-]+)$/);
+      if (!m) return undefined;
+      머리 = m[1].trim();
+      // ⚠️ 번호 꼬리에만 " - "를 다시 붙인다. 괄호·대괄호에 붙이면 「날쌩마 - [포켓몬센터 NY]」
+      //    처럼 없던 붙임표가 생긴다(2026-08-11 회귀 검사에서 잡음).
+      const 번호꼬리 = !/^[([]/.test(m[2]);
+      꼬리들.unshift(번호꼬리 ? `- ${m[2].replace(/^-\s*/, '')}` : m[2]);
+      const 악센트 = accentKeys.get(stripAccents(머리));
+      const found = lookupExact(머리) ?? (악센트 ? lookupExact(악센트) : undefined);
+      if (!found) continue;
+      꼬리푸는중 = true;
+      try {
+        return [found, ...꼬리들.map(꼬리옮기기)].join(' ');
+      } finally {
+        꼬리푸는중 = false;
+      }
+    }
+    return undefined;
+  };
+  const 꼬리떼고 = 꼬리떼고찾기(exactKey);
+  if (꼬리떼고) return 꼬리떼고;
 
   // 영문판 세트인데 원본 DB가 "ナッシー[Exeggutor]"처럼 일본어 이름에 영어 이름을
   // 대괄호로 덧붙여 둔 경우가 있다. 대괄호 안이 진짜 이름이라 그것만 남긴다.

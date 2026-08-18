@@ -32,7 +32,7 @@ for (const p of 고른것) {
   const q = new URLSearchParams({ language: 'english', search: en, limit: '10', includeEbay: 'true', sortBy: 'price', sortOrder: 'desc' })
   const r = await fetch(`https://www.pokemonpricetracker.com/api/v2/cards?${q}`, { headers: { authorization: `Bearer ${key}` } })
   if (!r.ok) { 섞임.push(`  [저쪽 ${r.status}] "${p.ko}"`); continue }
-  const 온것 = shapeEbayCards(await r.json(), 'ebay') as unknown as { name: string; setName: string }[]
+  const 온것 = (await shapeEbayCards(await r.json(), 'ebay')) as unknown as { name: string; setName: string }[]
   // ⚠️ 이름이 **그 포켓몬을 품고 있으면** 맞는 카드다. 진화형·태그팀도 이름에 들어 있다.
   const 맞나 = (nm: string) => nm.toLowerCase().replace(/[^a-z]/g, '').includes(en.toLowerCase().replace(/[^a-z]/g, ''))
   for (const c of 온것) {

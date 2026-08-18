@@ -4,11 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "대전쟁통계검사": "npx tsx scripts/check-battle-stats.mts",
     "dev": "vite",
     "build": "node scripts/check-deploy-files.mjs && tsc -b && vite build",
     "start": "node --env-file-if-exists=.env server/index.ts",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "대조표": "tsx scripts/card-id-map/build.mts",
+    "대조표검사": "tsx scripts/card-id-map/check.mts",
+    "소스점검": "npx tsx scripts/check-sources.mts",
+    "프린팅전환검증": "npx tsx scripts/check-printings-switch.mts",
+    "뽑기검증": "npx tsx scripts/check-pack-rates.mts"
   },
   "engines": {
     "node": ">=22.18"

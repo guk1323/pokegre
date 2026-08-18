@@ -28,7 +28,10 @@ export const 제목등급칸 = (t: string): string => {
   const s = String(t ?? '')
   // ⚠️ 회사와 숫자 사이에 등급말이 끼는 꼴이 흔하다 — "PSA NM-MT 8" · "CGC NM/MINT 8" ·
   //    "BGS GEM MT 9.5". 이걸 안 넣으면 그 매물이 미감정 칸에 그대로 남는다.
-  const 사이말 = '(?:grade[ds]?|gem\\s*-?\\s*mt|nm\\s*[-/]\\s*(?:mt|mint)|mint|pristine)?'
+  // ⚠️⚠️ `gem` 뒤의 `mt`·`mint`는 **있을 수도 없을 수도 있다.** 예전엔 `gem\\s*-?\\s*mt`로
+  //    못 박아 두어 「**PSA Gem 10**」을 통째로 놓쳤다 — 사장님이 짚어 주신 그 매물이
+  //    정확히 그 꼴이었고(`… Celebrations 15/82 PSA Gem 10`), 그래서 미감정 칸에 남아 있었다.
+  const 사이말 = '(?:grade[ds]?|gem(?:\\s*-?\\s*m(?:t|int))?|nm\\s*[-/]\\s*(?:mt|mint)|mint|pristine)?'
   let m = s.match(new RegExp(`\\b(${회사말})\\s*-?\\s*${사이말}\\s*(10|[1-9](?:\\.5)?)\\b(?!\\d)`, 'i'))
   if (!m) {
     // 회사 이름이 뒤에 오는 꼴: "GEM MT 10 ... PSA" 는 위에서 잡히고, 여긴 "Z gold 10" 같은 것.

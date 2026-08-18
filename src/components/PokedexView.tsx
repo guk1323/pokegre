@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { trackEvent } from '../api/localStats';
 import { useSubScreen } from '../lib/useSubScreen';
+import { SearchInput } from './SearchInput';
+import { CARD_BACK, cardImg, thumb } from '../lib/cardImg';
+import { 보일번호 } from '../lib/cardNo';
+
+/**
+ * 목록에 보일 **대표 카드 그림**. 목록 파일이 두 배로 불지 않게 `cv`에는 PPT 번호만
+ * 적혀 있고(6,177개), PPT 주소가 아닌 것만 주소가 통째로 들어 있다(223개).
+ * 주소는 여기서 만든다 — 목록이 981KB가 아니라 674KB로 끝난다.
+ */
+const 대표그림 = (cv?: string) => {
+  if (!cv) return CARD_BACK;
+  if (/^\d+$/.test(cv)) return thumb(`https://tcgplayer-cdn.tcgplayer.com/product/${cv}_in_400x400.jpg`, 140);
+  return thumb(cardImg(cv), 140);
+};
 
 // 포켓몬 하나를 고르면 그 포켓몬 카드가 **발매 순으로** 다 나온다. 어느 세트 것인지도
 // 같이 적는다("개굴닌자를 치면 개굴닌자 카드가 다 나오게" — 운영자 지시 2026-08-06).
@@ -18,6 +32,8 @@ interface PokeIndex {
   c: number;
   /** 'p' = 포켓몬 · 't' = 트레이너·에너지 */
   t: 'p' | 't';
+  /** 목록에 보일 대표 카드. PPT 번호 또는 주소. */
+  cv?: string;
 }
 
 interface PokeCard {
@@ -26,8 +42,16 @@ interface PokeCard {
   /** 세트 슬러그 */
   s: string;
   n: string;
+  /**
+   * **카드에 실제로 찍힌 번호**(옛 일본 세트만). 있으면 `n` 대신 이걸 보여 준다.
+   * ⚠️ 1996~2001 구판은 카드 번호가 없고 포켓몬 도감번호가 「No.004」로 찍혀 있는데,
+   *    우리 `n`은 정렬 순번이라 실물과 다르다(파이리가 012 ↔ 카드엔 004).
+   */
+  p?: string;
   img?: string;
   r?: string;
+  /** PPT 번호(tcgPlayerId). 시세를 이름이 아니라 이 번호로 부른다. */
+  tcg?: string;
 }
 
 interface SetMeta {
@@ -73,6 +97,8 @@ export function PokedexView({
     jp: boolean
     /** 누른 카드의 그림. 마켓에 값이 없을 때 무엇을 찾고 있는지 보여주는 데 쓴다. */
     img?: string
+    /** PPT 번호(tcgPlayerId). 시세를 이름이 아니라 이 번호로 부른다. */
+    tcg?: string
   }) => void;
 }) {
   const [index, setIndex] = useState<PokeIndex[] | null>(null);
@@ -206,12 +232,14 @@ export function PokedexView({
             .join(' · ')}
         </p>
 
+        {/* ⚠️ 아래 카드 격자는 **작가 화면과 같은 값**이다. 예전엔 3/5/6칸이라 같은 카드가
+            작가 화면보다 훨씬 작게 보였다(2026-08-09 사장님 지적). */}
         {cards === null ? (
           <p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>
         ) : cards.length === 0 ? (
           <p className="py-16 text-center text-sm text-neutral-400">카드를 불러오지 못했습니다.</p>
         ) : (
-          <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-6">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {cards.map((c, i) => {
               const meta = sets?.get(c.s);
               const 이름 = meta && cat ? cat.koName(meta.ed, c.name) : c.name;
@@ -235,6 +263,7 @@ export function PokedexView({
                       setNameKo: 세트,
                       num: c.n,
                       jp: meta?.ed !== 'en',
+                      tcg: c.tcg,
                       // 마켓에 값이 없을 때 "무엇을 찾고 있는지" 보여줄 그림.
                       img: cat && cat.usable(c.img) ? c.img : '',
                     })
@@ -261,7 +290,9 @@ export function PokedexView({
                   <p className="line-clamp-1 text-[10px] text-neutral-400">{세트}</p>
                   {/* 발매 연월. "출시순"이 눈에 보이게 한다. */}
                   <p className="text-[10px] text-neutral-300">
-                    {[(meta?.releaseDate ?? '').slice(0, 7), c.n].filter(Boolean).join(' · ')}
+                    {/* ⚠️ **날것(`c.n`)을 그대로 쓰면 안 된다.** `#577000`처럼 우리가 지어낸
+                        자리표가 그대로 나간다. 세트 화면과 같은 `보일번호()`를 거친다. */}
+                    {[(meta?.releaseDate ?? '').slice(0, 7), c.p ? `No.${c.p}` : 보일번호(c.n)].filter(Boolean).join(' · ')}
                   </p>
                 </button>
               );
@@ -275,42 +306,70 @@ export function PokedexView({
   // ── 포켓몬 고르기 ──────────────────────────────────────────────────────
   const 볼것 = q.trim() ? 찾은것 : 찾은것.slice(0, 보임);
   return (
-    <div className="mx-auto max-w-4xl">
-      <h2 className="text-lg font-bold text-black">포켓몬·트레이너별 카드</h2>
-      <p className="mt-1 text-xs text-neutral-400">
-        이름을 고르면 그 카드가 발매 순으로 나옵니다. 어느 세트 것인지도 함께 적습니다.
-        포켓몬뿐 아니라 트레이너·에너지 카드도 찾을 수 있습니다.
-      </p>
-      <input
-        type="text"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="이름 찾기 (예: 개굴닌자, 박사의 연구)"
-        className="mt-3 w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm focus:border-black focus:outline-none"
-      />
+    // ⚠️ **목록 화면은 `max-w-6xl`.** 세트·작가 목록이 그 폭이라, 여기만 4xl이면 넓은
+    //    화면에서 양옆에 빈 자리가 생긴다(2026-08-09 사장님 지적).
+    //    카드 상세(위 picked 쪽)는 셋 다 4xl이라 그대로 둔다.
+    <div className="mx-auto max-w-6xl">
+      {/* ⚠️ 머리 줄은 **작가 화면과 같은 꼴**로 맞춘다 — 제목·설명은 왼쪽, 검색창은
+          오른쪽에 두고 좁은 화면에선 아래로 접힌다(2026-08-09 사장님 지적). */}
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-bold text-black">포켓몬·트레이너별 카드</h2>
+          <p className="mt-1 text-xs text-neutral-400">
+            이름을 고르면 그 카드가 발매 순으로 나옵니다. 어느 세트 것인지도 함께 적습니다.
+            포켓몬뿐 아니라 트레이너·에너지 카드도 찾을 수 있습니다.
+          </p>
+        </div>
+        {index && index.length > 0 && (
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            placeholder="이름 찾기 (예: 개굴닌자, 릴리에)"
+            className="w-full flex-shrink-0 sm:w-60 md:w-72"
+          />
+        )}
+      </div>
       {index === null ? (
         <p className="py-16 text-center text-sm text-neutral-400">불러오는 중…</p>
       ) : 찾은것.length === 0 ? (
         <p className="py-16 text-center text-sm text-neutral-400">그런 이름을 찾지 못했습니다.</p>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {/* ⚠️ **작가 화면과 같은 칸 꼴**로 맞춘다 — 왼쪽에 대표 카드, 오른쪽에 이름,
+              종수는 폰에서 자기 줄로 내린다(2026-08-09 사장님 지적). */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
             {볼것.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => void open(p)}
-                className="flex items-center justify-between rounded-xl border border-neutral-200 px-3 py-3 text-left hover:border-neutral-300"
+                className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white p-2 text-left hover:shadow-md sm:gap-3 sm:p-3"
               >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-bold text-black">{p.ko}</span>
-                  <span className="block truncate text-[11px] text-neutral-400">
+                <img
+                  src={대표그림(p.cv)}
+                  alt={p.ko}
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => {
+                    const t = e.currentTarget;
+                    if (!t.src.endsWith(CARD_BACK)) t.src = CARD_BACK;
+                  }}
+                  className="h-[64px] w-[46px] flex-shrink-0 rounded object-cover sm:h-[84px] sm:w-[60px]"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-1 text-xs font-bold text-black sm:text-sm">{p.ko}</p>
+                  <p className="line-clamp-1 text-[11px] text-neutral-500 sm:text-xs">
                     {p.t === 't' ? (p.en ? `트레이너·에너지 · ${p.en}` : '트레이너·에너지') : p.en}
-                  </span>
+                  </p>
+                  {/* ⚠️ 세는 말은 **"종"으로 맞춘다**. 셋 다 "서로 다른 카드가 몇 개인가"인데
+                      포켓몬만 "장"이라 세트·작가와 어긋났다(2026-08-08). */}
+                  <p className="mt-0.5 text-[11px] font-semibold text-neutral-400 sm:hidden">
+                    {p.c.toLocaleString()}종
+                  </p>
+                </div>
+                <span className="hidden flex-shrink-0 self-start rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500 sm:inline">
+                  {p.c.toLocaleString()}종
                 </span>
-                {/* ⚠️ 세는 말은 **"종"으로 맞춘다**. 셋 다 "서로 다른 카드가 몇 개인가"인데
-                    포켓몬만 "장"이라 세트·작가와 어긋났다(2026-08-08). */}
-                <span className="ml-2 shrink-0 text-xs font-semibold text-neutral-400">{p.c}종</span>
               </button>
             ))}
           </div>
