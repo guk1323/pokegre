@@ -76,7 +76,7 @@ export interface BoardDetail {
  */
 export async function fetchBoardDetail(
   tcgPlayerId: string,
-  edition: 'japanese' | 'english',
+  edition: 'japanese' | 'english' | 'other',
   signal?: AbortSignal,
   /**
    * **등급표만 달라**(추이·낱개는 빼고). 비교 담기가 쓴다 — 비교표는 등급표만 그리는데
@@ -94,7 +94,7 @@ export async function fetchBoardDetail(
 
 export async function searchCardBoard(
   query: string,
-  edition: 'japanese' | 'english',
+  edition: 'japanese' | 'english' | 'other',
   signal?: AbortSignal,
   /** 도감·세트·작가에서 눌러서 온 그 카드. 주면 맨 앞에 세워 준다(형제 카드도 같이 나온다). */
   콕?: { slug: string; no: string } | null,

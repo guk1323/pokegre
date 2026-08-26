@@ -197,7 +197,7 @@ function AccountCard({
         <div className="min-w-0">
           <p className="text-sm font-bold text-black mb-1">로그인하고 시작하기</p>
           <p className="text-xs text-neutral-500">
-            관심 카드를 계정에 보관하고 커뮤니티에 글을 남길 수 있습니다.
+            관심 카드를 계정에 보관하고 게시판에 글을 남길 수 있습니다.
           </p>
         </div>
         <button

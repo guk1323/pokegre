@@ -13,6 +13,13 @@ const 열쇠 = 'pokegre_battle_sound';
 
 let 통: AudioContext | null = null;
 let 켬 = false;
+/**
+ * ⚠️⚠️ **폰 스피커는 작다.** 값을 0.05~0.11로 잡아 뒀는데 PC 스피커 기준이었다 —
+ *    폰에서는 "소리가 안 난다"에 가깝게 들린다. 소리는 **기본이 꺼짐**이고 사람이 켜야
+ *    나오므로 조금 키워도 놀랄 일이 없다.
+ * ⚠️ 너무 키우면 스무 마리가 때릴 때 귀가 아프다 — 때리는 소리는 초당 12번으로 막혀 있다.
+ */
+const 크기배 = 2;
 
 /** 저장해 둔 설정을 읽는다. 기본은 **꺼짐**. */
 export function 소리켜졌나(): boolean {
@@ -21,8 +28,52 @@ export function 소리켜졌나(): boolean {
 export function 소리설정(v: boolean) {
   켬 = v;
   try { localStorage.setItem(열쇠, v ? '1' : '0'); } catch { /* 비공개 모드 */ }
-  if (v) 따기();
+  // ⚠️ **이 함수는 사람이 단추를 누른 그 순간에 불린다** — 폰에서 소리통을 열 수 있는
+  //    거의 유일한 때다. 만들기만 하지 말고 **깨우기까지** 해야 한다.
+  if (v) 깨우자();
 }
+
+/**
+ * ⚠️⚠️⚠️ **폰에서 소리가 안 나던 까닭**(2026-08-18 사장님 지적).
+ *
+ * 폰 브라우저는 **사람이 누르는 그 순간에만** 소리통(AudioContext)을 열어 준다.
+ * 그런데 이 게임의 첫 소리는 대개 **셈에서** 나온다 — 적이 나오거나, 3·2·1이 끝나거나,
+ * 유닛이 때릴 때다. 그때 만들어진 통은 **잠긴 채(suspended)로 태어나고**, 그 자리에서
+ * 부른 `resume()`은 사람이 누른 것이 아니라서 **거절당한다.** 한 번 그렇게 되면
+ * 그 뒤로는 영영 조용하다 — 오류도 안 난다.
+ *
+ * → **사람이 누를 때마다 깨운다.** 이 게임은 카드를 누르지 않으면 진행이 안 되므로
+ *   반드시 한 번은 걸린다. 이미 깨어 있으면 아무 일도 안 한다(값이 거의 0이다).
+ * ⚠️ `once`를 쓰지 않는다 — 나중에 소리를 켜는 사람도 있고, 탭을 갔다 오면 또 잠긴다.
+ */
+function 깨우자() {
+  if (!켬) return;
+  const c = 따기();
+  if (c && c.state === 'suspended') void c.resume();
+}
+
+let 손붙임 = false;
+function 손붙이기() {
+  if (손붙임 || typeof window === 'undefined') return;
+  손붙임 = true;
+  for (const 이름 of ['pointerdown', 'touchend', 'keydown'] as const) {
+    window.addEventListener(이름, 깨우자, { passive: true });
+  }
+  // 탭을 갔다 오면 잠겨 있다 — 돌아왔을 때도 깨운다.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) 깨우자(); });
+}
+
+/**
+ * 모든 소리가 지나가는 **마스터**. 지금은 그냥 통과시키지만, 소리를 한꺼번에 줄이거나
+ * 끄는 일이 생기면 여기 한 곳만 만지면 된다.
+ *
+ * ⚠️ 여기 **분석기를 달아 「진짜로 소리가 나가는지」를 재던 때가 있었다**(2026-08-18).
+ *    폰에서 소리가 안 난다는 말이 나왔을 때, 「내보내라고 시킨 횟수」와 「실제로 나간 것」이
+ *    다르다는 것을 가르려고 붙였다. 원인이 **아이폰 무음 스위치**로 밝혀져 걷어냈다 —
+ *    소리 하나마다 타이머를 열두 개씩 돌리는 것이라 판이 도는 동안 값이 싸지 않다.
+ *    다시 필요하면 `.claude/게임.md`의 「소리가 진짜 나가는지 재는 법」을 보라.
+ */
+let 마스터: GainNode | null = null;
 
 function 따기(): AudioContext | null {
   if (통) return 통;
@@ -30,8 +81,17 @@ function 따기(): AudioContext | null {
     const C = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!C) return null;
     통 = new C();
+    마스터 = 통.createGain();
+    마스터.gain.value = 1;
+    // ⚠️ 새 소리는 스피커(`destination`)가 아니라 **`끝단()`**에 연결할 것.
+    마스터.connect(통.destination);
   } catch { 통 = null; }
   return 통;
+}
+
+/** 소리를 이어 붙일 끝단. 마스터가 없으면(아주 옛 브라우저) 스피커로 바로 간다. */
+function 끝단(c: AudioContext): AudioNode {
+  return 마스터 ?? c.destination;
 }
 
 /**
@@ -54,9 +114,9 @@ function 삑(꼴: OscillatorType, 시작Hz: number, 끝Hz: number, 길이: numbe
   o.frequency.setValueAtTime(시작Hz, t);
   if (끝Hz !== 시작Hz) o.frequency.exponentialRampToValueAtTime(Math.max(1, 끝Hz), t + 길이);
   g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(크기, t + 0.008);
+  g.gain.linearRampToValueAtTime(크기 * 크기배, t + 0.008);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 길이);
-  o.connect(g).connect(c.destination);
+  o.connect(g).connect(끝단(c));
   o.start(t);
   o.stop(t + 길이 + 0.02);
 }
@@ -78,9 +138,11 @@ function 퍽(길이: number, 크기: number, 자름Hz: number) {
   f.type = 'lowpass';
   f.frequency.setValueAtTime(자름Hz, t);
   const g = c.createGain();
-  g.gain.setValueAtTime(크기, t);
+  // ⚠️ 여기에도 `크기배`를 먹인다 — 2026-08-18에 소리를 2배로 올리면서 **이 줄만 빠졌었다.**
+  //    하필 때리는 소리(제일 자주 나는 것)가 그대로여서 「올렸는데 그대로다」가 됐다.
+  g.gain.setValueAtTime(크기 * 크기배, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 길이);
-  src.connect(f).connect(g).connect(c.destination);
+  src.connect(f).connect(g).connect(끝단(c));
   src.start(t);
 }
 
@@ -136,3 +198,6 @@ export const 소리 = {
 
 // 처음 불러올 때 저장된 설정을 반영한다(소리를 내지는 않는다 — 통은 누를 때 만든다).
 켬 = 소리켜졌나();
+// ⚠️ **사람이 누를 때 깨우는 손을 미리 붙여 둔다.** 이게 없으면 폰에서 소리가 안 난다
+//    (위 `깨우자` 설명 참고). 이 파일은 게임 화면에서만 불러오므로 다른 화면에는 안 붙는다.
+손붙이기();

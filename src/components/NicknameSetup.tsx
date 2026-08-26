@@ -36,7 +36,7 @@ export function NicknameSetup({ onDone }: { onDone: (nickname: string) => void }
       <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
         <h2 className="text-base font-bold text-black mb-1">닉네임을 정해주세요</h2>
         <p className="text-xs text-neutral-500 mb-4">
-          커뮤니티에 표시될 이름입니다. 로그인에 쓴 계정의 이름과는 무관하며, 언제든 바꿀 수 있습니다.
+          게시판에 표시될 이름입니다. 로그인에 쓴 계정의 이름과는 무관하며, 언제든 바꿀 수 있습니다.
         </p>
 
         <input

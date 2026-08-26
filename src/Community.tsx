@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { AdSlot } from './components/AdSlot';
 import { useSubScreen } from './lib/useSubScreen';
+import { PostBody, 본문에쓴사진 } from './lib/postFormat';
 import {
   fetchPosts,
   fetchPost,
@@ -240,8 +242,16 @@ function PostList({
             {공지.map((post) => (
               <PostRow key={post.id} post={post} onOpen={onOpen} />
             ))}
-            {이쪽글.map((post) => (
-              <PostRow key={post.id} post={post} onOpen={onOpen} />
+            {이쪽글.map((post, i) => (
+              <div key={post.id} className="contents">
+                {/* 글 5줄 뒤 광고 한 줄. ul의 divide가 줄을 그어 주므로 li로 낀다. */}
+                {i === 5 && (
+                  <li className="list-none px-2">
+                    <AdSlot 형태="가로" 이름="게시판-목록" />
+                  </li>
+                )}
+                <PostRow post={post} onOpen={onOpen} />
+              </div>
             ))}
           </ul>
           {/* 쪽 번호. 한 쪽에 10개씩(사장님 지시 2026-08-11). 한 쪽뿐이면 안 그린다. */}
@@ -303,6 +313,8 @@ function PostDetail({
 }) {
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // 본문이 [사진N]으로 자리를 잡은 사진은 아래 묶음에서 뺀다(같은 사진을 두 번 안 보이게).
+  const 아래사진 = (post.images ?? []).filter((_u, i) => !본문에쓴사진(post.content).has(i + 1));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -414,12 +426,16 @@ function PostDetail({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-neutral-800 whitespace-pre-wrap mb-3">{post.content}</p>
+        <div className="mb-3">
+          <PostBody content={post.content} images={post.images ?? []} />
+        </div>
       )}
-      {/* 작성자가 올린 사진. 누르면 원본을 새 탭으로 연다. */}
-      {post.images && post.images.length > 0 && (
+      {/* 작성자가 올린 사진. 누르면 원본을 새 탭으로 연다.
+          ⚠️ **본문이 [사진N]으로 자리를 잡은 것은 여기서 뺀다** — 안 빼면 같은 사진이
+             본문에 한 번, 아래에 또 한 번 나온다. */}
+      {아래사진.length > 0 && (
         <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {post.images.map((u) => (
+          {아래사진.map((u) => (
             <a key={u} href={u} target="_blank" rel="noreferrer">
               {/* ⚠️ loading="lazy"를 쓰면 안 된다. 높이를 정해 두지 않은 이미지라 불러오기
                   전 높이가 0인데, 그러면 브라우저가 "화면 밖"으로 보고 영영 안 불러와
@@ -447,6 +463,8 @@ function PostDetail({
           {post.likeCount > 0 && <span>{post.likeCount}</span>}
         </button>
       </div>
+
+      <AdSlot 형태="가로" 이름="게시판-글" />
 
       <p className="text-xs font-semibold text-neutral-500 mb-2">댓글 {comments.length}개</p>
       {commentsLoading ? (
@@ -555,7 +573,15 @@ function PostForm({
           break;
         }
         const url = await uploadPostImage(f);
-        setImages((prev) => (prev.length >= MAX_POST_IMAGES ? prev : [...prev, url]));
+        // ⚠️ 올리자마자 본문 끝에 [사진N] 표시를 넣어 준다(2026-08-23). 이게 없으면
+        //    「자리를 정할 수 있다」는 것을 아무도 모른다 — 표시를 원하는 줄로 옮기면
+        //    거기에 사진이 들어간다. 지우면 예전처럼 글 아래 묶음으로 간다.
+        setImages((prev) => {
+          if (prev.length >= MAX_POST_IMAGES) return prev;
+          const 번호 = prev.length + 1;
+          setContent((c) => (c.trimEnd() ? `${c.trimEnd()}\n\n[사진${번호}]\n` : `[사진${번호}]\n`));
+          return [...prev, url];
+        });
       }
     } catch (err) {
       setImgErr(err instanceof Error ? err.message : '사진을 올리지 못했습니다.');
@@ -644,12 +670,33 @@ function PostForm({
               {uploading ? '올리는 중…' : `${images.length}/${MAX_POST_IMAGES}장 · 한 장에 4MB까지`}
             </span>
           </div>
+          {/* 꾸미는 법. 몰라도 그냥 쓰면 예전과 똑같이 나온다 — 알면 더 쓸 수 있다는 안내다. */}
+          <details className="mt-2 text-xs text-neutral-500">
+            <summary className="cursor-pointer font-semibold">글 꾸미는 법</summary>
+            <div className="mt-1.5 space-y-0.5 leading-relaxed">
+              <p>
+                <code>## 제목</code> · <code>### 작은 제목</code> · <code>**굵게**</code> · <code>- 목록</code> ·{' '}
+                <code>---</code> (가로줄)
+              </p>
+              <p>
+                <code>[사진1]</code>을 원하는 줄로 옮기면 그 자리에 사진이 들어갑니다.{' '}
+                <code>[사진1 작게]</code>처럼 크기도 정할 수 있습니다(작게·보통·크게).
+              </p>
+              <p>
+                표는 <code>| 칸 | 칸 |</code>로 쓰고, 다음 줄에 <code>|---|---|</code>를 두면 첫 줄이 머리글이 됩니다.
+              </p>
+            </div>
+          </details>
           {imgErr && <p className="mt-1 text-xs font-semibold text-rose-600">{imgErr}</p>}
           {images.length > 0 && (
             <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {images.map((u) => (
+              {images.map((u, i) => (
                 <div key={u} className="relative">
                   <img src={u} alt="" className="aspect-square w-full rounded-lg object-cover ring-1 ring-neutral-200" />
+                  {/* 본문에 이 번호로 적으면 그 자리에 들어간다. */}
+                  <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white">
+                    [사진{i + 1}]
+                  </span>
                   <button
                     type="button"
                     onClick={() => setImages((prev) => prev.filter((x) => x !== u))}
@@ -694,10 +741,15 @@ export function Community({
   loggedIn,
   isAdmin,
   onRequestLogin,
+  initialPostId,
+  onInitialPostDone,
 }: {
   loggedIn: boolean;
   isAdmin: boolean;
   onRequestLogin: () => void;
+  /** /community/<번호>로 들어왔을 때 바로 열 글. 없으면 목록부터. */
+  initialPostId?: number | null;
+  onInitialPostDone?: () => void;
 }) {
   const [view, setView] = useState<View>('list');
   const [category, setCategory] = useState<PostCategory | null>(null);
@@ -737,19 +789,38 @@ export function Community({
   }
 
   // 글보기·글쓰기를 방문기록 한 칸으로: 뒤로가기가 정확히 직전 화면(목록/글)으로 간다.
-  const sub = useSubScreen<{ v: 'detail' | 'write' | 'edit'; id?: number }>('post', (data) => {
-    if (!data) {
-      setView('list');
-      return;
-    }
-    if (data.v === 'write') {
-      setView('write');
-      return;
-    }
-    // detail·edit 복원은 글을 다시 불러와 글보기로 (수정 화면은 소유권 확인이 필요해
-    // 기록 복원으로는 열지 않는다 — 글에서 다시 수정을 누르면 된다).
-    if (data.id != null) showPost(data.id);
-  });
+  const sub = useSubScreen<{ v: 'detail' | 'write' | 'edit'; id?: number }>(
+    'post',
+    (data) => {
+      if (!data) {
+        setView('list');
+        return;
+      }
+      if (data.v === 'write') {
+        setView('write');
+        return;
+      }
+      // detail·edit 복원은 글을 다시 불러와 글보기로 (수정 화면은 소유권 확인이 필요해
+      // 기록 복원으로는 열지 않는다 — 글에서 다시 수정을 누르면 된다).
+      if (data.id != null) showPost(data.id);
+    },
+    // 닫으면 주소·탭 제목을 목록으로. (App.tsx의 VIEW_PATH·VIEW_TITLE과 같은 값이어야 한다.)
+    { path: '/community', title: '게시판 | pokegre' },
+    // ⚠️ **글 하나에 주소를 준다**(2026-08-23). 이게 없으면 구글이 `/community` 한 쪽만
+    //    읽어서, 정보글을 아무리 쌓아도 검색으로는 아무도 안 온다. 글쓰기 화면은 주소를
+    //    안 바꾼다 — 남에게 보낼 주소가 아니고, 새로고침하면 빈 글쓰기가 뜰 뿐이다.
+    //    ⚠️ 빈 문자열을 돌려주면 안 된다 — useSubScreen이 뒤에 검색어(?notrack=1 등)를
+    //       붙이므로 주소가 「?notrack=1」만 남는 꼴이 된다. 글쓰기는 목록 주소로 둔다.
+    (data) => (data.v === 'detail' && data.id != null ? `/community/${data.id}` : '/community'),
+  );
+
+  // /community/<번호>로 들어온 경우 그 글부터 연다.
+  useEffect(() => {
+    if (initialPostId == null) return;
+    showPost(initialPostId);
+    onInitialPostDone?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPostId]);
 
   function openPost(id: number) {
     showPost(id);

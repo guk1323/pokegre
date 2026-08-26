@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { CardImg } from './components/CardImg';
-import { OnboardingBanner } from './components/OnboardingBanner';
+import { AdSlot, AdRails } from './components/AdSlot';
 import { ThemeToggle } from './components/ThemeToggle';
 // 세트 이름 한글 목록(자동완성에서 고르면 그 세트로 간다). scripts/gen-set-name-suggestions.mts
 import setNamesKo from './data/setNamesKo.json';
@@ -56,6 +56,7 @@ import { PokemonNews } from './components/PokemonNews';
 import { NewSetHitCards } from './components/NewSetHitCards';
 import { EbayCardTile } from './components/EbayCardTile';
 import { EbayCardDetail } from './components/EbayCardDetail';
+import { EbayCheckView } from './components/EbayCheckView';
 import { TcgPlayerCardDetail } from './components/TcgPlayerCardDetail';
 import { CardScanButton } from './components/CardScanButton';
 import { reportScanMiss, scanCard, type CardScanResult } from './api/cardScan';
@@ -63,6 +64,7 @@ import { findCardByIllustrator } from './lib/findCardByIllustrator';
 const Community = lazy(() => import('./Community').then((m) => ({ default: m.Community })));
 import { Footer } from './components/legal/Footer';
 import { PullBanner } from './components/PackShelfPromo';
+import { FeedbackBanner } from './components/FeedbackBanner';
 import { NicknameSetup } from './components/NicknameSetup';
 import { LoginModal } from './components/LoginModal';
 const MyPage = lazy(() => import('./components/MyPage').then((m) => ({ default: m.MyPage })));
@@ -94,7 +96,7 @@ function isWideScreen(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 }
 
-type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'pokedex' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea' | 'population' | 'sealed' | 'pokedefense';
+type MainView = 'cards' | 'mypage' | 'community' | 'centering' | 'artists' | 'pokedex' | 'reports' | 'stats' | 'sets' | 'scantest' | 'packsim' | 'flea' | 'population' | 'sealed' | 'pokedefense' | 'ebaycheck';
 
 // 화면 → 주소. 카테고리를 누르면 주소창도 같이 바뀌게 한다(운영자 지적 2026-08-05 —
 // 카테고리를 옮겨 다녀도 주소가 pokegre.com 그대로라 링크를 복사해 줄 수가 없었다).
@@ -112,6 +114,10 @@ const VIEW_PATH: Partial<Record<MainView, string>> = {
   sealed: '/sealed',
   packsim: '/packsim',
   community: '/community',
+  // ⚠️ **두 층으로 둔다**(사장님 2026-08-18). 「미니게임」은 게임 하나의 이름이 아니라
+  //    게임들이 들어가는 자리다. 둘째 게임이 생기면 `/minigame`을 목록으로 바꾸기만 하면
+  //    되고, 메뉴 이름도 방문자 동선도 그대로 간다.
+  pokedefense: '/minigame/defense',
 };
 
 // 화면 → 브라우저 탭 제목.
@@ -136,12 +142,12 @@ const VIEW_TITLE: Partial<Record<MainView, string>> = {
   population: '포켓몬 카드 감정 수량(팝수) 조회 | pokegre',
   sealed: '포켓몬 카드 미개봉 시세 — 박스·팩 | pokegre',
   packsim: '오늘의 상점 — 포켓몬 카드 팩 열어 보기 | pokegre',
-  community: '커뮤니티 | pokegre',
+  community: '게시판 | pokegre',
   mypage: '마이페이지 | pokegre',
   reports: '신고함 | pokegre',
   stats: '방문 통계 | pokegre',
   scantest: '스캔 테스트 | pokegre',
-  pokedefense: '포켓몬 디펜스 시즌1 | pokegre',
+  pokedefense: '포켓몬 디펜스 · 관동지방 | pokegre',
   flea: '플리마켓 | pokegre',
 };
 
@@ -163,7 +169,11 @@ function viewFromPath(p: string): MainView | null {
   if (/^\/population\/?$/.test(p)) return 'population';
   if (/^\/sealed\/?$/.test(p)) return 'sealed';
   if (/^\/packsim\/?$/.test(p)) return 'packsim';
-  if (/^\/community\/?$/.test(p)) return 'community';
+  // 글 하나짜리 주소(/community/12)도 게시판으로 보낸다 — 검색·링크로 들어오는 길이다.
+  if (/^\/community(\/\d+)?\/?$/.test(p)) return 'community';
+  // ⚠️ 게임이 하나뿐인 동안은 `/minigame`도 그대로 디펜스를 연다.
+  //    둘째 게임이 생기면 **이 한 줄만** 목록 화면으로 바꾼다.
+  if (/^\/minigame(\/defense)?\/?$/.test(p)) return 'pokedefense';
   return null;
 }
 // ⚠️ `cardboard`는 2026-08-12에 붙인 **새 길**이다. 옛 ebay·tcgplayer는 그대로 산다 —
@@ -217,15 +227,16 @@ function DetailLayout({
 }) {
   return (
     <>
-      {detail ? (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-          <div className="min-w-0">{main}</div>
-          {/* 오른쪽 2단은 큰 화면에서만. 좁은 화면에서는 아래 시트가 대신한다. */}
-          <div className="hidden lg:block">{detail}</div>
-        </div>
-      ) : (
-        <div>{main}</div>
-      )}
+      {/* ⚠️⚠️ 상세가 있든 없든 **목록(main)은 같은 자리에 둔다.** 예전엔 상세가 생기면
+          2단 틀로, 없어지면 1단 틀로 **갈아 끼웠다** — 리액트는 부모가 바뀌면 목록을
+          통째로 새로 만들어서, 폰에서 시트를 닫을 때마다 카드 이미지가 전부 다시
+          그려져 **잠깐 사라졌다 나타났다**(사장님 지적 2026-08-21 · 실측: 닫은 뒤
+          첫 타일 img 요소가 새 것으로 바뀜). 틀은 하나로 두고 칸 수만 바꾼다. */}
+      <div className={`grid grid-cols-1 gap-6 ${detail ? 'lg:grid-cols-[1fr_320px]' : ''}`}>
+        <div className="min-w-0">{main}</div>
+        {/* 오른쪽 2단은 큰 화면에서만. 좁은 화면에서는 아래 시트가 대신한다. */}
+        {detail && <div className="hidden lg:block">{detail}</div>}
+      </div>
 
       <DetailSheet open={detail != null} onClose={() => onCloseDetail?.()} 아래막힘={아래막힘}>
         {detail}
@@ -522,6 +533,11 @@ function App() {
   const board마켓: 'ebay' | 'tcgplayer' = source === 'cardboard_tcg' ? 'tcgplayer' : 'ebay';
   const [board받은날, setBoard받은날] = useState<{ 시세: string | null; 낙찰: string | null; 팝수: string | null } | null>(null);
   const [edition, setEdition] = useState<CardEdition>(() => savedNav().edition ?? 'japanese');
+  // 「기타 언어판」(사장님 지시 2026-08-20) — 프랑스·독일판 같은 곁 카드(`~lang`)만 모아 보는
+  // 세 번째 판. ⚠️ edition을 셋으로 안 넓힌다 — edition은 스니커덩크 검색 등 딴 자리도 쓰는
+  // 값이라 값 하나를 더하면 그쪽이 다 흔들린다. 이 값이 참이면 board 길만 'other'로 묻는다.
+  const [board기타언어, setBoard기타언어] = useState(false);
+  const board판: 'japanese' | 'english' | 'other' = board기타언어 ? 'other' : edition;
   const [nickname, setNickname] = useState<string | null>(null);
   const [loggedIn, setLoggedIn] = useState(false);
   const [createdAt, setCreatedAt] = useState<number | undefined>(undefined);
@@ -557,6 +573,10 @@ function App() {
     // +도 받는다(SM1+ 같은 옛 세트 코드). 빼면 그 주소로 들어와도 세트가 안 열린다.
     () => decodeURIComponent(window.location.pathname.match(/^\/set\/([\w.%+-]+)/)?.[1] ?? '') || null,
   );
+  // /community/<번호>로 들어오면 그 글을 바로 연다(검색·링크로 들어오는 길).
+  const [postInitialId, setPostInitialId] = useState<number | null>(
+    () => Number(window.location.pathname.match(/^\/community\/(\d+)/)?.[1]) || null,
+  );
   // 팩 개봉 앨범에서 시세 화면으로 넘어왔는지. 맞으면 "앨범으로 돌아가기"를 띄운다.
   const [backToPacksim, setBackToPacksim] = useState(false);
   // 카드 비교. 최대 2장을 담아 나란히 본다. 베타로 모두에게 공개(2026-07-20).
@@ -585,7 +605,7 @@ function App() {
     //    (크레딧 0 — 서버가 쌓아 둔 것을 읽는다).
     const b = card as BoardCard;
     if (!이미담김 && b.gradesTrimmed && /^\d/.test(card.tcgPlayerId)) {
-      void fetchBoardDetail(card.tcgPlayerId, edition, undefined, true)
+      void fetchBoardDetail(card.tcgPlayerId, board판, undefined, true)
         .then(({ grades }) => {
           if (!grades.length) return;
           setCompareEbay((prev) =>
@@ -681,9 +701,10 @@ function App() {
       // 지금 화면은 setView의 함수형으로 읽는다 — 이 효과는 한 번만 돌아야 해서
       // view를 의존성에 넣을 수 없다.
       setView((v) => {
-        const adminOnly = v === 'reports' || v === 'stats' || v === 'scantest' || v === 'flea'
-          || (v === 'pokedefense' && !개발중);
-        if (adminOnly && !me.isAdmin) return 'cards';
+        const adminOnly = v === 'reports' || v === 'stats' || v === 'scantest' || v === 'flea' || v === 'ebaycheck';
+        // ⚠️ 로컬 개발(npm run dev)에서는 로그인 없이도 운영 화면을 연다 — 운영 메뉴가
+        //    `개발중`으로 이미 보이는 것과 같은 잣대다. 배포판에서는 그대로 막힌다.
+        if (adminOnly && !me.isAdmin && !import.meta.env.DEV) return 'cards';
         if (v === 'packsim' && !me.loggedIn) return 'cards';
         return v;
       });
@@ -1019,7 +1040,7 @@ function App() {
     // 운영자가 로그아웃했는데 운영자 전용 화면이 그대로 열려 있으면 빈 화면만 남는다.
     // (세트별 목록은 공개 화면이라 제외 — 로그아웃해도 그대로 볼 수 있다.)
     // packsim은 이제 이용자 화면이지만 로그인 필요라, 로그아웃하면 홈으로 보낸다.
-    if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'pokedefense' || view === 'packsim')
+    if (view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'ebaycheck' || view === 'packsim')
       setView('cards');
   }
 
@@ -1363,7 +1384,7 @@ function App() {
     const 도감것 = 도감카드(trimmed);
     const 콕 = 도감것 ? { slug: 도감것.slug, no: 도감것.num } : 공유카드ref.current;
     const timer = setTimeout(() => {
-      searchCardBoard(trimmed, edition, ac.signal, 콕)
+      searchCardBoard(trimmed, board판, ac.signal, 콕)
         .then((r) => {
           setBoardItems(r.cards);
           setBoardTotal(r.total);
@@ -1394,7 +1415,7 @@ function App() {
       clearTimeout(timer);
       ac.abort();
     };
-  }, [query, board켬, edition]);
+  }, [query, board켬, board판]);
 
 
   // 인기 검색어 집계. "결과가 도착했나"를 보고 움직인다(resultTick).
@@ -1489,7 +1510,7 @@ function App() {
     const c = boardItems.find((x) => x.tcgPlayerId === boardSelectedId);
     if (!c || c.채워짐) return; // 이미 채운 카드는 다시 안 부른다
     const ac = new AbortController();
-    fetchBoardDetail(boardSelectedId, edition, ac.signal)
+    fetchBoardDetail(boardSelectedId, board판, ac.signal)
       .then(({ grades, tcgHistory, population }) => {
         if (ac.signal.aborted) return;
         setBoardItems((prev) =>
@@ -1497,7 +1518,17 @@ function App() {
             x.tcgPlayerId === boardSelectedId
               ? {
                   ...x,
-                  grades: grades.length ? grades : x.grades,
+                  // ⚠️⚠️ **빈 배열도 그대로 쓴다.** 예전엔 비어 있으면 목록에 실려 온 값을
+                  //    남겼는데, 그 값은 **덤프에서 온 것**이라 우리가 걷어낸 낙찰이 되살아난다.
+                  //    캡틴피카츄는 낙찰 35건이 전부 딴 판(중국판)이라 셈이 0인데, 화면에는
+                  //    「등급 확인 안 됨 14건」이 남아 **기록은 잔뜩인데 값은 없는 꼴**로 보였다
+                  //    (사장님 지적 2026-08-19). 받아오기가 실패하면 여기까지 안 온다
+                  //    (`fetchBoardDetail`이 던진다) — 그러니 **빈 것은 「진짜 없음」이다.**
+                  grades,
+                  // ⚠️ **머리말의 「낙찰 N건」도 같이 맞춘다.** 목록에 실려 온 수는 덤프 것이라
+                  //    걷어낸 낙찰까지 세고 있다. 캡틴피카츄가 「낙찰 35건」인데 아래에는
+                  //    한 줄도 없어, **기록은 잔뜩인데 값은 없는** 꼴로 보였다.
+                  totalSales: grades.reduce((s, g) => s + g.count, 0),
                   gradesTrimmed: false,
                   채워짐: true,
                   // 감정 수량도 이 한 번에 온다 — 화면이 옛 길(`card-extra`)을 따로 안 부른다.
@@ -1518,7 +1549,7 @@ function App() {
       })
       .catch(() => undefined);
     return () => ac.abort();
-  }, [boardSelectedId, boardItems, edition]);
+  }, [boardSelectedId, boardItems, board판]);
 
   const boxResults = useMemo(() => items.filter((c) => c.category === 'box'), [items]);
   const cardResults = useMemo(() => items.filter((c) => c.category === 'card'), [items]);
@@ -1673,7 +1704,11 @@ function App() {
     // ⚠️ 깊은 링크(/set/…·/series/…·/artist/…)로 들어온 사람의 주소는 그대로 둔다.
     //    안 그러면 검색으로 들어오자마자 주소가 목록으로 바뀌어 그 사람이 보던 자리를 잃는다.
     const deep =
-      (view === 'sets' && /^\/(set|series)\//.test(cur)) || (view === 'artists' && /^\/artist\//.test(cur));
+      (view === 'sets' && /^\/(set|series)\//.test(cur)) ||
+      (view === 'artists' && /^\/artist\//.test(cur)) ||
+      // 게시판 글 하나(/community/12)도 깊은 링크다(2026-08-23). 안 빼두면 글을 여는
+      // 순간 이 효과가 주소를 /community로 되돌려, 글마다 주소를 준 뜻이 사라진다.
+      (view === 'community' && /^\/community\/\d+/.test(cur));
     // 깊은 링크는 주소도 제목도 서버가 붙여 준 것을 그대로 둔다.
     if (deep) return;
     const want = VIEW_PATH[view] ?? '/';
@@ -1718,12 +1753,13 @@ function App() {
           있는지"를 보여주는 자리라 검색창에서 멀면 뜻이 없다.
           그때 상점을 위에 둔 이유(폰에서 팩 사진이 잘린다)는 그대로 살아 있으므로,
           상점은 인기 검색어 바로 다음에 둔다 — 뉴스보다는 위다. */}
-      {/* ⚠️ 공지 배너. 2026-08-05에 뺐다가 2026-08-14에 되살렸다(사장님 지시).
-          내릴 때는 이 한 줄만 지우면 되고, 새 공지는 OnboardingBanner.tsx의
-          제목·날짜·본문과 **DISMISS_KEY 뒤 날짜**를 같이 바꾼다(안 바꾸면 전에 닫은
-          사람에게는 새 공지가 안 뜬다). */}
+      {/* ⚠️ 이 자리는 배너 하나만 쓴다. 2026-08-21부터 **의견함**(FeedbackBanner) —
+          공지 배너(OnboardingBanner)를 다시 띄울 일이 생기면 이 줄과 바꾸고,
+          새 공지는 OnboardingBanner.tsx의 제목·날짜·본문과 **DISMISS_KEY 뒤 날짜**를
+          같이 바꾼다(안 바꾸면 전에 닫은 사람에게는 새 공지가 안 뜬다).
+          디펜스 가는 길은 도구 ▸ 미니게임에 그대로 있다. */}
       <div className="mb-6">
-        <OnboardingBanner />
+        <FeedbackBanner />
       </div>
       {/* ⚠️ **인기 검색어를 신팩 힛카드보다 위로 올렸다**(2026-08-09 사장님 지시).
           2026-08-08에 반대로 올렸던 것을 되돌린 것이다. 그때 이유는 "첫 화면에 글자만
@@ -1747,6 +1783,8 @@ function App() {
           ⚠️ 오늘의 상점은 「도구 ▾」로 옮겼지만 TOP 5는 홈에 남긴다 — 뽑기를 안 하는
              사람도 "다른 사람이 뭘 뽑았나"는 보게 된다. */}
       <PullBanner onEnter={() => navigate({ view: 'packsim' })} />
+      {/* 광고 자리 — 승인 전엔 아무것도 안 그린다(src/lib/ads.ts). ?adtest=1로 미리보기 */}
+      <AdSlot 형태="네모" 이름="홈" />
       {/* 검색을 한 번도 안 해도 지금 제일 비싼 카드가 얼마인지 보이게 하려는 자리다.
           어느 세트를 띄울지는 서버가 고른다 — 발매일이 제일 최근이면서 시세가 있는
           세트다. 여기에 세트를 박아 두면 새 팩이 나올 때마다 사람이 고쳐야 한다. */}
@@ -1868,9 +1906,16 @@ function App() {
             <div>
               <p className="text-xs font-semibold text-neutral-500 mb-3">싱글카드</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-                {cardResults.map((card) => (
+                {cardResults.map((card, i) => (
+                  <div key={card.apparelId} className="contents">
+                    {/* ⚠️ 광고는 **꽉 찬 두 줄 뒤**에 온다. 한 줄이 2→3→4장(폭에 따라)이라
+                        경계가 4·6·8로 달라서, 폭마다 하나씩 두고 CSS로 맞는 것만 보인다
+                        (사장님 지적 2026-08-21: "PC는 4장씩 1줄인데 6에서 끊으면 이상하다").
+                        숨은 복제는 광고 요청을 안 낸다(AdSlot의 offsetWidth 검사). */}
+                    {i === 4 && <AdSlot 형태="가로" 이름="검색-목록" className="col-span-full sm:hidden" />}
+                    {i === 6 && <AdSlot 형태="가로" 이름="검색-목록" className="col-span-full hidden sm:block xl:hidden" />}
+                    {i === 8 && <AdSlot 형태="가로" 이름="검색-목록" className="col-span-full hidden xl:block" />}
                   <CardTile
-                    key={card.apparelId}
                     card={card}
                     selected={card.apparelId === selectedId}
                     onSelect={handleSelectCard}
@@ -1879,10 +1924,14 @@ function App() {
                     onCompare={showCompare ? toggleCompare : undefined}
                     inCompare={compareCards.some((c) => c.apparelId === card.apparelId)}
                   />
+                  </div>
                 ))}
               </div>
             </div>
           )}
+
+          {/* 광고 자리 — 승인 전엔 아무것도 안 그린다(src/lib/ads.ts). ?adtest=1로 미리보기 */}
+          {cardResults.length > 0 && <AdSlot 형태="가로" 이름="검색-끝" />}
 
           {hasMore && (
             <button
@@ -1933,15 +1982,18 @@ function App() {
               아니라 **우리 도감에 그 이름이 없다**는 뜻이다. 그대로 말해 준다. */}
           <p className="text-sm text-neutral-500">우리 도감에 그 이름의 카드가 없습니다.</p>
           <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
-            카드 이름의 일부만 쳐 보시거나, 위에서 판(일본판·영문판)을 바꿔 보세요.
+            카드 이름의 일부만 쳐 보시거나, 위에서 판(일본어판·영문판·기타 언어판)을 바꿔 보세요.
           </p>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-            {boardItems.map((card) => (
+            {boardItems.map((card, i) => (
+              <div key={card.tcgPlayerId} className="contents">
+                {i === 4 && <AdSlot 형태="가로" 이름="검색-목록" className="col-span-full sm:hidden" />}
+                {i === 6 && <AdSlot 형태="가로" 이름="검색-목록" className="col-span-full hidden sm:block xl:hidden" />}
+                {i === 8 && <AdSlot 형태="가로" 이름="검색-목록" className="col-span-full hidden xl:block" />}
               <EbayCardTile
-                key={card.tcgPlayerId}
                 card={card}
                 variant={board마켓}
                 selected={card.tcgPlayerId === boardSelectedId}
@@ -1951,8 +2003,10 @@ function App() {
                 onCompare={board마켓 === 'ebay' && showCompare ? toggleCompareEbay : undefined}
                 inCompare={compareEbay.some((c) => c.tcgPlayerId === card.tcgPlayerId)}
               />
+              </div>
             ))}
           </div>
+          <AdSlot 형태="가로" 이름="검색-끝" />
 
           {/* ⚠️ **「더 보기」는 없다 — 찾은 것이 이미 다 나와 있다.**
               천장(2,000장)에 걸린 때만 그렇다고 밝힌다. 말없이 자르면 「이게 전부」로 읽힌다.
@@ -1984,6 +2038,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-neutral-100">
+      <AdRails />
       <div className="mx-auto max-w-6xl bg-white border-x border-neutral-200 min-h-screen">
         <header className="border-b border-neutral-200 bg-white">
           <div className="px-4 py-6">
@@ -2022,7 +2077,14 @@ function App() {
                   `ml-auto`로 오른쪽 끝에 붙인다 — 계정 단추가 오른쪽 끝인 것은 흔한 꼴이고,
                   운영 메뉴가 있든 없든 자리가 안 흔들린다.
                   ⚠️ 넓은 화면(sm↑)은 로고와 한 줄을 나눠 쓰므로 `w-auto`로 되돌린다. */}
-              <nav className="relative z-50 flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2">
+              <nav
+                /* ⚠️ 일반 사용자는 상단이 넷+아이콘이라 왼쪽에 몰리면 오른쪽이 허전하다
+                   (운영자는 「운영」까지 다섯이라 몰아 두는 게 맞다 — 사장님 지시 2026-08-20).
+                   운영 메뉴가 없을 때만 폰에서 고르게 벌린다. sm부터는 원래대로 왼쪽 정렬. */
+                className={`relative z-50 flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:gap-2 ${
+                  isAdmin || 개발중 ? '' : 'justify-between sm:justify-start'
+                }`}
+              >
                 {/* ⚠️ navigate만 부르면 **이미 시세 화면일 때 아무 일도 안 한다**. 공유
                     링크로 들어와 카드를 보다가 "홈"을 눌러도 그 카드에 갇혔다(점검 중
                     발견 2026-08-06). 검색 중에 눌러도 마찬가지였다. 로고(pokegre)와
@@ -2094,6 +2156,11 @@ function App() {
                       //    홈은 시세를 보러 오는 자리인데(시세 검색 2,885회 ↔ 뽑기 424회)
                       //    상점이 한 칸을 크게 먹고 있었다. 메뉴에 두면 찾는 사람은 찾는다.
                       { v: 'packsim', label: '오늘의 상점' },
+                      // ⚠️ **메뉴는 「미니게임」이다 — 게임 이름이 아니라 자리 이름이다.**
+                      //    게임이 늘어날 자리라(사장님 2026-08-18), 게임 이름을 메뉴에 쓰면
+                      //    둘째 게임 때 메뉴를 갈아야 하고 그때 방문자가 익숙해진 자리가 바뀐다.
+                      //    게임 이름(포켓몬 디펜스)은 화면 안 제목에 있다.
+                      { v: 'pokedefense', label: '미니게임' },
                       { v: 'population', label: '팝수' },
                       // ⚠️ 「센터링」이 아니라 **「센터링 측정」**이다(2026-08-14). 눌러서 뭘
                       //    하는지가 이름에 있어야 한다. 화면 제목·페이지 제목·통계 항목·
@@ -2157,7 +2224,10 @@ function App() {
                     view === 'community' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
-                  커뮤니티
+                  {/* ⚠️ 「커뮤니티」가 아니라 **「게시판」**이다(사장님 지시 2026-08-20).
+                      화면 안(전체 게시판·자유게시판)이 이미 게시판이라 이름이 이어진다.
+                      코드 열쇠(community)·주소(/community)·통계 이름은 그대로 둔다. */}
+                  게시판
                 </button>
                 {/* 운영: 운영자 전용 화면(신고함·통계)을 드롭다운 하나로 묶어 상단을 깔끔히 둔다.
                     실제 차단은 서버가 한다 — 주소를 직접 쳐도 데이터를 안 준다. */}
@@ -2167,7 +2237,7 @@ function App() {
                       type="button"
                       onClick={() => setOpenMenu(openMenu === 'admin' ? null : 'admin')}
                       className={`whitespace-nowrap rounded-full px-3 py-2.5 text-sm font-semibold sm:px-4 ${
-                        view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'pokedefense'
+                        view === 'reports' || view === 'stats' || view === 'scantest' || view === 'flea' || view === 'ebaycheck'
                           ? 'bg-black text-white'
                           : 'text-neutral-600 hover:bg-neutral-100'
                       }`}
@@ -2181,7 +2251,7 @@ function App() {
                           { v: 'stats', label: '통계' },
                           { v: 'flea', label: '플리마켓' },
                           { v: 'scantest', label: '스캔 테스트' },
-                          { v: 'pokedefense', label: '디펜스 시즌1' },
+                          { v: 'ebaycheck', label: '이베이 검수' },
                         ] as { v: MainView; label: string }[]).map((it) => (
                           <button
                             key={it.v}
@@ -2215,8 +2285,9 @@ function App() {
                   onClick={() => navigate({ view: 'mypage' })}
                   aria-label={loggedIn ? `마이페이지 (${nickname ?? '로그인됨'})` : '마이페이지'}
                   title={loggedIn ? (nickname ?? '마이페이지') : '마이페이지'}
-                  /* ⚠️ `ml-auto`가 폰에서 이 단추를 줄 오른쪽 끝에 붙인다(위 nav 주석 참고). */
-                  className={`ml-auto grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-sm font-semibold sm:ml-0 ${
+                  /* ⚠️ `ml-auto`는 **운영자일 때만** — 일반 사용자는 nav가 justify-between으로
+                     고르게 벌리는데, auto 여백이 있으면 남는 자리를 혼자 다 먹어 도로 몰린다. */
+                  className={`${isAdmin || 개발중 ? 'ml-auto sm:ml-0' : ''} grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-sm font-semibold ${
                     view === 'mypage' ? 'bg-black text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -2262,6 +2333,8 @@ function App() {
             <FleaAdmin />
           ) : view === 'scantest' ? (
             <ScanTest />
+          ) : view === 'ebaycheck' ? (
+            <EbayCheckView />
           ) : view === 'pokedefense' ? (
             <PokeDefense />
           ) : view === 'packsim' ? (
@@ -2280,7 +2353,7 @@ function App() {
             <SetsView
               initialSlug={setsInitialSlug}
               /* ⚠️ 주소는 인코딩된 채로 온다(%E5%89%A3%E3%81%A8%E7%9B%BE). 시리즈 슬러그는
-                  일본어라 그대로 견주면 일본판 13개가 통째로 안 걸린다 — 탭만 바뀌고
+                  일본어라 그대로 견주면 일본어판 13개가 통째로 안 걸린다 — 탭만 바뀌고
                   그 시리즈로 내려가지 않았다(2026-08-07 점검 중 발견). 풀어서 넘긴다. */
               initialSerie={(() => {
                 const raw = window.location.pathname.match(/^\/series\/([^/?#]+)/)?.[1];
@@ -2295,7 +2368,13 @@ function App() {
               onPickCard={카드로가기}
             />
           ) : view === 'community' ? (
-            <Community loggedIn={loggedIn} isAdmin={isAdmin} onRequestLogin={() => setLoginOpen(true)} />
+            <Community
+              loggedIn={loggedIn}
+              isAdmin={isAdmin}
+              onRequestLogin={() => setLoginOpen(true)}
+              initialPostId={postInitialId}
+              onInitialPostDone={() => setPostInitialId(null)}
+            />
           ) : view === 'centering' ? (
             <CenteringTool onSearchByPhoto={searchByPhoto} />
           ) : view === 'sealed' ? (
@@ -2473,7 +2552,7 @@ function App() {
                 {board켬 && (
                   <div className="inline-flex rounded-full border border-neutral-300 p-1">
                     {/* ⚠️ 판을 **사용자가 직접** 고르면, 자동으로 옮기며 남긴 안내는 지운다.
-                        안 지우면 영문판을 보고 있는데 "이베이 낙찰(일본판)에서 찾고 있습니다"가
+                        안 지우면 영문판을 보고 있는데 "이베이 낙찰(일본어판)에서 찾고 있습니다"가
                         그대로 떠 있어 사실과 어긋난다(2026-08-07 점검 중 발견).
                         마켓을 바꿀 때(switchSource)와 같은 처리다 — 자동 이동도 함께 멈춘다.
                         사람이 고른 자리에서 값이 없다고 저절로 딴 데로 옮기면 안 된다. */}
@@ -2482,26 +2561,43 @@ function App() {
                       onClick={() => {
                         set도감안내(null);
                         자동이동ref.current = false;
+                        setBoard기타언어(false);
                         setEdition('japanese');
                       }}
                       className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
-                        edition === 'japanese' ? 'bg-black text-white' : 'text-neutral-600'
+                        edition === 'japanese' && !board기타언어 ? 'bg-black text-white' : 'text-neutral-600'
                       }`}
                     >
-                      일본판
+                      일본어판
                     </button>
                     <button
                       type="button"
                       onClick={() => {
                         set도감안내(null);
                         자동이동ref.current = false;
+                        setBoard기타언어(false);
                         setEdition('english');
                       }}
                       className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
-                        edition === 'english' ? 'bg-black text-white' : 'text-neutral-600'
+                        edition === 'english' && !board기타언어 ? 'bg-black text-white' : 'text-neutral-600'
                       }`}
                     >
                       영문판
+                    </button>
+                    {/* 기타 언어판(사장님 지시 2026-08-20) — 프랑스·독일판 같은 곁 카드만
+                        모아 보는 판. 검수를 통과해 갈라 둔 낙찰이 이 카드들의 값이다. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        set도감안내(null);
+                        자동이동ref.current = false;
+                        setBoard기타언어(true);
+                      }}
+                      className={`rounded-full px-3.5 py-2 text-xs font-semibold ${
+                        board기타언어 ? 'bg-black text-white' : 'text-neutral-600'
+                      }`}
+                    >
+                      기타 언어판
                     </button>
                     {/* ⚠️ **한글판은 뺐다**(사장님 지시 2026-08-10). 이베이 Browse API로 받던
                         것인데 **낙찰가가 아니라 호가**라 나머지(낙찰가)와 값의 성격이 달랐고,
@@ -2517,12 +2613,24 @@ function App() {
                 {/* 어디 시세인지 한 줄로 밝힌다.
                     ⚠️ 왼쪽 마켓 칩(SNKRDUNK·eBay·TCGplayer)에 딸린 설명이라 왼쪽에 붙인다
                        (운영자 지시 2026-08-05). 이제는 판 토글과 같은 줄에 나란히 선다. */}
-                <p className="text-xs text-neutral-400">
-                  {source === 'snkrdunk'
-                    ? 'SNKRDUNK — 일본 마켓 실거래가입니다.'
-                    : // 해외 시세는 두 값을 함께 들고 온다. 지금 무엇을 보고 있는지 밝힌다.
-                      `우리 도감에서 카드를 찾아, 받아 둔 ${board마켓 === 'tcgplayer' ? 'TCGplayer 미국 마켓가' : 'eBay 등급별 낙찰가'}를 붙였습니다.`}
-                </p>
+                {/* ⚠️ 문구는 사장님이 정한 것이다(2026-08-21). 세 마켓을 같은 꼴로 —
+                    「마켓 — 무슨 값입니다.」 — 맞추고, 이베이·TCGplayer에만 둘째 줄을 단다:
+                    스니덩크는 저쪽에 직접 묻고 이 둘은 **우리 도감에서 찾기** 때문에 나오는
+                    카드 목록이 다르다. 그 사실과 「정확한 카드는 도감에서」를 알린다.
+                    둘째 줄은 첫 줄보다 작고 연하게. 한 덩어리(div)로 묶어야 옆 판 토글과
+                    가운데 맞춤으로 나란히 서고, 폰에서는 통째로 아랫줄로 내려간다. */}
+                <div className="min-w-0 max-w-md text-xs leading-snug text-neutral-500">
+                  {source === 'snkrdunk' ? (
+                    <p>SNKRDUNK — 일본 마켓 실거래가입니다.</p>
+                  ) : (
+                    <>
+                      <p>{board마켓 === 'tcgplayer' ? 'TCGplayer — 미국 마켓 실거래가입니다.' : 'eBay — 등급별 낙찰가입니다.'}</p>
+                      <p className="mt-0.5 text-[11px] text-neutral-400">
+                        검색 결과가 SNKRDUNK와 다를 수 있습니다. 정확한 카드를 찾으시려면 도감을 이용해 주세요.
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* 스캔 안내. "이 결과가 왜 이렇게 나왔는지"를 말하는 글이라 결과 바로

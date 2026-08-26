@@ -90,7 +90,7 @@ async function searchBox(name) {
   }
 }
 
-// 영문판: 스니덩크의 영어판(英語版) 박스 상품을 찾는다. 영어 세트명으로 검색하면
+// 영문판: 스니덩크의 영문판(英語版) 박스 상품을 찾는다. 영어 세트명으로 검색하면
 // 같은 이름의 일본판이 섞여 나올 수 있어서, 제목에 「英語版」이 있는 것만 인정한다.
 async function searchEnBox(name) {
   const params = new URLSearchParams({

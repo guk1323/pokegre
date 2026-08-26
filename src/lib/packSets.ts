@@ -215,7 +215,7 @@ const JP_M2_RARITY_ALIAS: Record<string, string> | undefined = undefined;
 
 const JP = (id: string, name: string, price = 1600, extra: Partial<PackSet> = {}): PackSet => ({
   slug: `ja-${id}`,
-  label: `[일본판] ${name}`,
+  label: `[일본어판] ${name}`,
   src: `/packsim/ja-${id}.json`,
   jp: true,
   // ⚠️ 일본판은 대부분 ACE SPEC 카드가 없다(27개 중 21개). ACE를 확률표에 두면 절대

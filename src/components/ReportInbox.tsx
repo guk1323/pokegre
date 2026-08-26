@@ -6,6 +6,7 @@ import {
   setPostHidden,
   type CommunityReport,
 } from '../api/community';
+import { deleteFeedback, fetchFeedback, type FeedbackItem } from '../api/feedback';
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -18,6 +19,7 @@ function formatDate(ts: number): string {
 // 신고 목록 자체를 안 준다. 여기서 숨기는 건 다른 사람 메뉴를 깔끔하게 두는 편의다.
 export function ReportInbox() {
   const [reports, setReports] = useState<CommunityReport[]>([]);
+  const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -28,6 +30,9 @@ export function ReportInbox() {
       .then(setReports)
       .catch((e) => setError(e instanceof Error ? e.message : '불러오지 못했습니다.'))
       .finally(() => setLoading(false));
+    fetchFeedback()
+      .then(setFeedback)
+      .catch(() => setFeedback([]));
   }
 
   useEffect(load, []);
@@ -69,9 +74,46 @@ export function ReportInbox() {
 
   return (
     <div>
+      {/* 홈 배너로 들어온 의견(2026-08-21). 신고보다 위 — 읽으라고 온 글이라서. */}
+      <h2 className="text-base font-bold text-black mb-1">의견함</h2>
+      <p className="text-xs text-neutral-500 mb-4">홈 배너로 들어온 의견입니다. 보낸 사람에게는 안 보입니다.</p>
+      {feedback.length === 0 ? (
+        <p className="text-sm text-neutral-400 py-8 text-center rounded-xl border border-dashed border-neutral-200 mb-8">
+          아직 들어온 의견이 없습니다.
+        </p>
+      ) : (
+        <ul className="space-y-2 mb-8">
+          {feedback.map((f) => (
+            <li key={f.id} className="rounded-xl border border-neutral-200 p-3">
+              <p className="whitespace-pre-wrap text-sm text-black">{f.text}</p>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-xs text-neutral-400">
+                  {f.author ?? '익명'} · {formatDate(f.at)}
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm('이 의견을 지울까요?')) return;
+                    try {
+                      await deleteFeedback(f.id);
+                      setFeedback((p) => p.filter((x) => x.id !== f.id));
+                    } catch {
+                      window.alert('지우지 못했습니다.');
+                    }
+                  }}
+                  className="text-xs font-semibold text-neutral-400 hover:text-rose-500"
+                >
+                  지우기
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <h2 className="text-base font-bold text-black mb-1">글 신고</h2>
       <p className="text-xs text-neutral-500 mb-4">
-        커뮤니티 게시글·댓글 신고입니다. 가리기는 삭제가 아닙니다 — 언제든 되살릴 수 있고 원문도 남습니다.
+        게시판 글·댓글 신고입니다. 가리기는 삭제가 아닙니다 — 언제든 되살릴 수 있고 원문도 남습니다.
       </p>
 
       {reports.length === 0 ? (

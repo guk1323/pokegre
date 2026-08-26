@@ -17,6 +17,7 @@ import {
   topPricedCards,
   카드요약,
   topPricedBasis,
+  공개게시글,
 } from './api.ts'
 import { 공유이름 } from '../src/lib/cardImg.ts'
 import { serieSlug } from '../src/lib/setNameKo.ts'
@@ -225,9 +226,15 @@ const shareName = 공유이름
  * ⚠️ 칸 이름을 그대로 내보내면 검색 결과에 「psa10 낙찰가」라고 적힌다(실측).
  */
 function 등급표기(칸: string): string {
-  // ⚠️ 감정 안 한 것은 이 리포에서 **「미감정」**이라 부른다(세트 화면·스니커덩크 칸과 같은 말).
-  //    그대로 두면 검색 결과에 「UNGRADED 낙찰가」라고 영문이 섞여 나간다.
-  if (/^ungraded$/i.test(칸)) return '미감정'
+  // ⚠️ 칸 이름을 한글로 바꾼다. 안 그러면 검색 결과에 「UNGRADED 낙찰가」라고 영문이 섞인다.
+  // ⚠️⚠️ **화면(`formatGradeLabel`)과 같은 말을 써야 한다.** 2026-08-19에 두 벌이 어긋나
+  //    있었다 — 화면은 `ungraded`를 「등급 확인 안 됨」, `raw`를 「미감정 싱글」이라 부르는데
+  //    여기만 `ungraded`를 「미감정」이라 내보내, **검색 결과와 실제 화면이 다른 말**을 했다.
+  if (/^ungraded$/i.test(칸)) return '등급 확인 안 됨'
+  if (/^raw$/i.test(칸)) return '미감정 싱글'
+  if (/^기타$/.test(칸)) return '기타 감정 회사'
+  if (/^cgcp10$/i.test(칸)) return 'CGC 프리스틴 10'
+  if (/^bgsbl10$/i.test(칸)) return 'BGS 블랙라벨 10'
   const m = /^([a-z]+)([\d_]*)$/.exec(칸)
   if (!m) return 칸.toUpperCase()
   const 숫자 = m[2].replace(/_/g, '.')
@@ -260,7 +267,7 @@ function buildCardHtml(
       ? `${name}${꼬리 ? ` [${꼬리}]` : ''} 시세 — ${조각.join(' · ')}. 등급별 낙찰가와 감정 수량을 한국어로 봅니다.`
       : card && card.price > 0
         ? `스니커덩크 최저가 ¥${yen.format(card.price)} · 등급별 시세는 pokegre에서`
-        : '일본판·영문판 시세를 한국어로 봅니다.'
+        : '일본어판·영문판 시세를 한국어로 봅니다.'
   const url = `https://pokegre.com${sharePath}`
 
   let html = TEMPLATE
@@ -291,7 +298,7 @@ function buildCardHtml(
     ].filter(Boolean)
     const 본문 =
       `<div id="seo-fallback"><h1>${esc(name)}${꼬리 ? ` [${esc(꼬리)}]` : ''} 시세</h1>` +
-      `<p>${esc(요약.세트)} ${esc(요약.번호)} · ${요약.판 === 'ja' ? '일본판' : '영문판'}</p>` +
+      `<p>${esc(요약.세트)} ${esc(요약.번호)} · ${요약.판 === 'ja' ? '일본어판' : '영문판'}</p>` +
       (줄.length ? `<ul>${줄.join('')}</ul>` : '') +
       `<p>등급별(PSA·BGS·CGC·SGC) 낙찰가와 감정 수량, 시세 추이를 한국어로 봅니다.</p></div>`
     html = html.replace('<div id="root"></div>', `<div id="root"></div>${본문}`)
@@ -589,13 +596,18 @@ app.get('/series/:slug', async (req, res) => {
     return
   }
   const serieKo = koSet(sets[0].ed ?? 'ja', sets[0].serie ?? '')
+  // ⚠️ 판 이름을 제목·설명·h1에 꼭 붙인다. 일본판·영문판 시리즈가 **같은 한글 이름**을
+  //    내서(`/series/platinum`과 `/series/プラチナ` 둘 다 「플래티넘 세트 목록」) 구글이
+  //    한쪽을 대표로 고르고 나머지 15쪽을 「중복」으로 쳤다(서치콘솔 2026-08-21 확인).
+  //    판을 붙이면 서로 다른 페이지로 읽힌다.
+  const 판 = (sets[0].ed ?? 'ja') === 'en' ? '영문판' : '일본판'
   const cards = sets.reduce((n, s) => n + (s.count ?? 0), 0)
   const recent = sets
     .slice()
     .sort((a, b) => String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')))
     .slice(0, 10)
-  const title = `${serieKo} 세트 목록 | pokegre`
-  const desc = `${serieKo} 시리즈 ${sets.length}개 세트, 카드 ${cards}장 — ${recent
+  const title = `${serieKo} 세트 목록 (${판}) | pokegre`
+  const desc = `${판} ${serieKo} 시리즈 ${sets.length}개 세트, 카드 ${cards}장 — ${recent
     .slice(0, 3)
     .map((s) => koSet(s.ed ?? 'ja', s.name))
     .join(' · ')} 등.`
@@ -610,8 +622,8 @@ app.get('/series/:slug', async (req, res) => {
   const list = recent
     .map((s) => `<li><a href="/set/${esc(s.slug)}">${esc(koSet(s.ed ?? 'ja', s.name))}</a> ${s.count ?? 0}종</li>`)
     .join('')
-  const body = `<div id="seo-fallback"><h1>${esc(serieKo)} 세트 목록</h1>` +
-    `<p>${esc(serieKo)} 시리즈는 세트 ${sets.length}개, 카드 ${cards}장입니다.</p><ul>${list}</ul></div>`
+  const body = `<div id="seo-fallback"><h1>${esc(serieKo)} 세트 목록 (${판})</h1>` +
+    `<p>${판} ${esc(serieKo)} 시리즈는 세트 ${sets.length}개, 카드 ${cards}장입니다.</p><ul>${list}</ul></div>`
   html = html.replace('<body>', `<body>${body}`)
   res.set('Cache-Control', HTML_CACHE).send(html)
 })
@@ -741,7 +753,7 @@ app.get('/', async (_req, res) => {
 
   const body =
     '<div id="seo-fallback"><h1>포켓몬 카드 시세</h1>' +
-    '<p>일본판·북미판에서 실제로 팔린 값을 한국어 카드 이름으로 봅니다.</p>' +
+    '<p>일본어판·북미판에서 실제로 팔린 값을 한국어 카드 이름으로 봅니다.</p>' +
     링크묶음('둘러보기', [
       { href: '/sets', text: '세트별 카드 목록' },
       { href: '/artists', text: '일러스트레이터' },
@@ -797,11 +809,11 @@ app.get('/sets', async (_req, res) => {
   res.set('Cache-Control', HTML_CACHE).send(
     seoPage({
       title: '포켓몬 카드 세트 목록 | pokegre',
-      desc: `일본판·영문판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장을 한국어 이름으로 봅니다. 세트마다 값이 높은 카드도 함께 보여줍니다.`,
+      desc: `일본어판·영문판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장을 한국어 이름으로 봅니다. 세트마다 값이 높은 카드도 함께 보여줍니다.`,
       url: 'https://pokegre.com/sets',
       body:
         '<h1>포켓몬 카드 세트 목록</h1>' +
-        `<p>일본판·영문판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장입니다. ` +
+        `<p>일본어판·영문판 세트 ${sets.length}개, 카드 ${장수.toLocaleString()}장입니다. ` +
         '세트를 누르면 수록 카드를 한국어 이름으로 보고, 값이 높은 카드도 함께 볼 수 있습니다.</p>' +
         본문,
     }),
@@ -866,7 +878,7 @@ app.get('/pokedex', async (_req, res) => {
       body:
         '<h1>포켓몬·트레이너별 카드</h1>' +
         `<p>포켓몬 ${포켓몬수}종, 트레이너·에너지 ${list.length - 포켓몬수}종, 카드 ${장수.toLocaleString()}장입니다. ` +
-        '이름을 고르면 그 카드가 일본판·영문판을 통틀어 발매 순으로 나오고, ' +
+        '이름을 고르면 그 카드가 일본어판·영문판을 통틀어 발매 순으로 나오고, ' +
         '어느 세트에서 나온 카드인지도 함께 적습니다.</p>' +
         `<ul>${li}</ul>`,
     }),
@@ -891,7 +903,7 @@ app.get('/packsim', (_req, res) => {
       body:
         '<h1>오늘의 상점</h1>' +
         '<p>실제 봉입률에 맞춰 포켓몬 카드 팩을 열어 보는 곳입니다. ' +
-        '상품은 매일 자정에 새롭게 갱신됩니다. 오늘은 일본판 3종·영문판 3종이 진열돼 있습니다.</p>' +
+        '상품은 매일 자정에 새롭게 갱신됩니다. 오늘은 일본어판 3종·영문판 3종이 진열돼 있습니다.</p>' +
         `<ul>${li}</ul>` +
         '<p>비공식 팬 시뮬레이션입니다. 실제 카드 거래가 아니며 GP는 현금 가치가 없습니다.</p>',
     }),
@@ -904,15 +916,92 @@ app.get('/packsim', (_req, res) => {
 app.get('/community', (_req, res) => {
   res.set('Cache-Control', HTML_CACHE).send(
     seoPage({
-      title: '커뮤니티 | pokegre',
+      title: '게시판 | pokegre',
       desc: '포켓몬 카드 자랑·질문·거래 이야기를 나누는 곳입니다.',
       url: 'https://pokegre.com/community',
       body:
-        '<h1>커뮤니티</h1>' +
+        '<h1>게시판</h1>' +
         '<p>포켓몬 카드 이야기를 나누는 곳입니다. 글을 쓰려면 로그인이 필요하고, 읽는 것은 누구나 됩니다.</p>' +
         '<ul><li>자유게시판</li><li>카드 자랑</li><li>질문</li></ul>',
     }),
   )
+})
+
+// ── 게시판 글 하나(/community/<번호>) ─────────────────────────────────────
+// ⚠️⚠️ **이게 없으면 정보글을 아무리 써도 검색으로는 아무도 안 온다**(2026-08-23).
+//    예전에는 /community 한 쪽만 검색에 올라갔다 — 글은 화면 안에서만 열려서
+//    구글이 글 내용을 읽을 방법이 없었다.
+app.get('/community/:id', async (req, res) => {
+  // ⚠️ 익스프레스 5는 경로에 정규식을 못 붙인다(`:id(\\d+)`가 그대로 이름이 된다).
+  //    숫자인지는 여기서 본다.
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
+    return
+  }
+  const post = (await 공개게시글()).find((p) => p.id === id)
+  if (!post) {
+    // 없는 글·비밀글·가려진 글은 게시판 목록으로 보낸다(검색에 남지 않게 404).
+    res.status(404).set('Cache-Control', HTML_CACHE).send(TEMPLATE)
+    return
+  }
+  const url = `https://pokegre.com/community/${post.id}`
+  // 설명문은 본문 앞머리로. 줄바꿈을 띄어쓰기로 바꿔야 한 줄로 읽힌다.
+  // ⚠️ 꾸미기 표시(## · ** · [사진1])는 설명문에서 걷어낸다 — 검색 결과에 그대로 나가면
+  //    글이 깨져 보인다. 화면 쪽 문법은 src/lib/postFormat.tsx에 있다.
+  const 민글 = post.content
+    .replace(/\[사진\s*\d+(?:\s+(?:작게|보통|크게))?\]/g, '')
+    .replace(/^#{2,3}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/^[-|]{3,}$/gm, '')
+  const desc = 민글.replace(/\s+/g, ' ').trim().slice(0, 150)
+  const 쪽이름: Record<string, string> = { free: '자유', pull: '카드 자랑', question: '질문', suggestion: '건의' }
+  res.set('Cache-Control', HTML_CACHE).send(
+    seoPage({
+      title: `${post.title} | pokegre 게시판`,
+      desc: desc || '포켓몬 카드 이야기를 나누는 곳입니다.',
+      url,
+      body:
+        `<h1>${esc(post.title)}</h1>` +
+        `<p>${esc(쪽이름[post.category] ?? '게시판')} · ${new Date(post.createdAt).toISOString().slice(0, 10)}</p>` +
+        // 본문은 문단으로 쪼개 넣는다. 크롤러가 읽을 글감이라 통째로 넣는다.
+        민글
+          .split(/\n{2,}/)
+          .map((단락) => 단락.trim())
+          .filter(Boolean)
+          .map((단락) => `<p>${esc(단락).replace(/\n/g, '<br>')}</p>`)
+          .join(''),
+    }),
+  )
+})
+
+// ── 사이트맵 ───────────────────────────────────────────────────────────────
+// 정적 사이트맵(scripts/gen-sitemap.mjs가 만든 것)에 **게시판 글 주소를 얹어** 내보낸다.
+// 글은 수시로 늘어나므로 빌드할 때 박아 둘 수가 없다.
+// ⚠️ express.static보다 위에 있어야 한다 — 아래면 static이 옛 파일을 먼저 내보낸다.
+app.get('/sitemap.xml', async (_req, res) => {
+  let xml = ''
+  try {
+    xml = await readFile(path.join(DIST, 'sitemap.xml'), 'utf-8')
+  } catch {
+    res.status(404).end()
+    return
+  }
+  try {
+    const 글 = await 공개게시글()
+    const 줄 = 글
+      .map(
+        (p) =>
+          `<url><loc>https://pokegre.com/community/${p.id}</loc>` +
+          `<lastmod>${new Date(p.editedAt ?? p.createdAt).toISOString().slice(0, 10)}</lastmod>` +
+          `<changefreq>monthly</changefreq><priority>0.6</priority></url>`,
+      )
+      .join('')
+    if (줄) xml = xml.replace('</urlset>', `${줄}</urlset>`)
+  } catch {
+    /* 글을 못 읽어도 정적 사이트맵은 그대로 내보낸다 */
+  }
+  res.set('Content-Type', 'application/xml').set('Cache-Control', HTML_CACHE).send(xml)
 })
 
 // 정적 파일 캐시 정책. 번들(assets/*)은 파일명에 해시가 있어 1년 캐시해도 안전하지만,

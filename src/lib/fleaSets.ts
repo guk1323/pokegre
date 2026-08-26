@@ -9,7 +9,7 @@
 //
 // 늘리려면 여기 한 줄만 더하면 된다 — 화면·서버가 같이 따라온다.
 
-export const FLEA_EDITION_LABEL = { jp: '일본판', kr: '한글판' } as const;
+export const FLEA_EDITION_LABEL = { jp: '일본어판', kr: '한글판' } as const;
 export type FleaEdition = keyof typeof FLEA_EDITION_LABEL;
 
 /**

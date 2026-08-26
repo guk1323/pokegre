@@ -4,24 +4,19 @@ import { useState } from 'react';
 //
 // 한 번 닫으면 다시 안 뜬다. 새 공지를 올릴 땐 아래 제목·날짜·본문을 바꾸고 DISMISS_KEY
 // 뒤 날짜도 함께 바꾸면(예: _v20260726 → _v20260810) 닫았던 사람에게도 다시 뜬다.
-const DISMISS_KEY = 'pokegre_notice_dismissed_v20260814';
+const DISMISS_KEY = 'pokegre_notice_dismissed_v20260818';
 const TITLE = '업데이트 내역';
-const NOTICE_DATE = '2026년 8월 14일';
+const NOTICE_DATE = '2026년 8월 18일';
 // ⚠️⚠️ **내가 무엇을 고쳤나가 아니라, 오시는 분이 무엇을 할 수 있게 됐나로 쓴다.**
 //    사장님께 열 번 넘게 지적받은 자리다. 「도감을 PPT로 다시 만들었습니다」·「크레딧을
 //    0으로 줄였습니다」 같은 말은 안쪽 사정이라 여기 안 적는다.
 // ⚠️ 앞일을 못 박는 말(무료·광고 없음·앞으로 계속)은 쓰지 않는다.
-const BODY = `안녕하세요. pokegre 운영자입니다.
-
-어두운 화면을 넣었습니다. 위쪽 「도구」 메뉴 맨 아래에서 다크모드와 화이트모드를 오갈 수 있습니다. 한 번도 안 고르셨다면 쓰시는 기기 설정을 그대로 따라갑니다.
-
-팝수를 크게 손봤습니다. 한글 카드 이름으로 바로 찾을 수 있고, PSA·BGS·CGC·SGC 네 곳이 매긴 등급을 반칸까지 봅니다. 카드에서 「자세히」를 누르면 그 카드의 감정 수량이 바로 열립니다.
-
-해외 시세도 새로 만들었습니다. 검색이 훨씬 빨라졌고, 사진과 세트 이름이 비어 있던 카드가 채워졌습니다. 검색어 하나로 스니덩크, 이베이, TCGplayer를 그대로 오갈 수 있습니다.
-
-미개봉 박스·팩 시세는 한곳에 모아 두었습니다.
-
-부족한 부분이나 필요한 기능은 커뮤니티에 편하게 남겨주세요.
+// ⚠️ **세 토막으로 나눠 둔다.** 예전엔 한 문자열이었는데, 게임 줄 **옆에** 단추를
+//    붙이려면 그 줄만 따로 잡을 수 있어야 한다.
+const HELLO = '안녕하세요. pokegre 운영자입니다.';
+// ⚠️ 인쇄판 이야기는 뺐다(사장님 2026-08-18: 「설명이 너무 길다」). 한 번에 하나만 알린다.
+const NEWS = '도구 ▸ 미니게임에 포켓몬 디펜스를 열었습니다.';
+const OUTRO = `부족한 부분이나 필요한 기능은 게시판에 편하게 남겨주세요.
 
 pokegre 올림.`;
 
@@ -53,7 +48,8 @@ function alreadyDismissed(): boolean {
   }
 }
 
-export function OnboardingBanner() {
+/** `onOpenGame`을 주면 공지 안에 「열어 보기」 단추가 뜬다. 안 주면 글만 나온다. */
+export function OnboardingBanner({ onOpenGame }: { onOpenGame?: () => void }) {
   const [shown, setShown] = useState(() => !alreadyDismissed());
 
   if (!shown) return null;
@@ -82,7 +78,25 @@ export function OnboardingBanner() {
         <span className="text-[11px] font-semibold text-neutral-400">{NOTICE_DATE}</span>
       </div>
       <div className="mt-2.5 flex items-end gap-3">
-        <p className="min-w-0 flex-1 whitespace-pre-line text-sm leading-relaxed text-neutral-600">{BODY}</p>
+        <div className="min-w-0 flex-1 text-sm leading-relaxed text-neutral-600">
+          <p>{HELLO}</p>
+          {/* ⚠️ **폰에서는 단추를 아랫줄로 내린다.** 방문자 넷 중 셋이 폰이라(2026-08-18
+              서치콘솔) 배너 폭이 좁다. 글과 단추를 한 줄에 우겨넣으면 글이 잘린다.
+              넓은 화면에서만 같은 줄에 세운다. */}
+          <p className="mt-3">{NEWS}</p>
+          {onOpenGame && (
+            <button
+              type="button"
+              onClick={onOpenGame}
+              /* ⚠️ 눌리는 자리를 **44px 이상**으로 잡는다(py-3 + text-sm = 44px).
+                 손가락으로 누르는 자리라 이보다 작으면 헛누름이 는다. */
+              className="mt-2 inline-flex min-h-[44px] items-center rounded-lg bg-neutral-900 px-4 py-3 text-sm font-bold text-white hover:bg-neutral-700"
+            >
+              열어 보기
+            </button>
+          )}
+          <p className="mt-3 whitespace-pre-line">{OUTRO}</p>
+        </div>
         {/* 인사말 옆에 세워 둔다. 좁은 화면에서는 글이 밀리므로 숨긴다. */}
         <BowingFigure className="hidden h-16 w-16 flex-shrink-0 text-neutral-300 sm:block sm:h-20 sm:w-20" />
       </div>

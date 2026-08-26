@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AdSlot } from './AdSlot';
 import { 을를 } from '../lib/josa';
 import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
@@ -331,8 +332,11 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
                   img: c.img ?? '',
                 };
                 return (
+                  <div key={`${c.name}-${c.number}-${i}`} className="contents">
+                  {i === 4 && <AdSlot 형태="가로" 이름="작가" className="col-span-full sm:hidden" />}
+                  {i === 6 && <AdSlot 형태="가로" 이름="작가" className="col-span-full hidden sm:block md:hidden" />}
+                  {i === 8 && <AdSlot 형태="가로" 이름="작가" className="col-span-full hidden md:block" />}
                   <button
-                    key={`${c.name}-${c.number}-${i}`}
                     type="button"
                     onClick={() => onPickCard(한장)}
                     className="text-left"
@@ -357,6 +361,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
                         2026-08-06). 세트 이름과 한 줄에 두면 잘리므로 아래에 따로 적는다. */}
                     {c.number && <p className="text-[10px] text-neutral-300">{c.number}</p>}
                   </button>
+                  </div>
                 );
               })}
             </div>
@@ -387,7 +392,7 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold text-black">작가별 카드</h2>
           <p className="mt-1 text-xs text-neutral-400">
-            일러스트레이터로 카드를 모아 봅니다. 카드 아트는 일본판도 같은 작가입니다. (해외 카드 DB 기준)
+            일러스트레이터로 카드를 모아 봅니다. 카드 아트는 일본어판도 같은 작가입니다. (해외 카드 DB 기준)
           </p>
         </div>
         {index && index.length > 0 && (

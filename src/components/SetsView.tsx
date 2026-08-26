@@ -9,6 +9,7 @@ const 보일레어도 = (r: string | null | undefined) => {
 };
 import { 번호열쇠, 보일번호 } from '../lib/cardNo.ts';
 import { useEffect, useRef, useState } from 'react';
+import { AdSlot } from './AdSlot';
 import {
   CARD_BACK,
   cardImg,
@@ -31,6 +32,7 @@ import type { 도감카드정보 } from '../lib/pokedexRoute';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
+import { 일본쪽세트 } from '../lib/cardNo';
 
 // 세트(발매 패키지)별 수록 카드. 데이터는 TCGdex에서 미리 긁어 public/sets/에 저장해둔 걸
 // 읽는다. 일본판(ja)·영문판(en). 카드 이름은 원어로 저장돼 있어 화면에서 우리 변환기로
@@ -159,7 +161,7 @@ export function SetsView({
     initialApplied.current = true;
     const hit = index.find((e) => e.slug === initialSlug);
     if (hit) {
-      setTab(hit.slug.startsWith('en-') ? 'en' : 'ja');
+      setTab(일본쪽세트(hit.slug) ? 'ja' : 'en');
       // 목록에서 누른 것과 똑같이 통계에 남긴다. 예전에는 여기서 안 남겨서
       // 검색·공유 링크(/set/<슬러그>)로 바로 들어온 방문이 통째로 안 세어졌다.
       // 사이트맵에 세트 366개를 올려 뒀으니 그 유입이 제일 큰 몫인데 안 보였다.
@@ -177,7 +179,7 @@ export function SetsView({
     const hit = index.find((e) => serieSlug(e.serie ?? '') === initialSerie);
     if (!hit) return;
     serieApplied.current = true;
-    setTab(hit.slug.startsWith('ja-') ? 'ja' : /pocket/i.test(hit.serie ?? '') ? 'pocket' : 'en');
+    setTab(일본쪽세트(hit.slug) ? 'ja' : /pocket/i.test(hit.serie ?? '') ? 'pocket' : 'en');
     // 사이트맵에 시리즈 33개를 올려 뒀는데 여기서 안 남겨서, 검색으로 들어온 방문이
     // 통째로 안 세어졌다(세트 쪽에서 똑같은 걸 한 번 고쳤다 — 위 initialSlug 주석).
     // 화면에 뜨는 이름 그대로 남긴다. koSet을 쓰면 통계에만 옛 이름("포켓몬카드게임 MEGA")이
@@ -378,7 +380,7 @@ export function SetsView({
             ⚠️ 이름 옆 그림을 뺐다(2026-08-05, 운영자 지시). 뺀 이유가 셋이다.
             ① 원래 쓰던 selected.cover는 그 세트의 1번 카드인데, 1번은 대개 평범한
                커먼이라 세트를 알아보는 데 도움이 안 됐다(닌자스피너에 비드루가 떴다).
-            ② 대신 쓸 만한 그림이 371개 중 227개뿐이다. 일본판 로고를 주는 limitless는
+            ② 대신 쓸 만한 그림이 371개 중 227개뿐이다. 일본어판 로고를 주는 limitless는
                로고가 아니라 "M6"·"s8b" 같은 까만 세트코드 글자판을 준다.
             ③ 팩(박스) 사진을 더 받아 채워 보려 했지만, 옛 세트는 미개봉 박스가 시장에
                없어서 PSA 슬랩 사진·남의 책상 사진 같은 엉뚱한 것이 붙었다(79개 중
@@ -390,7 +392,7 @@ export function SetsView({
             <h2 className="text-xl font-extrabold leading-tight text-black">{koSet(selected.ed, selected.name)}</h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white ${selected.ed === 'ja' ? 'bg-rose-500' : 'bg-indigo-500'}`}>
-                {selected.ed === 'ja' ? '일본판' : '영문판'}
+                {selected.ed === 'ja' ? '일본어판' : '영문판'}
               </span>
               <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{selected.count}종</span>
               {selected.releaseDate && (
@@ -448,7 +450,7 @@ export function SetsView({
                   </p>
                   {/* 기준을 안 밝히면 "왜 스니커덩크 값과 다르냐"는 오해가 생긴다.
                       둘 다 등급 카드가 아니라 미감정 생카드 값이다.
-                      ⚠️ 어느 마켓인지는 세트마다 다르다 — 일본판 신상은 TCGplayer(미국)에
+                      ⚠️ 어느 마켓인지는 세트마다 다르다 — 일본어판 신상은 TCGplayer(미국)에
                          낙찰가가 아직 없어서 스니커덩크(일본 실거래)를 쓴다. 값을 바꿔
                          보여주면서 라벨만 그대로 두면 오해가 더 커진다. */}
                   {pricedMode && (
@@ -530,8 +532,13 @@ export function SetsView({
               {visible.map((c, i) => {
                 const nm = koName(selected.ed, c.name);
                 return (
-                  // 휴대폰 게임 카드는 눌러도 볼 시세가 없다. 누르는 것처럼 보이지
-                  // 않게 하고(확대 효과·손가락 커서 제거) 실제로도 아무 데도 안 보낸다.
+                  <div key={`${c.n}-${i}`} className="contents">
+                  {i === 6 && <AdSlot 형태="가로" 이름="세트-목록" className="col-span-full sm:hidden" />}
+                  {i === 8 && <AdSlot 형태="가로" 이름="세트-목록" className="col-span-full hidden sm:block md:hidden" />}
+                  {i === 10 && <AdSlot 형태="가로" 이름="세트-목록" className="col-span-full hidden md:block" />}
+                  {/* 휴대폰 게임 카드는 눌러도 볼 시세가 없다. 누르는 것처럼 보이지
+                      않게 하고(확대 효과·손가락 커서 제거) 실제로도 아무 데도 안 보낸다.
+                      ⚠️ 래퍼(div.contents) 안이라 //주석을 쓰면 글자로 찍힌다. */}
                   <button
                     key={`${c.n}-${i}`}
                     type="button"
@@ -564,9 +571,11 @@ export function SetsView({
                         (기본판·SR·SAR) 이게 없으면 어느 것인지 못 가린다(2026-08-09 지시). */}
                     {보일레어도(c.r) && <p className="mt-0.5 text-[10px] leading-tight text-neutral-400">{보일레어도(c.r)}</p>}
                   </button>
+                  </div>
                 );
               })}
             </div>
+            <AdSlot 형태="가로" 이름="세트-끝" />
             {shown < (cards?.length ?? 0) && (
               <div className="mt-8 text-center">
                 <button
@@ -647,10 +656,10 @@ export function SetsView({
         )}
       </div>
 
-      {/* 판 선택: 일본판 / 영문판 / 모바일 포켓 */}
+      {/* 판 선택: 일본어판 / 영문판 / 모바일 포켓 */}
       <div className="mb-4 inline-flex rounded-full border border-neutral-300 p-1">
         {([
-          ['ja', '일본판'],
+          ['ja', '일본어판'],
           ['en', '영문판'],
           ['pocket', '모바일 포켓'],
         ] as const).map(([e, label]) => (

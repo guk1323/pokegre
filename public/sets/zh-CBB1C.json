@@ -1,0 +1,19 @@
+{
+  "ed": "ja",
+  "id": "zh-CBB1C",
+  "name": "포켓몬 젬팩 Vol.1 (중국어판)",
+  "cards": [
+    {
+      "n": "09/09",
+      "name": "Captain Pikachu AR (중국어판)",
+      "img": "https://cdn.snkrdunk.com/upload_bg_removed/20250220013017-0.webp",
+      "r": "Art Rare",
+      "p": [
+        "Holofoil"
+      ],
+      "rSrc": "snkrdunk",
+      "메모": "저쪽 번호에 `~zh` 꼬리를 붙였다. TCGplayer는 「Captain Pikachu」 상품을 하나만 만들어 놓아, 그 칸의 낙찰 35건 안에 여덟 가지 넘는 다른 중국판 카드가 들어 있다. 꼬리를 붙여 낙찰 기록 파일을 따로 두고, server/api.ts의 `내낙찰고르기`가 제목으로 이 카드 것 4건만 고른다. 저쪽에는 꼬리를 뗀 617410으로 묻는다.",
+      "tcg": "617410~zh"
+    }
+  ]
+}

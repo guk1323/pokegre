@@ -105,14 +105,19 @@ export function Price({
 }) {
   const rates = useExchangeRates();
   const orig = currency === 'jpy' ? YEN.format(amount) : USD.format(amount);
+  // ⚠️⚠️ **달러는 화면에 안 쓴다**(사장님 지시 2026-08-19: 「어차피 한화 쓰니까 달러는 쓰지 마」).
+  //    엔화(스니커덩크)는 그대로 둔다 — 일본 마켓 값이라 원본이 뜻이 있다.
+  //    ⚠️ 환율을 못 받았을 때만 원본을 낸다. 값을 빈칸으로 두는 것보다 낫다.
+  const 달러숨김 = currency === 'usd';
   if (!rates || amount <= 0) return <p className={className}>{orig}</p>;
 
   const krw = amount * (currency === 'jpy' ? rates.jpyToKrw : rates.usdToKrw);
+  if (달러숨김 && !showDate) return <p className={className}>{formatKrwApprox(krw)}</p>;
   return (
     <>
       <p className={className}>{formatKrwApprox(krw)}</p>
       <p className="text-xs text-neutral-400">
-        {orig}
+        {달러숨김 ? '' : orig}
         {showDate && ` · ${formatRateDate(rates.date)}`}
       </p>
     </>

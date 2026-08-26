@@ -52,7 +52,7 @@ export function PrivacyPolicyContent() {
         <h3 className="font-bold text-black mb-1">2. 개인정보의 수집 및 이용 목적</h3>
         <ul className="list-disc list-inside space-y-0.5">
           <li>회원 식별 및 로그인 상태 유지</li>
-          <li>커뮤니티 게시판 운영(작성자 표시, 본인 글 확인, 신고 처리)</li>
+          <li>게시판 운영(작성자 표시, 본인 글 확인, 신고 처리)</li>
           <li>즐겨찾기·최근 본 카드 보관(기기를 바꾸거나 브라우저 기록을 지워도 유지되도록)</li>
           <li>카드 이미지에서 카드명·세트 정보를 인식하여 검색어로 제공</li>
           <li>인기 검색어 통계 등 서비스 개선</li>
@@ -133,7 +133,7 @@ export function PrivacyPolicyContent() {
         <p>개인정보 보호책임자: pokegre 운영자</p>
         <p>이메일: guk132312@gmail.com</p>
         <p className="text-neutral-400">
-          개인이 운영하는 서비스라 별도의 전화 상담 창구는 두지 않았습니다. 위 이메일 또는 커뮤니티 건의
+          개인이 운영하는 서비스라 별도의 전화 상담 창구는 두지 않았습니다. 위 이메일 또는 게시판 건의
           게시판으로 문의해 주시면 확인 후 답변드립니다.
         </p>
       </section>

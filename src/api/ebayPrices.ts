@@ -39,7 +39,7 @@ export interface EbayGradeStat {
   /** 낱개 낙찰. title은 "이 낙찰이 정말 그 카드인가"를 사람이 가리는 유일한 단서다. */
   /** 뺀까닭이 있으면 목록에만 보이고 평균·중앙값에는 안 들어간 기록이다. */
   /** 옮겨온곳이 있으면 다른 카드 칸에 잘못 담겨 있다가 **제자리로 옮겨 온** 기록이다. */
-  sales?: { price: number; date: string; url: string; auction: boolean; title?: string; 뺀까닭?: string; 옮겨온곳?: string }[];
+  sales?: { price: number; date: string; url: string; auction: boolean; title?: string; 뺀까닭?: string; 옮겨온곳?: string; 출처?: string; itm?: string; 고친값?: number; 메모?: string; 베스트오퍼?: boolean }[];
 }
 
 // TCGplayer(미국 마켓) 시세. 미감정(로우) 카드 기준. 값이 있을 때만 서버가 담아준다.
@@ -56,6 +56,18 @@ export interface TcgPlayerPrice {
   url: string;
   // 날짜별 마켓가 추이(오래된→최신). 그래프에 쓴다. 없으면 빈 배열(옛 캐시 응답 대비 옵션).
   history?: EbayGradePoint[];
+  /**
+   * **인쇄판이 여럿일 때만** 오는 목록(1st Edition·Unlimited·Reverse Holofoil …).
+   *
+   * ⚠️⚠️ 같은 카드라도 인쇄판이 다르면 값이 크게 다르다 — 인쇄판이 둘 이상인 카드
+   *    16,818장 중 **61%가 2배 넘게** 갈린다(리자몽 베이스셋: 1st Edition $10,000 ↔
+   *    Unlimited $2,146). 위 `market`·`printing`은 **그중 제일 비싼 하나**라, 이것만
+   *    보여 주면 흔한 쪽을 가진 사람이 남의 값을 보게 된다.
+   * ⚠️ **하나뿐인 카드에는 안 온다**(전체의 68%). 있을 때만 여러 줄로 보이면 된다.
+   * ⚠️ `market`·`printing`은 **그대로 둔다** — 타일·비교·미개봉이 그걸 쓰고 있어
+   *    바꾸면 조용히 어긋난다. 여기서는 **더하기만** 한다.
+   */
+  printings?: { printing: string; market: number; low: number }[];
 }
 
 export interface EbayCard {
@@ -167,7 +179,15 @@ export function 대표등급(grades: EbayGradeStat[]): EbayGradeStat | undefined
  *    직접 볼 수 있어야 한다(이 문제를 찾아낸 길이 바로 그것이었다).
  */
 export function 등급확인안됨(grade: string): boolean {
-  return grade === 'ungraded' || grade === 'raw';
+  // ⚠️⚠️ **`raw`는 여기서 뺐다**(사장님 확인 2026-08-19). 사장님이 매물을 하나하나 열어
+  //    **사진에 슬랩이 없고 제목·설명에 감정 회사·등급 언급이 하나도 없는 것**을 확인해
+  //    주셨다 — 그건 「못 읽은 것」이 아니라 **진짜 미감정 싱글카드**다. 값을 보여 줘야 한다.
+  //    `ungraded`만 남긴다 — 그건 저쪽이 등급을 못 읽어 던져 둔 칸이라 여전히 못 믿는다.
+  // ⚠️ 「기타 감정 회사」도 **한 줄짜리 대표값은 안 낸다.** 회사도 등급도 섞인 칸이라
+  //    (PCG 10 · TAG 8 · ACE 9가 한 칸) 가운데 값에 뜻이 없다 — 사장님이 「다른 것이
+  //    섞인 칸에 중앙값이 무슨 뜻이냐」고 하신 그 잣대를 그대로 적용한 것이다.
+  //    **낱개는 값과 회사 이름이 그대로 보인다** — 감추는 게 아니다.
+  return grade === 'ungraded' || grade === '기타';
 }
 
 export function mainPrice(g: EbayGradeStat): { price: number; isSmart: boolean } {
@@ -178,7 +198,14 @@ export function mainPrice(g: EbayGradeStat): { price: number; isSmart: boolean }
 export function formatGradeLabel(grade: string): string {
   // ⚠️ 예전엔 이 칸이 「미감정」으로 나갔다. 그 말이 「감정 안 한 생카드」로 읽혀서
   //    사람들이 생카드 시세로 오해했다 — 실제로는 대부분 감정된 카드다(위 `등급확인안됨`).
+  // ⚠️ 「미감정」만으로는 옆칸 「등급 확인 안 됨」과 무엇이 다른지 안 보인다.
+  //    **「싱글」을 붙여 슬랩이 안 씌워진 낱장임을 못 박는다**(사장님 지시 2026-08-19).
+  if (grade === 'raw') return '미감정 싱글';
+  if (grade === '기타') return '기타 감정 회사';
   if (등급확인안됨(grade)) return '등급 확인 안 됨';
+  // ⚠️ 10 위의 등급은 사람 말로 적는다 — 「CGCP 10」이라고 나가면 아무도 못 알아본다.
+  if (grade === 'cgcp10') return 'CGC 프리스틴 10';
+  if (grade === 'bgsbl10') return 'BGS 블랙라벨 10';
   // PPT는 소수점 등급을 "cgc9.5"로도, "cgc9_5"로도 보낸다. 밑줄도 소수점으로 받아
   // 화면에 "CGC9_5" 같은 원본 값이 그대로 새어 나가지 않게 한다.
   const match = grade.match(/^([a-z]+)(\d+(?:[._]\d+)?)$/i);
@@ -195,7 +222,12 @@ export function ebaySoldUrl(nameEn: string, cardNumber: string | null, grade: st
   // PPT 이름에 카드 번호가 이미 들어있는 경우가 많아(예: "... -766/742"), 번호를 또
   // 붙이면 검색어에 중복된다. 이미 있으면 생략한다.
   const number = cardNumber && !nameEn.includes(cardNumber) ? cardNumber : '';
-  const query = [nameEn, number, gradeTerm].filter(Boolean).join(' ');
+  // ⚠️⚠️ **한글이 든 괄호는 떼고 보낸다.** 이베이 매물 제목은 영어라, 우리가 붙인 한글
+  //    꼬리표가 검색어에 섞이면 **한 건도 안 나온다** — 「Captain Pikachu AR (중국판)」로
+  //    검색이 나가고 있었다(사장님 지적 2026-08-19). 판을 밝히려고 붙인 말이라 화면에는
+  //    그대로 두고, **저쪽에 보내는 검색어에서만** 뗀다.
+  const 검색이름 = nameEn.replace(/\s*\([^)]*[가-힣][^)]*\)/g, '').trim();
+  const query = [검색이름 || nameEn, number, gradeTerm].filter(Boolean).join(' ');
   const params = new URLSearchParams({ _nkw: query, LH_Sold: '1', LH_Complete: '1' });
   return `https://www.ebay.com/sch/i.html?${params.toString()}`;
 }

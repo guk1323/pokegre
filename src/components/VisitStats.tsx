@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { 까닭모으기, 난이도별모으기, 판별모으기 } from '../lib/battleStats';
 import {
   fetchEventStats,
@@ -24,8 +24,10 @@ function dayKey(offset: number): string {
 // group이 붙은 줄은 숫자 없는 소제목이다. 그냥 `└`만 붙이면 바로 위 줄에 딸린 것처럼
 // 보이는데, 검색 확정 경로 다섯은 위의 검색 세 줄을 통째로 쪼갠 것이라 오해를 부른다
 // (2026-08-04 통계 점검에서 확인).
-const EVENT_ROWS: { key: string; label: string; hint: string; group?: true; dead?: true }[] = [
+const EVENT_ROWS: { key: string; label: string; hint: string; group?: true; dead?: true; 과정?: true }[] = [
   { key: 'snkrdunk_search', label: '스니커덩크 검색', hint: '검색 실행(자동완성 선택 포함)' },
+  { key: 'feedback', label: '의견 보내기', hint: '홈 배너에서 의견을 보내기까지 한 횟수. 글 자체는 신고함 화면에 있습니다' },
+  { key: 'packsim_log', label: 'GP 내역 열기', hint: '오늘의 상점에서 「내 GP 내역」을 펼친 횟수. 자기 GP가 어디 갔는지 궁금해하는 사람이 얼마나 되는지 봅니다' },
   { key: 'cardboard_search', label: '해외 시세 검색', hint: '해외 시세 탭에서 검색 실행' },
   {
     key: 'cardboard_tcg',
@@ -52,43 +54,55 @@ const EVENT_ROWS: { key: string; label: string; hint: string; group?: true; dead
   { key: 'card_miss', label: '카드 한 장 시세 못 찾음', hint: '어느 마켓에도 값이 없던 카드. 여기 자주 오르는 카드는 손볼 곳이 있다는 뜻' },
   { key: 'population_search', label: '팝수 조회 — 카드 찾기', hint: '팝수 조회 화면에서 카드를 찾은 횟수' },
   { key: 'population_detail', label: '팝수 조회 — 등급표 봄', hint: '등급표(감정기관별 전 등급)를 실제로 연 횟수. 여기가 낮으면 요약만으로 충분하다는 뜻' },
-  { key: 'population', label: '감정 수량 보임', hint: '카드 화면에 "PSA 10 몇 장"이 실제로 뜬 횟수. 미감정 시세가 싸도 감정품은 비싼 카드를 알아보게 해 준다' },
+  // ⚠️⚠️ **「감정 수량 보임」(`population`)은 뺐다**(사장님 지시 2026-08-19). 사람이 한
+  //    행동이 아니라 **화면이 그려질 때 저절로** 세던 것이라(`GradedPopulation.tsx`),
+  //    사실상 「팝수 있는 카드를 열었다」였고 카드 여는 수와 겹쳤다. 32일에 1,734회로
+  //    표에서 3등을 차지해 **사람이 실제로 한 일들을 가렸다.**
+  //    ⚠️ **바로 아래 `population_detail`은 남긴다** — 사람이 눌러서 등급표를 연 것이라
+  //       뜻이 있다(0에 가까우면 그 기능을 접을 근거가 된다).
+  //    ⚠️ **쌓인 자료는 안 지웠다.** 서버 허용목록에서도 뺐으므로 이제 더 안 쌓인다.
   { key: 'sets', label: '세트별 목록 조회', hint: '세트 하나를 열 때(어느 세트인지도 아래 순위에 집계)' },
-  { key: 'sealed', label: '미개봉 시세 노출', hint: '세트 상세에서 박스·팩 시세가 보였을 때(어느 세트인지 아래 순위)' },
+  { key: 'sealed', label: '미개봉 시세 화면 열기', hint: '미개봉 시세 화면(도감▾ → 미개봉)에 들어온 횟수' },
   { key: 'series', label: '시리즈 목록 조회', hint: '검색으로 시리즈 주소(/series/…)에 바로 들어올 때' },
   { key: 'packsim', label: '오늘의 상점', hint: '팩·박스 구매와 개봉' },
   { key: 'packsim_banner', label: '뽑기 결과 줄 클릭', hint: '홈의 "이런 게 나왔습니다" 줄을 눌러 상점으로 들어옴' },
   { key: 'packsim_checkin', label: '개봉 출석', hint: '출석 보상 받기' },
   { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩' },
   { key: 'packsim_value', label: '앨범 시세', hint: '앨범 탭에서 예상 가치 조회' },
-  { key: 'packsim_share', label: '개봉 자랑', hint: '팩 결과를 커뮤니티에 공유' },
+  { key: 'packsim_share', label: '개봉 자랑', hint: '팩 결과를 게시판에 공유' },
   { key: 'share', label: '카드 공유', hint: '카드 상세에서 공유 버튼을 누를 때' },
   { key: 'scantest', label: '스캔 테스트', hint: '실험실에서 사진 넣기(운영자 전용이라 지금은 늘 0)' },
   // ⚠️ 셋을 붙여 둔다 — 「시작 대비 깬 비율」이 곧 그 스테이지의 난이도다.
   //    어느 스테이지인지는 아래 라벨 순위에 쌓인다.
-  { key: 'battle_start', label: '대전쟁 시작', hint: '한 판을 시작할 때(운영자 베타 · 어느 스테이지인지 아래 순위)' },
-  { key: 'battle_clear', label: '대전쟁 깸', hint: '적 성을 부쉈을 때. 시작 대비 비율이 그 스테이지의 난이도입니다' },
-  { key: 'battle_lose', label: '대전쟁 짐', hint: '내 성이 부서졌을 때. 여기가 몰리는 스테이지가 너무 어려운 판입니다' },
+  { key: 'battle_start', label: '디펜스 시작', hint: '한 판을 시작할 때(운영자 전용 · 어느 스테이지인지 아래 순위)' },
+  { key: 'battle_clear', label: '디펜스 클리어', hint: '적 성을 부쉈을 때. 시작 대비 비율이 그 스테이지의 난이도입니다' },
+  { key: 'battle_lose', label: '디펜스 짐', hint: '내 성이 부서졌을 때. 여기가 몰리는 스테이지가 너무 어려운 판입니다' },
   // ⚠️ 짐과 따로 센다 — 짐 라벨에 까닭까지 붙이면 하루 칸(150)을 넘어 조용히 잘린다.
-  { key: 'battle_why', label: '대전쟁 진 까닭', hint: '질 때마다 그 판 기록에서 고른 한 줄(벽 없음·상성 밀림 등 · 아래 「왜 지나」 표)' },
+  { key: 'battle_why', label: '디펜스 진 까닭', hint: '질 때마다 그 판 기록에서 고른 한 줄(벽 없음·상성 밀림 등 · 아래 「왜 지나」 표)' },
   // ⚠️ 한 판에 한 번만 온다 — 「시작」과 나눠 보면 몇 판에서 숫자키를 썼는지가 된다.
-  { key: 'battle_key', label: '대전쟁 숫자키 사용', hint: '숫자키 1~8로 포켓몬을 낸 판(한 판에 한 번). 시작 대비 비율이 낮으면 아무도 모르고 있다는 뜻입니다' },
+  { key: 'battle_key', label: '디펜스 숫자키 사용', hint: '숫자키 1~8로 포켓몬을 낸 판(한 판에 한 번). 시작 대비 비율이 낮으면 아무도 모르고 있다는 뜻입니다' },
   // ⚠️ 둘을 붙여 둔다 — 「뜬 수 대비 끝낸 수」가 곧 첫 판 안내의 성적이다.
-  { key: 'battle_guide', label: '대전쟁 첫 판 안내 뜸', hint: '이 게임이 처음인 사람에게만 한 번 뜨는 안내(브라우저당 한 번). 이 수가 곧 처음 온 사람 수입니다' },
-  { key: 'battle_quit', label: '대전쟁 도중에 그만둠', hint: '시작해 놓고 이기지도 지지도 않고 나간 횟수. 여기가 몰리는 판은 어려운 게 아니라 지겨운 판입니다' },
-  { key: 'battle_card_detail', label: '대전쟁 카드 자세히', hint: '카드를 길게 눌러 능력치를 펴 본 횟수. 0에 가까우면 아무도 안 쓰는 기능이니 떼는 게 낫습니다' },
-  { key: 'battle_guide_done', label: '대전쟁 첫 판 안내 따라옴', hint: '안내를 따라 첫 포켓몬까지 낸 사람. 위 줄 대비 비율이 낮으면 안내를 보고도 무엇을 누를지 모른다는 뜻입니다' },
+  { key: 'battle_guide', label: '디펜스 첫 판 안내 뜸', hint: '이 게임이 처음인 사람에게만 한 번 뜨는 안내(브라우저당 한 번). 이 수가 곧 처음 온 사람 수입니다' },
+  { key: 'battle_quit', label: '디펜스 도중에 그만둠', hint: '시작해 놓고 이기지도 지지도 않고 나간 횟수. 여기가 몰리는 판은 어려운 게 아니라 지겨운 판입니다' },
+  { key: 'battle_card_detail', label: '디펜스 카드 자세히', hint: '카드를 길게 눌러 능력치를 펴 본 횟수. 0에 가까우면 아무도 안 쓰는 기능이니 떼는 게 낫습니다' },
+  { key: 'battle_guide_done', label: '디펜스 첫 판 안내 따라옴', hint: '안내를 따라 첫 포켓몬까지 낸 사람. 위 줄 대비 비율이 낮으면 안내를 보고도 무엇을 누를지 모른다는 뜻입니다' },
+  // ⚠️⚠️ **아래 다섯은 「무슨 기능을 썼나」 그래프에서 뺐다**(사장님 지시 2026-08-19).
+  //    「엔터를 눌러서」·「그냥 치다 멈춰서」는 **사람이 한 일이 아니라 검색 한 번의 과정**이라
+  //    같은 그래프에 섞이면 실제로 무엇을 썼는지를 가린다. `과정`이 붙은 줄은 그래프에서
+  //    빠지고, 아래 접힌 칸(「검색을 어떻게 확정했나」)에서만 보인다.
+  //    ⚠️ **자료는 그대로 쌓는다** — 검색 경로 중 무엇을 떼도 되는지 볼 때 쓰는 숫자다.
   {
     key: '_search_group',
     label: '검색어를 어떻게 확정했나',
-    hint: '위 검색 세 줄(스니커덩크·이베이·TCGplayer)을 다시 나눈 것입니다. 합계가 같아야 정상입니다.',
+    hint: '위 검색 두 줄(스니커덩크·해외 시세)을 다시 나눈 것입니다. 합계가 같아야 정상입니다.',
     group: true,
+    과정: true,
   },
-  { key: 'search_scan', label: '└ 사진으로 찾아서', hint: '사진으로 카드를 찾아 그 검색어가 인기 검색어에 반영됨' },
-  { key: 'search_pick', label: '└ 자동완성에서 골라서', hint: '자동완성 목록에서 고른 검색어' },
-  { key: 'search_popular', label: '└ 인기 검색어를 눌러서', hint: '인기 검색어 목록을 눌러 검색' },
-  { key: 'search_enter', label: '└ 엔터를 눌러서', hint: '엔터(폰 키보드의 "검색")로 확정' },
-  { key: 'search_typed', label: '└ 그냥 치다 멈춰서', hint: '확정 없이 1.5초 멈춰 집계된 것. 이 비중이 낮으면 그 경로를 떼도 된다' },
+  { key: 'search_scan', label: '└ 사진으로 찾아서', hint: '사진으로 카드를 찾아 그 검색어가 인기 검색어에 반영됨' , 과정: true },
+  { key: 'search_pick', label: '└ 자동완성에서 골라서', hint: '자동완성 목록에서 고른 검색어' , 과정: true },
+  { key: 'search_popular', label: '└ 인기 검색어를 눌러서', hint: '인기 검색어 목록을 눌러 검색' , 과정: true },
+  { key: 'search_enter', label: '└ 엔터를 눌러서', hint: '엔터(폰 키보드의 "검색")로 확정' , 과정: true },
+  { key: 'search_typed', label: '└ 그냥 치다 멈춰서', hint: '확정 없이 1.5초 멈춰 집계된 것. 이 비중이 낮으면 그 경로를 떼도 된다' , 과정: true },
 ];
 
 // ⚠️ 서버가 유입경로를 담을 때 쓰는 **로봇 칸 이름**(server/api.ts의 `로봇들`).
@@ -169,8 +183,17 @@ export function VisitStats() {
   const [battles, setBattles] = useState<ArtistStat[]>([]);
   const [dayRanks, setDayRanks] = useState<Record<string, { artists: ArtistStat[]; sets: ArtistStat[]; battles?: ArtistStat[] }>>({});
   const [기간, set기간] = useState<기간>({ 종류: 'today' });
+  // GP 선물을 보낼 대상(닉네임). null이면 창이 닫혀 있다.
+  const [giftTo, setGiftTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // 선물을 보낸 뒤 표의 GP를 새로 읽는다.
+  const 회원다시읽기 = useCallback(() => {
+    fetchVisitStats()
+      .then((r) => setMembers(r.members ?? []))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     fetchVisitStats()
@@ -436,11 +459,32 @@ export function VisitStats() {
           제목="무슨 기능을 썼나"
           색="#2a78d6"
           빈말="이 기간은 기능 사용 기록이 없습니다."
-          자료={EVENT_ROWS.filter((r) => !r.group && !r.dead && (ev[r.key] ?? 0) > 0)
+          자료={EVENT_ROWS.filter((r) => !r.group && !r.dead && !r.과정 && (ev[r.key] ?? 0) > 0)
             .map((r) => ({ name: r.label.replace(/^└\s*/, ''), count: ev[r.key] ?? 0 }))
             .sort((a, b) => b.count - a.count)}
           접기={12}
         />
+        {/* ⚠️ 검색 확정 경로는 **사람이 한 일이 아니라 검색 한 번의 과정**이라 위 그래프에서
+            뺐다(사장님 지시 2026-08-19). 지우지는 않는다 — 「어느 경로를 떼도 되나」를
+            판단할 때 쓰는 숫자여서, 여기에 접어 두고 볼 사람만 펴 보게 한다. */}
+        <details className="rounded-xl border border-neutral-200">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-black">
+            검색을 어떻게 확정했나
+            <span className="ml-2 text-xs font-medium text-neutral-400">
+              검색 한 번의 과정이라 위 그래프에서는 뺐습니다
+            </span>
+          </summary>
+          <div className="border-t border-neutral-100 px-2 pb-2">
+            <막대목록
+              제목="경로별 횟수"
+              색="#8a8a8a"
+              빈말="이 기간은 검색 기록이 없습니다."
+              자료={EVENT_ROWS.filter((r) => r.과정 && !r.group && (ev[r.key] ?? 0) > 0)
+                .map((r) => ({ name: r.label.replace(/^└\s*/, ''), count: ev[r.key] ?? 0 }))
+                .sort((a, b) => b.count - a.count)}
+            />
+          </div>
+        </details>
         <div className="grid gap-6">
           <막대목록
             제목="많이 본 작가"
@@ -460,7 +504,7 @@ export function VisitStats() {
 
         {기간난이도.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-bold text-black">대전쟁 — 난이도마다 얼마나 깨나</h4>
+            <h4 className="text-sm font-bold text-black">디펜스 — 난이도마다 얼마나 깨나</h4>
             <p className="mt-0.5 text-xs text-neutral-500">
               별을 난이도가 줍니다(쉬움 ★ · 보통 ★★ · 어려움 ★★★). 어려움을 아무도 안 깨면 너무 어려운 것이고,
               셋이 다 비슷하면 난이도가 갈리지 않는 것입니다.
@@ -471,12 +515,12 @@ export function VisitStats() {
                   <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
                     <th className="py-1 pr-2 font-normal">난이도</th>
                     <th className="py-1 pr-2 text-right font-normal">시작</th>
-                    <th className="py-1 pr-2 text-right font-normal">깸</th>
+                    <th className="py-1 pr-2 text-right font-normal">클리어</th>
                     <th className="py-1 pr-2 text-right font-normal">짐</th>
                     {/* ⚠️ **「그만둠」이 없으면 남은 수가 어디 갔는지 모른다.** 깬 비율만 보면
                         그게 「어려워서 진 것」처럼 읽히는데 실제로는 지겨워 나간 것일 수 있다. */}
                     <th className="py-1 pr-2 text-right font-normal">그만둠</th>
-                    <th className="py-1 text-right font-normal">깬 비율</th>
+                    <th className="py-1 text-right font-normal">클리어 비율</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -503,7 +547,7 @@ export function VisitStats() {
 
         {기간전투.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-bold text-black">대전쟁 — 판마다 얼마나 깨나</h4>
+            <h4 className="text-sm font-bold text-black">디펜스 — 판마다 얼마나 깨나</h4>
             <p className="mt-0.5 text-xs text-neutral-500">
               깬 비율이 낮은 판이 어려운 판입니다. 시작이 많은데 깬 게 적으면 거기서 그만둡니다.
             </p>
@@ -513,12 +557,12 @@ export function VisitStats() {
                   <tr className="border-b border-neutral-200 text-left text-xs text-neutral-500">
                     <th className="py-1 pr-2 font-normal">스테이지</th>
                     <th className="py-1 pr-2 text-right font-normal">시작</th>
-                    <th className="py-1 pr-2 text-right font-normal">깸</th>
+                    <th className="py-1 pr-2 text-right font-normal">클리어</th>
                     <th className="py-1 pr-2 text-right font-normal">짐</th>
                     {/* ⚠️ **「그만둠」이 없으면 남은 수가 어디 갔는지 모른다.** 깬 비율만 보면
                         그게 「어려워서 진 것」처럼 읽히는데 실제로는 지겨워 나간 것일 수 있다. */}
                     <th className="py-1 pr-2 text-right font-normal">그만둠</th>
-                    <th className="py-1 text-right font-normal">깬 비율</th>
+                    <th className="py-1 text-right font-normal">클리어 비율</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -545,7 +589,7 @@ export function VisitStats() {
 
         {기간까닭.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-bold text-black">대전쟁 — 왜 지나</h4>
+            <h4 className="text-sm font-bold text-black">디펜스 — 왜 지나</h4>
             <p className="mt-0.5 text-xs text-neutral-500">
               진 판마다 그 판 기록에서 고른 까닭입니다. 한 가지가 몰리면 판이 어려운 것이 아니라
               하는 법이 안 전해진 것입니다.
@@ -601,7 +645,8 @@ export function VisitStats() {
         </div>
       </details>
 
-      <MemberTable members={members} />
+      <MemberTable members={members} onGift={setGiftTo} />
+      <GiftBox 닉네임={giftTo} onClose={() => setGiftTo(null)} onDone={회원다시읽기} />
     </div>
   );
 }
@@ -614,7 +659,92 @@ export function VisitStats() {
  *    처음엔 닉네임도 뺐는데, 「일주일 넘게 안 온 8명」이 누구인지 알 수가 없어
  *    다시 넣었다(2026-08-11).
  */
-function MemberTable({ members }: { members: MemberStat[] }) {
+// 운영자가 회원에게 GP를 보내는 작은 창(사장님 지시 2026-08-22).
+// ⚠️ 서버는 **닉네임**으로 사람을 찾는다 — 회원번호는 화면으로 안 내려오기 때문이다.
+//    같은 닉네임이 둘이면 서버가 거절한다(엉뚱한 사람에게 주느니 멈추는 쪽).
+function GiftBox({ 닉네임, onClose, onDone }: { 닉네임: string | null; onClose: () => void; onDone: () => void }) {
+  const [금액, set금액] = useState('100000');
+  const [메시지, set메시지] = useState('매일 와 주셔서 감사합니다.');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState('');
+  useEffect(() => {
+    // 대상이 바뀌면 창을 처음 상태로.
+    setError(''); setDone(''); setBusy(false);
+  }, [닉네임]);
+  if (!닉네임) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-4" onClick={(e) => e.stopPropagation()}>
+        <p className="text-base font-bold text-black">{닉네임}님께 GP 보내기</p>
+        {done ? (
+          <>
+            <p className="mt-2 text-sm text-neutral-600">{done}</p>
+            <button type="button" onClick={onClose} className="mt-3 w-full rounded-lg bg-neutral-900 py-2.5 text-sm font-bold text-white">
+              닫기
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+              보내면 그분 화면에 안내가 한 번 뜨고, GP 내역에 「운영자 선물」로 남습니다.
+            </p>
+            <label className="mt-3 block text-xs font-semibold text-neutral-600">금액 (GP)</label>
+            <input
+              inputMode="numeric"
+              value={금액}
+              onChange={(e) => set금액(e.target.value.replace(/[^0-9]/g, ''))}
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            />
+            <label className="mt-3 block text-xs font-semibold text-neutral-600">메시지 (안 써도 됩니다)</label>
+            <input
+              value={메시지}
+              maxLength={100}
+              onChange={(e) => set메시지(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+            />
+            {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-neutral-300 py-2.5 text-sm font-semibold text-neutral-600">
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={busy || !금액}
+                onClick={async () => {
+                  setBusy(true); setError('');
+                  try {
+                    const res = await fetch('/api/local/auth/packsim/gift', {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({ 닉네임, 금액: Number(금액), 메시지 }),
+                    });
+                    const d = (await res.json()) as { 들어감?: number; 잔액?: number; 상한걸림?: boolean; error?: string };
+                    if (!res.ok) throw new Error(d.error ?? '보내지 못했습니다.');
+                    setDone(
+                      `${(d.들어감 ?? 0).toLocaleString()} GP를 보냈습니다. ${닉네임}님 잔액은 ${(d.잔액 ?? 0).toLocaleString()} GP입니다.` +
+                        (d.상한걸림 ? ' (잔액 상한에 걸려 일부만 들어갔습니다)' : ''),
+                    );
+                    onDone();
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : '보내지 못했습니다.');
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="flex-1 rounded-lg bg-neutral-900 py-2.5 text-sm font-bold text-white disabled:opacity-40"
+              >
+                보내기
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MemberTable({ members, onGift }: { members: MemberStat[]; onGift: (닉네임: string) => void }) {
   if (!members.length) return null;
   const 뽑은사람 = members.filter((m) => m.깐팩 > 0);
   const 안쓴사람 = members.filter((m) => m.깐팩 === 0 && !m.마지막출석);
@@ -653,7 +783,8 @@ function MemberTable({ members }: { members: MemberStat[] }) {
               <th className="py-2 pr-3 font-medium text-right">연속</th>
               <th className="py-2 pr-3 font-medium text-right">깐 팩</th>
               <th className="py-2 pr-3 font-medium text-right">앨범</th>
-              <th className="py-2 font-medium text-right">GP</th>
+              <th className="py-2 pr-3 font-medium text-right">GP</th>
+              <th className="py-2 font-medium text-right">선물</th>
             </tr>
           </thead>
           <tbody>
@@ -676,7 +807,21 @@ function MemberTable({ members }: { members: MemberStat[] }) {
                 <td className="py-2 pr-3 text-right tabular-nums">{m.연속 || '-'}</td>
                 <td className="py-2 pr-3 text-right tabular-nums font-medium">{m.깐팩.toLocaleString()}</td>
                 <td className="py-2 pr-3 text-right tabular-nums">{m.앨범.toLocaleString()}</td>
-                <td className="py-2 text-right tabular-nums">{m.GP.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{m.GP.toLocaleString()}</td>
+                <td className="py-2 text-right">
+                  {/* 닉네임이 없으면 못 보낸다 — 서버가 닉네임으로 사람을 찾는다. */}
+                  {m.닉네임 ? (
+                    <button
+                      type="button"
+                      onClick={() => onGift(m.닉네임)}
+                      className="rounded-lg border border-neutral-300 px-2 py-1 text-[11px] font-semibold text-neutral-600 hover:bg-neutral-50"
+                    >
+                      GP 주기
+                    </button>
+                  ) : (
+                    <span className="text-neutral-300">-</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

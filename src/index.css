@@ -51,15 +51,16 @@ select {
 }
 
 /* 상세 시트가 아래에서 올라오는 움직임. 없으면 툭 하고 나타나 어색하다.
-   화면 움직임을 줄이도록 설정한 기기에서는 움직이지 않는다(접근성 기본). */
+   화면 움직임을 줄이도록 설정한 기기에서는 움직이지 않는다(접근성 기본).
+   ⚠️ 예전엔 12%에서 반투명으로 스며들었는데(2026-08-19까지), 종이가 서서히 나타나는
+   느낌이라 「창이 올라온다」로 안 읽혔다(사장님: "부자연스럽다"). 진짜 시트처럼
+   **화면 밖(100%)에서 끝까지** 올라온다. 반투명은 뺐다 — 움직임만으로 충분하다. */
 @keyframes sheet-up {
   from {
-    transform: translateY(12%);
-    opacity: 0.6;
+    transform: translateY(100%);
   }
   to {
     transform: translateY(0);
-    opacity: 1;
   }
 }
 @keyframes sheet-fade {
@@ -70,8 +71,20 @@ select {
     opacity: 1;
   }
 }
+/* 닫힐 때 — DetailSheet가 onClose를 190ms 늦추고 이 둘을 붙인다(끌어서 닫을 때는
+   손가락 위치에서 inline transform으로 잇는다 — 0에서 다시 내려보내면 위로 튄다). */
+@keyframes sheet-down {
+  to {
+    transform: translateY(105%);
+  }
+}
+@keyframes sheet-fade-out {
+  to {
+    opacity: 0;
+  }
+}
 .sheet-panel {
-  animation: sheet-up 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: sheet-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   /* ⚠️ 시트 안에서 끝까지 굴렸을 때 **뒤 목록으로 넘어가지 않게** 막는다. 없으면 손가락이
      끝에 닿는 순간 뒤 화면이 딸려 움직여, 시트가 미끄러지는 것처럼 느껴진다
      (사장님 지적 2026-08-15: "스크롤하기 너무 어려워"). */
@@ -79,12 +92,44 @@ select {
   /* iOS에서 관성 스크롤이 뚝뚝 끊기는 것을 막는다. */
   -webkit-overflow-scrolling: touch;
 }
+/* ⚠️⚠️ 아이폰 사파리에서만: 시트 바닥에 **아래 툴바(주소창) 높이만큼** 여유를 더 둔다.
+   사장님 발견(2026-08-19): "안쪽 스크롤을 다 내려도 바깥 스크롤이 다 안 내려가 있으면
+   아래쪽까지 안 보인다."
+   까닭 — 시트는 화면 맨 바닥까지 내려가는데, 사파리 아래 툴바가 그 위를 **떠서 덮는다.**
+   보통은 페이지를 스크롤하면 툴바가 접히지만, 시트가 열리면 뒤 화면을 잠가(body
+   overflow hidden) 문서 스크롤이 없으니 **툴바가 영영 안 접힌다.** 그래서 안쪽을 끝까지
+   내려도 마지막 ~110pt가 툴바 뒤에 숨는다(iOS 시뮬레이터 iPhone 17 실측 — 바깥을 미리
+   끝까지 내려 두면 툴바가 작아져 다 보이는 것도 증상과 일치).
+   고침 — 스크롤 영역 끝에 꼬리를 넣어 **마지막 내용이 툴바 위로 올라오게** 한다.
+   env(safe-area-inset-bottom)은 홈바(34pt)만 알지 툴바는 모른다 — 4rem을 더한다.
+   @supports (-webkit-touch-callout)은 iOS에서만 참이라, 안드로이드·PC에는 빈 꼬리가
+   안 생긴다. 값 근거: 펼친 툴바 ~83pt + 여유 ≤ 34+64=98pt(홈바 있는 기종),
+   홈바 없는 기종은 툴바가 ~75pt라 64pt로도 대부분 걸치지 않는다.
+   ⚠️⚠️ padding-bottom으로는 안 된다 — **사파리는 스크롤 칸 자신의 아래 padding을
+   스크롤 길이에 안 쳐준다**(오래된 WebKit 버릇 · 시뮬레이터에서 padding으로 먼저
+   시도했다가 그대로 잘려서 확인). 자리를 실제로 차지하는 ::after로 넣는다. */
+@supports (-webkit-touch-callout: none) {
+  .sheet-panel::after {
+    content: '';
+    display: block;
+    height: calc(env(safe-area-inset-bottom, 0px) + 4rem);
+  }
+}
 .sheet-backdrop {
   animation: sheet-fade 0.22s ease-out;
 }
+/* ⚠️ .sheet-panel보다 뒤에 있어야 한다 — 같은 무게라 나중 줄이 이긴다. */
+.sheet-panel-out {
+  animation: sheet-down 0.19s ease-in forwards;
+}
+.sheet-backdrop-out {
+  animation: sheet-fade-out 0.19s ease-in forwards;
+}
 @media (prefers-reduced-motion: reduce) {
   .sheet-panel,
-  .sheet-backdrop {
+  .sheet-backdrop,
+  .sheet-panel-out,
+  .sheet-backdrop-out {
     animation: none;
   }
 }
@@ -750,4 +795,274 @@ select {
 select option {
   background-color: var(--color-white);
   color: var(--color-neutral-800);
+}
+
+/* ── 폰 가로 — 게임만 남기고 한 화면에 담는다 (2026-08-18) ─────────────────
+ *
+ * 사장님 결정: 이 게임은 **한 줄에서 밀고 밀리는 것이라 가로가 아니면 뜻이 없다.**
+ * 세로로 들어오면 화면이 통째로 「폰을 옆으로 돌려 주십시오」가 되므로(PokeDefense.tsx),
+ * 세로 배치를 억지로 맞출 일이 없다.
+ *
+ * ⚠️⚠️ **배치를 두 벌로 갈라 두지 않는다.** JSX는 한 벌이고 여기서 크기만 줄인다.
+ *    예전에 「따라보기(카메라)」를 걷어낸 까닭이 자리 값 여섯이 두 갈래로 갈려
+ *    손볼 때마다 두 벌을 맞춰야 했던 것이다. 같은 잘못을 되풀이하지 말 것.
+ * ⚠️ 켜고 끄는 것은 화면이 아니라 **`PokeDefense.tsx`가 붙이는 `data-대전쟁='가로'`**다
+ *    (손가락으로 누르는 기기 + 960px 이하 + 가로일 때만). 화면 폭만 보면 PC에서 창을
+ *    좁혔을 때도 걸린다.
+ */
+.대전쟁-전장 {
+  height: 16rem; /* 넓은 화면·폰 세로에서는 지금까지와 똑같다(h-64). */
+}
+
+:root[data-대전쟁='가로'] header,
+:root[data-대전쟁='가로'] footer,
+:root[data-대전쟁='가로'] .대전쟁-머리,
+:root[data-대전쟁='가로'] .대전쟁-줄거리 {
+  display: none;
+}
+/* 본문 여백을 걷어낸다 — 가로 화면은 높이가 375px뿐이라 24px도 아깝다. */
+:root[data-대전쟁='가로'] main {
+  padding: 0;
+}
+:root[data-대전쟁='가로'] .대전쟁-판 {
+  padding: 0.25rem 0.5rem 0.5rem;
+}
+/*
+ * 전장 높이 = 화면 높이 − (스테이지 줄 + 돈 줄 + 단추 줄 + 카드 여덟 + 여백).
+ * ⚠️ `dvh`를 쓴다 — 주소창이 접혔다 펴져도 따라온다(`vh`는 접힌 상태로 굳는다).
+ * ⚠️ 바닥(96px)을 둔다. 아주 낮은 화면에서 전장이 0이 되면 판이 통째로 안 보인다.
+ */
+:root[data-대전쟁='가로'] .대전쟁-전장 {
+  height: max(96px, calc(100dvh - var(--대전쟁-바깥, 286px)));
+}
+/* 판이 도는 동안에는 위 두 줄이 접히므로 전장이 그만큼 커진다. */
+:root[data-대전쟁='가로'] .판도는중 {
+  --대전쟁-바깥: 208px;
+}
+
+/* 줄 사이 여백을 죈다 — 375px에서는 8px씩도 모여서 한 줄이 된다. */
+:root[data-대전쟁='가로'] .대전쟁-판 > * {
+  margin-top: 0.15rem;
+}
+/*
+ * ⚠️⚠️⚠️ **손가락으로 누르는 자리는 44px이다** (사장님 2026-08-18: "난이도 설정하는 단추가
+ *    너무 누르기 어렵다"). 처음에 여백을 죄어 **25px**까지 줄여 놨었다(시작 단추는 20px).
+ * → 보이는 크기는 그대로 두고 **`::after`로 눌리는 자리만 위아래로 넓힌다.** 자리를 안 먹으므로
+ *   375px 화면에서도 값을 안 치른다. 가로로는 안 넓힌다 — 옆 단추와 겹친다.
+ */
+:root[data-대전쟁='가로'] .대전쟁-묶음 > button,
+:root[data-대전쟁='가로'] .대전쟁-주단추,
+:root[data-대전쟁='가로'] .대전쟁-스테이지줄 > button {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  font-size: 11px;
+  position: relative;
+}
+:root[data-대전쟁='가로'] .대전쟁-묶음 > button::after,
+:root[data-대전쟁='가로'] .대전쟁-주단추::after,
+:root[data-대전쟁='가로'] .대전쟁-스테이지줄 > button::after {
+  content: '';
+  position: absolute;
+  inset: -8px 0;
+}
+/* 시작·멈춤은 글씨가 짧아 단추가 낮다(25px) — 더 넓혀야 44px이 된다. */
+:root[data-대전쟁='가로'] .대전쟁-주단추::after {
+  inset: -10px 0;
+}
+/* 「다시 플레이」는 시작 단추와 같은 꼴이되 **눌러서 판이 날아가는 쪽**이라 옅게 둔다. */
+.대전쟁-다시 {
+  background: transparent;
+  color: var(--color-neutral-700);
+  border: 1px solid var(--color-neutral-300);
+}
+/*
+ * **판이 도는 동안에는 난이도·스테이지 줄을 접는다.** 둘 다 그때는 눌리지도 않는 줄이라
+ * (`disabled`) 자리만 먹는다. 접은 만큼 전장이 커진다 — 폰 가로에서 제일 아쉬운 것이 높이다.
+ */
+:root[data-대전쟁='가로'] .판도는중 .대전쟁-난이도줄,
+:root[data-대전쟁='가로'] .판도는중 .대전쟁-스테이지줄 {
+  display: none;
+}
+/*
+ * 카드 여덟 — 가로에서는 **그림을 줄이고 역할 줄을 접는다.**
+ * ⚠️ 이름과 값은 남긴다. 무엇을 얼마에 내는지가 고르는 데 쓰는 전부다.
+ *    역할은 색 띠(카드 위 테두리)와 길게 눌러 보는 상세에 그대로 있다.
+ */
+:root[data-대전쟁='가로'] .대전쟁-카드줄 img {
+  width: 26px;
+  height: 26px;
+}
+:root[data-대전쟁='가로'] .대전쟁-카드 {
+  padding-bottom: 0;
+}
+:root[data-대전쟁='가로'] .대전쟁-카드 > div {
+  font-size: 11px;
+  line-height: 1.15;
+}
+/* 돈 줄·단추 줄도 한 뼘씩 죈다 — 이 둘이 63px을 먹고 있었다. */
+:root[data-대전쟁='가로'] .대전쟁-판 > .flex {
+  font-size: 11px;
+}
+/*
+ * ⚠️⚠️ **역할은 가로에서도 보여야 한다**(사장님 2026-08-18: "폰을 눕혀서 하면 역할군이
+ *    안 보인다"). 높이를 아끼려고 숨겼던 것을 되돌리되, 줄은 늘리지 않는다 —
+ *    **역할과 값을 한 줄에** 놓는다. 넓은 화면에서는 `display: contents`라 두 줄 그대로다.
+ */
+.대전쟁-역할값 {
+  display: contents;
+}
+:root[data-대전쟁='가로'] .대전쟁-역할값 {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+}
+:root[data-대전쟁='가로'] .대전쟁-역할값 .대전쟁-역할 {
+  font-size: 10px;
+}
+
+/* 폰 세로에서 도는 그림 — 「돌리십시오」를 글로만 적으면 눈에 안 들어온다. */
+.대전쟁-돌리기 {
+  width: 46px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+}
+.대전쟁-돌리기 > i {
+  display: block;
+  width: 34px;
+  height: 58px;
+  border: 3px solid var(--color-neutral-700);
+  border-radius: 7px;
+  animation: 대전쟁-눕히기 2.4s ease-in-out infinite;
+}
+@keyframes 대전쟁-눕히기 {
+  0%, 30% { transform: rotate(0deg); }
+  55%, 85% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .대전쟁-돌리기 > i { animation: none; transform: rotate(-90deg); }
+}
+
+/* ── 완주 축하 색종이 (2026-08-18) ────────────────────────────────────────
+ * 열두 판을 다 클리어하면 떨어진다. **그림 파일을 안 쓴다** — 네모 열둘이 전부다.
+ * ⚠️ 자리를 안 먹는다(`pointer-events:none` + 덮개 안 절대 자리) — 폰 가로에서도 안전하다.
+ * ⚠️ 움직임을 줄이도록 설정한 기기에서는 **안 떨어진다.**
+ */
+.대전쟁-색종이 {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.대전쟁-색종이 > i {
+  position: absolute;
+  top: -12px;
+  width: 7px;
+  height: 11px;
+  border-radius: 1px;
+  opacity: 0.95;
+  animation: 대전쟁-떨어짐 2.6s linear infinite;
+}
+.대전쟁-색종이 > i:nth-child(1) { left: 6%;  background: #d9a441; animation-delay: 0s; }
+.대전쟁-색종이 > i:nth-child(2) { left: 14%; background: #3a72d0; animation-delay: .35s; }
+.대전쟁-색종이 > i:nth-child(3) { left: 22%; background: #c8433f; animation-delay: .8s; }
+.대전쟁-색종이 > i:nth-child(4) { left: 31%; background: #4caf7d; animation-delay: 1.2s; }
+.대전쟁-색종이 > i:nth-child(5) { left: 39%; background: #d9a441; animation-delay: .1s; }
+.대전쟁-색종이 > i:nth-child(6) { left: 47%; background: #8b6fd0; animation-delay: 1.6s; }
+.대전쟁-색종이 > i:nth-child(7) { left: 56%; background: #3a72d0; animation-delay: .55s; }
+.대전쟁-색종이 > i:nth-child(8) { left: 64%; background: #d9a441; animation-delay: 2s; }
+.대전쟁-색종이 > i:nth-child(9) { left: 72%; background: #c8433f; animation-delay: .95s; }
+.대전쟁-색종이 > i:nth-child(10) { left: 80%; background: #4caf7d; animation-delay: 1.45s; }
+.대전쟁-색종이 > i:nth-child(11) { left: 88%; background: #8b6fd0; animation-delay: .25s; }
+.대전쟁-색종이 > i:nth-child(12) { left: 95%; background: #d9a441; animation-delay: 1.85s; }
+@keyframes 대전쟁-떨어짐 {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(320px) rotate(420deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .대전쟁-색종이 { display: none; }
+}
+
+/* ── 덮개(완주 축하 · 게임평 · 게임 규칙) — **화면 전체를 덮는다** (2026-08-18) ────
+ *
+ * ⚠️⚠️⚠️ 전에는 전장 칸 안에 있었다. 폰에서 ①상자가 손바닥만 하고 ②반투명이라 **뒤 포켓몬이
+ *    비쳐 글씨가 안 읽히고** ③긴 글은 **아래가 잘렸다**(사장님이 잡으심).
+ * ⚠️ 뒤를 **확실히** 가린다(0.88). 흐리게만 가리면 도트 그림 위에서 글씨가 안 읽힌다.
+ * ⚠️ 상자는 **불투명**하다 — `--color-white`는 어두운 화면에서 #1a1a1a로 뒤집히지만
+ *    둘 다 불투명이라 글씨 대비가 안 무너진다.
+ * ⚠️ 폰 가로는 높이가 375px뿐이라 상자 높이를 **화면 기준(dvh)**으로 잡고 안에서 스크롤한다.
+ */
+.대전쟁-덮개 {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.88);
+}
+.대전쟁-덮개상자 {
+  width: 100%;
+  max-width: 28rem;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  /* 손가락으로 밀어서 볼 때 뒤 화면이 같이 밀리지 않게 한다. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid var(--color-neutral-300);
+  background: var(--color-white);
+  padding: 10px 12px;
+}
+
+/* ── 크롤러용 글자 감추기 ─────────────────────────────────────────────────
+   서버가 주소마다 제목·본문·안쪽 링크를 `<div id="seo-fallback">`으로 미리 넣어
+   보낸다(server/index.ts). 앱이 뜨면 App.tsx가 그 조각을 지우는데, **뜨기 전 0.5초
+   동안 그 글자가 화면에 그대로 보였다**(사장님 지적 2026-08-18: "글자가 잔뜩
+   나왔다가 화면으로 넘어간다").
+
+   ⚠️⚠️ **지우면 안 된다.** 구글이 우리 홈을 읽는 유일한 길이고, 세트·작가 쪽은
+      안쪽 링크가 여기 들어 있다. **HTML에는 그대로 두고 화면에서만 감춘다** —
+      서버가 보내는 글자는 한 자도 안 바뀌므로 크롤러가 받는 것은 전과 똑같다.
+   ⚠️ `display:none`을 쓰는 까닭: 화면에서 사라지면서 **읽어 주는 기계(스크린리더)의
+      읽기 대상에서도 빠진다.** 화면 밖으로 미는 방법(`left:-9999px`)은 눈에는 안
+      보여도 스크린리더가 읽어서, 눈이 안 보이는 분에게 같은 내용이 두 번 들린다.
+   ⚠️ 이 규칙 하나가 **모든 화면**을 덮는다 — 홈·세트·작가·시리즈·센터링·미개봉·
+      팝수·포켓몬별·오늘의 상점·커뮤니티가 다 같은 id를 쓴다. 한 곳만 고치면
+      나머지가 남는다는 지적이 있었는데, id가 하나라 그럴 일이 없다. */
+#seo-fallback {
+  display: none;
+}
+
+/* ── PC 옆구리 광고 자리 ──────────────────────────────────────────────
+ * 본문이 1152px 고정이라 넓은 화면에서 양옆이 빈다(1920px이면 384px씩 — 2026-08-19 실측).
+ * 1600px부터 160 폭, 1840px부터 300 폭. 그보다 좁으면 아예 없다 — 본문을 절대 안 민다.
+ * left/right 계산: 왼쪽 빈 칸의 한가운데 = (화면폭-1152)/4 지점. translateX로 상자 가운데를 맞춘다. */
+.ad-rail {
+  display: none;
+  position: fixed;
+  top: 140px;
+  z-index: 5;
+}
+@media (min-width: 1600px) {
+  .ad-rail {
+    display: block;
+    width: 160px;
+  }
+  .ad-rail.left {
+    left: calc((100vw - 1152px) / 4);
+    transform: translateX(-50%);
+  }
+  .ad-rail.right {
+    right: calc((100vw - 1152px) / 4);
+    transform: translateX(50%);
+  }
+}
+@media (min-width: 1840px) {
+  .ad-rail {
+    width: 300px;
+  }
 }

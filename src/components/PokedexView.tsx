@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AdSlot } from './AdSlot';
 import { trackEvent } from '../api/localStats';
 import { useSubScreen } from '../lib/useSubScreen';
 import { SearchInput } from './SearchInput';
@@ -245,6 +246,10 @@ export function PokedexView({
               const 이름 = meta && cat ? cat.koName(meta.ed, c.name) : c.name;
               const 세트 = meta && cat ? cat.koSet(meta.ed, meta.name) : (meta?.name ?? c.s);
               return (
+                <div key={`${c.s}-${c.n}-${i}`} className="contents">
+                {i === 4 && <AdSlot 형태="가로" 이름="도감" className="col-span-full sm:hidden" />}
+                {i === 6 && <AdSlot 형태="가로" 이름="도감" className="col-span-full hidden sm:block md:hidden" />}
+                {i === 8 && <AdSlot 형태="가로" 이름="도감" className="col-span-full hidden md:block" />}
                 <button
                   key={`${c.s}-${c.n}-${i}`}
                   type="button"
@@ -295,6 +300,7 @@ export function PokedexView({
                     {[(meta?.releaseDate ?? '').slice(0, 7), c.p ? `No.${c.p}` : 보일번호(c.n)].filter(Boolean).join(' · ')}
                   </p>
                 </button>
+                </div>
               );
             })}
           </div>

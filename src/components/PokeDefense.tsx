@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { trackEvent } from '../api/localStats';
 import { 기록받기, 기록올리기, 기록지우기, 별합치기 } from '../api/battleRecord';
+import { 게임평남기기, 게임평받기, 게임평지우기, type 게임평상태 } from '../api/battleReview';
+import { fetchMe } from '../api/auth';
 import 여백표 from '../data/dotTrim.json';
 import { 소리, 소리설정, 소리켜졌나 } from '../lib/pokeSound';
+// 우리가 스스로 history.back()을 부를 때 App의 화면 복원을 건너뛰게 하는 표식.
+import { 시트가스스로닫힘 } from '../lib/sheetHistory';
 import {
   내보내기, 다음무리까지, 도감맵, 도트, 무리들, 별, 새판, 잘통하는것, 진까닭,
   적있나, 역할색, 전장, 판덱, 판목록, 난이도들, 난이도표, 타입색, 타입한글, 한프레임,
@@ -132,6 +136,21 @@ export function PokeDefense() {
   const [별들, set별들] = useState<Record<string, number>>(() => 별읽기());
   const [소리켬, set소리켬] = useState(() => 소리켜졌나());
   /**
+   * **소리를 켠 직후 잠깐 뜨는 한 줄.**
+   *
+   * ⚠️⚠️ 2026-08-18에 사장님 아이폰에서 소리가 안 났는데, 원인은 **옆면 무음 스위치**였다.
+   *    웹에서는 그걸 알 방법도, 우회할 방법도 없다 — 그래서 **켠 사람에게 한 번 알려 준다.**
+   *    아이폰 쓰는 사람은 누구나 겪을 자리다.
+   * ⚠️ **늘 띄우지 않는다.** 폰 가로는 높이가 375px뿐이라 한 줄이 아깝고, 잘 들리는 사람에게는
+   *    잔소리다. 켠 뒤 8초만 보이고 사라진다.
+   */
+  const [소리안내, set소리안내] = useState(false);
+  useEffect(() => {
+    if (!소리안내) return;
+    const t = setTimeout(() => set소리안내(false), 8000);
+    return () => clearTimeout(t);
+  }, [소리안내]);
+  /**
    * 배속(1 또는 2).
    * ⚠️ 별을 모으려면 **같은 판을 여러 번** 해야 한다. 한 판이 60~90초인데 그걸 매번 다 보는
    *    것은 벌이다 — 냥코도 배속이 있다. 셈은 그대로 두고 `dt`만 곱한다.
@@ -163,6 +182,58 @@ export function PokeDefense() {
    *    무엇이 나오는지 보고 첫 수를 정하라는 시간이다.
    */
   const [카운트, set카운트] = useState(0);
+  /**
+   * **게임 규칙을 펴 놓았나.** 처음 온 사람에게는 켜 둔다.
+   * ⚠️⚠️ 예전에는 화면 맨 아래 접이식(`하는 법`)이었는데, 폰 가로에서는 그 줄을 통째로
+   *    접어 두어 **규칙을 볼 방법이 아예 없었다**(사장님 2026-08-18: "돌리자마자 바로
+   *    게임이 시작돼서 하는 방법을 볼 수가 없다"). 지금은 **판이 도는 중에도** 단추 하나로
+   *    열리는 덮개다 — 자리를 안 먹으므로 가로에서도 접을 이유가 없다.
+   */
+  const [규칙, set규칙] = useState(() => 깬것읽기().size === 0);
+  /**
+   * **완주 축하 덮개를 띄웠나.** 판이 끝난 순간 한 번만 뜨고, 닫으면 그 판에서는 안 뜬다.
+   * ⚠️ 이미 다 클리어한 사람이 아무 판이나 다시 이길 때마다 뜨면 성가시다 —
+   *    **이번에 마지막 한 판을 채웠을 때만** 띄운다(`딴별`처럼 판마다 초기화된다).
+   */
+  const [축하, set축하] = useState(false);
+  /**
+   * **게임평.** 별 36개를 다 모은 사람만 쓴다(사장님 2026-08-18 · 12판 클리어가 아니라 만점).
+   * ⚠️⚠️ **자격은 서버가 판단한다.** 여기 `쓸수있나`는 서버가 준 값을 그대로 들고 있는 것이고,
+   *    화면에서 다시 계산하지 않는다 — 두 곳에서 재면 반드시 어긋나고, 화면 값은 손댈 수 있다.
+   * ⚠️ 목록은 **운영자에게만** 온다(서버가 안 보낸다).
+   */
+  const [평상태, set평상태] = useState<게임평상태 | null>(null);
+  const [평열림, set평열림] = useState(false);
+  const [평글, set평글] = useState('');
+  const [평이름, set평이름] = useState('');
+  const [평알림, set평알림] = useState('');
+  const 평새로받기 = useCallback(() => { void 게임평받기().then(set평상태); }, []);
+  // ⚠️ 켤 때 한 번만 묻는다 — 판이 도는 동안 서버를 부를 일이 아니다.
+  useEffect(() => { 평새로받기(); }, [평새로받기]);
+  /**
+   * **이름 칸을 계정 닉네임으로 미리 채운다.**
+   * ⚠️⚠️ 남에게 보이는 글이므로 **회원번호·이메일은 어디에도 안 쓴다.** 닉네임은 커뮤니티에서
+   *    이미 남에게 보이는 이름이라 새로 드러나는 것이 없고, **칸에 채워 주므로 무엇이 보일지
+   *    쓰는 사람이 눈으로 확인하고 고치거나 지울 수 있다**(모르는 새 붙는 것이 아니다).
+   * ⚠️ 비우면 「이름 없음」으로 보인다 — 서버가 이름을 지어내지 않는다.
+   */
+  useEffect(() => {
+    let 살아있나 = true;
+    void fetchMe().then((me) => {
+      if (!살아있나 || !me.nickname) return;
+      set평이름((앞) => (앞 ? 앞 : me.nickname!.slice(0, 10)));
+    });
+    return () => { 살아있나 = false; };
+  }, []);
+  /**
+   * 3·2·1 셈 타이머. **들고 있다가 지운다** — 안 지우면 멈춘 뒤에도 판이 저절로 시작된다.
+   */
+  const 셈타이머ref = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const 셈타이머비우기 = useCallback(() => {
+    for (const t of 셈타이머ref.current) clearTimeout(t);
+    셈타이머ref.current = [];
+    set카운트(0);
+  }, []);
   /**
    * **첫 판 안내.** 0=안 함 · 1=시작을 누르라 · 2=카드를 눌러 내보내라 · 3=됐다(잠깐 뒤 사라짐).
    *
@@ -235,18 +306,44 @@ export function PokeDefense() {
    *    (같은 값으로 상태를 건드리면 그릴 일이 없는데도 리액트가 한 번 더 돈다).
    */
   const [무대폭, set무대폭] = useState(0);
-  useEffect(() => {
-    const el = 판칸ref.current;
+  /**
+   * **전장 높이도 잰다**(2026-08-18). 폰 가로에서 전장이 129px까지 낮아지는데,
+   * 진영 건물 높이는 폭에서만 나와서 **HP 띠를 덮었다.** 높이도 봐야 안 겹친다.
+   */
+  const [무대높이, set무대높이] = useState(0);
+  const 지켜보기ref = useRef<ResizeObserver | null>(null);
+  /**
+   * ⚠️⚠️ **`useEffect`로 붙이면 안 된다 — 세로에서 전장이 아예 없기 때문이다.**
+   *    폰 세로에서는 화면이 통째로 「돌리십시오」라 전장이 안 그려진다. 그때 효과가 한 번
+   *    돌면서 `ref.current`가 null이라 그냥 돌아가고, **가로로 돌려 전장이 생겨도 다시
+   *    안 붙는다.** 그러면 폭이 0에 머물러 집·도트 크기가 엉뚱해진다(2026-08-18에 겪었다).
+   * → 리액트가 **칸을 달고 뗄 때마다 불러 주는 ref 함수**로 붙인다. 생길 때 붙고 사라질 때 뗀다.
+   */
+  const 무대달기 = useCallback((el: HTMLDivElement | null) => {
+    판칸ref.current = el;
+    지켜보기ref.current?.disconnect();
+    지켜보기ref.current = null;
     if (!el) return;
-    // ⚠️ 흔들림(WAAPI translate)은 폭을 안 바꾸므로 여기에 안 걸린다.
-    const 재기 = () => set무대폭((앞) => {
-      const w = Math.round(el.getBoundingClientRect().width);
-      return w > 0 && w !== 앞 ? w : 앞;
-    });
+    // ⚠️ 흔들림(WAAPI translate)은 크기를 안 바꾸므로 여기에 안 걸린다.
+    /**
+     * ⚠️⚠️ **자잘한 변화는 무시한다(8px).** 폰에서 주소창이 접혔다 펴질 때마다 `100dvh`가
+     *    바뀌어 전장 높이가 **몇 px씩 계속 흔들린다.** 그때마다 도트·집 크기를 다시 정하면
+     *    스무 마리가 한꺼번에 커졌다 작아졌다 하며 **잔상처럼 번져 보인다.**
+     *    이 리포가 앞서 배운 것과 같은 갈래다 — **자리를 정하는 값은 흔들리면 안 된다.**
+     * ⚠️ 처음 잰 값(0 → 실제)은 크기와 상관없이 받는다. 안 받으면 영영 0에 머문다.
+     */
+    const 받나 = (앞: number, 새: number) => 새 > 0 && (앞 === 0 || Math.abs(새 - 앞) >= 8);
+    const 재기 = () => {
+      const r = el.getBoundingClientRect();
+      const w = Math.round(r.width);
+      const h = Math.round(r.height);
+      set무대폭((앞) => (받나(앞, w) ? w : 앞));
+      set무대높이((앞) => (받나(앞, h) ? h : 앞));
+    };
     재기();
     const 지켜보기 = new ResizeObserver(재기);
     지켜보기.observe(el);
-    return () => 지켜보기.disconnect();
+    지켜보기ref.current = 지켜보기;
   }, []);
   /** 앞서 걸어 둔 흔들림. 겹쳐 걸면 화면이 계속 떨려 멀미가 난다 — 새로 걸기 전에 지운다. */
   const 흔들ref = useRef<Animation | null>(null);
@@ -313,7 +410,9 @@ export function PokeDefense() {
     // ⚠️ 「다시」는 그만둔 것이 아니다 — 새 판이 시작 전 상태로 돌아가므로 표시도 내린다.
     시작한적ref.current = false;
     판ref.current = 새판(s);
-    set카운트(0);
+    // ⚠️ 3·2·1 셈이 돌던 중이면 **그 타이머부터 지운다.** 안 지우면 새 판을 깔아 놓고
+    //    2.1초 뒤에 옛 타이머가 깨어나 저절로 시작된다.
+    셈타이머비우기();
     set진행중(false);
     set딴별(0);
     set켜진별(0);
@@ -421,6 +520,9 @@ export function PokeDefense() {
             if (앞.has(스.이름)) return 앞;   // ⚠️ 같은 판을 또 깨도 한 번만 센다
             const 새것 = new Set(앞).add(스.이름);
             깬것쓰기(새것);
+            // ⚠️ **마지막 한 판을 방금 채웠을 때만** 축하 덮개를 띄운다. 이미 다 클리어한
+            //    사람이 아무 판이나 다시 이길 때마다 뜨면 성가시다.
+            if (새것.size >= 스테이지들.length) set축하(true);
             return 새것;
           });
           // ⚠️ **낮은 별로 덮어쓰지 않는다.** 한 번 ★★★을 땄으면 그 뒤에 대충 깨도 남는다.
@@ -472,6 +574,8 @@ export function PokeDefense() {
   const 남은적 = 스.적.length - p.다음적;
   const 곧옴 = 다음무리까지(p, 스);
   const 총별 = Object.values(별들).reduce((a, b) => a + b, 0);
+  /** 열두 판을 다 클리어했나. 승리 상자와 축하 덮개가 같은 잣대를 쓴다. */
+  const 완주 = 깬것.size >= 스테이지들.length;
   /**
    * 전장 칸 -> 화면 가로 위치(%).
    *
@@ -510,7 +614,21 @@ export function PokeDefense() {
    */
   const 폭기준 = 무대폭 || 1000;
   const 도트크기 = Math.round(Math.max(36, Math.min(56, 폭기준 * 0.056)));
-  const 집폭 = Math.round(Math.max(38, Math.min(58, 폭기준 * 0.058)));
+  /**
+   * ⚠️⚠️ **집은 높이에도 걸린다.** 폰 가로에서 전장이 129px까지 낮아지자 집(폭×1.15)이
+   *    위로 자라 **HP 띠를 덮었다**(2026-08-18 가로 화면에서 잡음). 전장 안에서 집이 서는
+   *    자리는 「땅 띠 48px 위」라, 집 높이가 전장 높이의 3분의 1을 넘으면 띠와 겹친다.
+   * ⚠️ 낮은 쪽 뚜껑(30)은 「집으로 보이는 크기」다 — 더 줄이면 무슨 건물인지 안 보인다.
+   */
+  const 높이기준 = 무대높이 || 256;
+  /**
+   * ⚠️⚠️ **집은 「땅 띠와 HP 띠 사이」에 들어가야 한다.** 높이의 3할로 잡았더니 폰 가로에서
+   *    전장이 112px일 때 집이 **HP 띠를 15px 덮었다**(2026-08-18에 두 번째로 겪음).
+   *    집은 땅 띠(48px) 위에 서고 높이가 폭의 1.15배이므로, 남는 자리는
+   *    `전장높이 − 집이 서는 자리 52 − HP 띠 아래 40`이다. 그 안에 들어가는 폭만 쓴다.
+   * ⚠️ 바닥(20)은 「집으로 보이는 크기」다.
+   */
+  const 집폭 = Math.round(Math.max(18, Math.min(58, 폭기준 * 0.058, (높이기준 - 92) / 1.15)));
   /**
    * ⚠️⚠️ **겹침은 층으로 푸는데, 층 간격을 넓히면 유닛이 하늘에 뜬다.**
    *    17px × 6층 = 85px이라 뒷줄이 땅 띠(48px)를 한참 넘어 **공중에 떠 보였다**
@@ -582,8 +700,107 @@ export function PokeDefense() {
     trackEvent('battle_quit', `${q.이름} · ${q.난}`);
   }, []);
 
+  /**
+   * **판이 도는 동안 뒤로가기 한 번은 「멈춤」으로 먹는다** (2026-08-18).
+   *
+   * ⚠️⚠️ 폰에서 뒤로가기는 아주 쉽게 눌린다. 그런데 여태는 한 번에 게임 밖으로 나가서
+   *    **하던 판이 통째로 날아갔다**(경고도 없다). 한 판이 1분짜리라 그 한 번이 아깝다.
+   * → 판이 시작되면 방문기록에 칸을 하나 쌓고, 뒤로가기가 그 칸을 되돌리면 **나가는 대신
+   *   판을 멈춘다.** 한 번 더 누르면 그때는 정말 나간다(가두지 않는다).
+   *
+   * ⚠️ 카드 상세 시트(`DetailSheet`)가 쓰는 방식 그대로다 — `{ sheet: true }` 표식을 쓰면
+   *    App의 뒤로가기 처리기가 그 칸을 건너뛴다. 새 방식을 지어내면 App 쪽과 어긋난다.
+   * ⚠️ 멈춤은 **화면에 남는 것**이라 「그만둠」이 아니다 — `battle_quit`을 세지 않는다.
+   *    통계에서 「도중에 나간 사람」이 부풀려지면 어느 판이 지겨운지 못 보게 된다.
+   * ⚠️ 내가 쌓은 칸은 판이 멈추거나 끝나면 **도로 걷어낸다.** 안 걷어내면 뒤로가기를
+   *    두 번 눌러야 나가는 상태가 계속 남는다.
+   */
+  useEffect(() => {
+    if (!진행중) return;
+    const 뒤로 = () => set진행중(false);
+    window.history.pushState({ sheet: true, 대전쟁: true }, '');
+    window.addEventListener('popstate', 뒤로);
+    return () => {
+      window.removeEventListener('popstate', 뒤로);
+      // 이미 뒤로가기로 멈춘 것이면 칸이 사라졌으니 건너뛴다.
+      if (window.history.state?.대전쟁) {
+        시트가스스로닫힘.on = true;
+        window.history.back();
+      }
+    };
+  }, [진행중]);
+
   // ⚠️ 게임 화면을 **떠날 때** 한 번 센다. 딸린 값이 없어야(`[]`) 진짜 나갈 때만 돈다.
-  useEffect(() => () => { 그만둠세기(); }, [그만둠세기]);
+  useEffect(() => () => { 그만둠세기(); 셈타이머비우기(); }, [그만둠세기, 셈타이머비우기]);
+
+  // ── 폰 가로 ────────────────────────────────────────────────────────────────
+  /**
+   * **이 게임은 가로가 아니면 뜻이 없다**(사장님 2026-08-18).
+   * 한 줄에서 밀고 밀리는 게임이라 세로로 하면 **양옆이 너무 짧아 의도가 달라진다.**
+   * 그래서 폰 세로로 들어오면 게임 대신 **「옆으로 돌리십시오」**만 보인다.
+   *
+   * ⚠️⚠️ **「폰인가」를 화면 폭만으로 보면 안 된다.** PC에서 창을 좁혔을 뿐인데 게임이
+   *    통째로 「돌리십시오」로 바뀐다. **손가락으로 누르는 기기**(`pointer: coarse`)까지
+   *    같이 봐야 한다.
+   * ⚠️ 960px으로 자른 것은 가로로 눕힌 큰 폰(가로 926px)까지 폰으로 보기 위해서다.
+   */
+  const [폰, set폰] = useState(false);
+  const [세로, set세로] = useState(false);
+  useEffect(() => {
+    const 손가락 = window.matchMedia('(pointer: coarse)');
+    const 작은 = window.matchMedia('(max-width: 960px)');
+    const 세로재기 = window.matchMedia('(orientation: portrait)');
+    const 재기 = () => { set폰(손가락.matches && 작은.matches); set세로(세로재기.matches); };
+    재기();
+    for (const m of [손가락, 작은, 세로재기]) m.addEventListener('change', 재기);
+    return () => { for (const m of [손가락, 작은, 세로재기]) m.removeEventListener('change', 재기); };
+  }, []);
+  /**
+   * **관동지방을 한 바퀴 다 돌았나.** 승리 상자와 축하 덮개가 **같은 잣대**를 쓴다.
+   * ⚠️ 12판째를 이긴 그 순간에만 참이 아니다 — 이미 다 클리어한 사람이 아무 판이나 다시
+   *    이겨도 참이다. 그래서 덮개는 **판을 마친 순간 한 번만** 띄운다(`축하봄ref`).
+   */
+  const 폰가로 = 폰 && !세로;
+  const 폰세로 = 폰 && 세로;
+  /**
+   * 폰 가로에서는 **사이트 머리말·꼬리말을 접고** 전장 높이를 화면에 맞춘다.
+   * ⚠️ 자리를 정하는 값은 전부 `index.css`의 「폰 가로」 절에 있다 —
+   *    **배치를 두 벌로 갈라 두지 않는다.** 예전에 「따라보기(카메라)」를 걷어낸 까닭이
+   *    자리 값이 두 갈래로 갈려 손볼 때마다 두 벌을 맞춰야 했던 것이다.
+   * ⚠️ 카드 상세 시트가 `data-sheet`로 머리말을 접는 것과 같은 방식이다.
+   */
+  useEffect(() => {
+    if (!폰가로) return;
+    document.documentElement.dataset.대전쟁 = '가로';
+    return () => { delete document.documentElement.dataset.대전쟁; };
+  }, [폰가로]);
+  // ⚠️ 세로로 돌리면 게임이 안 보이므로 **판을 멈춘다.** 안 멈추면 보이지도 않는 판에서
+  //    성이 부서진다(rAF는 화면이 보이는 동안 계속 돈다).
+  useEffect(() => {
+    if (!폰세로) return;
+    // ⚠️ 셈 타이머까지 지운다 — 3·2·1 도중에 세로로 돌리면 **안 보이는 채로 판이 시작된다.**
+    셈타이머비우기();
+    set진행중(false);
+  }, [폰세로, 셈타이머비우기]);
+
+  /**
+   * **전체화면**(사장님 2026-08-18: "몰입감 있게 아예 전체화면 모드를").
+   * ⚠️ 되는 기기에서만 단추를 낸다 — **아이폰 사파리는 동영상이 아닌 것의 전체화면을
+   *    지원하지 않는다**(아이폰의 크롬도 같은 엔진이라 마찬가지다). 안 되는 곳에서는
+   *    단추를 아예 안 보이게 해서 「눌러도 아무 일 없는 단추」를 만들지 않는다.
+   * ⚠️ 화면 방향을 **강제로 돌리지 않는다.** 사람이 직접 돌리는 방식이라 아이폰에서도 된다.
+   */
+  const [전체화면, set전체화면] = useState(false);
+  const 전체화면됨 = typeof document !== 'undefined' && !!document.fullscreenEnabled;
+  useEffect(() => {
+    const 바뀜 = () => set전체화면(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', 바뀜);
+    return () => document.removeEventListener('fullscreenchange', 바뀜);
+  }, []);
+  const 전체화면토글 = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => { /* 이미 나갔으면 그만 */ });
+    else void document.documentElement.requestFullscreen?.().catch(() => { /* 막혀 있으면 그냥 둔다 */ });
+  }, []);
 
   /** 길게 누르기 타이머를 지운다. 떼거나 칸을 벗어나면 반드시 부른다. */
   const 꾹멈춤 = useCallback(() => {
@@ -603,15 +820,43 @@ export function PokeDefense() {
     if (내보내기(p, u)) { 소리.소환(); 다시그림(); } else 소리.안됨();
   };
 
+  /**
+   * **폰 세로 — 게임 대신 「돌리십시오」만 보인다.**
+   * ⚠️ 세로 배치를 억지로 맞추지 않는 것이 이 결정의 알맹이다 — 배치를 두 벌 유지하는
+   *    짐이 사라진다. 대신 **왜 돌려야 하는지**를 한 줄로 알려 준다(그냥 막으면 고장으로 보인다).
+   * ⚠️ 이 자리는 hook을 다 부른 뒤여야 한다 — 위쪽에서 일찍 돌려보내면 리액트가 깨진다.
+   */
+  if (폰세로) {
+    return (
+      <div className="mx-auto flex max-w-5xl flex-col items-center justify-center px-6 py-16 text-center">
+        {/* ⚠️ 움직임을 줄이도록 설정한 기기에서는 안 돌린다(index.css). */}
+        <div className="대전쟁-돌리기" aria-hidden="true"><i /></div>
+        <h2 className="mt-4 text-base font-bold">폰을 옆으로 돌려 주십시오</h2>
+        <p className="mt-1.5 text-xs leading-relaxed text-neutral-600">
+          포켓몬 디펜스는 <b>한 줄에서 밀고 밀리는</b> 게임이라 가로로 보아야 합니다.
+          <br />세로로는 양옆이 짧아 전장이 다 보이지 않습니다.
+        </p>
+        <p className="mt-2 text-xs text-neutral-600">
+          화면 회전이 잠겨 있으면 잠금을 풀어 주십시오.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-5xl px-3 pb-24 pt-3">
+    <div className={`대전쟁-판 mx-auto max-w-5xl px-3 pb-24 pt-3${진행중 || 카운트 > 0 ? ' 판도는중' : ''}`}>
       {/* ⚠️⚠️ **게임 화면에는 설명을 두지 않는다**(사장님 2026-08-17: "게임화면은 깔끔하게").
           하는 법은 맨 아래 접이식 한 곳에만 적는다 — 두 군데에 적으면 반드시 어긋난다. */}
-      <div className="flex items-baseline gap-2">
-        {/* 이름은 「포켓몬 디펜스 시즌1」이다(사장님 2026-08-18). 「베타」는 뗐다.
+      <div className="대전쟁-머리 flex items-baseline gap-2">
+        {/* 이름은 「포켓몬 디펜스」이고 부제가 「관동지방」이다(사장님 2026-08-18). 「베타」는 뗐다.
+            ⚠️ **「시즌1」은 사람 눈에 안 보인다** — 몇 번째인지는 만드는 쪽 사정이라 방문자가
+               알 까닭이 없다. 시즌2가 성도로 가면 「포켓몬 디펜스 · 성도지방」으로 이어진다.
             ⚠️ 코드 안 이름(대전쟁·battle_*)은 그대로 둔다 — 통계 열쇠가 이미 그 이름으로
                쌓여 있어 바꾸면 그때까지 쌓인 것이 다른 줄로 갈린다. */}
-        <h2 className="text-base font-bold">포켓몬 디펜스 <span className="text-xs font-normal text-neutral-600">시즌1</span></h2>
+        {/* ⚠️ 부제는 **관동지방**이다(사장님 2026-08-18). 열두 판이 전부 관동을 도는 길이다
+            (1번도로→상록숲→회색→달맞이산→블루→갈색→보라타운→무지개→노랑→연분홍→홍련섬→블루시티동굴).
+            성도는 금·은 쪽이라 여기가 아니다 — 시즌2 이름이 필요하면 그때 쓸 자리다. */}
+        <h2 className="text-base font-bold">포켓몬 디펜스 <span className="text-xs font-normal text-neutral-600">관동지방</span></h2>
         {/* ⚠️ 만점은 36개(12판 × ★3). 「얼마나 남았나」가 한눈에 보여야 다시 하게 된다. */}
         <span className="text-xs text-neutral-600 tabular-nums">
           <span className="text-amber-700">★</span> {총별}/{스테이지들.length * 3}
@@ -626,7 +871,7 @@ export function PokeDefense() {
 
       {/* ⚠️ **난이도가 곧 별이다.** 쉬움 ★ · 보통 ★★ · 어려움 ★★★.
           판을 고르기 전에 정해야 하므로 스테이지 줄 위에 둔다. */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div className="대전쟁-난이도줄 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <div className="대전쟁-묶음">
           {난이도들.map((d) => (
             <button
@@ -648,7 +893,7 @@ export function PokeDefense() {
       {/* ── 스테이지 고르기 ───────────────────────────────────────────────
           ⚠️ 폰(375px)에서 이름을 다 적으면 **여섯 줄**을 먹는다. 폰에서는 한 줄로 두고
              옆으로 밀어 보게 한다(넓은 화면에서는 그대로 줄바꿈). */}
-      <div className="mt-3 flex snap-x gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-x-visible sm:pb-0">
+      <div className="대전쟁-스테이지줄 mt-3 flex snap-x gap-1.5 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-x-visible sm:pb-0">
         {스테이지들.map((s, i) => (
           <button
             key={s.이름} type="button" disabled={진행중 || !열렸나(i)}
@@ -672,9 +917,11 @@ export function PokeDefense() {
           </button>
         ))}
       </div>
+      {/* ⚠️ 폰 가로에서는 **줄거리를 접고 「잘 통함」만 남긴다**(index.css) — 화면 높이가
+          375px뿐이라 한 줄이 아쉽고, 정작 판을 고를 때 필요한 것은 속성이다. */}
       <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-neutral-600">
         <b className="text-neutral-700">{스.이름}</b>
-        <span>{스.설명}</span>
+        <span className="대전쟁-줄거리">{스.설명}</span>
         {통함.length > 0 && (
           <>
             <span className="text-neutral-600">잘 통함</span>
@@ -693,12 +940,12 @@ export function PokeDefense() {
           알림이 전장 높이(144px)를 넘는 순간 **이야기와 단추가 통째로 잘린다**
           (2026-08-17에 12판 마무리 화면이 그렇게 잘려 있었다). */}
       {/* ⚠️ 내 성이 절반 밑으로 깎이면 테두리가 붉어진다 — 숫자만 보고는 위급한 줄 모른다. */}
-      <div className="대전쟁-무대 relative mt-2" ref={판칸ref}
+      <div className="대전쟁-무대 relative mt-2" ref={무대달기}
         data-위급={진행중 && p.내성 < 스.내성hp * 0.5 ? '1' : '0'}>
       {/* ⚠️ 색은 index.css의 `--전장-…`에서 온다. Tailwind 색 이름을 직접 쓰면 다크에서
           안 뒤집혀 흰 상자가 된다(2026-08-17에 겪었다). */}
       <div
-        className={`판-${스.배경} relative h-64 overflow-hidden`}
+        className={`대전쟁-전장 판-${스.배경} relative overflow-hidden`}
         style={{ background: 'linear-gradient(to bottom, var(--전장-하늘), var(--전장-땅))' }}
       >
         {/* ⚠️ 배경 네 겹 — 하늘·먼 실루엣·땅·앞풀. 전부 `pointer-events:none`이고
@@ -911,7 +1158,12 @@ export function PokeDefense() {
             style={{
               left: `${가로(Math.max(0, Math.min(전장, g.x)))}%`,
               transform: 'translateX(-50%)',
-              bottom: 126 + (1.1 - g.남은) * 18,
+              /**
+               * ⚠️⚠️ **전장 높이에 맞춘다.** 126px로 못 박혀 있어서, 폰 가로에서 전장이
+               *    129~183px일 때 「+15」가 **HP 띠 위로 올라가 겹쳤다**(2026-08-18 사장님
+               *    화면에서 잡음). 넓은 화면(256px)에서는 지금까지와 같은 126이다.
+               */
+              bottom: Math.min(126, 높이기준 * 0.5) + (1.1 - g.남은) * 18,
               // ⚠️ 바탕을 style로 박았으니 **글자색도 박는다** — `text-white`는 사다리를 타서
               //    어두운 화면에서 검은 알약에 검은 글씨가 된다.
               background: 'rgba(23,23,23,.9)', color: '#fff',
@@ -956,7 +1208,7 @@ export function PokeDefense() {
         //    어두운 화면에서 #1a1a1a가 되는데, 이 알약 바탕은 안 뒤집혀 **검은 글씨가
         //    검은 알약 위에** 얹힌다(2026-08-18에 어두운 화면에서 잡았다).
         style={{ background: 'rgba(23,23,23,.9)', color: '#fff' }}>
-              쉬는 참 · 다음 무리 {곧옴!.toFixed(1)}초 — 지금 쓰면 버리는 돈입니다
+              쉬는 타임 · 다음 웨이브 {곧옴!.toFixed(1)}초 — 지금 쓰면 버리는 돈입니다
             </span>
             <span className="flex items-center gap-0.5 rounded-full px-2 py-0.5"
               // ⚠️ 알약이 **밝은** 쪽이라 글자색도 어둡게 박는다. 안 박으면 어두운 화면에서
@@ -979,7 +1231,7 @@ export function PokeDefense() {
             {/* ⚠️ `bg-red-500/85`는 흰 글씨와 대비가 3.35였다(4.5 필요). 더 진한 빨강을 그대로 적는다. */}
             <span className="rounded-full px-2.5 py-1 text-[11px] font-bold"
               style={{ background: '#b91c1c', color: '#fff' }}>
-              무리가 옵니다
+              웨이브가 옵니다
             </span>
           </div>
         )}
@@ -1028,11 +1280,11 @@ export function PokeDefense() {
                   )}
                 </div>
               )}
-              {/* ⚠️ **다 깬 순간을 놓치지 않는다.** 12판째를 깨도 「다음 판」이 없으면
-                  그냥 끝나 버려 여정을 마쳤다는 느낌이 없다. */}
-              {p.끝 === '승' && 깬것.size >= 스테이지들.length && (
+              {/* ⚠️ 완주 축하는 **덮개로 크게** 띄운다(아래 「완주 축하」). 여기서는 한 줄만
+                  거든다 — 덮개를 닫은 뒤에도 무엇을 이룬 것인지 남아 있어야 한다. */}
+              {p.끝 === '승' && 완주 && (
                 <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-snug text-amber-700">
-                  <b>시즌1을 모두 깼습니다.</b>
+                  <b>관동지방을 한 바퀴 돌았습니다.</b>
                   <div className="mt-0.5">
                     별 {총별}/{스테이지들.length * 3}개
                     {총별 < 스테이지들.length * 3 && ' — 남은 별을 마저 모아 보십시오.'}
@@ -1055,7 +1307,178 @@ export function PokeDefense() {
             </div>
           </div>
         )}
+
       </div>
+
+      {/* ── 덮개 셋(완주 축하 · 게임평 · 게임 규칙) ──────────────────────────
+          ⚠️⚠️⚠️ **전장 칸 안에 두면 안 된다 — 2026-08-18에 사장님이 폰에서 잡으셨다.**
+             전장 크기에 갇혀 ①상자가 손바닥만 하고 ②반투명이라 **뒤 포켓몬이 비쳐 글씨가
+             안 읽히고** ③긴 글은 **아래가 잘렸다**(「적을 잡으면 더 들어옵니다」 다음이 안 보임).
+          → **화면 전체를 덮는다**(`fixed`). 뒤는 확실히 가리고(0.88), 상자는 **불투명**하며,
+            길면 **상자 안에서 스크롤**된다(`max-h`+`overflow-auto`).
+          ⚠️ **`.대전쟁-무대` 밖에 둔다.** 그 칸은 진영이 맞을 때 `transform`으로 흔들리는데,
+             `fixed`는 변형된 조상 안에서 **그 조상에 갇힌다** — 흔드는 동안 덮개가 딸려 움직인다.
+          ⚠️ 폰 가로는 높이가 375px뿐이라 `max-h`를 화면 높이(`dvh`)로 잡는다. */}
+      {/* ── 완주 축하 ──────────────────────────────────────────────────
+          ⚠️ 여태 승리 상자 안 **작은 한 줄**이 전부라 「이게 끝인가」 싶었다(사장님 지시로
+             크게 만든다). 열두 판을 도는 데 20~30분이 걸리는데 마무리가 그만큼은 돼야 한다.
+          ⚠️ 그림 파일을 안 쓴다 — 색종이는 `span` 열둘을 CSS로 떨어뜨린다(용량 0).
+          ⚠️ 움직임을 줄이도록 설정한 기기에서는 안 떨어진다(index.css). */}
+      {축하 && (
+        <div className="대전쟁-축하 대전쟁-덮개">
+          <div className="대전쟁-색종이" aria-hidden="true">
+            {Array.from({ length: 12 }, (_, i) => <i key={i} />)}
+          </div>
+          <div className="대전쟁-덮개상자 relative text-center" style={{ borderColor: '#d9a441', borderWidth: 2 }}>
+            <div className="text-[11px] font-bold tracking-widest text-amber-700">SEASON 1 CLEAR</div>
+            <div className="mt-0.5 text-lg font-black leading-tight">관동지방을 한 바퀴 돌았습니다</div>
+            <div className="mt-1 text-xs leading-snug text-neutral-600">
+              태초마을을 나와 열두 곳을 지나 뮤츠를 막아 냈습니다.
+            </div>
+            {/* ⚠️ 별은 **크게** 보인다 — 다시 할 까닭이 여기서 나온다. */}
+            <div className="mt-2 text-2xl tracking-tight text-amber-700">
+              {'★'.repeat(Math.min(3, Math.round(총별 / 12)))}
+              <span className="ml-1.5 align-middle text-base font-black tabular-nums">
+                별 {총별}/{스테이지들.length * 3}
+              </span>
+            </div>
+            {총별 < 스테이지들.length * 3 && (
+              <div className="mt-1 text-xs leading-snug text-neutral-600">
+                <b className="text-amber-700">어려움</b>으로 다시 깨면 별을 더 모을 수 있습니다.
+              </div>
+            )}
+            <button type="button" onClick={() => set축하(false)}
+              className="mt-3 rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white">닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 게임평 덮개 ────────────────────────────────────────────────
+          ⚠️ 규칙 덮개와 같은 자리·같은 꼴이다. 전장 「칸」 안이라 자리를 안 먹는다. */}
+      {평열림 && 평상태 && (
+        <div className="대전쟁-덮개">
+          <div className="대전쟁-덮개상자">
+            <div className="flex items-center gap-2">
+              <b className="text-sm">게임평</b>
+              <button type="button" onClick={() => set평열림(false)}
+                className="ml-auto text-xs underline underline-offset-2">닫기</button>
+            </div>
+
+            {평상태.쓸수있나 ? (
+              <>
+                <p className="mt-1 text-xs leading-snug text-neutral-600">
+                  한마디 남겨 주십시오. 남긴 글은 <b>다른 분들에게도 보입니다.</b>
+                </p>
+                <input
+                  value={평이름} onChange={(e) => set평이름(e.target.value.slice(0, 10))}
+                  placeholder="이름 (안 적어도 됩니다)" maxLength={10}
+                  className="mt-2 w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-xs"
+                />
+                <textarea
+                  value={평글} onChange={(e) => set평글(e.target.value.slice(0, 200))}
+                  rows={3} maxLength={200} placeholder="어떠셨습니까"
+                  className="mt-1.5 w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-xs"
+                />
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-[11px] tabular-nums text-neutral-600">{평글.length}/200</span>
+                  <button
+                    type="button"
+                    className="ml-auto rounded-lg bg-neutral-900 px-3 py-1.5 text-xs text-white"
+                    onClick={() => {
+                      void 게임평남기기(평글, 평이름).then((r) => {
+                        set평알림(r.됐나 ? '남겼습니다. 고맙습니다.' : (r.까닭 ?? ''));
+                        if (r.됐나) { set평글(''); 평새로받기(); }
+                      });
+                    }}
+                  >남기기</button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-1 text-xs leading-snug text-neutral-600">
+                게임평은 <b>로그인하면</b> 쓸 수 있습니다. 읽는 것은 로그인 없이도 됩니다.
+              </p>
+            )}
+
+            {평알림 && <p className="mt-1.5 text-xs font-bold text-neutral-700">{평알림}</p>}
+
+            {/* ⚠️ **목록은 누구에게나 보인다**(2026-08-18). 지우기만 운영자에게 나온다. */}
+            {(
+              <div className="mt-3 border-t border-neutral-200 pt-2">
+                <b className="text-xs">게임평 {평상태.목록.length}개</b>
+                {평상태.목록.length === 0 && (
+                  <p className="mt-1 text-xs text-neutral-600">아직 없습니다.</p>
+                )}
+                <ul className="mt-1 space-y-1.5">
+                  {평상태.목록.map((r) => (
+                    <li key={r.id} className="rounded-lg bg-neutral-100 px-2 py-1.5 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <b>{r.이름 || '이름 없음'}</b>
+                        <span className="text-amber-700">★{r.별}</span>
+                        <span className="text-neutral-600">{new Date(r.at).toLocaleDateString('ko-KR')}</span>
+                        {/* ⚠️ **지우기는 운영자에게만 낸다.** 남이 눌러도 서버가 404를 주지만,
+                            애초에 보이지 않는 것이 맞다. */}
+                        {평상태.운영자 && (
+                          <button
+                            type="button"
+                            className="ml-auto underline underline-offset-2 text-neutral-600"
+                            onClick={() => { void 게임평지우기(r.id).then((ok) => { if (ok) 평새로받기(); }); }}
+                          >지우기</button>
+                        )}
+                      </div>
+                      <p className="mt-0.5 whitespace-pre-wrap leading-snug text-neutral-700">{r.글}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 게임 규칙 덮개 ──────────────────────────────────────────────
+          ⚠️⚠️ **전장 「칸」 안에 두되 전장 「그림」 밖이다.** 그림 쪽은 `overflow-hidden`이라
+             안에 두면 잘린다(승리 알림에서 이미 겪었다). 이 자리는 안 잘린다.
+          ⚠️ 덮개라서 **자리를 안 먹는다** — 폰 가로에서 높이가 375px뿐이라 이게 알맹이다.
+          ⚠️ `bg-white`는 다크에서 #1a1a1a로 뒤집혀 전장과 섞이므로 **테두리로 세운다.** */}
+      {규칙 && (
+        <div className="대전쟁-덮개">
+          <div className="대전쟁-덮개상자">
+            <div className="flex items-center gap-2">
+              <b className="text-sm">게임 규칙</b>
+              <button type="button" onClick={() => set규칙(false)}
+                className="ml-auto text-xs underline underline-offset-2">닫기</button>
+            </div>
+            {/* ⚠️ 네 줄이다. 열 줄이었다가 「복잡하다」고 지적받았다 — 화면이 이미 말하는 것은
+                   안 적는다(별은 난이도 단추에, 대기 시간은 카드 위 숫자에 있다). */}
+            <ul className="mt-1.5 space-y-1 text-xs leading-snug text-neutral-600">
+              <li>· 아래 여덟에서 골라 내보내 <b>상대 체육관을 먼저 부수면</b> 이깁니다. 내 포켓몬 센터가 무너지면 집니다.</li>
+              <li>· <b>돈</b>은 저절로 차고, <b>적을 잡으면 더 들어옵니다.</b></li>
+              <li>· 적은 <b>떼로 왔다가 잠깐 쉽니다.</b> 쉬는 타임에 아꼈다가 몰아 내는 것이 훨씬 적게 듭니다.</li>
+              <li>· <b>벽·탱커</b>로 막고 <b>원거리</b>로 때립니다. 위에 적힌 <b>잘 통하는 속성</b>을 쓰면 훨씬 셉니다.</li>
+            </ul>
+            {깬것.size > 0 && (
+              <button
+                type="button"
+                // ⚠️ **되돌릴 수 없으니 한 번 묻는다.** 깬 기록이 통째로 날아가 1판만 남는다.
+                onClick={() => {
+                  if (!confirm('클리어 기록을 모두 지웁니다. 1번 판만 남고 나머지는 다시 잠깁니다. 지울까요?')) return;
+                  깬것지우기();
+                  // ⚠️⚠️ **계정 기록도 같이 지운다.** 로컬만 지우면 다음에 켤 때 서버에서
+                  //    도로 받아 와 되살아난다 — 지운 것처럼 보였다가 새로고침하면 돌아온다.
+                  void 기록지우기();
+                  set별들({});
+                  set깬것(new Set());
+                  set고른(0);
+                  처음부터(스테이지들[0]);
+                }}
+                className="mt-2 text-xs text-neutral-600 underline underline-offset-2 hover:text-neutral-700"
+              >
+                클리어 기록 지우기
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── 돈 · 셈 ──────────────────────────────────────────────────────
           ⚠️ 예전엔 **돈 바 / 셈 / 단추가 줄 셋**이었다. 보여 주는 것은 그대로 두고 줄만
@@ -1072,7 +1495,7 @@ export function PokeDefense() {
           </span>
         </div>
         <span className="text-sm text-neutral-600 tabular-nums">
-          무리 {Math.min(지난무리 + 1, 무리.length)}/{무리.length} · 남은 적 {남은적} ·{' '}
+          웨이브 {Math.min(지난무리 + 1, 무리.length)}/{무리.length} · 남은 적 {남은적} ·{' '}
           <b className="text-neutral-700">{Math.round(p.쓴돈)}</b>원 씀
         </span>
       </div>
@@ -1088,15 +1511,21 @@ export function PokeDefense() {
           className="대전쟁-주단추"
           disabled={!!p.끝 || 카운트 > 0}
           onClick={() => {
-            if (진행중) { set진행중(false); return; }
+            if (진행중) { 셈타이머비우기(); set진행중(false); return; }
             // ⚠️ **이어서 누른 것은 안 센다** — 멈췄다 다시 눌렀을 뿐이라 판 수가 부풀려진다.
             시작한적ref.current = true;
             if (p.t === 0) {
               trackEvent('battle_start', `${스.이름} · ${난}`);
               // 처음 시작할 때만 3·2·1을 센다. 「이어서」는 바로 이어 간다.
+              // ⚠️⚠️ **타이머를 반드시 들고 있어야 한다**(2026-08-18). 안 그러면 3·2·1 도중에
+              //    멈추거나 폰을 세로로 돌려도 **2.1초 뒤에 판이 저절로 시작된다** —
+              //    사장님이 "돌리자마자 바로 게임이 시작돼서 하는 방법을 볼 수가 없다"고
+              //    하신 것의 한 갈래다. `셈타이머비우기`가 판을 바꿀 때·나갈 때도 지운다.
               set카운트(3);
-              [2, 1].forEach((n, i) => setTimeout(() => set카운트(n), (i + 1) * 700));
-              setTimeout(() => { set카운트(0); set진행중(true); }, 2100);
+              셈타이머ref.current = [
+                ...[2, 1].map((n, i) => setTimeout(() => set카운트(n), (i + 1) * 700)),
+                setTimeout(() => { set카운트(0); set진행중(true); 셈타이머ref.current = []; }, 2100),
+              ];
               return;
             }
             set진행중(true);
@@ -1105,8 +1534,16 @@ export function PokeDefense() {
           {진행중 ? '멈춤' : p.t > 0 ? '이어서' : '시작'}
         </button>
 
+        {/* ⚠️⚠️ **「다시 플레이」는 시작 단추 옆이다**(사장님 2026-08-18). 전에는 오른쪽 띠에
+            섞여 있어 판을 다시 하려면 눈이 화면을 가로질러야 했다.
+            ⚠️ **판이 도는 동안에는 안 보인다.** 시작 단추 바로 옆이라, 보이게 두면 멈추려다
+               눌러 **하던 판이 통째로 날아간다.** 멈추거나 판이 끝나면 다시 나온다. */}
+        {!진행중 && 카운트 === 0 && (
+          <button type="button" className="대전쟁-주단추 대전쟁-다시"
+            onClick={() => 처음부터(스)}>다시 플레이</button>
+        )}
+
         <div className="대전쟁-묶음 ml-auto">
-          <button type="button" onClick={() => 처음부터(스)}>다시</button>
           <button type="button" data-켬={배속 === 2 ? '1' : '0'} onClick={() => set배속((v) => (v === 1 ? 2 : 1))}>
             {배속}배속
           </button>
@@ -1114,12 +1551,53 @@ export function PokeDefense() {
           <button
             type="button" data-켬={소리켬 ? '1' : '0'}
             aria-label={소리켬 ? '소리 끄기' : '소리 켜기'}
-            onClick={() => { const v = !소리켬; set소리켬(v); 소리설정(v); if (v) 소리.소환(); }}
+            onClick={() => { const v = !소리켬; set소리켬(v); 소리설정(v); set소리안내(v); if (v) 소리.소환(); }}
           >
             소리
           </button>
+          {/* ⚠️ **되는 기기에서만 낸다.** 아이폰 사파리는 동영상이 아닌 것의 전체화면을
+              지원하지 않는다(아이폰의 크롬도 같은 엔진이라 마찬가지). 안 되는 곳에
+              단추를 내면 「눌러도 아무 일 없는 단추」가 된다. */}
+          {/* ⚠️⚠️ **자격이 되는 사람에게만 낸다.** 못 쓰는 사람에게 단추를 보이면
+              눌러 보고 「왜 안 되지」가 된다. 운영자에게는 들어온 글을 보려고 늘 보인다. */}
+          {/* ⚠️ **늘 보인다**(2026-08-18에 만점 조건을 걷어냈다). 읽는 것은 누구나 되고,
+              쓰는 것만 로그인이 필요하다 — 못 쓰는 사람에게도 남의 글은 보여야 한다. */}
+          {평상태 && (
+            <button
+              type="button" data-켬={평열림 ? '1' : '0'}
+              onClick={() => { set평알림(''); set규칙(false); set평열림((v) => !v); }}
+            >
+              게임평
+            </button>
+          )}
+          {/* ⚠️ **판이 도는 중에도 눌린다.** 규칙을 못 찾아 게임을 못 하는 일이 없어야 한다. */}
+          <button
+            type="button" data-켬={규칙 ? '1' : '0'}
+            aria-label={규칙 ? '게임 규칙 닫기' : '게임 규칙 보기'}
+            onClick={() => { set평열림(false); set규칙((v) => !v); }}
+          >
+            게임 규칙
+          </button>
+          {/* ⚠️ **PC에서는 안 낸다**(사장님 2026-08-18: "PC에서는 굳이 없어도 되겠다").
+              창을 키우면 되는 곳에 단추를 두면 띠만 길어진다. 폰 가로에서만 값이 있다. */}
+          {전체화면됨 && 폰가로 && (
+            <button
+              type="button" data-켬={전체화면 ? '1' : '0'}
+              aria-label={전체화면 ? '전체화면 끄기' : '전체화면으로 보기'}
+              onClick={전체화면토글}
+            >
+              전체화면
+            </button>
+          )}
         </div>
       </div>
+
+      {/* ⚠️ 소리를 켠 직후에만 잠깐 뜬다(위 `소리안내` 설명 참고). */}
+      {소리안내 && (
+        <p className="mt-1 text-xs leading-snug text-neutral-600">
+          소리가 안 들리면 폰의 <b>무음 스위치</b>와 <b>미디어 볼륨</b>을 확인해 주십시오.
+        </p>
+      )}
 
       {/* ── 첫 판 안내 한 줄 ──────────────────────────────────────────────
           ⚠️⚠️ **자리가 곧 손가락이다.** 위에 「시작」 단추가 있고 아래에 카드 여덟이 있는
@@ -1146,7 +1624,7 @@ export function PokeDefense() {
       )}
 
       {/* ── 살 것 여덟 ──────────────────────────────────────────────────── */}
-      <div className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-8">
+      <div className="대전쟁-카드줄 mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-8">
         {쓸것.map((u, i) => {
           const 쿨 = p.쿨[u.id] ?? 0;
           const 못삼 = !!p.끝 || p.돈 < u.값 || 쿨 > 0;
@@ -1216,10 +1694,17 @@ export function PokeDefense() {
                 className="mx-auto mt-0.5 block" style={{ imageRendering: 'pixelated' }} />
               <div className="truncate px-1 text-xs font-bold leading-tight">{u.ko}</div>
               {/* ⚠️ 역할은 **색으로도** 갈린다 — 회색 글씨만으로는 한눈에 안 들어온다. */}
-              <div className="text-[11px] font-bold leading-tight" style={{ color: 역할색[u.역할] }}>
-                {u.역할}
+              {/* ⚠️⚠️ **역할을 접지 말 것.** 폰 가로에서 높이를 아끼려고 이 줄을 숨겼더니
+                  사장님이 바로 "폰을 눕혀서 하면 역할군이 안 보인다"고 하셨다(2026-08-18).
+                  **역할은 이 게임의 두 축 가운데 하나**라 값보다 덜 중요하지 않다.
+                  → 줄을 없애는 대신 **값과 한 줄로 합친다**(`display: contents`라 넓은 화면은
+                    지금까지와 똑같이 두 줄이고, 가로에서만 한 줄이 된다). */}
+              <div className="대전쟁-역할값">
+                <div className="대전쟁-역할 text-[11px] font-bold leading-tight" style={{ color: 역할색[u.역할] }}>
+                  {u.역할}
+                </div>
+                <div className="text-sm font-black leading-tight tabular-nums text-amber-700">{u.값}</div>
               </div>
-              <div className="text-sm font-black leading-tight tabular-nums text-amber-700">{u.값}</div>
               {/* ⚠️⚠️ **`bg-black/45`를 쓰면 안 된다.** 이 앱은 다크에서 `--color-black`을
                   밝은 색으로 뒤집으므로 **덮개가 하얘진다.** 뜻이 「어둡게 덮기」인 자리는
                   사다리를 타면 안 되고 rgba를 그대로 적는다. */}
@@ -1270,42 +1755,6 @@ export function PokeDefense() {
         </div>
       )}
 
-      {/* ⚠️⚠️ **하는 법은 네 줄이다.** 열 줄이었다가 「복잡하다」고 지적받았다(2026-08-18).
-             뺀 것들은 **화면이 이미 말해 주고 있었다** — 별은 난이도 단추에 ★로,
-             대기 시간은 카드 위 숫자로, 잠긴 판은 눌리지 않는 스테이지 단추로 보인다.
-             글로 또 적으면 읽을 것만 늘고 아무것도 더 알려 주지 않는다.
-          ⚠️ 남긴 넷은 **화면만 봐서는 모르는 것**이다: 이기는 조건 · 돈이 어디서 오나 ·
-             쉬는 참에 아끼는 것이 이득이라는 것 · 벽과 원거리를 같이 내야 한다는 것.
-          ⚠️ 처음 온 사람에게는 펴 두고, 한 판이라도 깼으면 접는다. */}
-      <details className="mt-3" open={깬것.size === 0}>
-        <summary className="cursor-pointer text-xs text-neutral-600">하는 법</summary>
-        <ul className="mt-1.5 space-y-1 text-xs text-neutral-600">
-          <li>· 아래 여덟에서 골라 내보내 <b>상대 체육관을 먼저 부수면</b> 이깁니다. 내 포켓몬 센터가 무너지면 집니다.</li>
-          <li>· <b>돈</b>은 저절로 차고, <b>적을 잡으면 더 들어옵니다.</b></li>
-          <li>· 적은 <b>떼로 왔다가 잠깐 쉽니다.</b> 쉬는 참에 아꼈다가 몰아 내는 것이 훨씬 적게 듭니다.</li>
-          <li>· <b>벽·탱커</b>로 막고 <b>원거리</b>로 때립니다. 위에 적힌 <b>잘 통하는 속성</b>을 쓰면 훨씬 셉니다.</li>
-        </ul>
-        {깬것.size > 0 && (
-          <button
-            type="button"
-            // ⚠️ **되돌릴 수 없으니 한 번 묻는다.** 깬 기록이 통째로 날아가 1판만 남는다.
-            onClick={() => {
-              if (!confirm('깬 판 기록을 모두 지웁니다. 1번 판만 남고 나머지는 다시 잠깁니다. 지울까요?')) return;
-              깬것지우기();
-              // ⚠️⚠️ **계정 기록도 같이 지운다.** 로컬만 지우면 다음에 켤 때 서버에서
-              //    도로 받아 와 되살아난다 — 지운 것처럼 보였다가 새로고침하면 돌아온다.
-              void 기록지우기();
-              set별들({});
-              set깬것(new Set());
-              set고른(0);
-              처음부터(스테이지들[0]);
-            }}
-            className="mt-2 text-xs text-neutral-600 underline underline-offset-2 hover:text-neutral-700"
-          >
-            깬 기록 지우기
-          </button>
-        )}
-      </details>
     </div>
   );
 }

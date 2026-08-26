@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <p className="text-base font-bold text-black">화면을 표시하지 못했습니다</p>
         <p className="mt-2 text-sm text-neutral-500">
           잠시 문제가 생겼습니다. 새로고침하면 대부분 해결됩니다. 계속 같은 화면이 나오면
-          커뮤니티에 알려 주세요.
+          게시판에 알려 주세요.
         </p>
         <button
           type="button"

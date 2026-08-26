@@ -152,6 +152,10 @@ function 어디서왔나(): string {
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
 export type TrackedEvent =
+  // 홈 배너 의견함(2026-08-21). 보내기 성공 한 번에 1.
+  | 'feedback'
+  // 오늘의 상점의 「내 GP 내역」을 펼친 횟수(2026-08-22).
+  | 'packsim_log' 
   // 도감·세트별 목록·작가별 목록에서 카드 한 장을 눌렀을 때(2026-08-06).
   // card_found의 라벨은 값을 찾은 마켓, card_miss의 라벨은 그 카드(세트+번호)다.
   | 'card_found'
@@ -368,11 +372,13 @@ export interface VisitStatsResponse {
 // 한글화 전 원본(일본어) 제목, 원본 링크를 보낸다(개인정보 없음). 원본 제목은 운영자
 // 화면에서 최신 사전으로 다시 변환해 "지금 이름"을 보여주는 데 쓴다. 실패해도 조용히
 // 무시한다(부가 기능).
-export function reportCardTitleMiss(title: string, raw: string, link: string): void {
+// ⚠️ `note`는 사용자가 적은 메모다. **비어 있을 수 있다** — 확인 단계를 두는 것이
+//    본래 목적이고 메모는 덤이라, 안 쓰고 보내는 길을 막지 않는다.
+export function reportCardTitleMiss(title: string, raw: string, link: string, note = ''): void {
   fetch('/api/local/translation-feedback', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ title, raw, link }),
+    body: JSON.stringify({ title, raw, link, note }),
   }).catch(() => undefined);
 }
 
@@ -389,6 +395,9 @@ export interface TitleFeedback {
   // 이 필드가 추가되기 전의 옛 신고엔 없을 수 있다.
   raw?: string;
   link: string;
+  // 사용자가 남긴 메모(2026-08-18). 안 쓰고 보낼 수 있어서 **비었거나 아예 없을 수 있다** —
+  // 이 칸이 생기기 전의 옛 신고에는 없다(원본 이름 `raw`와 같은 사정이다).
+  note?: string;
   at: number;
 }
 

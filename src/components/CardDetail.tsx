@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { AdSlot } from './AdSlot';
 import { CardImg } from './CardImg';
 import { Price, useKrw } from './KrwHint';
-import { reportCardTitleMiss } from '../api/localStats';
+import { CardNameReport } from './CardNameReport';
 import { ShareButton } from './ShareButton';
 import {
   fetchConditionPrices,
@@ -30,8 +31,6 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
   const [range, setRange] = useState<PriceRange>('all');
   // '' = 아직 등급 목록을 못 받았거나(첫 조회) 등급이 없는 상품(박스)
   const [condition, setCondition] = useState('');
-  // 카드 이름(한글화) 오류 신고를 한 번 누르면 감사 문구로 바꾼다.
-  const [titleReported, setTitleReported] = useState(false);
   // 실거래 기록이 있는 등급. 카드를 열 때 등급마다 한 번씩 물어 알아낸다(무료).
   // null이면 아직 확인 전이라 목록을 거르지 않는다.
   const [tradedGrades, setTradedGrades] = useState<Set<string> | null>(null);
@@ -58,7 +57,6 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
     setRange('all');
     setCondition('');
     setVariantId(null);
-    setTitleReported(false);
     setTradedGrades(null);
   }, [card.apparelId]);
 
@@ -163,8 +161,13 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
       //    화면 높이에서 위 여백(top-4=16px)과 아래 숨 쉴 자리를 뺀 만큼으로 묶고,
       //    넘치면 **패널 안에서** 굴리게 한다.
       //    ⚠️ `100dvh`를 쓴다 — 폰 주소창이 접히고 펴져도 값이 따라 바뀐다(`vh`는 안 바뀐다).
-      //    ⚠️ 이 칸은 `lg` 이상에서만 보인다(좁은 화면은 시트가 대신한다).
-      className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-white p-5"
+      //    ⚠️⚠️ **sticky·max-h·overflow는 반드시 `lg:`를 붙인다.** 이 부품은 폰에서도
+      //       시트(DetailSheet) **안에** 그대로 들어간다 — lg 없이 두면 시트 안에서
+      //       스크롤이 두 겹이 되고, 이 칸의 바닥이 시트 밖으로 삐져나가 **안쪽을 끝까지
+      //       내려도 아래가 안 보였다**(사장님 발견 2026-08-19 · iOS 실측: 시트 바닥
+      //       714pt인데 이 칸 바닥 847pt). 같은 껍데기가 EbayCardDetail·
+      //       TcgPlayerCardDetail에도 있다 — 고치면 셋 다 고칠 것.
+      className="lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:overscroll-contain rounded-xl border border-neutral-200 bg-white p-5"
     >
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
         <CardImg src={card.imageUrl} alt={card.title} className="h-full w-full object-contain" lazy={false} />
@@ -201,23 +204,13 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
         )}
       </div>
       {/* 카드 이름 한글화가 이상하면(예: 파미리마토→패밀리마트) 사용자가 알려준다.
-          화면에 보인 제목과 원본 링크만 보내고, 사진·개인정보는 안 보낸다. */}
-      {titleReported ? (
-        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사합니다. 이름을 고치겠습니다.</p>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            reportCardTitleMiss(card.title, card.rawTitle ?? card.title, card.link);
-            setTitleReported(true);
-          }}
-          // ⚠️ 글줄이 17px이라 누르기 어려웠다(운영자 지시 2026-08-06). 여백으로 40px까지
-            //    넓히되 -my로 되돌려 줄 간격은 그대로 둔다.
-            className="-my-3 mb-1 py-3 text-[11px] text-neutral-400 underline hover:text-neutral-600"
-        >
-          카드 이름이 이상한가요?
-        </button>
-      )}
+          화면에 보인 제목·원본 링크와 사용자가 적은 메모만 보내고, 사진·개인정보는 안 보낸다. */}
+      <CardNameReport
+        title={card.title}
+        raw={card.rawTitle ?? card.title}
+        link={card.link}
+        className="mb-1"
+      />
 
 
       <div className="mb-4">
@@ -282,6 +275,7 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
         )}
       </div>
       )}
+      <AdSlot 형태="네모" 이름="카드상세" />
     </div>
   );
 }

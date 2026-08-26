@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { AdSlot } from './AdSlot';
 import { CardImg } from './CardImg';
-import { ebaySoldUrl, formatGradeLabel, mainPrice, 등급확인안됨, type EbayCard } from '../api/ebayPrices';
+// ⚠️ `ebaySoldUrl`은 더 안 쓴다 — 「이베이 낙찰내역」 링크를 뺐다(사장님 지시 2026-08-19).
+//    낱개 줄이 저마다 그 매물로 바로 가므로 따로 둘 자리가 없다. 함수는 다른 곳이 쓴다.
+import { formatGradeLabel, mainPrice, 등급확인안됨, type EbayCard } from '../api/ebayPrices';
+import { 제목회사표기 } from '../lib/listingTitle';
+import { 제목언어이름 } from '../lib/listingJudge';
 import { Price, KrwRateNote, useKrw } from './KrwHint';
 import { EbayPriceChart } from './EbayPriceChart';
-import { reportCardTitleMiss } from '../api/localStats';
+import { CardNameReport } from './CardNameReport';
 import { ShareButton } from './ShareButton';
 import { GradedPopulation } from './GradedPopulation';
 
@@ -15,13 +20,32 @@ function shortDate(iso: string | null): string | null {
   return `${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: string }) {
+// ⚠️⚠️ **이베이 매물 링크에는 `?nordt=true`(넘김 금지)를 붙인다**(2026-08-20 실측).
+//    카탈로그 연동형 매물은 팔린 지 **사흘 만에도** `/p/` 비슷한 상품 페이지로 튕겨서
+//    딴 판매자의 값이 보인다 — $310 낙찰을 눌렀는데 $160 판매글이 뜬 것을 사장님이
+//    잡으셨다. 이 꼬리를 붙이면 같은 주소가 원래 낙찰 페이지(「판매됨 US $310.00」)에
+//    그대로 멈춘다. 저쪽(PPT)이 주소에 이 꼬리를 붙여 보내는 까닭이 이것이었다.
+//    ⚠️ 저장은 꼬리 없이 한다(주소가 겹침 열쇠라서) — 붙이는 것은 그릴 때뿐이다.
+const 이베이링크 = (u?: string): string | undefined =>
+  u && /ebay\.[a-z.]+\/itm\//i.test(u) ? `${u.split('?')[0]}?nordt=true` : u;
+
+// ⚠️ `검수`는 운영자 검수 화면(EbayCheckView)용이다 — **뺀 낙찰까지 전부** 취소선+까닭으로
+//    보여준다. 사장님이 "왜 뺐는지"를 낱낱이 보고 판정하는 자리라 숨기면 검수가 안 된다.
+//    실제 사용자 화면은 이 표시 없이 그대로(뺀 것 숨김)다.
+export function EbayCardDetail({ card, edition, 검수 = false }: { card: EbayCard; edition?: string; 검수?: boolean }) {
   // 중앙값도 원화로 적는다(가격 표시를 원화로 통일).
   const krw = useKrw();
-  // 카드 이름 한글화가 이상하면 사용자가 알려준다(스니덩크 상세와 같은 방식).
-  // 다른 카드를 열면 버튼이 되살아나도록 카드가 바뀔 때 초기화한다.
-  const [titleReported, setTitleReported] = useState(false);
-  useEffect(() => setTitleReported(false), [card.tcgPlayerId]);
+  // ⚠️⚠️ **세트 화면과 같은 방식이다** — 등급 줄을 누르면 그 아래로 낱개가 펴지고,
+  //    다시 누르면 접힌다. **정렬도 화살표도 없다**(사장님 지시 2026-08-19:
+  //    「큼지막한 것만 두고, 누르면 아래로 개별 낙찰 5개」). 새 방식을 만들지 않는다.
+  const [펼침, set펼침] = useState<Record<string, boolean>>({});
+  // ⚠️ 사용자 화면에서는 「등급 확인 안 됨」 줄을 아예 안 낸다(사장님 결정 2026-08-20) —
+  //    값도 안 내는 칸이라, 낱개 링크가 죽고 나면 방문자에게 남는 쓸모가 없다.
+  //    검수 화면에는 그대로 낸다(분류가 안 끝난 것이 몇 건인지는 우리가 봐야 한다).
+  const 보일등급 = 검수 ? card.grades : card.grades.filter((g) => g.grade !== 'ungraded');
+  // 「기타 언어」 곁 카드는 여러 언어가 한데 담긴다 — 낱개 줄마다 무슨 언어인지 붙인다.
+  // ⚠️ 열쇠 꼴이 둘이다: 검수 저장소는 `-lang`, 실서비스(도감 갈래)는 `~lang`. 둘 다 받는다.
+  const 기타언어카드 = /[-~]lang$/.test(String(card.tcgPlayerId ?? ''));
   return (
     <div
       // ⚠️⚠️ **붙여 두되(sticky) 안쪽이 스크롤되게 한다.**
@@ -33,7 +57,7 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
       //    넘치면 **패널 안에서** 굴리게 한다.
       //    ⚠️ `100dvh`를 쓴다 — 폰 주소창이 접히고 펴져도 값이 따라 바뀐다(`vh`는 안 바뀐다).
       //    ⚠️ 이 칸은 `lg` 이상에서만 보인다(좁은 화면은 시트가 대신한다).
-      className="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-xl border border-neutral-200 bg-white p-5"
+      className="lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:overscroll-contain rounded-xl border border-neutral-200 bg-white p-5"
     >
       <div className="h-40 w-full rounded-lg mb-4 overflow-hidden bg-neutral-100">
         {card.imageUrl ? (
@@ -81,22 +105,12 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
           다른 카드에 잘못 담겨 있던 {card.movedIn.toLocaleString()}건을 이 카드로 옮겨 왔습니다.
         </p>
       ) : null}
-      {titleReported ? (
-        <p className="mb-4 text-[11px] text-neutral-400">알려주셔서 감사합니다. 이름을 고치겠습니다.</p>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            reportCardTitleMiss(card.name, card.nameEn, `https://www.tcgplayer.com/product/${card.tcgPlayerId}`);
-            setTitleReported(true);
-          }}
-          // ⚠️ 글줄이 17px이라 누르기 어려웠다(운영자 지시 2026-08-06). 여백으로 40px까지
-            //    넓히되 -my로 되돌려 줄 간격은 그대로 둔다.
-            className="-my-3 mb-1 py-3 text-[11px] text-neutral-400 underline hover:text-neutral-600"
-        >
-          카드 이름이 이상한가요?
-        </button>
-      )}
+      <CardNameReport
+        title={card.name}
+        raw={card.nameEn}
+        link={`https://www.tcgplayer.com/product/${card.tcgPlayerId}`}
+        className="mb-1"
+      />
 
       {/* 낙찰 기록이 충분한 등급이 있으면 추이 그래프를 먼저 보여준다. 없으면 스스로
           아무것도 안 그린다. */}
@@ -104,22 +118,11 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
           안 써도 될거같아"). 점 하나가 그날 팔린 값들의 평균이라 위 큰 숫자(최근 30일 기준)와
           끝점이 다른데, 실측해 보니 그 차이(중앙 9.2%)가 **그래프가 하루 사이에 저절로 튀는
           폭(중앙 12.1%)보다 작다** — 굳이 짚어 줄 만큼 어긋나는 게 아니다. */}
-      <EbayPriceChart grades={card.grades} />
-
-      {/* 낙찰 기록이 없는 카드에도 붙는다 — 감정된 게 몇 장인지는 거래와 무관하게 안다. */}
-      {/* ⚠️ `population`을 그대로 넘긴다. 새 시세 길은 카드를 열 때 추이·낱개와 **한 번에**
-          받아 오므로 여기서 또 부를 이유가 없다. 옛 길 카드에는 그 칸이 아예 없어서
-          undefined가 넘어가고, 그러면 예전처럼 스스로 받아 온다. */}
-      <GradedPopulation
-        tcgPlayerId={card.tcgPlayerId}
-        edition={edition}
-        population={(card as { population?: Parameters<typeof GradedPopulation>[0]['population'] }).population}
-      />
+      <EbayPriceChart grades={보일등급} />
 
       <div>
         <div className="flex items-baseline justify-between">
           <p className="text-xs font-semibold text-neutral-500">등급별 이베이 시세</p>
-          <span className="text-[11px] text-neutral-400">누르면 이베이 낙찰내역 ↗</span>
         </div>
         {/* ⚠️ **가릴 수 없는 낙찰만 모인 칸이면 먼저 밝힌다.** 저쪽이 이름만으로 묶어 둔 것을
             번호·세트로 갈랐는데 제목에 단서가 없어 어디에도 못 넣은 것들이다. 수십 년에 걸친
@@ -145,13 +148,14 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
             목록으로 가, PPT엔 없는 개별 낙찰 건(날짜·가격·상품 링크)을 직접 볼 수 있다. */}
         {/* ⚠️ 비면 테두리만 있는 빈 네모가 떴다. 카드는 찾았는데 아무도 안 판 것이라
             "값이 없다"가 아니라 "거래 내역이 없다"가 맞다(2026-08-07 지적). */}
-        {card.grades.length === 0 ? (
+        {보일등급.length === 0 ? (
           <p className="rounded-lg border border-neutral-200 py-4 text-center text-xs text-neutral-400">
             거래 내역이 없습니다.
           </p>
         ) : (
-        <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
-          {card.grades.map((g) => {
+        // ⚠️ 머리글과 표가 붙어 답답했다 — `mt-2`로 사이를 조금 벌린다(사장님 지시 2026-08-19).
+        <ul className="mt-2 divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+          {보일등급.map((g) => {
             const sold = shortDate(g.lastSaleDate);
             const { price, isSmart } = mainPrice(g);
             // ⚠️⚠️ **이 칸은 값을 안 보여 준다.** 저쪽이 등급을 못 알아본 낙찰 모음이라
@@ -160,15 +164,20 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
             const 값숨김 = 등급확인안됨(g.grade);
             return (
               <li key={g.grade}>
-                <a
-                  href={ebaySoldUrl(card.nameEn, card.cardNumber, g.grade)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-neutral-50"
+                {/* ⚠️ 줄 전체가 「펴기」 단추다. 이베이로 가는 길은 오른쪽 작은 ↗로 옮겼다 —
+                    줄을 누르면 밖으로 나가 버리면 낱개를 볼 수가 없다. */}
+                <button
+                  type="button"
+                  onClick={() => set펼침((p) => ({ ...p, [g.grade]: !p[g.grade] }))}
+                  aria-expanded={!!펼침[g.grade]}
+                  className="flex w-full min-h-11 items-center justify-between gap-2 px-3 py-2 text-left hover:bg-neutral-50"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-neutral-700">{formatGradeLabel(g.grade)}</p>
-                    <p className="text-[11px] text-neutral-400">
+                  {/* ⚠️⚠️ **값이 주인공이다**(사장님이 고른 안 · 2026-08-19). 등급 이름과 건수는
+                      한 단계 작게, 값은 크게. 예전엔 셋이 다 같은 크기라 **무엇이 중요한지**가
+                      안 보였다 — 「뭉툭하고 안 이쁘다」고 하신 게 그 뜻이다. */}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold leading-tight text-neutral-700">{formatGradeLabel(g.grade)}</p>
+                    <p className="text-[11px] leading-tight text-neutral-500">
                       {/* ⚠️ **「낮음」일 때만 붙인다.** 「높음·보통」은 굳이 알릴 것이 아니고,
                           붙이면 그것도 글이 된다. 말도 「신뢰도 낮음」이 아니라 **뜻 그대로**
                           적는다 — 처음 온 사람도 따로 설명 없이 읽힌다. */}
@@ -182,30 +191,100 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
                     </p>
                   ) : (
                     <div className="flex-shrink-0 text-right">
-                      <Price amount={price} currency="usd" className="text-sm font-bold text-black leading-tight" />
+                      <Price amount={price} currency="usd" className="text-[17px] font-bold tracking-tight text-black leading-tight" />
                       {isSmart && (
-                        <p className="text-[11px] text-neutral-400 leading-tight">중앙값 {krw(g.medianPrice, 'usd')}</p>
+                        <p className="text-[11px] leading-tight text-neutral-500">중앙값 {krw(g.medianPrice, 'usd')}</p>
                       )}
                     </div>
                   )}
-                </a>
+                  {/* 펴짐/접힘 표시. 낱개가 있을 때만 뜻이 있다.
+                      ⚠️ 값과 딱 붙지 않게 왼쪽 여백을 둔다(사장님 지시 2026-08-19:
+                         「값은 오른쪽 끝 가까이, 화살표랑 너무 가깝지는 않게」). */}
+                  {g.sales && g.sales.some((x) => 검수 || !x.뺀까닭) && (
+                    <span className="ml-1 flex-shrink-0 text-[11px] text-neutral-600">{펼침[g.grade] ? '▲' : '▼'}</span>
+                  )}
+                </button>
                 {/* 실제 낙찰 낱개. "28건"이라는 숫자보다 "1월 18일에 $160에 팔렸다"가
                     훨씬 와닿는다. 이 값은 예전부터 응답에 들어 있었는데 안 쓰고 있었다
                     (2026-08-07 발견). 누르면 그 매물로 바로 간다. */}
-                {g.sales && g.sales.length > 0 && (
-                  <ul className="border-t border-neutral-50 bg-neutral-50/60 px-3 py-1.5">
-                    {g.sales.map((s) => (
+                {/* ⚠️⚠️ **셈에서 뺀 낙찰은 아예 안 보여 준다**(사장님 지시 2026-08-19).
+                    예전엔 회색 취소선으로 남겨 뒀는데, 「왜 이게 여기 있지」만 남고
+                    도움이 안 됐다. **자료는 안 지운다** — 왜 뺐는지는
+                    `/data/card-history/<번호>.json`에 그대로 남아 있다. */}
+                {/* ⚠️⚠️ **접힌 채로 시작한다.** 평소엔 등급 줄만 큼지막하게 보이고,
+                    누른 줄만 그 아래로 낱개가 편다(세트 화면과 같은 방식). */}
+                {펼침[g.grade] && g.sales && g.sales.some((s) => 검수 || !s.뺀까닭) && (() => {
+                  // 검수 화면에서는 뺀 것까지 전부 — 그게 검사할 대상이다.
+                  // ⚠️ 사용자 화면은 **최신 5건만**(사장님 정책) — 중앙값은 전체로 셈하고,
+                  //    낱개는 최근 것만 보인다. 줄은 서버가 이미 최신순으로 준다.
+                  const 보일것 = 검수 ? g.sales : g.sales.filter((s) => !s.뺀까닭).slice(0, 5);
+                  return (
+                  <div className="border-t border-neutral-50 bg-neutral-50/60 px-3 pb-1.5">
+                    {/* ⚠️ **「5건뿐」임을 밝힌다.** 21건 중 5건을 보는 것인데 그게 전부인 줄
+                        알면 안 된다. ⚠️ `neutral-500`이면 밝은 화면 대비가 4.54로 기준에
+                        붙어서 한 단계 진하게 뒀다(실측 2026-08-19). */}
+                    <p className="py-1 text-[10px] text-neutral-600">
+                      {검수
+                        ? `받은 ${보일것.length}건 전부 · 셈에 든 것 ${g.count.toLocaleString()}건`
+                        : `낙찰 ${g.count.toLocaleString()}건 중 최근 ${보일것.length}건`}
+                    </p>
+                    {/* ⚠️⚠️ 이베이는 팔린 매물 쪽을 (90일 전에도) 지우고, 죽은 링크는 「비슷한
+                        상품」 카탈로그(/p/…)로 넘긴다 — 그 화면의 사진·값은 남의 것이다.
+                        사장님이 이 착시로 세 번 헛짚으셨다(2026-08-19~20). 검수 중 사진 검증은
+                        주소가 /itm/으로 남아 있는 페이지에서만 유효하다는 상시 안내. */}
+                    {검수 && (
+                      <p className="pb-1 text-[10px] leading-snug text-neutral-400">
+                        눌렀을 때 주소가 <span className="font-semibold">/p/</span>로 바뀌면 이베이가 지운 매물입니다 —
+                        그 화면의 사진·값은 딴 매물 것이니 믿지 마세요. <span className="font-semibold">/itm/</span> 그대로인
+                        페이지만 사진 검증이 됩니다.
+                      </p>
+                    )}
+                  <ul>
+                    {보일것.map((s) => {
+                      // ⚠️⚠️ 사용자 화면은 **88일 지난 줄의 링크를 뗀다**(사장님 결정 2026-08-20).
+                      //    처음엔 2주였는데, `?nordt=true`(이베이링크 참고)를 붙이니 나이별 40건
+                      //    실측에서 **88일까지 32/32 전부 살고**(85일짜리를 실제 항해로도 확인),
+                      //    90일 넘으면 404로 깨끗이 죽었다(속이는 카탈로그행 0건) — 그래서 이베이
+                      //    보관 한도(약 90일) 바로 안쪽까지 늘렸다. 지난 줄은 글자만 남는다.
+                      //    검수 화면은 그대로 다 건다 — 죽은 링크도 검사 대상이다.
+                      const 링크됨 = !!s.url && (검수 || Date.now() - Date.parse(s.date) <= 88 * 86400000);
+                      const 회사표기 = g.grade === '기타' ? 제목회사표기(s.title ?? '') : '';
+                      const 언어표기 = 기타언어카드 ? 제목언어이름(s.title ?? '') : '';
+                      return (
                       <li key={s.url || `${s.date}-${s.price}`}>
                         <a
-                          href={s.url || undefined}
+                          href={링크됨 ? 이베이링크(s.url) : undefined}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block py-1 text-[11px] hover:bg-neutral-100/70"
+                          className={`block py-1 text-[11px] ${링크됨 ? 'hover:bg-neutral-100/70' : ''}`}
                         >
                           <span className="flex items-baseline justify-between gap-2">
                             <span className="text-neutral-500">
                               {s.date.slice(2).replace(/-/g, '.')}
                               <span className="ml-1 text-neutral-400">{s.auction ? '경매' : '즉시구매'}</span>
+                              {/* ⚠️ 이베이는 팔린 매물 쪽을 90일쯤 뒤에 지우고, 죽은 링크는
+                                  「비슷한 상품」으로 넘어가 **딴 판매자의 딴 카드**가 보인다.
+                                  사장님이 두 번이나 이 함정에 빠졌다(값이 다르다 · PSA 9가
+                                  보인다 — 2026-08-19·20). 넘어간 화면을 믿지 말라는 표시다. */}
+                              {검수 && Date.now() - Date.parse(s.date) > 88 * 86400000 && (
+                                <span className="ml-1 rounded bg-neutral-100 px-1 py-px text-[9px] text-neutral-400">
+                                  링크 만료
+                                </span>
+                              )}
+                              {/* 「기타 감정 회사」 칸은 회사·등급이 섞인다 — 줄마다 어느
+                                  회사의 몇 점인지 밝힌다(사장님 지시 2026-08-20). */}
+                              {회사표기 && (
+                                <span className="ml-1 rounded bg-neutral-100 px-1 py-px text-[9px] text-neutral-500">
+                                  {회사표기}
+                                </span>
+                              )}
+                              {/* 「기타 언어」 곁 카드는 여러 언어가 한데 담긴다 — 줄마다
+                                  무슨 언어판인지 밝힌다(사장님 지시 2026-08-20). */}
+                              {언어표기 && (
+                                <span className="ml-1 rounded bg-neutral-100 px-1 py-px text-[9px] text-neutral-500">
+                                  {언어표기}
+                                </span>
+                              )}
                             </span>
                             <span className="flex-shrink-0 font-semibold text-neutral-700">
                               {/* ⚠️ 셈에 안 들어간 기록은 흐리게 하고 까닭을 붙인다. 표시가 없으면
@@ -213,6 +292,28 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
                               {s.뺀까닭 && (
                                 <span className="mr-1 rounded bg-neutral-200 px-1 py-px text-[9px] font-normal text-neutral-500">
                                   셈 제외 · {s.뺀까닭}
+                                </span>
+                              )}
+                              {/* 깎아 판(Best Offer) 낙찰. 셈에는 들어가되 표시만 한다 —
+                                  적힌 값은 부른 값이고 실제론 그보다 싸게 팔렸을 수 있다
+                                  (사장님 결정 2026-08-19: 「어차피 큰 차이 안 날 것 같으니
+                                  작게만 써 주고 가격은 그대로」). */}
+                              {s.베스트오퍼 && (
+                                <span className="mr-1 rounded bg-neutral-100 px-1 py-px text-[9px] font-normal text-neutral-500">
+                                  베스트 오퍼
+                                </span>
+                              )}
+                              {/* 검수 화면에서만: 이 줄을 이베이에서 직접 읽었는지(러너), 저쪽 자료인지. */}
+                              {검수 && s.출처 === '러너' && (
+                                <span className="mr-1 rounded bg-sky-100 px-1 py-px text-[9px] font-normal text-sky-700">
+                                  러너
+                                </span>
+                              )}
+                              {/* 같은 매물을 저쪽도 갖고 있었는데 값이 달라 러너 값으로 고친 것.
+                                  저쪽이 적었던 값을 같이 밝힌다(사장님 지시 2026-08-19). */}
+                              {검수 && s.고친값 != null && (
+                                <span className="mr-1 rounded bg-amber-100 px-1 py-px text-[9px] font-normal text-amber-700">
+                                  가격 고침 · 전 {krw(s.고친값, 'usd')}
                                 </span>
                               )}
                               {/* 다른 카드 칸에서 제자리로 옮겨 온 기록. 어디서 왔는지까지 밝힌다. */}
@@ -236,10 +337,39 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
                             </span>
                           )}
                         </a>
+                        {/* ⚠️ 검수 화면에서만: 낱개마다 사장님이 한 줄 적는 메모칸(지시 2026-08-19).
+                            링크(<a>) 밖에 둔다 — 안에 넣으면 칸을 누를 때 매물이 열린다.
+                            엔터나 칸을 벗어나면 저장되고, 지우고 벗어나면 메모가 삭제된다. */}
+                        {검수 && (
+                          <input
+                            type="text"
+                            defaultValue={s.메모 ?? ''}
+                            placeholder="메모"
+                            maxLength={300}
+                            className="mb-1 w-full rounded border border-neutral-200 bg-white px-1.5 py-0.5 text-[10px] text-neutral-700 placeholder:text-neutral-300 focus:border-neutral-400 focus:outline-none"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                            }}
+                            onBlur={(e) => {
+                              const 글 = e.target.value.trim();
+                              if (글 === (s.메모 ?? '')) return;
+                              const itm = s.itm ?? (s.url.match(/\/itm\/(\d+)/) ?? [])[1];
+                              if (!itm) return;
+                              fetch('/api/local/ebay-check', {
+                                method: 'POST',
+                                headers: { 'content-type': 'application/json' },
+                                body: JSON.stringify({ itm, 메모: 글, id: card.tcgPlayerId }),
+                              }).catch(() => {});
+                            }}
+                          />
+                        )}
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
-                )}
+                  </div>
+                  );
+                })()}
               </li>
             );
           })}
@@ -248,14 +378,46 @@ export function EbayCardDetail({ card, edition }: { card: EbayCard; edition?: st
         {/* ⚠️⚠️ **「등급 확인 안 됨」 줄이 있을 때만** 한 줄 붙인다. 값이 비어 있는 까닭을
             안 적으면 「고장인가?」로 읽힌다. 늘 깔면 글이 많아 다른 줄이 묻히므로
             (2026-08-13에 설명 줄을 통째로 뺐던 까닭이 그것이다) 있을 때만 낸다. */}
-        {card.grades.some((g) => 등급확인안됨(g.grade)) && (
+        {/* ⚠️⚠️ **줄마다 제 설명을 낸다 — 한 문장으로 뭉치면 없는 줄을 설명한다.**
+            2026-08-19 실측: 「등급 확인 안 됨」이 0건이 됐는데도 그 설명이 남아 있었다.
+            `등급확인안됨()`이 「기타 감정 회사」까지 참으로 보기 때문이다(값을 안 내는
+            줄이 둘이라 그렇다). **보이는 줄과 적힌 말이 다르면 그냥 고장이다.** */}
+        {보일등급.some((g) => g.grade === 'ungraded' || g.grade === 'raw' || g.grade === '기타') && (
           <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-400">
-            「등급 확인 안 됨」은 매물 제목에 감정 등급이 안 적혀 있어 <strong>분류가 끝나지 않은 낙찰</strong>입니다.
-            감정된 카드가 섞여 있어 값을 내지 않습니다. 낱개를 눌러 매물에서 직접 확인해 보실 수 있습니다.
+            {보일등급.some((g) => g.grade === 'ungraded') && (
+              <>
+                「등급 확인 안 됨」은 매물 제목에 감정 등급이 안 적혀 있어 <strong>분류가 끝나지 않은 낙찰</strong>입니다.
+                감정된 카드가 섞여 있어 값을 내지 않습니다.{' '}
+              </>
+            )}
+            {보일등급.some((g) => g.grade === '기타') && (
+              <>
+                「기타 감정 회사」는 PSA·BGS·CGC 밖의 작은 회사가 매긴 것입니다. 회사도 등급도 섞여 있어 값을 내지 않습니다.{' '}
+              </>
+            )}
+            {보일등급.some((g) => g.grade === 'raw') && (
+              <>
+                「미감정 싱글」은 <strong>슬랩에 안 들어간 낱장</strong>입니다.{' '}
+              </>
+            )}
+            낱개를 눌러 매물에서 직접 확인해 보실 수 있습니다.
           </p>
         )}
         <KrwRateNote />
       </div>
+
+      {/* ⚠️⚠️ **감정 수량은 시세 아래로 내렸다**(사장님 지시 2026-08-19: 「시세 나오는 곳
+          중간에 껴 가지고 짜증나네」). 예전엔 추이 그래프와 등급별 시세 **사이**에 있어
+          시세를 읽다 말고 끊겼다. **시세는 시세끼리 모으고** 이건 그 뒤에 둔다.
+          ⚠️ 낙찰 기록이 없는 카드에도 붙는다 — 감정된 게 몇 장인지는 거래와 무관하게 안다.
+          ⚠️ `population`을 그대로 넘긴다. 새 시세 길은 카드를 열 때 추이·낱개와 **한 번에**
+             받아 오므로 여기서 또 부를 이유가 없다. */}
+      <GradedPopulation
+        tcgPlayerId={card.tcgPlayerId}
+        edition={edition}
+        population={(card as { population?: Parameters<typeof GradedPopulation>[0]['population'] }).population}
+      />
+      <AdSlot 형태="네모" 이름="카드상세" />
     </div>
   );
 }

@@ -14,7 +14,8 @@
     "대조표검사": "tsx scripts/card-id-map/check.mts",
     "소스점검": "npx tsx scripts/check-sources.mts",
     "프린팅전환검증": "npx tsx scripts/check-printings-switch.mts",
-    "뽑기검증": "npx tsx scripts/check-pack-rates.mts"
+    "뽑기검증": "npx tsx scripts/check-pack-rates.mts",
+    "이베이긁기검사": "npx tsx scripts/check-ebay-scan.mts"
   },
   "engines": {
     "node": ">=22.18"

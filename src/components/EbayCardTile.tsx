@@ -31,7 +31,10 @@ export function EbayCardTile({
     <button
       type="button"
       onClick={() => onSelect(card.tcgPlayerId)}
-      className={`text-left rounded-xl border border-neutral-200 bg-white p-3 transition hover:shadow-md focus:outline-none ${
+      /* ⚠️ `flex flex-col` — <button>은 안의 내용을 **세로 가운데**에 놓는다. 격자가 칸 높이를
+         옆 칸에 맞춰 늘리면, 내용이 짧은 칸(시세 없음·이름 한 줄)은 그림이 가운데로 내려가
+         옆 그림과 어긋났다(사장님 지적 2026-08-21). 위부터 쌓이게 한다. */
+      className={`flex flex-col text-left rounded-xl border border-neutral-200 bg-white p-3 transition hover:shadow-md focus:outline-none ${
         selected ? 'ring-2 ring-black ring-offset-2' : ''
       }`}
     >
@@ -53,7 +56,9 @@ export function EbayCardTile({
           </p>
         )}
       </div>
-      <p className="font-semibold text-sm text-black line-clamp-2 mb-1">{card.name}</p>
+      {/* ⚠️ 이름 두 줄·세트 한 줄 자리를 **미리 잡아 둔다**(min-h) — CardTile과 같은 방식.
+          안 그러면 이름이 짧은 카드와 긴 카드의 값 줄 높이가 달라 옆 칸과 어긋난다. */}
+      <p className="font-semibold text-sm leading-snug text-black line-clamp-2 min-h-[2.5rem] mb-1">{card.name}</p>
       {/* ⚠️ 눌러 보기 전에 알아야 한다. 이 칸의 낙찰은 어느 카드인지 가릴 수 없어서
           값이 그 카드 시세가 아니다(상세에서 까닭을 자세히 밝힌다). */}
       {card.가릴수없음 && (
@@ -64,10 +69,15 @@ export function EbayCardTile({
       {/* ⚠️ **레어도를 목록에서도 보여준다.** 같은 이름의 카드가 여러 장일 때(기본판·SR·SAR)
           레어도가 없으면 어느 것인지 못 가린다 — 값이 크게 갈리는 자리다(2026-08-09 지시).
           한글은 `레어도한글` 한 벌만 쓴다(팝수 화면과 같은 것). */}
-      <p className="text-xs text-neutral-400 mb-1 line-clamp-1">
+      <p className="text-xs text-neutral-400 mb-1 line-clamp-1 min-h-[1rem]">
         {card.setName}
         {card.rarity ? ` · ${레어도한글(card.rarity)}` : ''}
       </p>
+      {/* 값이 없는 카드도 그 자리를 비워 두지 않고 「시세 없음」으로 채운다 — 아래칸이
+          없어 그림이 내려앉던 것을 막고, 왜 값이 안 보이는지도 알린다(CardTile과 같다). */}
+      {(variant === 'tcgplayer' ? !tcg : !(topGrade && top)) && (
+        <p className="text-sm font-semibold text-neutral-400">시세 없음</p>
+      )}
       {variant === 'tcgplayer'
         ? tcg && (
             <>
@@ -88,7 +98,9 @@ export function EbayCardTile({
               <Price amount={top.price} currency="usd" />
             </>
           )}
+      {/* 비교 단추는 칸 바닥에 붙인다(mt-auto) — 값 줄 높이가 달라도 옆 칸과 나란하다. */}
       {onCompare && (
+        <div className="mt-auto pt-2">
         <span
           role="button"
           tabIndex={0}
@@ -103,12 +115,13 @@ export function EbayCardTile({
               onCompare(card);
             }
           }}
-          className={`mt-2 inline-block cursor-pointer rounded-lg border px-2 py-1 text-xs font-semibold ${
+          className={`inline-block cursor-pointer rounded-lg border px-2 py-1 text-xs font-semibold ${
             inCompare ? 'border-[#2a78d6] bg-[#2a78d6] text-white' : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
           }`}
         >
           {inCompare ? '비교 담김 ✓' : '⇄ 비교'}
         </span>
+        </div>
       )}
     </button>
   );

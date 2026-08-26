@@ -9,9 +9,11 @@
  * 값은 TCGplayer(미국) 마켓 기준이고, 갱신은 sealed를 다시 받을 때마다 저절로 된다.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { AdSlot } from './AdSlot';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
 import { koSet } from '../lib/koCardName';
 import { trackEvent } from '../api/localStats';
+import { 일본쪽세트 } from '../lib/cardNo';
 
 type 값 = { name: string; usd: number };
 type 세트값 = { box?: 값; pack?: 값; etb?: 값 };
@@ -37,7 +39,7 @@ export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => v
         for (const [slug, v] of Object.entries(시세)) {
           const s = 세트로.get(slug);
           if (!s || (!v.box && !v.pack && !v.etb)) continue;
-          const ed = slug.startsWith('ja-') ? 'ja' : 'en';
+          const ed = 일본쪽세트(slug) ? 'ja' : 'en';
           out.push({ slug, ko: koSet(ed, String(s.name ?? '')), ed, date: String(s.releaseDate ?? ''), ...v });
         }
         set줄들(out);
@@ -89,7 +91,7 @@ export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => v
             {(
               [
                 ['all', '전체'],
-                ['ja', '일본판'],
+                ['ja', '일본어판'],
                 ['en', '영문판'],
               ] as const
             ).map(([v, 말]) => (
@@ -143,7 +145,7 @@ export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => v
                     >
                       <span
                         className={`inline-block h-2 w-2 shrink-0 rounded-full ${r.ed === 'ja' ? 'bg-rose-500' : 'bg-indigo-500'}`}
-                        aria-label={r.ed === 'ja' ? '일본판' : '영문판'}
+                        aria-label={r.ed === 'ja' ? '일본어판' : '영문판'}
                       />
                       <span className="truncate">{r.ko}</span>
                     </button>
@@ -158,6 +160,7 @@ export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => v
               ))}
             </tbody>
           </table>
+          <AdSlot 형태="가로" 이름="미개봉" />
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { useKrw } from './KrwHint';
 // ⚠️ cardCatalog가 아니라 cardImg에서 가져온다 — cardCatalog는 이름 사전을 통째로
 //    끌고 와서 첫 화면이 109KB 무거워진다(cardImg.ts 첫머리 설명 참고).
 import { cardImg } from '../lib/cardImg';
+import { 일본쪽세트 } from '../lib/cardNo';
 
 // 홈(인기 검색어 ↓ 포켓몬 뉴스 ↑ 사이)에 놓는 "오늘의 상점" — 카드 개봉 입구.
 // 다른 섹션(인기 검색어·뉴스)과 같은 기본 톤(흰 바탕·neutral 테두리)을 따른다.
@@ -134,7 +135,7 @@ export function PullBanner({ onEnter }: { onEnter: () => void }) {
       </div>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-5 sm:gap-3">
         {items.map((h, i) => {
-          const jp = h.slug.startsWith('ja-');
+          const jp = 일본쪽세트(h.slug);
           const tier = TIER_KO[h.r ?? ''] ?.[jp ? 0 : 1] ?? '';
           const pn = packName(h.slug);
           return (

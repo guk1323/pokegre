@@ -150,6 +150,36 @@ async function main() {
   rows.length = 0
   rows.push(...남은줄)
 
+  // ── 검수 곁 카드(1st Edition·기타 언어)를 도감에 세운다(사장님 지시 2026-08-20) ──
+  // 원천은 검수 저장소의 곁 파일이다 — 실제 낙찰이 있어 갈라 둔 카드만 생기고, 다시
+  // 만들어도 같은 꼴로 다시 선다. 열쇠는 캡틴츄와 같은 `~` 갈래(`12345~1st`·`12345~lang`).
+  // 덤프·팝수처럼 저쪽 번호를 쓰는 자리는 `~` 앞만 보므로 안 부딪히고, 시세는 승격이
+  // 구운 우리 값(보정등급·card-history)으로만 나온다.
+  // ⚠️ 이름·번호·그림은 곁 파일에 이미 들어 있다(이름 꼬리 「 · 1st Edition」·「 · 기타 언어」 포함).
+  try {
+    const 검수폴더 = path.resolve('data/ebay-check')
+    // ⚠️ 2026-08-22에 「· 리버스 홀로」(-rev) 곁이 늘었다(사장님 승인). 꼬리 목록은 서버
+    //    다시짓기의 곁이름들과 같아야 한다 — 한쪽만 늘리면 파일은 생기는데 도감엔 안 선다.
+    const 곁파일들 = (await readdir(검수폴더)).filter((f) => /-(1st|lang|rev)\.json$/.test(f) && !f.startsWith('._'))
+    let 곁수 = 0
+    for (const f of 곁파일들) {
+      try {
+        const 검 = JSON.parse(await readFile(path.join(검수폴더, f), 'utf8')) as {
+          id: string; slug: string; name: string; nameEn: string; no: string; img: string
+        }
+        const 꼬리 = f.endsWith('-1st.json') ? '~1st' : f.endsWith('-rev.json') ? '~rev' : '~lang'
+        const base = String(검.id).replace(/-(1st|lang|rev)$/, '')
+        // ⚠️ 캡틴피카츄(617410)의 기타 언어 곁은 안 세운다 — 그 중국어 낙찰의 주인은
+        //    도감의 중국어판 카드(zh-CBB1C · 617410~zh)라, 세우면 같은 낙찰이 두 카드에
+        //    실린다(영문 카드의 「일본판」을 지우는 것과 같은 까닭 — 주인이 따로 있으면 안 겹친다).
+        if (base === '617410' && 꼬리 === '~lang') continue
+        rows.push([검.slug, String(검.no ?? ''), String(검.name ?? ''), String(검.img ?? ''), '', '', '', `${base}${꼬리}`, String(검.nameEn ?? ''), '', '', ''])
+        곁수++
+      } catch { /* 깨진 파일은 건너뜀 */ }
+    }
+    if (곁수) console.log(`  검수 곁 카드 ${곁수.toLocaleString()}장을 도감에 세웠습니다(1st Edition·기타 언어).`)
+  } catch { /* 검수 저장소가 없는 환경이면 곁 카드 없이 만든다 */ }
+
   await writeFile(OUT, JSON.stringify({ sets, rows }))
   const mb = (JSON.stringify({ sets, rows }).length / 1024 / 1024).toFixed(2)
   console.log(`카드 ${rows.length.toLocaleString()}장 · 세트 ${Object.keys(sets).length}개 → ${path.relative('.', OUT)} (${mb} MB)`)

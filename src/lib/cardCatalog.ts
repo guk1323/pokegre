@@ -5,6 +5,8 @@
 // 이미지 주소를 만드는 규칙이 소스마다 달라서 여기 한곳에 모아 둔다 — 화면마다
 // 따로 두면 한쪽만 고쳐져서 어긋난다.
 
+import { 번호비교 } from './cardNo.ts';
+
 export interface SetIndexEntry {
   slug: string;
   ed: 'ja' | 'en';
@@ -208,9 +210,24 @@ export async function loadKoSets(): Promise<string[]> {
  * ⚠️ `printNo`가 하나도 없는 세트는 **손대지 않는다**(그대로 돌려준다).
  */
 function 인쇄번호순(cards: SetCard[]): SetCard[] {
-  if (!cards.some((c) => c.printNo)) return cards;
+  if (!cards.some((c) => c.printNo)) return 번호순(cards);
   const 값 = (c: SetCard) => (c.printNo ? Number(c.printNo) : Number.MAX_SAFE_INTEGER);
   return [...cards].sort((a, b) => 값(a) - 값(b));
+}
+
+/**
+ * `printNo`가 없는 세트를 **카드 번호순**으로 세운다.
+ *
+ * ⚠️⚠️ 예전엔 이런 세트를 **파일에 적힌 차례 그대로** 내보냈다. 그런데 그 파일은
+ *    번호가 겹치는 카드(`12~568512`처럼 구분표를 붙인 것)를 **맨 뒤에 몰아 놓는다.**
+ *    그래서 「13 18 21 … 139」 뒤에 12·37·77이 다시 나오는 꼴이 됐다
+ *    (사장님 지적 2026-08-20, 예: 북미판 트릭 오어 트레이드 부스터 번들 2024).
+ *    **682개 세트 중 118개**가 그렇게 어긋나 있었다.
+ * ⚠️ 견주는 규칙은 `번호비교` 한 벌만 쓴다(lib/cardNo.ts). RC5·TG01·SWSH001처럼
+ *    글자가 섞인 번호가 많아서, 글자로 견주거나 `Number()`로 바꾸면 둘 다 틀린다.
+ */
+function 번호순(cards: SetCard[]): SetCard[] {
+  return [...cards].sort((a, b) => 번호비교(a.n, b.n));
 }
 
 export async function loadSetCards(slug: string): Promise<SetCard[]> {

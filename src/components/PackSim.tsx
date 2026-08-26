@@ -55,6 +55,11 @@ type SimState = {
   canShareBonus?: boolean; // 오늘 첫 자랑 보상(+5,000GP)이 남아 있는지
   packs?: Record<string, number>; // 사서 아직 안 연 팩(보관함)
   boxes?: Record<string, number>; // 사서 아직 안 연 박스(보관함)
+  // GP 이용 내역(최근 100줄). ⚠️ 2026-08-22에 만들어서 **그 전 기록은 없다** —
+  // 그때까지는 잔액·누적만 저장했다.
+  log?: { at: number; 종류: string; 금액: number; 잔액: number; 메모?: string }[];
+  // 운영자가 보낸 선물 중 아직 안 본 것.
+  pendingGift?: { amount: number; message: string; at: number };
   // 마지막으로 연 결과. kept=false면 아직 "앨범에 넣기/넘기기"를 안 고른 것이라
   // 화면을 다시 열 때 그대로 되살린다.
   // 서버는 되살릴 때도 값(usd)을 실어 준다 — 여기 안 적어 두면 받고도 못 쓴다.
@@ -174,6 +179,13 @@ const thumb = (url: string, w: number) => {
 // 원화 대신 자체 재화 단위를 쓴다(숫자는 실제 정가 기준 그대로).
 const gp = (n: number) => `${n.toLocaleString()} GP`;
 
+// 내역 줄의 때 표시. 올해 것만 쌓이므로 연도는 안 적는다.
+const 때표시 = (ts: number): string => {
+  const d = new Date(ts);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 // 팩 하나에서 그 등급이 나올 확률(%). 슬롯별 확률을 합쳐서 보여준다.
 function ratesOf(pack: PackSet): { ko: string; pct: number; per: number }[] {
   const sum: Record<string, number> = {};
@@ -198,10 +210,10 @@ function buildGroups(live: PackSet[]): RateGroup[] {
   const size = profile.commons + profile.uncommons + profile.slots.length;
   const kind = first.jp
     ? profile === JP_MEGA
-      ? `일본판 메가 시리즈 확장팩 (${size}장)`
+      ? `일본어판 메가 시리즈 확장팩 (${size}장)`
       : profile === JP_151
-        ? `일본판 강화 확장팩 (${size}장)`
-        : `일본판 정규 확장팩 (${size}장)`
+        ? `일본어판 강화 확장팩 (${size}장)`
+        : `일본어판 정규 확장팩 (${size}장)`
     : profile === NA_MEGA
       ? `영문판 메가 시리즈 부스터 (${size}장)`
       : profile === NA_PRISMATIC || profile === NA_151
@@ -284,6 +296,7 @@ export function PackSim({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [checkinMsg, setCheckinMsg] = useState('');
+  const [logOpen, setLogOpen] = useState(false);
   // 앨범에 필요한 세트 카드 목록(이름·이미지). 앨범 탭을 열 때만 받아온다.
   const [setCards, setSetCards] = useState<Record<string, PackCard[]>>({});
   // 팩 진열용 이미지(박스 사진·로고). public/sets/index.json에 이미 들어 있다.
@@ -700,7 +713,7 @@ export function PackSim({
       if (typeof d.balance === 'number') setSim((s2) => (s2 ? { ...s2, balance: d.balance! } : s2));
       setShare({
         shared: true,
-        msg: d.gained ? `커뮤니티에 올렸습니다. 자랑 보상 +${gp(d.gained)} (하루 1번)` : '커뮤니티에 올렸습니다.',
+        msg: d.gained ? `게시판에 올렸습니다. 자랑 보상 +${gp(d.gained)} (하루 1번)` : '게시판에 올렸습니다.',
       });
       setShareOpen(false);
     } finally {
@@ -1018,6 +1031,91 @@ export function PackSim({
       {checkinMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{checkinMsg}</p>}
       {err && <p className="mt-2 text-sm text-rose-500">{err}</p>}
 
+      {/* 운영자 선물 안내. ⚠️ 이게 없으면 잔액만 늘어서 고장으로 오해한다 — 한 번은 말로 알린다. */}
+      {sim?.pendingGift && (
+        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <p className="text-sm font-bold text-amber-800">운영자가 {gp(sim.pendingGift.amount)}를 보냈습니다.</p>
+          {sim.pendingGift.message && (
+            <p className="mt-1 text-sm leading-relaxed text-amber-800">{sim.pendingGift.message}</p>
+          )}
+          <button
+            type="button"
+            onClick={async () => {
+              setSim((s2) => (s2 ? { ...s2, pendingGift: undefined } : s2));
+              // 실패해도 다음에 다시 뜬다 — 조용히 넘어간다.
+              try {
+                await fetch('/api/local/auth/packsim/gift/seen', { method: 'POST', credentials: 'include' });
+              } catch { /* 무시 */ }
+            }}
+            className="mt-2 rounded-lg bg-neutral-900 px-4 py-2 text-xs font-bold text-white"
+          >
+            확인
+          </button>
+        </div>
+      )}
+
+      {/* 내 GP 내역 — GP가 언제 얼마 들어오고 나갔는지(사장님 지시 2026-08-22) */}
+      {!guest && sim && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (!logOpen) trackEvent('packsim_log');
+              setLogOpen((v) => !v);
+            }}
+            className="rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+          >
+            내 GP 내역 {logOpen ? '▲' : '▼'}
+          </button>
+          {logOpen && (
+            <div className="mt-2 rounded-xl border border-neutral-200 p-3">
+              <p className="text-xs text-neutral-500">
+                지금까지 팩 {sim.opened.toLocaleString()}개 · 쓴 GP {sim.spent.toLocaleString()}
+              </p>
+              {!sim.log?.length ? (
+                <div className="py-6 text-center">
+                  <p className="text-xs text-neutral-400">
+                    아직 남은 내역이 없습니다. 2026년 8월 22일부터 쌓입니다.
+                  </p>
+                  {/* ⚠️ 운영자는 「GP 차감」이 꺼져 있으면 팩을 까도 GP가 안 나가서 줄이 안 생긴다.
+                      잔액이 상한이면 출석해도 0원이라 마찬가지다 — 고장으로 오해하기 쉬워 밝혀 둔다. */}
+                  {sim.admin && (
+                    <p className="mt-2 text-[11px] leading-relaxed text-neutral-400">
+                      운영자 계정은 「GP 차감」이 꺼져 있으면 팩을 까도 GP가 안 나가고,
+                      <br />잔액이 상한({gp(MAX_BALANCE)})이면 출석해도 안 늘어서 줄이 안 생깁니다.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <ul className="mt-2 divide-y divide-neutral-100">
+                    {sim.log.map((r) => (
+                      <li key={r.at + r.종류 + r.금액} className="flex items-center justify-between gap-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-black">
+                            {r.종류}
+                            {r.메모 ? <span className="ml-1 font-normal text-neutral-400">{r.메모}</span> : null}
+                          </p>
+                          <p className="text-[11px] text-neutral-400">{때표시(r.at)}</p>
+                        </div>
+                        <div className="flex-shrink-0 text-right">
+                          <p className={`text-sm font-bold ${r.금액 > 0 ? 'text-emerald-600' : 'text-black'}`}>
+                            {r.금액 > 0 ? '+' : ''}
+                            {r.금액.toLocaleString()}
+                          </p>
+                          <p className="text-[11px] text-neutral-400">남은 {r.잔액.toLocaleString()}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-[11px] text-neutral-400">최근 100건까지 보입니다.</p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 탭 */}
       <div className="mt-4 flex gap-1">
         {([
@@ -1053,7 +1151,7 @@ export function PackSim({
           {/* 팩 진열장 — 사이트 기본 톤. 팩을 고르면 그 타일 안에 "열기" 버튼이 바로 나타난다
               (버튼이 멀리 떨어져 있으면 고르고 나서 시선이 한 번 더 이동해야 해 불편하다). */}
           {[
-            { label: '일본판', dot: 'bg-rose-500', packs: liveToday.filter((p) => p.jp) },
+            { label: '일본어판', dot: 'bg-rose-500', packs: liveToday.filter((p) => p.jp) },
             { label: '영문판', dot: 'bg-blue-500', packs: liveToday.filter((p) => !p.jp) },
           ].map((row) => (
             <div key={row.label} className="mt-5">
@@ -1159,7 +1257,7 @@ export function PackSim({
                                     <>
                                       {/* ⚠️ 몇 팩짜리인지 버튼에 적는다(운영자 지시 2026-08-05).
                                           박스 값이 팩의 30~36배라, 팩 수를 모르면 왜 이만큼
-                                          비싼지 알 수 없었다. 일본판 30팩·영문판 36팩으로 서로
+                                          비싼지 알 수 없었다. 일본어판 30팩·영문판 36팩으로 서로
                                           다르기도 하다. */}
                                       <span className="block text-[11px] font-semibold opacity-80">
                                         1박스 ({s2.boxPacks}팩)
@@ -1449,7 +1547,7 @@ export function PackSim({
                   disabled={busy}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
                 >
-                  커뮤니티에 등록
+                  게시판에 등록
                 </button>
                 <button
                   type="button"
@@ -1946,7 +2044,7 @@ export function PackSim({
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-3">
             <p className="text-sm font-bold text-amber-700">갓팩</p>
             <p className="mt-1 text-xs text-neutral-600">
-              실물과 같게 151류 강화 확장팩에 있습니다 — 일본판 151은 750팩에 1번, 영문판
+              실물과 같게 151류 강화 확장팩에 있습니다 — 일본어판 151은 750팩에 1번, 영문판
               특별세트(Prismatic·151)는 1,000팩에 1번. 걸리면 팩 전체가 아트레어(AR) 이상으로
               나옵니다. 일반 확장팩에는 갓팩이 없습니다.
             </p>
@@ -1955,7 +2053,7 @@ export function PackSim({
           <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
             <p className="text-sm font-bold text-neutral-800">박스로 열면</p>
             <p className="mt-1 text-xs text-neutral-600">
-              일본판 박스는 실물과 같은 보장 봉입이 있습니다 — <b>SR 이상 1장 · AR 3장 · RR 4~5장</b>
+              일본어판 박스는 실물과 같은 보장 봉입이 있습니다 — <b>SR 이상 1장 · AR 3장 · RR 4~5장</b>
               (151은 마스터볼 미러 1장 추가)이 반드시 들어가고, 나머지 팩은
               커먼·언커먼·레어로 채웁니다. 보장이 있어도 박스 한 개의 기대값은 위 표와 같습니다.
               낱팩은 팩마다 위 표의 확률을 따로 굴립니다. 영문판 박스는 실물처럼 보장이 없어
@@ -1966,7 +2064,7 @@ export function PackSim({
           <div className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50 p-3">
             <p className="text-sm font-bold text-yellow-700">메가 울트라레어 (MUR)</p>
             <p className="mt-1 text-xs text-neutral-600">
-              메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금색이고, 일본판은 MUR(세트당
+              메가 시리즈 전용 최상위 등급입니다. 카드 전체가 금색이고, 일본어판은 MUR(세트당
               1종·약 3,000팩 = 박스 100개에 1장꼴), 영문판은 MHR(세트당 2종)로 부릅니다. 메가
               시리즈에는 일반 금색 UR 대신 이 등급이 들어갑니다.
             </p>

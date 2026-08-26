@@ -23,25 +23,91 @@ export const 등급앞말 =
  * ⚠️ 작은 회사를 PSA 칸에 넣으면 **그게 또 섞임이다.** 회사 이름을 그대로 살려
  *    자기 칸(pgs10 · mpg10)을 만든다. 화면의 등급 이름표는 아무 칸이나 받는다.
  */
-export const 회사말 = 'psa|bgs|beckett|cgc|sgc|ace|tag|ars|rgr|pgs|mpg|cci|gma|hga|isa|ags'
+// ⚠️ **낯선 회사도 이름을 살려 제 칸에 세운다.** 미감정에 섞으면 방문자가 「이건 PSA가
+//    아니구나」를 알 길이 없다. `pcg`·`csg`는 2026-08-19에 실물 매물에서 보고 넣었다
+//    (「PCG 10」이 미감정 칸에 들어가 있는 것을 사장님이 눈으로 찾으셨다).
+/** 등급별로 칸을 따로 세우는 **큰 회사 넷**. 나머지는 「기타 감정 회사」로 모은다. */
+const 큰회사 = new Set(['psa', 'cgc', 'bgs', 'brg'])
+export const 회사말 = 'psa|bgs|bccg|beckett|brg|cgc|sgc|ace|tag|ars|rgr|pgs|pcg|mpg|cci|csg|gma|hga|isa|ags|pyxis|acg|tqg|aph|lcc|plg|mnt|ccg|mgc|hgc|bctc|cga|dsg|rpa|ksa|jbh|toc|tga|pg|ark|wag|kvu|rcg|gcg|gbtc'
+// ⚠️ 회사와 숫자 사이에 등급말이 끼는 꼴이 흔하다 — "PSA NM-MT 8" · "CGC NM/MINT 8" ·
+//    "BGS GEM MT 9.5". 이걸 안 넣으면 그 매물이 미감정 칸에 그대로 남는다.
+// ⚠️⚠️ `gem` 뒤의 `mt`·`mint`는 **있을 수도 없을 수도 있다.** 예전엔 `gem\\s*-?\\s*mt`로
+//    못 박아 두어 「**PSA Gem 10**」을 통째로 놓쳤다 — 사장님이 짚어 주신 그 매물이
+//    정확히 그 꼴이었고(`… Celebrations 15/82 PSA Gem 10`), 그래서 미감정 칸에 남아 있었다.
+// ⚠️⚠️ **사이에 끼는 등급말이 생각보다 많다.** 실제 매물 제목 2,174가지를 훑어 넓혔다
+//    (2026-08-19) — `PSA EX 5` · `PSA GMT MT 10` · `PSA VG 3` · `CGC MINT+ 9.5` ·
+//    `CGC grade = 8.5` · `Ace Grading 10`. 안 넣으면 그만큼이 「확인 안 됨」에 쌓인다.
+//    ⚠️ `GMT MT`·`GM`·`PR` 같은 줄임말도 온다. 붙여 쓴 것(`Psa9`)도 있어 회사 뒤의
+//       낱말 경계는 **글자만** 막는다(숫자는 붙어도 받는다).
+const 사이말 =
+  '(?:grade|grading|graded|gold|gem|gmt|gm|pristine|mint|nm|ex|vg|gd|po|fr|pr|mt|\\+|=|:|-|/|\\s)*'
+const 등급수 = '(10|[1-9](?:\\.5)?)'
 export const 제목등급칸 = (t: string): string => {
   const s = String(t ?? '')
-  // ⚠️ 회사와 숫자 사이에 등급말이 끼는 꼴이 흔하다 — "PSA NM-MT 8" · "CGC NM/MINT 8" ·
-  //    "BGS GEM MT 9.5". 이걸 안 넣으면 그 매물이 미감정 칸에 그대로 남는다.
-  // ⚠️⚠️ `gem` 뒤의 `mt`·`mint`는 **있을 수도 없을 수도 있다.** 예전엔 `gem\\s*-?\\s*mt`로
-  //    못 박아 두어 「**PSA Gem 10**」을 통째로 놓쳤다 — 사장님이 짚어 주신 그 매물이
-  //    정확히 그 꼴이었고(`… Celebrations 15/82 PSA Gem 10`), 그래서 미감정 칸에 남아 있었다.
-  const 사이말 = '(?:grade[ds]?|gem(?:\\s*-?\\s*m(?:t|int))?|nm\\s*[-/]\\s*(?:mt|mint)|mint|pristine)?'
-  let m = s.match(new RegExp(`\\b(${회사말})\\s*-?\\s*${사이말}\\s*(10|[1-9](?:\\.5)?)\\b(?!\\d)`, 'i'))
+  // ① 흔한 꼴: 「회사 … 숫자」
+  let m = s.match(new RegExp(`\\b(${회사말})(?![a-z])${사이말}${등급수}\\b(?!\\d|\\s*\\/\\s*\\d)`, 'i'))
+  // ② 뒤집힌 꼴: 「PRISTINE 10 CGC」·「Ace Grading 10 … Not PSA」처럼 숫자가 앞에 온다.
+  if (!m) {
+    const r = s.match(new RegExp(`\\b(?:pristine|gem\\s*mt|mint)\\s*${등급수}\\b[^\\n]{0,24}?\\b(${회사말})\\b`, 'i'))
+    if (r) m = [r[0], r[2], r[1]] as unknown as RegExpMatchArray
+  }
   if (!m) {
     // 회사 이름이 뒤에 오는 꼴: "GEM MT 10 ... PSA" 는 위에서 잡히고, 여긴 "Z gold 10" 같은 것.
-    const z = s.match(new RegExp(`\\b(?:pokemon-?)?z\\s*gold\\s*(10|[1-9](?:\\.5)?)\\b(?!\\d)`, 'i'))
-    if (z) return `z${z[1].replace('.', '_')}`
+    const z = s.match(new RegExp(`\\b(?:pokemon-?)?z\\s*gold\\s*${등급수}\\b(?!\\d)`, 'i'))
+    if (z) return '기타' // 「Z gold 10」류 — 작은 회사라 기타로 모은다
     return ''
   }
   const 회사 = m[1].toLowerCase() === 'beckett' ? 'bgs' : m[1].toLowerCase()
-  return `${회사}${m[2].replace('.', '_')}`
+  // ⚠️⚠️ **큰 회사 넷만 등급별로 칸을 나눈다**(사장님 지시 2026-08-19).
+  //    나머지(PCG·PGS·MPG·TAG·ACE·SGC·CSG…)는 **「기타 감정 회사」 한 칸**으로 모은다 —
+  //    작은 회사 이름으로 칸을 다 세우면 화면이 칸으로 뒤덮이고, 방문자에게 필요한 것은
+  //    「이건 큰 회사 감정이 아니다」 하나다. **낱개 줄에는 회사 이름이 그대로 보인다.**
+  //    ⚠️ `brg`는 사장님이 적어 주셨는데 **우리 자료에는 아직 한 번도 안 왔다**
+  //       (덤프의 회사는 psa·cgc·tag·bgs·ace·sgc뿐 · 실제 매물 제목 3,190건에도 0회).
+  //       올 때를 위해 넣어 둔다.
+  if (!큰회사.has(회사)) return '기타'
+  const 칸 = `${회사}${m[2].replace('.', '_')}`
+  // ⚠️⚠️ **10 위의 등급을 따로 세운다**(사장님 지시 2026-08-19).
+  //    CGC의 「Pristine 10」은 CGC 10보다 **위 등급**이고 값도 다르다(같은 카드에서
+  //    93.5만원 ↔ 54.3만원). BGS의 「Black Label 10」도 마찬가지다.
+  //    **값 차이를 재서 정할 일이 아니라, 애초에 다른 등급이라 갈라야 하는 것이다.**
+  //    ⚠️ 「PRI」로 줄여 쓰는 매물이 많다(「CGC 10 PRI …」). 낱말 경계로 받는다.
+  //    ⚠️ 저쪽(PPT) 덤프는 제목이 없어 못 가른다 — 그건 `cgc10`으로 그대로 온다.
+  //       두 길이 섞여도 안 깨진다(칸 이름이 다를 뿐이라 각자 제 줄로 선다).
+  if (칸 === 'cgc10' && /\bpri(?:stine)?\b/i.test(s)) return 'cgcp10'
+  if (칸 === 'bgs10' && /\bblack\s*label\b|\bpristine\b/i.test(s)) return 'bgsbl10'
+  return 칸
 }
+
+/**
+ * 제목에서 「회사 + 등급」을 사람 눈에 보이는 꼴로 — "ACG 9" · "Z GOLD 10". 못 찾으면 ''.
+ * 「기타 감정 회사」 칸의 낱개 줄에 붙는다(사장님 지시 2026-08-20) — 그 칸은 회사도 등급도
+ * 섞여 있어서, 줄마다 어느 회사의 몇 점인지 밝혀야 낱개가 뜻을 가진다.
+ * ⚠️ 위 `제목등급칸`과 같은 정규식(사이말·등급수)을 쓴다 — 따로 두면 칸과 표기가 어긋난다.
+ */
+export const 제목회사표기 = (t: string): string => {
+  const s = String(t ?? '')
+  let m = s.match(new RegExp(`\\b(${회사말})(?![a-z])${사이말}${등급수}\\b(?!\\d|\\s*\\/\\s*\\d)`, 'i'))
+  if (!m) {
+    const r = s.match(new RegExp(`\\b(?:pristine|gem\\s*mt|mint)\\s*${등급수}\\b[^\\n]{0,24}?\\b(${회사말})\\b`, 'i'))
+    if (r) m = [r[0], r[2], r[1]] as unknown as RegExpMatchArray
+  }
+  if (m) return `${m[1].toUpperCase()} ${m[2]}`
+  const z = s.match(new RegExp(`\\b(?:pokemon-?)?z\\s*gold\\s*${등급수}\\b(?!\\d)`, 'i'))
+  if (z) return `Z GOLD ${z[1]}`
+  return ''
+}
+
+/**
+ * **제목에 감정 회사 이름이 하나라도 나오나.**
+ *
+ * ⚠️ 「등급을 못 읽었다」와 「애초에 감정 안 한 카드다」는 **전혀 다른 말**이다.
+ *    회사 이름이 아예 없으면 그건 **미감정 싱글카드**라 값을 보여 줘야 한다.
+ *    회사 이름은 있는데 등급을 못 읽은 것만 「확인 안 됨」으로 둔다.
+ *    (사장님이 「4개는 그냥 미감정 같고 1개는 PCG 같은데」라고 5초 만에 가르신 그 구분이다.)
+ */
+export const 제목에감정사있나 = (t: string): boolean =>
+  new RegExp(`\\b(?:${회사말}|z\\s*gold)\\b`, 'i').test(String(t ?? ''))
 /** 그 칸의 회사 이름(ungraded면 빈값). "cgc8_5" → "cgc" */
 /**
  * **여러 장을 한꺼번에 판 매물인가.** 한 장 값이 아니라서 시세에 넣으면 안 된다.

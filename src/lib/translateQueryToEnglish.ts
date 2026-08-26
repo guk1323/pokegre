@@ -257,7 +257,7 @@ const PACK_KO_EN: [string, string][] = [
   ['라이징피스트', 'Rising Fist'],
   ['와일드블레이즈', 'Wild Blaze'],
   ['환상·전설 드림키라컬렉션', 'Mythical & Legendary Dream Shine Collection'],
-  ['포케큔컬렉션', 'PokeKyun Collection'],
+  ['포켓심쿵 컬렉션', 'PokeKyun Collection'],
   ['전설키라컬렉션', 'Legendary Shine Collection'],
   // PCG 시대
   ['최후의 공방', 'Offensive and Defensive Clash'],

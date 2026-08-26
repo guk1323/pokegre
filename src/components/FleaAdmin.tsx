@@ -101,7 +101,7 @@ export function FleaAdmin() {
       <div className="flex gap-2">
         {(
           [
-            ['listings', '매물'],
+            ['listings', '마켓'],
             ['config', '설정'],
           ] as const
         ).map(([v, label]) => (

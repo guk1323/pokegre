@@ -106,7 +106,7 @@ export const 마켓순서 = (jp: boolean): 마켓[] =>
   jp
     ? [
         { source: 'snkrdunk', edition: 'japanese', label: '스니커덩크' },
-        { source: 'cardboard', edition: 'japanese', label: '해외 시세(일본판)' },
+        { source: 'cardboard', edition: 'japanese', label: '해외 시세(일본어판)' },
       ]
     : [{ source: 'cardboard', edition: 'english', label: '해외 시세(영문판)' }];
 

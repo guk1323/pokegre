@@ -96,6 +96,15 @@ export function TitleFeedbackList() {
                   ✕
                 </button>
               </div>
+              {/* ⚠️ 사용자가 적은 메모(2026-08-18). **없는 것이 정상이다** — 안 쓰고 보낼 수
+                  있고, 이 칸이 생기기 전의 옛 신고에는 아예 없다. 있을 때만 그린다. */}
+              {item.note ? (
+                <p className="mt-1.5 whitespace-pre-wrap break-words rounded-r-md border-l-2 border-[#2a78d6] bg-neutral-50 px-2 py-1 text-xs text-neutral-700">
+                  {item.note}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-neutral-500">메모 없음</p>
+              )}
               <div className="mt-1 flex items-center justify-between gap-2">
                 <span className="text-xs text-neutral-400">{formatWhen(item.at)}</span>
                 {item.link && (

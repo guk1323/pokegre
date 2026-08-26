@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AdSlot } from './AdSlot';
 import { 은는 } from '../lib/josa';
 import { 시트가스스로닫힘 } from '../lib/sheetHistory';
 import { CardImg } from './CardImg';
@@ -432,7 +433,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
           {/* 사진으로 찾기 — 시세 화면과 **같은 부품**을 쓴다(사장님 지시 2026-08-11).
               팝수는 "내 카드가 몇 장이나 있나"를 보는 곳이라 사진으로 들어오는 게 자연스럽다.
               ⚠️ 스캔이 판(일/영문)까지 읽어 주므로 판 토글도 같이 맞춘다 — 안 맞추면
-                 일본판 카드를 찍었는데 영문판에서 0장이 나온다. */}
+                 일본어판 카드를 찍었는데 영문판에서 0장이 나온다. */}
           <CardScanButton
             onResult={({ result }) => {
               const ed = result.edition === 'english' ? 'english' : 'japanese';
@@ -459,7 +460,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                 판 === p ? 'bg-black text-white' : 'bg-white text-neutral-600 hover:bg-neutral-50'
               }`}
             >
-              {p === 'japanese' ? '일본판' : '영문판'}
+              {p === 'japanese' ? '일본어판' : '영문판'}
             </button>
           ))}
         </div>
@@ -662,6 +663,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                 “진품만”은 등급 없이 진품 확인만 받은 것, “조건부”는 흠이 적혀 등급이 따로 표시된 것입니다.
                 {자료.updatedAt ? ` 자료 기준 ${자료.updatedAt.slice(0, 10)}.` : ''}
               </p>
+              <AdSlot 형태="네모" 이름="팝수" />
             </>
           )}
         </div>
