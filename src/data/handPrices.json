@@ -1298,5 +1298,646 @@
       "avg": 842.47,
       "med": 842.47
     }
+  },
+  "ja-sm-the-best-of-xy|12": {
+    "psa10": {
+      "n": 1,
+      "avg": 51.49,
+      "med": 51.49
+    },
+    "raw": {
+      "n": 2,
+      "avg": 2.62,
+      "med": 2.62
+    }
+  },
+  "ja-sm-the-best-of-xy|61": {
+    "raw": {
+      "n": 1,
+      "avg": 9.86,
+      "med": 9.86
+    },
+    "cgcp10": {
+      "n": 1,
+      "avg": 57.48,
+      "med": 57.48
+    }
+  },
+  "ja-sm-the-best-of-xy|67": {
+    "raw": {
+      "n": 2,
+      "avg": 7.16,
+      "med": 7.16
+    }
+  },
+  "ja-sm-the-best-of-xy|87": {
+    "raw": {
+      "n": 2,
+      "avg": 5.45,
+      "med": 5.45
+    }
+  },
+  "ja-sm-the-best-of-xy|89": {
+    "raw": {
+      "n": 2,
+      "avg": 7.8,
+      "med": 7.8
+    }
+  },
+  "ja-sm-the-best-of-xy|98": {
+    "psa10": {
+      "n": 1,
+      "avg": 117.99,
+      "med": 117.99
+    },
+    "raw": {
+      "n": 2,
+      "avg": 72.47,
+      "med": 72.47
+    }
+  },
+  "ja-sm-the-best-of-xy|175": {
+    "psa9": {
+      "n": 1,
+      "avg": 69.33,
+      "med": 69.33
+    },
+    "cgcp10": {
+      "n": 1,
+      "avg": 223.01,
+      "med": 223.01
+    },
+    "psa10": {
+      "n": 3,
+      "avg": 191.95,
+      "med": 195.75
+    },
+    "raw": {
+      "n": 2,
+      "avg": 59.47,
+      "med": 59.47
+    },
+    "cgc9": {
+      "n": 1,
+      "avg": 101.05,
+      "med": 101.05
+    }
+  },
+  "ja-sm-the-best-of-xy|176": {
+    "raw": {
+      "n": 1,
+      "avg": 285.45,
+      "med": 285.45
+    },
+    "psa10": {
+      "n": 2,
+      "avg": 1065.97,
+      "med": 1065.97
+    },
+    "기타": {
+      "n": 1,
+      "avg": 671.05,
+      "med": 671.05
+    }
+  },
+  "ja-sm-the-best-of-xy|177": {
+    "psa9": {
+      "n": 3,
+      "avg": 198.22,
+      "med": 227.95
+    },
+    "raw": {
+      "n": 1,
+      "avg": 41.63,
+      "med": 41.63
+    },
+    "psa10": {
+      "n": 2,
+      "avg": 618.86,
+      "med": 618.86
+    }
+  },
+  "ja-sm-the-best-of-xy|179": {
+    "raw": {
+      "n": 2,
+      "avg": 79.28,
+      "med": 79.28
+    },
+    "psa9": {
+      "n": 2,
+      "avg": 94.13,
+      "med": 94.13
+    },
+    "psa10": {
+      "n": 2,
+      "avg": 97.98,
+      "med": 97.98
+    }
+  },
+  "ja-sm-the-best-of-xy|187": {
+    "raw": {
+      "n": 4,
+      "avg": 617.72,
+      "med": 601.91
+    },
+    "psa10": {
+      "n": 4,
+      "avg": 2573.07,
+      "med": 2689.11
+    }
+  },
+  "ja-sm-the-best-of-xy|188": {
+    "psa8": {
+      "n": 1,
+      "avg": 643.83,
+      "med": 643.83
+    },
+    "raw": {
+      "n": 2,
+      "avg": 545.04,
+      "med": 545.04
+    },
+    "bgs10": {
+      "n": 1,
+      "avg": 4096.44,
+      "med": 4096.44
+    },
+    "psa10": {
+      "n": 3,
+      "avg": 3343.76,
+      "med": 3270.74
+    },
+    "psa9": {
+      "n": 1,
+      "avg": 671.73,
+      "med": 671.73
+    }
+  },
+  "ja-sm-the-best-of-xy|10~MirrorHolofoil.171": {
+    "raw": {
+      "n": 1,
+      "avg": 22.79,
+      "med": 22.79
+    }
+  },
+  "ja-sm-the-best-of-xy|102~MirrorHolofoil.171": {
+    "raw": {
+      "n": 1,
+      "avg": 446.01,
+      "med": 446.01
+    }
+  },
+  "ja-sm-the-best-of-xy|118~598813": {
+    "raw": {
+      "n": 1,
+      "avg": 3.95,
+      "med": 3.95
+    }
+  },
+  "ja-sm-the-best-of-xy|130~598942": {
+    "raw": {
+      "n": 1,
+      "avg": 3.91,
+      "med": 3.91
+    }
+  },
+  "ja-sm-the-best-of-xy|145~598754": {
+    "raw": {
+      "n": 1,
+      "avg": 2.96,
+      "med": 2.96
+    },
+    "cgcp10": {
+      "n": 1,
+      "avg": 77.31,
+      "med": 77.31
+    }
+  },
+  "ja-sm-the-best-of-xy|151~598982": {
+    "raw": {
+      "n": 1,
+      "avg": 15.85,
+      "med": 15.85
+    }
+  },
+  "ja-sm-the-best-of-xy|154~598781": {
+    "raw": {
+      "n": 1,
+      "avg": 1.77,
+      "med": 1.77
+    }
+  },
+  "ja-sm-the-best-of-xy|170~599012": {
+    "raw": {
+      "n": 1,
+      "avg": 1.99,
+      "med": 1.99
+    }
+  },
+  "ja-sm-the-best-of-xy|180~598897": {
+    "psa10": {
+      "n": 1,
+      "avg": 1671.06,
+      "med": 1671.06
+    }
+  },
+  "ja-sm-the-best-of-xy|181~598818": {
+    "psa9": {
+      "n": 1,
+      "avg": 1093.22,
+      "med": 1093.22
+    }
+  },
+  "ja-sm-the-best-of-xy|183~598834": {
+    "psa10": {
+      "n": 1,
+      "avg": 1495.63,
+      "med": 1495.63
+    },
+    "psa9": {
+      "n": 2,
+      "avg": 489.13,
+      "med": 489.13
+    }
+  },
+  "ja-sm-the-best-of-xy|186~598983": {
+    "raw": {
+      "n": 1,
+      "avg": 54.51,
+      "med": 54.51
+    }
+  },
+  "ja-sm-the-best-of-xy|24~598783": {
+    "raw": {
+      "n": 2,
+      "avg": 2.23,
+      "med": 2.23
+    }
+  },
+  "ja-sm-the-best-of-xy|4~MirrorHolofoil.171": {
+    "psa10": {
+      "n": 1,
+      "avg": 71.54,
+      "med": 71.54
+    }
+  },
+  "ja-sm-the-best-of-xy|48~MirrorHolo.171": {
+    "raw": {
+      "n": 1,
+      "avg": 146.23,
+      "med": 146.23
+    }
+  },
+  "ja-sm-the-best-of-xy|50~598787": {
+    "raw": {
+      "n": 3,
+      "avg": 3.76,
+      "med": 3.95
+    }
+  },
+  "ja-sm-the-best-of-xy|52~598839": {
+    "raw": {
+      "n": 1,
+      "avg": 3.95,
+      "med": 3.95
+    }
+  },
+  "ja-sm-the-best-of-xy|54~598990": {
+    "raw": {
+      "n": 1,
+      "avg": 3.95,
+      "med": 3.95
+    }
+  },
+  "ja-sm-the-best-of-xy|57~MirrorHolofoil.171": {
+    "raw": {
+      "n": 1,
+      "avg": 19.81,
+      "med": 19.81
+    }
+  },
+  "ja-sm-the-best-of-xy|64~598841": {
+    "psa10": {
+      "n": 1,
+      "avg": 213.04,
+      "med": 213.04
+    }
+  },
+  "ja-sm-the-best-of-xy|68~599034": {
+    "cgc10": {
+      "n": 1,
+      "avg": 6.44,
+      "med": 6.44
+    }
+  },
+  "ja-sm-the-best-of-xy|78~MirrorHolofoil.171": {
+    "raw": {
+      "n": 1,
+      "avg": 29.73,
+      "med": 29.73
+    }
+  },
+  "ja-ex-battle-boost|95": {
+    "psa10": {
+      "n": 2,
+      "avg": 4196.73,
+      "med": 4196.73
+    },
+    "psa8": {
+      "n": 2,
+      "avg": 628.98,
+      "med": 628.98
+    },
+    "psa7": {
+      "n": 1,
+      "avg": 493.59,
+      "med": 493.59
+    },
+    "raw": {
+      "n": 5,
+      "avg": 245.67,
+      "med": 225.35
+    },
+    "bgs8": {
+      "n": 1,
+      "avg": 180.88,
+      "med": 180.88
+    },
+    "cgc8_5": {
+      "n": 1,
+      "avg": 272.56,
+      "med": 272.56
+    },
+    "psa9": {
+      "n": 1,
+      "avg": 505.48,
+      "med": 505.48
+    }
+  },
+  "ja-ex-battle-boost|1~MirrorHolo.093": {
+    "raw": {
+      "n": 1,
+      "avg": 345.5,
+      "med": 345.5
+    }
+  },
+  "ja-ex-battle-boost|32~603062": {
+    "raw": {
+      "n": 33,
+      "avg": 1.15,
+      "med": 1.15
+    }
+  },
+  "ja-ex-battle-boost|52~603049": {
+    "raw": {
+      "n": 35,
+      "avg": 1.15,
+      "med": 1.15
+    },
+    "psa10": {
+      "n": 1,
+      "avg": 30.73,
+      "med": 30.73
+    }
+  },
+  "ja-ex-battle-boost|68~603057": {
+    "raw": {
+      "n": 12,
+      "avg": 1.15,
+      "med": 1.15
+    }
+  },
+  "ja-l3-clash-at-the-summit|81": {
+    "raw": {
+      "n": 1,
+      "avg": 178.26,
+      "med": 178.26
+    },
+    "psa10": {
+      "n": 1,
+      "avg": 1981.28,
+      "med": 1981.28
+    }
+  },
+  "ja-l3-clash-at-the-summit|28~608404": {
+    "raw": {
+      "n": 2,
+      "avg": 2.62,
+      "med": 2.62
+    },
+    "psa9": {
+      "n": 1,
+      "avg": 39.64,
+      "med": 39.64
+    },
+    "cgc9": {
+      "n": 1,
+      "avg": 23.78,
+      "med": 23.78
+    }
+  },
+  "ja-l3-clash-at-the-summit|40~608416": {
+    "raw": {
+      "n": 1,
+      "avg": 2.85,
+      "med": 2.85
+    }
+  },
+  "ja-l3-clash-at-the-summit|52~608428": {
+    "raw": {
+      "n": 16,
+      "avg": 1.15,
+      "med": 1.15
+    },
+    "psa10": {
+      "n": 1,
+      "avg": 198.22,
+      "med": 198.22
+    }
+  },
+  "ja-l3-clash-at-the-summit|69~608445": {
+    "raw": {
+      "n": 2,
+      "avg": 3.76,
+      "med": 3.76
+    }
+  },
+  "ja-l3-clash-at-the-summit|7~608383": {
+    "psa10": {
+      "n": 5,
+      "avg": 1407.02,
+      "med": 1247.84
+    },
+    "raw": {
+      "n": 10,
+      "avg": 53.46,
+      "med": 40.26
+    },
+    "psa9": {
+      "n": 3,
+      "avg": 265.95,
+      "med": 252.74
+    },
+    "psa8": {
+      "n": 2,
+      "avg": 106.8,
+      "med": 106.8
+    }
+  },
+  "ja-l3-clash-at-the-summit|76~608452": {
+    "raw": {
+      "n": 6,
+      "avg": 2.18,
+      "med": 1.97
+    }
+  },
+  "ja-l3-clash-at-the-summit|79~608455": {
+    "psa10": {
+      "n": 1,
+      "avg": 124.39,
+      "med": 124.39
+    },
+    "raw": {
+      "n": 11,
+      "avg": 8.75,
+      "med": 10.31
+    }
+  },
+  "ja-l2-revival-legends|45~ReverseHolofoil.080": {
+    "raw": {
+      "n": 1,
+      "avg": 9.91,
+      "med": 9.91
+    }
+  },
+  "ja-l2-revival-legends|48~ReverseHolofoil.080": {
+    "raw": {
+      "n": 1,
+      "avg": 197.24,
+      "med": 197.24
+    }
+  },
+  "ja-l2-revival-legends|71~608865": {
+    "raw": {
+      "n": 7,
+      "avg": 15.38,
+      "med": 19.82
+    },
+    "psa10": {
+      "n": 1,
+      "avg": 396.44,
+      "med": 396.44
+    }
+  },
+  "ja-L1|19~608021": {
+    "raw": {
+      "n": 6,
+      "avg": 3.39,
+      "med": 2.47
+    },
+    "psa10": {
+      "n": 1,
+      "avg": 39.65,
+      "med": 39.65
+    }
+  },
+  "ja-L1|21~608023": {
+    "raw": {
+      "n": 13,
+      "avg": 7.89,
+      "med": 7.93
+    }
+  },
+  "ja-L1|27~608029": {
+    "raw": {
+      "n": 3,
+      "avg": 3.58,
+      "med": 3.94
+    }
+  },
+  "ja-L1|48~608050": {
+    "raw": {
+      "n": 4,
+      "avg": 2.82,
+      "med": 2.67
+    }
+  },
+  "ja-L1|52~608054": {
+    "psa10": {
+      "n": 2,
+      "avg": 142.47,
+      "med": 142.47
+    },
+    "raw": {
+      "n": 9,
+      "avg": 7.02,
+      "med": 5.09
+    }
+  },
+  "ja-L1|64~608066": {
+    "psa10": {
+      "n": 1,
+      "avg": 80.28,
+      "med": 80.28
+    },
+    "raw": {
+      "n": 4,
+      "avg": 1.81,
+      "med": 1.56
+    },
+    "cgc10": {
+      "n": 1,
+      "avg": 4.21,
+      "med": 4.21
+    }
+  },
+  "ja-L1|67~608069": {
+    "raw": {
+      "n": 2,
+      "avg": 1.48,
+      "med": 1.48
+    }
+  },
+  "ja-l1-soulsilver-collection|32~MirrorHolofoil.070": {
+    "psa9": {
+      "n": 1,
+      "avg": 92.57,
+      "med": 92.57
+    }
+  },
+  "ja-l1-soulsilver-collection|39~608274": {
+    "raw": {
+      "n": 6,
+      "avg": 4.64,
+      "med": 2.96
+    }
+  },
+  "ja-l1-soulsilver-collection|48~608283": {
+    "raw": {
+      "n": 3,
+      "avg": 3.36,
+      "med": 3.16
+    }
+  },
+  "ja-l1-soulsilver-collection|52~608287": {
+    "raw": {
+      "n": 6,
+      "avg": 2.52,
+      "med": 2.46
+    }
+  },
+  "ja-l1-soulsilver-collection|58~608293": {
+    "raw": {
+      "n": 5,
+      "avg": 1.42,
+      "med": 1.15
+    }
+  },
+  "ja-l1-soulsilver-collection|70~608305": {
+    "raw": {
+      "n": 2,
+      "avg": 1.97,
+      "med": 1.97
+    }
   }
 }
