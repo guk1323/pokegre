@@ -22,7 +22,7 @@ export function PokemonNews({ items, loading }: { items: KoreanNewsItem[]; loadi
   return (
     <div className="">
       {/* ⚠️ 홈 구역 제목은 넷이 똑같다(사장님 지시 2026-08-12 "회색 하지 말고 다 검정").
-          인기 검색어 · 이번 주 TOP 5 · 힛카드 목록 · 포켓몬 뉴스 — text-lg + extrabold + 검정.
+          인기 검색어 · 오늘의 상점 TOP 5 · 힛카드 목록 · 포켓몬 뉴스 — text-lg + extrabold + 검정.
           출처만 작은 회색으로 옆에 둔다(제목이 아니라 덧말이다). */}
       <p className="mb-3 text-lg font-extrabold tracking-tight text-black">
         포켓몬 뉴스 <span className="align-middle text-xs font-normal text-neutral-400">출처: 포켓몬코리아</span>

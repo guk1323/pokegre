@@ -38,7 +38,9 @@ function fileToBase64(file: Blob): Promise<string> {
 // (1) 아이폰 사진은 HEIC라 Claude 비전이 못 읽는데, canvas로 다시 그리면 JPEG로 바뀐다.
 // (2) 고해상도 원본은 base64가 5MB를 넘어 API가 거부하는데, 축소하면 넉넉히 들어온다.
 // 카드 텍스트를 읽는 용도라 1600px면 충분하다. 실패하면 원본으로 대체한다.
-async function toScanImage(file: File, maxDim = 1600, quality = 0.85): Promise<{ image: string; mediaType: string }> {
+// ⚠️ 1024px면 카드 이름·번호는 충분히 읽힌다(공식 스캔 8장 실측 2026-09-05). 1600이던
+//    것을 줄여 올리는 양을 절반으로, 모델이 보는 화소도 줄여 인식 시간을 깎았다.
+async function toScanImage(file: File, maxDim = 1024, quality = 0.8): Promise<{ image: string; mediaType: string }> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -64,8 +66,12 @@ async function toScanImage(file: File, maxDim = 1600, quality = 0.85): Promise<{
   }
 }
 
-export async function scanCard(file: File): Promise<CardScanResult> {
+/** 어느 단계인지 단추가 글로 보여 주려고 알린다. 같은 시간도 뭘 하는지 보이면 덜 답답하다. */
+export type ScanStage = '사진 준비 중' | '카드 읽는 중';
+
+export async function scanCard(file: File, onStage?: (s: ScanStage) => void): Promise<CardScanResult> {
   let payload: { image: string; mediaType: string };
+  onStage?.('사진 준비 중');
   try {
     payload = await toScanImage(file);
   } catch {
@@ -73,6 +79,7 @@ export async function scanCard(file: File): Promise<CardScanResult> {
     payload = { image: await fileToBase64(file), mediaType: file.type || 'image/jpeg' };
   }
 
+  onStage?.('카드 읽는 중');
   const res = await fetch('/api/local/scan-card', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

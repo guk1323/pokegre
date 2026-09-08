@@ -76,7 +76,7 @@ interface Highlight {
   name?: string;
 }
 
-// 홈에 띄우는 "이번 주 TOP 5" — 이번 주에 뽑힌 카드 중 시세가 높은 순.
+// 홈에 띄우는 "오늘의 상점 TOP 5" — 이번 주에 뽑힌 카드 중 시세가 높은 순.
 //
 // ⚠️ 처음엔 한 장을 4.5초마다 돌렸는데, 큰 화면에서 띠가 텅 비었다. 오른쪽에 시세를
 //    붙이고 세 토막으로 펴 봤지만 둘 다 실패했다 — 빈칸은 벌려서 없앨 수 없고
@@ -98,7 +98,7 @@ function pulledOn(at: number): string {
 }
 
 /**
- * 「이번 주 TOP 5」 — 이번 주에 뽑힌 카드 중 시세가 높은 순.
+ * 「오늘의 상점 TOP 5」 — 이번 주에 뽑힌 카드 중 시세가 높은 순.
  *
  * ⚠️ 홈에서도 쓰라고 **밖으로 내보낸다**(사장님 지시 2026-08-12). 오늘의 상점을 홈에서
  *    「도구 ▾」로 옮기면서 이 칸까지 같이 사라졌는데, 이건 남기라고 하셨다 —
@@ -126,12 +126,17 @@ export function PullBanner({ onEnter }: { onEnter: () => void }) {
   return (
     <section className="mt-3">
       {/* ⚠️⚠️ **홈 구역 제목은 셋이 똑같아야 한다**(사장님 지시 2026-08-12 "굵기랑 크기 다 다르잖아").
-          인기 검색어 · 이번 주 TOP 5 · 힛카드 목록 — 셋 다 text-lg + font-extrabold + 검정.
+          인기 검색어 · 오늘의 상점 TOP 5 · 힛카드 목록 — 셋 다 text-lg + font-extrabold + 검정.
           예전엔 "시세 쪽은 크게, 곁다리는 작게"로 두 단을 뒀는데(2026-08-08), 오늘의 상점을
           「도구 ▾」로 옮기면서 TOP 5가 홈의 주요 구역이 됐다. 크기가 갈리면 어긋나 보인다. */}
+      {/* ⚠️ **제목에 「오늘의 상점」을 넣는다**(사장님 지시 2026-09-03). 예전 이름은
+          「이번 주 TOP 5」였는데, 오늘의 상점이 「도구 ▾」로 들어간 뒤로 홈에서는 이게
+          **무슨 TOP 5인지 알 단서가 없었다** — 눌러야 갑자기 상점이 열렸다.
+          ⚠️ 기간(이번 주)은 곁 글씨로 옮겨 **같이 남긴다.** 자료는 7일치라, 제목의
+          「오늘의」만 보고 오늘 뽑힌 것으로 읽으면 틀린다. */}
       <div className="mb-2 flex items-baseline gap-2">
-        <p className="text-lg font-extrabold tracking-tight text-black">이번 주 TOP 5</p>
-        <p className="text-[11px] text-neutral-400">시세가 높은 순</p>
+        <p className="text-lg font-extrabold tracking-tight text-black">오늘의 상점 TOP 5</p>
+        <p className="text-[11px] text-neutral-400">이번 주 · 시세가 높은 순</p>
       </div>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-5 sm:gap-3">
         {items.map((h, i) => {

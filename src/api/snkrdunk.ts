@@ -111,7 +111,13 @@ async function 스니덩말로(keyword: string): Promise<string> {
   const 일본어 = dict.translateSearchQuery(keyword)
   if (!/[가-힣]/.test(일본어)) return 일본어
   const 영어 = dict.translateSearchQueryToEnglish(keyword, 'japanese')
-  return /[가-힣]/.test(영어) ? 일본어 : 영어
+  if (!/[가-힣]/.test(영어)) return 영어
+  // ⚠️ **마지막 수단 — 팩 이름을 앞부분만 친 것인가.** 여기까지 왔다는 건 일본어로도
+  //    영어로도 못 옮겨 **한글째 나갈 참**이라는 뜻이고, 그건 반드시 0건이다. 그래서
+  //    이 자리에서만 앞머리를 본다 — 앞에 끼우면 영어로 잘 되던 것이 깨진다
+  //    (「드래곤」 = Dragon 996건 ↔ ドラゴンストーム 632건, 2026-09-03 실측).
+  //    이걸로 「스톰」·「스톰에메」·「어비스」·「30주년」이 살아난다(실측 243가지).
+  return dict.팩앞머리(keyword) ?? 일본어
 }
 
 export async function searchPokemonCards(

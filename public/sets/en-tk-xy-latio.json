@@ -1,1 +1,233 @@
-{"ed":"en","id":"tk-xy-latio","name":"XY trainer Kit (Latios)","cards":[{"n":"1","name":"Skitty","img":"","r":"Common","tcg":"98347"},{"n":"2","name":"Fighting Energy","img":"","r":"Common","tcg":"98351"},{"n":"3","name":"Fighting Energy","img":"","r":"Common","tcg":"98352"},{"n":"4","name":"Rhydon","img":"","r":"Uncommon","tcg":"98349"},{"n":"5","name":"Fighting Energy","img":"","r":"Common","tcg":"98353"},{"n":"6","name":"Fighting Energy","img":"","r":"Common","tcg":"98354"},{"n":"7","name":"Fighting Energy","img":"","r":"Common","tcg":"98355"},{"n":"8","name":"Fighting Energy","img":"","r":"Common","tcg":"98356"},{"n":"9","name":"Fighting Energy","img":"","r":"Common","tcg":"98357"},{"n":"10","name":"Fighting Energy","img":"","r":"Common","tcg":"98358"},{"n":"11","name":"Machop","img":"","r":"Common","tcg":"98363"},{"n":"12","name":"Solrock","img":"","r":"Common","tcg":"98365"},{"n":"13","name":"Latios","img":"","r":"None","tcg":"98367"},{"n":"14","name":"Machoke","img":"","r":"Uncommon","tcg":"98369"},{"n":"15","name":"Rhyhorn","img":"","r":"Common","tcg":"98371"},{"n":"16","name":"Psychic Energy","img":"","r":"Common","tcg":"98360"},{"n":"17","name":"Fighting Energy","img":"","r":"Common","tcg":"98359"},{"n":"18","name":"Psychic Energy","img":"","r":"Common","tcg":"98361"},{"n":"19","name":"Delcatty","img":"","r":"Rare","tcg":"98373"},{"n":"20","name":"Acro Bike","img":"https://tcgplayer-cdn.tcgplayer.com/product/98338_in_800x800.jpg","r":"Uncommon","tcg":"98375"},{"n":"21","name":"Potion","img":"","r":"Common","tcg":"98376"},{"n":"22","name":"Machoke","img":"","r":"Uncommon","tcg":"98370"},{"n":"23","name":"Rhyhorn","img":"","r":"Common","tcg":"98372"},{"n":"24","name":"Delcatty","img":"","r":"Rare","tcg":"98374"},{"n":"25","name":"Rhydon","img":"","r":"Uncommon","tcg":"98350"},{"n":"26","name":"Solrock","img":"","r":"Common","tcg":"98366"},{"n":"27","name":"Skitty","img":"","r":"Common","tcg":"98348"},{"n":"28","name":"Machop","img":"","r":"Common","tcg":"98364"},{"n":"29","name":"Psychic Energy","img":"","r":"Common","tcg":"98362"},{"n":"30","name":"Latios","img":"https://tcgplayer-cdn.tcgplayer.com/product/98368_in_400x400.jpg","r":"None","tcg":"98368"}]}
+{
+ "ed": "en",
+ "id": "tk-xy-latio",
+ "name": "XY trainer Kit (Latios)",
+ "cards": [
+  {
+   "n": "1",
+   "name": "Skitty",
+   "img": "https://archives.bulbagarden.net/media/upload/8/8f/SkittyPrimalClash113.jpg",
+   "r": "Common",
+   "tcg": "98347",
+   "imgBase": true
+  },
+  {
+   "n": "2",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98351"
+  },
+  {
+   "n": "3",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98352"
+  },
+  {
+   "n": "4",
+   "name": "Rhydon",
+   "img": "https://archives.bulbagarden.net/media/upload/2/27/RhydonPrimalClash75.jpg",
+   "r": "Uncommon",
+   "tcg": "98349",
+   "imgBase": true
+  },
+  {
+   "n": "5",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98353"
+  },
+  {
+   "n": "6",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98354"
+  },
+  {
+   "n": "7",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98355"
+  },
+  {
+   "n": "8",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98356"
+  },
+  {
+   "n": "9",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98357"
+  },
+  {
+   "n": "10",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98358"
+  },
+  {
+   "n": "11",
+   "name": "Machop",
+   "img": "https://archives.bulbagarden.net/media/upload/0/0f/MachopFuriousFists44.jpg",
+   "r": "Common",
+   "tcg": "98363",
+   "imgBase": true
+  },
+  {
+   "n": "12",
+   "name": "Solrock",
+   "img": "https://archives.bulbagarden.net/media/upload/b/b6/SolrockPrimalClash83.jpg",
+   "r": "Common",
+   "tcg": "98365",
+   "imgBase": true
+  },
+  {
+   "n": "13",
+   "name": "Latios",
+   "img": "https://archives.bulbagarden.net/media/upload/c/c8/LatiosXYPromo65.jpg",
+   "r": "None",
+   "tcg": "98367",
+   "imgBase": true
+  },
+  {
+   "n": "14",
+   "name": "Machoke",
+   "img": "https://archives.bulbagarden.net/media/upload/5/58/MachokeFuriousFists45.jpg",
+   "r": "Uncommon",
+   "tcg": "98369",
+   "imgBase": true
+  },
+  {
+   "n": "15",
+   "name": "Rhyhorn",
+   "img": "https://archives.bulbagarden.net/media/upload/2/20/RhyhornPrimalClash74.jpg",
+   "r": "Common",
+   "tcg": "98371",
+   "imgBase": true
+  },
+  {
+   "n": "16",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98360"
+  },
+  {
+   "n": "17",
+   "name": "Fighting Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98359"
+  },
+  {
+   "n": "18",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98361"
+  },
+  {
+   "n": "19",
+   "name": "Delcatty",
+   "img": "https://archives.bulbagarden.net/media/upload/6/61/DelcattyPrimalClash114.jpg",
+   "r": "Rare",
+   "tcg": "98373",
+   "imgBase": true
+  },
+  {
+   "n": "20",
+   "name": "Acro Bike",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/98338_in_800x800.jpg",
+   "r": "Uncommon",
+   "tcg": "98375"
+  },
+  {
+   "n": "21",
+   "name": "Potion",
+   "img": "https://archives.bulbagarden.net/media/upload/0/06/PotionSunMoon127.jpg",
+   "r": "Common",
+   "tcg": "98376",
+   "imgBase": true
+  },
+  {
+   "n": "22",
+   "name": "Machoke",
+   "img": "https://archives.bulbagarden.net/media/upload/5/58/MachokeFuriousFists45.jpg",
+   "r": "Uncommon",
+   "tcg": "98370",
+   "imgBase": true
+  },
+  {
+   "n": "23",
+   "name": "Rhyhorn",
+   "img": "https://archives.bulbagarden.net/media/upload/2/20/RhyhornPrimalClash74.jpg",
+   "r": "Common",
+   "tcg": "98372",
+   "imgBase": true
+  },
+  {
+   "n": "24",
+   "name": "Delcatty",
+   "img": "https://archives.bulbagarden.net/media/upload/6/61/DelcattyPrimalClash114.jpg",
+   "r": "Rare",
+   "tcg": "98374",
+   "imgBase": true
+  },
+  {
+   "n": "25",
+   "name": "Rhydon",
+   "img": "https://archives.bulbagarden.net/media/upload/2/27/RhydonPrimalClash75.jpg",
+   "r": "Uncommon",
+   "tcg": "98350",
+   "imgBase": true
+  },
+  {
+   "n": "26",
+   "name": "Solrock",
+   "img": "https://archives.bulbagarden.net/media/upload/b/b6/SolrockPrimalClash83.jpg",
+   "r": "Common",
+   "tcg": "98366",
+   "imgBase": true
+  },
+  {
+   "n": "27",
+   "name": "Skitty",
+   "img": "https://archives.bulbagarden.net/media/upload/8/8f/SkittyPrimalClash113.jpg",
+   "r": "Common",
+   "tcg": "98348",
+   "imgBase": true
+  },
+  {
+   "n": "28",
+   "name": "Machop",
+   "img": "https://archives.bulbagarden.net/media/upload/0/0f/MachopFuriousFists44.jpg",
+   "r": "Common",
+   "tcg": "98364",
+   "imgBase": true
+  },
+  {
+   "n": "29",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98362"
+  },
+  {
+   "n": "30",
+   "name": "Latios",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/98368_in_400x400.jpg",
+   "r": "None",
+   "tcg": "98368"
+  }
+ ]
+}

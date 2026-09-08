@@ -6,8 +6,8 @@ import type { ReactNode } from 'react';
 // 그대로 받으면 그게 곧 보안 구멍이라(누구나 글을 쓴다), **우리가 직접 읽어 리액트 조각으로
 // 바꾼다.** 아래 문법 말고는 전부 그냥 글자다 — `<script>`를 적어도 글자로만 보인다.
 //
-//   ## 큰 제목        ### 작은 제목
-//   **굵게**
+//   ## 큰 제목        ### 작은 제목   (편집기에서는 「아주 크게 · 크게」로 부른다)
+//   **굵게**          __밑줄__
 //   - 목록
 //   | 칸 | 칸 |      (다음 줄에 |---|---| 를 두면 머리글이 된다)
 //   ---               (가로줄)
@@ -31,25 +31,37 @@ export function 본문에쓴사진(content: string): Set<number> {
   return out;
 }
 
+// ⚠️⚠️ **비율로 잡는다**(2026-08-27). 예전엔 220px·28rem·100%였는데, 글상자가 좁은
+//    폰에서는 28rem(448px)이 화면보다 넓어서 **「보통」과 「크게」가 똑같이 보였다**
+//    (사장님 지적). 비율이면 어느 폭에서든 셋이 서로 다르다.
+// ⚠️ 편집기(index.css의 `.post-editor img[data-size=…]`)와 **같은 값**이어야 한다 —
+//    쓰면서 본 크기 그대로 올라가는 것이 그 편집기의 존재 이유다.
 const 사진크기: Record<string, string> = {
-  작게: 'max-w-[220px]',
-  보통: 'max-w-md',
-  크게: 'w-full',
+  작게: 'max-w-[40%]',
+  보통: 'max-w-[70%]',
+  크게: 'max-w-full',
 };
 
-// **굵게**만 처리한다. 나머지는 글자 그대로.
+// **굵게**와 __밑줄__을 처리한다. 겹쳐 써도 된다. 나머지는 글자 그대로.
 function 인라인(text: string, key: string): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let i = 0;
-  const re = /\*\*(.+?)\*\*/g;
+  const re = /(\*\*|__)([\s\S]+?)\1/g;
   for (const m of text.matchAll(re)) {
     const at = m.index ?? 0;
     if (at > last) out.push(text.slice(last, at));
+    const 속 = 인라인(m[2], `${key}-${i}`);
     out.push(
-      <strong key={`${key}-b${i++}`} className="font-bold text-black">
-        {m[1]}
-      </strong>,
+      m[1] === '**' ? (
+        <strong key={`${key}-b${i++}`} className="font-bold text-black">
+          {속}
+        </strong>
+      ) : (
+        <u key={`${key}-u${i++}`} className="underline underline-offset-2">
+          {속}
+        </u>
+      ),
     );
     last = at + m[0].length;
   }
@@ -175,7 +187,8 @@ export function PostBody({ content, images = [] }: { content: string; images?: s
     if (t.startsWith('### ')) {
       다비우기();
       blocks.push(
-        <h3 key={`h3${k++}`} className="mb-2 mt-4 text-sm font-bold text-black">
+        // ⚠️ 편집기(index.css의 `.post-editor h3`)와 **같은 크기**여야 한다.
+        <h3 key={`h3${k++}`} className="mb-2 mt-4 text-[1.0625rem] font-bold leading-snug text-black">
           {인라인(t.slice(4), `h3${k}`)}
         </h3>,
       );
@@ -184,7 +197,7 @@ export function PostBody({ content, images = [] }: { content: string; images?: s
     if (t.startsWith('## ')) {
       다비우기();
       blocks.push(
-        <h2 key={`h2${k++}`} className="mb-2 mt-5 text-base font-bold text-black">
+        <h2 key={`h2${k++}`} className="mb-2 mt-5 text-[1.375rem] font-bold leading-snug text-black">
           {인라인(t.slice(3), `h2${k}`)}
         </h2>,
       );

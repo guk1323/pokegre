@@ -1,1 +1,233 @@
-{"ed":"en","id":"tk-xy-latia","name":"XY trainer Kit (Latias)","cards":[{"n":"1","name":"Grass Energy","img":"","r":"Common","tcg":"98318"},{"n":"2","name":"Grass Energy","img":"","r":"Common","tcg":"98319"},{"n":"3","name":"Grass Energy","img":"","r":"Common","tcg":"98320"},{"n":"4","name":"Fletchling","img":"","r":"None","tcg":"98329"},{"n":"5","name":"Grass Energy","img":"","r":"Common","tcg":"98321"},{"n":"6","name":"Lombre","img":"","r":"Uncommon","tcg":"98330"},{"n":"7","name":"Treecko","img":"","r":"Common","tcg":"98331"},{"n":"8","name":"Psychic Energy","img":"","r":"Common","tcg":"98323"},{"n":"9","name":"Psychic Energy","img":"","r":"Common","tcg":"98324"},{"n":"10","name":"Psychic Energy","img":"","r":"Common","tcg":"98325"},{"n":"11","name":"Lotad","img":"","r":"Common","tcg":"98332"},{"n":"12","name":"Tangrowth","img":"","r":"Rare","tcg":"98333"},{"n":"13","name":"Tangela","img":"","r":"Common","tcg":"98334"},{"n":"14","name":"Latias","img":"","r":"None","tcg":"98335"},{"n":"15","name":"Potion","img":"","r":"Common","tcg":"98400"},{"n":"16","name":"Surskit","img":"","r":"Common","tcg":"98336"},{"n":"17","name":"Psychic Energy","img":"","r":"Common","tcg":"98326"},{"n":"18","name":"Grovyle","img":"","r":"Uncommon","tcg":"98337"},{"n":"19","name":"Grass Energy","img":"","r":"Common","tcg":"98322"},{"n":"20","name":"Acro Bike","img":"https://tcgplayer-cdn.tcgplayer.com/product/98338_in_800x800.jpg","r":"Uncommon","tcg":"98338"},{"n":"21","name":"Lombre","img":"","r":"Uncommon","tcg":"98339"},{"n":"22","name":"Psychic Energy","img":"","r":"Common","tcg":"98327"},{"n":"23","name":"Lotad","img":"","r":"Common","tcg":"98340"},{"n":"24","name":"Treecko","img":"","r":"Common","tcg":"98341"},{"n":"25","name":"Tangrowth","img":"","r":"Rare","tcg":"98342"},{"n":"26","name":"Tangela","img":"","r":"Common","tcg":"98343"},{"n":"27","name":"Grovyle","img":"","r":"Uncommon","tcg":"98344"},{"n":"28","name":"Psychic Energy","img":"","r":"Common","tcg":"98328"},{"n":"29","name":"Acro Bike","img":"https://tcgplayer-cdn.tcgplayer.com/product/98345_in_400x400.jpg","r":"Uncommon","tcg":"98345"},{"n":"30","name":"Latias","img":"https://tcgplayer-cdn.tcgplayer.com/product/98346_in_400x400.jpg","r":"None","tcg":"98346"}]}
+{
+ "ed": "en",
+ "id": "tk-xy-latia",
+ "name": "XY trainer Kit (Latias)",
+ "cards": [
+  {
+   "n": "1",
+   "name": "Grass Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98318"
+  },
+  {
+   "n": "2",
+   "name": "Grass Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98319"
+  },
+  {
+   "n": "3",
+   "name": "Grass Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98320"
+  },
+  {
+   "n": "4",
+   "name": "Fletchling",
+   "img": "https://archives.bulbagarden.net/media/upload/e/e5/FletchlingPhantomForces89.jpg",
+   "r": "None",
+   "tcg": "98329",
+   "imgBase": true
+  },
+  {
+   "n": "5",
+   "name": "Grass Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98321"
+  },
+  {
+   "n": "6",
+   "name": "Lombre",
+   "img": "https://archives.bulbagarden.net/media/upload/c/c0/LombrePrimalClash11.jpg",
+   "r": "Uncommon",
+   "tcg": "98330",
+   "imgBase": true
+  },
+  {
+   "n": "7",
+   "name": "Treecko",
+   "img": "https://archives.bulbagarden.net/media/upload/7/71/TreeckoPrimalClash6.jpg",
+   "r": "Common",
+   "tcg": "98331",
+   "imgBase": true
+  },
+  {
+   "n": "8",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98323"
+  },
+  {
+   "n": "9",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98324"
+  },
+  {
+   "n": "10",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98325"
+  },
+  {
+   "n": "11",
+   "name": "Lotad",
+   "img": "https://archives.bulbagarden.net/media/upload/f/f4/LotadPrimalClash10.jpg",
+   "r": "Common",
+   "tcg": "98332",
+   "imgBase": true
+  },
+  {
+   "n": "12",
+   "name": "Tangrowth",
+   "img": "https://archives.bulbagarden.net/media/upload/8/8d/TangrowthArtAcademyPromo.jpg",
+   "r": "Rare",
+   "tcg": "98333",
+   "imgBase": true
+  },
+  {
+   "n": "13",
+   "name": "Tangela",
+   "img": "https://archives.bulbagarden.net/media/upload/b/bc/TangelaPrimalClash4.jpg",
+   "r": "Common",
+   "tcg": "98334",
+   "imgBase": true
+  },
+  {
+   "n": "14",
+   "name": "Latias",
+   "img": "https://archives.bulbagarden.net/media/upload/5/59/LatiasLatiasHalfDeck30.jpg",
+   "r": "None",
+   "tcg": "98335",
+   "imgBase": true
+  },
+  {
+   "n": "15",
+   "name": "Potion",
+   "img": "https://archives.bulbagarden.net/media/upload/0/06/PotionSunMoon127.jpg",
+   "r": "Common",
+   "tcg": "98400",
+   "imgBase": true
+  },
+  {
+   "n": "16",
+   "name": "Surskit",
+   "img": "https://archives.bulbagarden.net/media/upload/2/28/SurskitPrimalClash13.jpg",
+   "r": "Common",
+   "tcg": "98336",
+   "imgBase": true
+  },
+  {
+   "n": "17",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98326"
+  },
+  {
+   "n": "18",
+   "name": "Grovyle",
+   "img": "https://archives.bulbagarden.net/media/upload/e/e4/GrovylePrimalClash7.jpg",
+   "r": "Uncommon",
+   "tcg": "98337",
+   "imgBase": true
+  },
+  {
+   "n": "19",
+   "name": "Grass Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98322"
+  },
+  {
+   "n": "20",
+   "name": "Acro Bike",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/98338_in_800x800.jpg",
+   "r": "Uncommon",
+   "tcg": "98338"
+  },
+  {
+   "n": "21",
+   "name": "Lombre",
+   "img": "https://archives.bulbagarden.net/media/upload/c/c0/LombrePrimalClash11.jpg",
+   "r": "Uncommon",
+   "tcg": "98339",
+   "imgBase": true
+  },
+  {
+   "n": "22",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98327"
+  },
+  {
+   "n": "23",
+   "name": "Lotad",
+   "img": "https://archives.bulbagarden.net/media/upload/f/f4/LotadPrimalClash10.jpg",
+   "r": "Common",
+   "tcg": "98340",
+   "imgBase": true
+  },
+  {
+   "n": "24",
+   "name": "Treecko",
+   "img": "https://archives.bulbagarden.net/media/upload/7/71/TreeckoPrimalClash6.jpg",
+   "r": "Common",
+   "tcg": "98341",
+   "imgBase": true
+  },
+  {
+   "n": "25",
+   "name": "Tangrowth",
+   "img": "https://archives.bulbagarden.net/media/upload/8/8d/TangrowthArtAcademyPromo.jpg",
+   "r": "Rare",
+   "tcg": "98342",
+   "imgBase": true
+  },
+  {
+   "n": "26",
+   "name": "Tangela",
+   "img": "https://archives.bulbagarden.net/media/upload/b/bc/TangelaPrimalClash4.jpg",
+   "r": "Common",
+   "tcg": "98343",
+   "imgBase": true
+  },
+  {
+   "n": "27",
+   "name": "Grovyle",
+   "img": "https://archives.bulbagarden.net/media/upload/e/e4/GrovylePrimalClash7.jpg",
+   "r": "Uncommon",
+   "tcg": "98344",
+   "imgBase": true
+  },
+  {
+   "n": "28",
+   "name": "Psychic Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98328"
+  },
+  {
+   "n": "29",
+   "name": "Acro Bike",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/98345_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "98345"
+  },
+  {
+   "n": "30",
+   "name": "Latias",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/98346_in_400x400.jpg",
+   "r": "None",
+   "tcg": "98346"
+  }
+ ]
+}

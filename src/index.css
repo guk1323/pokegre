@@ -1066,3 +1066,128 @@ select option {
     width: 300px;
   }
 }
+
+/* 게시판 글 편집기(PostEditor). contenteditable 안에서 만들어지는 태그는 Tailwind 클래스가
+   안 붙으므로 여기서 모양을 준다. ⚠️ **글보기(lib/postFormat.tsx)와 같아 보여야** 한다 —
+   쓰면서 본 그대로 올라가는 것이 이 편집기의 존재 이유다(사장님 지시 2026-08-23). */
+/* 「들어온 GP」 초록(오늘의 상점 · GP 내역).
+   ⚠️⚠️ **한 가지 값으로는 두 화면을 다 못 지킨다** — 흰 바탕은 진한 초록이라야 읽히고
+   어두운 바탕은 옅은 초록이라야 읽힌다(emerald-700이 어두운 화면에서 3.24였다).
+   ⚠️⚠️ 그렇다고 `--color-emerald-700`을 통째로 바꾸면 **연한 초록 바탕에 초록 글씨**를
+   쓰는 다른 배지(이베이 카드 상세·스캔 테스트)가 2.4로 무너진다 — 그 배지의 바탕
+   `bg-emerald-100`은 어두운 화면에서 안 뒤집히기 때문이다(2026-08-29에 잡았다).
+   그래서 **여기서만 쓰는 이름**으로 둔다. */
+.gp-plus {
+  color: #047857;
+}
+:root[data-theme='dark'] .gp-plus {
+  color: #3fae86;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .gp-plus {
+    color: #3fae86;
+  }
+}
+
+.post-editor:empty::before,
+.post-editor > p:only-child:empty::before {
+  content: attr(data-빈칸);
+  color: #a3a3a3;
+}
+/* 글씨 크기. ⚠️⚠️ 예전에는 「크게」가 본문과 **똑같은 0.875rem**이고 굵기만 달라서,
+   크기를 바꿔도 바뀐 티가 안 났다(2026-08-27에 잡음 — 사진 크기와 같은 함정이다).
+   ⚠️ 글보기(lib/postFormat.tsx)의 h2·h3 글씨 크기와 **같은 값**이어야 한다. */
+.post-editor h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.375rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #000;
+}
+.post-editor h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  font-weight: 700;
+  color: #000;
+}
+.post-editor p {
+  margin: 0 0 0.75rem;
+}
+.post-editor ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+.post-editor li {
+  margin-bottom: 0.25rem;
+}
+.post-editor hr {
+  margin: 1rem 0;
+  border-color: #e5e5e5;
+}
+.post-editor table {
+  margin: 0 0 0.75rem;
+  width: 100%;
+  border-collapse: collapse;
+}
+.post-editor th,
+.post-editor td {
+  border-bottom: 1px solid #f5f5f5;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  text-align: left;
+  vertical-align: top;
+}
+.post-editor th {
+  border-bottom-color: #d4d4d4;
+  font-weight: 600;
+  color: #000;
+}
+.post-editor img {
+  width: 100%;
+  border-radius: 0.75rem;
+  margin: 0.25rem 0;
+  /* 누르면 크기·삭제 도구막대가 뜬다 — 누를 수 있는 것처럼 보여야 한다. */
+  cursor: pointer;
+}
+/* 고른 사진. ⚠️ 테두리(border)로 주면 사진이 밀려 도구막대 자리가 어긋난다 — outline은
+   자리를 안 차지한다. */
+.post-editor img[data-sel='1'] {
+  outline: 3px solid #000;
+  outline-offset: 2px;
+}
+/* 사진 크기. ⚠️ 글보기(lib/postFormat.tsx)의 max-w 값과 **같아야** 한다 —
+   쓰면서 본 크기 그대로 올라가는 것이 이 편집기의 존재 이유다.
+   ⚠️⚠️ **비율로 잡는다**(2026-08-27). 예전엔 220px·28rem·100%였는데 폰에서는 28rem이
+   글상자보다 넓어 **「보통」과 「크게」가 똑같이 보였다**(사장님 지적). */
+.post-editor img[data-size='작게'] {
+  max-width: 40%;
+}
+.post-editor img[data-size='보통'] {
+  max-width: 70%;
+}
+.post-editor img[data-size='크게'] {
+  max-width: 100%;
+}
+/* 어두운 화면에서도 글보기와 같은 색으로.
+   ⚠️⚠️ **기기 설정만 어두운 사람도 같이 챙겨야 한다.** 이 사이트는 한 번도 안 고른 사람은
+   기기 설정을 따라가므로(prefers-color-scheme), `[data-theme='dark']`만 적으면 그 사람들
+   화면에서는 제목이 **검은 글씨로 남는다**(2026-08-23에 발견해 고침). */
+:root[data-theme='dark'] .post-editor th,
+:root[data-theme='dark'] .post-editor h2,
+:root[data-theme='dark'] .post-editor h3 {
+  color: #ededed;
+}
+:root[data-theme='dark'] .post-editor img[data-sel='1'] {
+  outline-color: #ededed;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .post-editor th,
+  :root:not([data-theme='light']) .post-editor h2,
+  :root:not([data-theme='light']) .post-editor h3 {
+    color: #ededed;
+  }
+  :root:not([data-theme='light']) .post-editor img[data-sel='1'] {
+    outline-color: #ededed;
+  }
+}

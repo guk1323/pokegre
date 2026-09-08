@@ -90,7 +90,22 @@ export const 보일번호 = (n: unknown): string => {
  */
 export const 일본쪽세트 = (slug: unknown): boolean => {
   const s = String(slug ?? '')
-  return s.startsWith('ja-') || s.startsWith('zh-')
+  // ⚠️ **한국판(`ko-`)도 일본 쪽으로 본다** — 중국판과 같은 까닭이다(2026-09-04).
+  //    한국 전용 프로모는 **PPT에 상품 자체가 없고**(검색 0건 실측), 실제 거래는
+  //    스니커덩크에서 일어난다. 영문판으로 흘려보내면 있지도 않은 TCGplayer를 묻게 된다.
+  return s.startsWith('ja-') || s.startsWith('zh-') || s.startsWith('ko-')
+}
+
+/**
+ * 세트 딱지에 **적을 판 이름**. 세트의 `ed`는 ja/en 둘뿐이라 그것만 보면
+ * **중국어판·한국어판이 「일본어판」으로 붙는다**(2026-09-04에 잡음 — 중국판 세트가
+ * 그렇게 나가고 있었다). 슬러그 앞머리가 실제 판이므로 그것을 먼저 본다.
+ */
+export const 판이름 = (slug: unknown, ed: unknown): string => {
+  const s = String(slug ?? '')
+  if (s.startsWith('zh-')) return '중국어판'
+  if (s.startsWith('ko-')) return '한국어판'
+  return ed === 'ja' ? '일본어판' : '영문판'
 }
 
 /** 이 세트가 중국판인가. 낙찰 거르기의 안전장치가 쓴다. */

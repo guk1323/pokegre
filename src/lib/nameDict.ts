@@ -19,6 +19,8 @@ type Dict = {
   koName: (ed: 'ja' | 'en', name: string) => string;
   koreanizeEnglishSetName: (name: string) => string;
   translateSearchQuery: (q: string) => string;
+  /** 팩 이름을 앞부분만 쳤을 때 보낼 일본어. 못 찾으면 null. */
+  팩앞머리: (q: string) => string | null;
   canonicalizeSearchTerm: (q: string) => string;
   translateSearchQueryToEnglish: (q: string, edition?: 'japanese' | 'english') => string;
 };
@@ -44,6 +46,7 @@ export function loadNameDict(): Promise<Dict> {
         koName: ko.koName,
         koreanizeEnglishSetName: en.koreanizeEnglishSetName,
         translateSearchQuery: q.translateSearchQuery,
+        팩앞머리: q.팩앞머리,
         canonicalizeSearchTerm: q.canonicalizeSearchTerm,
         translateSearchQueryToEnglish: qe.translateSearchQueryToEnglish,
       };

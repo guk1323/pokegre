@@ -12,13 +12,6 @@ import { 상태글 } from '../lib/tcgCondition';
 // 마켓가가 잡힌 매물의 상태를 한글로. **민트면 null**(굳이 알릴 게 없다).
 // 저쪽 값은 "Moderately Played 1st Edition - Japanese"처럼 인쇄·판까지 붙어서 온다.
 
-function shortDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${d.getMonth() + 1}.${d.getDate()}`;
-}
-
 // TCGplayer(미국 마켓) 시세 상세. 이베이가 "등급별 낙찰가"라면 이쪽은 미감정 카드의
 // 시장가(마켓가)와 현재 최저가를 보여준다. 데이터는 이베이와 같은 PPT 응답에서 온다.
 export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition?: string }) {
@@ -52,7 +45,6 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
       return 남 || p;
     };
   })();
-  const updated = shortDate(t?.lastUpdated ?? null);
   // 시세 추이 그래프. 이베이 차트 컴포넌트를 재사용한다 — 등급 하나("RAW"=미감정)짜리
   // 목록으로 감싸면 등급 선택칩 하나 + 추이선이 그려진다.
   const history = t?.history ?? [];
@@ -82,8 +74,8 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
   const 추이상태 = 상태글(t?.historyCondition ?? null);
   const 추이제목 =
     (t?.historyCondition ?? null) === (t?.condition ?? null) || 추이상태 === 큰숫자상태
-      ? '마켓 시세 추이'
-      : `마켓 시세 추이 · ${추이상태 ?? '민트'} 기준`;
+      ? '실거래가 추이'
+      : `실거래가 추이 · ${추이상태 ?? '민트'} 기준`;
   return (
     <div
       // ⚠️⚠️ **붙여 두되(sticky) 안쪽이 스크롤되게 한다.**
@@ -111,7 +103,8 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
       )}
       <div className="mb-1 flex items-start justify-between gap-2">
         <h2 className="text-base font-bold text-black">{card.name}</h2>
-        <ShareButton path={`/t/${card.tcgPlayerId}`} name={card.name} />
+        {/* ⚠️ 대표 주소(/card/)를 준다 — EbayCardDetail 설명 참고. */}
+        <ShareButton path={`/card/${card.tcgPlayerId}`} name={card.name} />
       </div>
       <p className="text-xs text-neutral-400 mb-1">
         {card.setName}
@@ -136,9 +129,17 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
               {/* ⚠️ 인쇄판이 여럿이면 머리글에 이름을 안 적는다 — 아래에 줄마다 적히므로
                   같은 말이 두 번 나오고, 머리글의 그 하나가 「대표」로 읽힌다. */}
               <p className="text-sm font-semibold text-neutral-700">마켓 시세{!여럿 && t.printing ? ` · ${t.printing}` : ''}</p>
-              <p className="text-[11px] text-neutral-400">
-                {여럿 ? '인쇄판마다 값이 다릅니다 · 눌러서 TCGplayer ↗' : '미감정(로우) 기준 · 눌러서 TCGplayer ↗'}
-              </p>
+              {/* ⚠️ **「눌러서 TCGplayer ↗」는 제 줄에 통째로 둔다**(사장님 지적 2026-08-27).
+                  이 칸은 오른쪽 큰 값에 밀려 **146px**뿐인데 한 줄로 쓰면 186px이라 늘 갈린다.
+                  그냥 두면 브라우저가 띄어쓰기마다 끊어 「…기준 · 눌러서」/「TCGplayer ↗」가
+                  되어, **눌러야 할 것이 무엇인지가 두 줄로 찢어졌다.**
+                  ⚠️ 가운뎃점(·)으로 이어 붙이고 안 끊기게만 묶어 봤더니, 이번엔 그 점이
+                     **아랫줄 맨 앞에 홀로 남아** 점 하나가 떠 보였다. 두 말을 한 줄에
+                     이으려고 있는 점이니, **줄을 가를 바엔 점을 뺀다.**
+                  ⚠️ 안 끊기게(`whitespace-nowrap`) 묶는 것은 그대로 둔다 — 폰처럼 더 좁은
+                     자리에서도 「눌러서」와 「TCGplayer ↗」가 갈라지면 안 된다. */}
+              <p className="text-[11px] text-neutral-400">{여럿 ? '인쇄판마다 값이 다릅니다' : '미감정 싱글 기준'}</p>
+              <p className="whitespace-nowrap text-[11px] text-neutral-400">눌러서 TCGplayer ↗</p>
               {상태글(t.condition) && (
                 // ⚠️ 민트가 아닌 매물로 값이 잡힌 카드가 생각보다 많다 — 옛 일본판
                 //    121장 중 72장(60%)이 그랬고, "손상됨" $0.25짜리도 있었다
@@ -182,26 +183,33 @@ export function TcgPlayerCardDetail({ card, edition }: { card: EbayCard; edition
         <p className="text-sm text-neutral-400 py-8 text-center">시세 데이터가 없습니다.</p>
       )}
 
-      {/* ⚠️ `population`을 그대로 넘긴다. 새 시세 길은 카드를 열 때 추이·낱개와 **한 번에**
-          받아 오므로 여기서 또 부를 이유가 없다. 옛 길 카드에는 그 칸이 아예 없어서
-          undefined가 넘어가고, 그러면 예전처럼 스스로 받아 온다. */}
-      <GradedPopulation
-        tcgPlayerId={card.tcgPlayerId}
-        edition={edition}
-        population={(card as { population?: Parameters<typeof GradedPopulation>[0]['population'] }).population}
-      />
-
       {chartGrades.length > 0 && (
         <div className="mt-3">
           <EbayPriceChart grades={chartGrades} title={추이제목} />
         </div>
       )}
 
-      <p className="mt-2 text-[11px] leading-snug text-neutral-400">
-        판매자 {t?.sellers?.toLocaleString() ?? 0}명{updated ? ` · ${updated} 기준` : ''}. 실제 팔린 값을 반영한
-        시세입니다. 감정(PSA·BGS 등) 카드는 값이 다르니 등급 시세는 eBay에서 확인해 주세요.
-      </p>
+      {/* ⚠️ **한 줄로 줄였다**(사장님 지시 2026-08-27: 「쓸데없는 문장은 좀 지우려고」).
+          뺀 것과 까닭:
+          · **판매자 수** — 덤프에 그 값이 없어 **모르는데 「0명」으로 찍고 있었다.**
+            파는 사람이 없는데 시세가 있다는 말이 되어 거짓이었다(「없음」과 「0」은 다르다).
+          · **날짜** — 바로 아래 `KrwRateNote`가 「원화는 8월 26일 참고값입니다」를 내는데,
+            날짜 둘이 나란히 서고 **심지어 서로 달라서** 무슨 날짜인지 못 가린다.
+          · **「등급 시세는 eBay에서」** — 같은 화면에 이베이 탭이 바로 옆에 있다. */}
+      <p className="mt-2 text-[11px] leading-snug text-neutral-400">미감정 싱글 판매완료 가격입니다.</p>
       <KrwRateNote />
+
+      {/* ⚠️⚠️ **감정 수량은 시세·그래프 아래다 — 이베이 화면과 같은 차례로 맞춘다.**
+          2026-08-19에 사장님이 이베이에서 「시세 나오는 곳 중간에 껴 가지고 짜증나네」라고
+          하셔서 아래로 내렸는데, **이쪽은 같이 안 고쳐 혼자 그래프 위에 남아 있었다**
+          (2026-08-27 지적). 같은 부품을 두 화면이 쓰면 **자리도 같아야** 한다.
+      ⚠️ `population`을 그대로 넘긴다 — 카드를 열 때 추이·낱개와 한 번에 받아 오므로
+         여기서 또 부를 이유가 없다. 옛 길 카드는 undefined가 넘어가 스스로 받아 온다. */}
+      <GradedPopulation
+        tcgPlayerId={card.tcgPlayerId}
+        edition={edition}
+        population={(card as { population?: Parameters<typeof GradedPopulation>[0]['population'] }).population}
+      />
       <AdSlot 형태="네모" 이름="카드상세" />
     </div>
   );

@@ -1,1 +1,217 @@
-{"ed":"en","id":"tk-xy-su","name":"XY trainer Kit (Suicune)","cards":[{"n":"1","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118828_in_400x400.jpg","r":"Common","tcg":"118828"},{"n":"2","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118829_in_400x400.jpg","r":"Common","tcg":"118829"},{"n":"3","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118830_in_400x400.jpg","r":"Common","tcg":"118830"},{"n":"4","name":"Eevee","img":"https://tcgplayer-cdn.tcgplayer.com/product/118839_in_400x400.jpg","r":"None","tcg":"118839"},{"n":"5","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118831_in_400x400.jpg","r":"Common","tcg":"118831"},{"n":"6","name":"Frogadier","img":"https://tcgplayer-cdn.tcgplayer.com/product/118840_in_400x400.jpg","r":"Uncommon","tcg":"118840"},{"n":"7","name":"Ducklett","img":"https://tcgplayer-cdn.tcgplayer.com/product/118842_in_400x400.jpg","r":"Common","tcg":"118842"},{"n":"8","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118832_in_400x400.jpg","r":"Common","tcg":"118832"},{"n":"9","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118833_in_400x400.jpg","r":"Common","tcg":"118833"},{"n":"10","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118834_in_400x400.jpg","r":"Common","tcg":"118834"},{"n":"11","name":"Froakie","img":"https://tcgplayer-cdn.tcgplayer.com/product/118844_in_400x400.jpg","r":"Common","tcg":"118844"},{"n":"12","name":"Seaking","img":"https://tcgplayer-cdn.tcgplayer.com/product/118846_in_400x400.jpg","r":"Uncommon","tcg":"118846"},{"n":"13","name":"Goldeen","img":"https://tcgplayer-cdn.tcgplayer.com/product/118848_in_400x400.jpg","r":"Common","tcg":"118848"},{"n":"14","name":"Suicune","img":"https://tcgplayer-cdn.tcgplayer.com/product/118850_in_400x400.jpg","r":"None","tcg":"118850"},{"n":"15","name":"Potion","img":"https://tcgplayer-cdn.tcgplayer.com/product/118852_in_400x400.jpg","r":"Uncommon","tcg":"118852"},{"n":"16","name":"Piplup","img":"https://tcgplayer-cdn.tcgplayer.com/product/118853_in_400x400.jpg","r":"Common","tcg":"118853"},{"n":"17","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118835_in_400x400.jpg","r":"Common","tcg":"118835"},{"n":"18","name":"Swanna","img":"https://tcgplayer-cdn.tcgplayer.com/product/118854_in_400x400.jpg","r":"Uncommon","tcg":"118854"},{"n":"19","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118836_in_400x400.jpg","r":"Common","tcg":"118836"},{"n":"20","name":"Tierno","img":"https://tcgplayer-cdn.tcgplayer.com/product/118856_in_400x400.jpg","r":"Uncommon","tcg":"118856"},{"n":"21","name":"Frogadier","img":"https://tcgplayer-cdn.tcgplayer.com/product/118841_in_400x400.jpg","r":"Uncommon","tcg":"118841"},{"n":"22","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118837_in_400x400.jpg","r":"Common","tcg":"118837"},{"n":"23","name":"Froakie","img":"https://tcgplayer-cdn.tcgplayer.com/product/118845_in_400x400.jpg","r":"Common","tcg":"118845"},{"n":"24","name":"Ducklett","img":"https://tcgplayer-cdn.tcgplayer.com/product/118843_in_400x400.jpg","r":"Common","tcg":"118843"},{"n":"25","name":"Seaking","img":"https://tcgplayer-cdn.tcgplayer.com/product/118847_in_400x400.jpg","r":"Uncommon","tcg":"118847"},{"n":"26","name":"Goldeen","img":"https://tcgplayer-cdn.tcgplayer.com/product/118849_in_400x400.jpg","r":"Common","tcg":"118849"},{"n":"27","name":"Swanna","img":"https://tcgplayer-cdn.tcgplayer.com/product/118855_in_400x400.jpg","r":"Uncommon","tcg":"118855"},{"n":"28","name":"Water Energy","img":"https://tcgplayer-cdn.tcgplayer.com/product/118838_in_400x400.jpg","r":"Common","tcg":"118838"},{"n":"29","name":"Tierno","img":"https://tcgplayer-cdn.tcgplayer.com/product/118857_in_400x400.jpg","r":"Uncommon","tcg":"118857"},{"n":"30","name":"Suicune","img":"https://tcgplayer-cdn.tcgplayer.com/product/118851_in_400x400.jpg","r":"None","tcg":"118851"}]}
+{
+ "ed": "en",
+ "id": "tk-xy-su",
+ "name": "XY trainer Kit (Suicune)",
+ "cards": [
+  {
+   "n": "1",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118828_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118828"
+  },
+  {
+   "n": "2",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118829_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118829"
+  },
+  {
+   "n": "3",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118830_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118830"
+  },
+  {
+   "n": "4",
+   "name": "Eevee",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118839_in_400x400.jpg",
+   "r": "None",
+   "tcg": "118839"
+  },
+  {
+   "n": "5",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118831_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118831"
+  },
+  {
+   "n": "6",
+   "name": "Frogadier",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118840_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118840"
+  },
+  {
+   "n": "7",
+   "name": "Ducklett",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118842_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118842"
+  },
+  {
+   "n": "8",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118832_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118832"
+  },
+  {
+   "n": "9",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118833_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118833"
+  },
+  {
+   "n": "10",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118834_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118834"
+  },
+  {
+   "n": "11",
+   "name": "Froakie",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118844_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118844"
+  },
+  {
+   "n": "12",
+   "name": "Seaking",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118846_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118846"
+  },
+  {
+   "n": "13",
+   "name": "Goldeen",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118848_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118848"
+  },
+  {
+   "n": "14",
+   "name": "Suicune",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118850_in_400x400.jpg",
+   "r": "None",
+   "tcg": "118850"
+  },
+  {
+   "n": "15",
+   "name": "Potion",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118852_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118852"
+  },
+  {
+   "n": "16",
+   "name": "Piplup",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118853_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118853"
+  },
+  {
+   "n": "17",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118835_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118835"
+  },
+  {
+   "n": "18",
+   "name": "Swanna",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118854_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118854"
+  },
+  {
+   "n": "19",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118836_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118836"
+  },
+  {
+   "n": "20",
+   "name": "Tierno",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118856_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118856"
+  },
+  {
+   "n": "21",
+   "name": "Frogadier",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118841_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118841"
+  },
+  {
+   "n": "22",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118837_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118837"
+  },
+  {
+   "n": "23",
+   "name": "Froakie",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118845_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118845"
+  },
+  {
+   "n": "24",
+   "name": "Ducklett",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118843_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118843"
+  },
+  {
+   "n": "25",
+   "name": "Seaking",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118847_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118847"
+  },
+  {
+   "n": "26",
+   "name": "Goldeen",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118849_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118849"
+  },
+  {
+   "n": "27",
+   "name": "Swanna",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118855_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118855"
+  },
+  {
+   "n": "28",
+   "name": "Water Energy",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118838_in_400x400.jpg",
+   "r": "Common",
+   "tcg": "118838"
+  },
+  {
+   "n": "29",
+   "name": "Tierno",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118857_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "118857"
+  },
+  {
+   "n": "30",
+   "name": "Suicune",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/118851_in_400x400.jpg",
+   "r": "None",
+   "tcg": "118851"
+  }
+ ]
+}

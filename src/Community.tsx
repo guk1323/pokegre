@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AdSlot } from './components/AdSlot';
 import { useSubScreen } from './lib/useSubScreen';
 import { PostBody, 본문에쓴사진 } from './lib/postFormat';
+import { 쪽번호들 } from './lib/pager';
+import { PostEditor, type 편집기손잡이 } from './components/PostEditor';
 import {
   fetchPosts,
   fetchPost,
@@ -60,20 +62,60 @@ function formatDate(ts: number): string {
   return `${mm}.${dd} ${hh}:${min}`;
 }
 
+// 목록에서 쓰는 때 표시. 요즘 커뮤니티처럼 **가까울수록 상대 시간**으로 적는다 —
+// 「08.26 12:33」보다 「2시간 전」이 지금 살아 있는 게시판처럼 보인다(2026-08-23).
+function 언제(ts: number): string {
+  const 분 = Math.floor((Date.now() - ts) / 60000);
+  if (분 < 1) return '방금';
+  if (분 < 60) return `${분}분 전`;
+  const 시 = Math.floor(분 / 60);
+  if (시 < 24) return `${시}시간 전`;
+  if (시 < 48) return '어제';
+  const d = new Date(ts);
+  const 올해 = new Date().getFullYear() === d.getFullYear();
+  const md = `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  return 올해 ? md : `${String(d.getFullYear()).slice(2)}.${md}`;
+}
+
+// 말머리 색. ⚠️ **대괄호 글자([자유])를 쓰지 않는다** — 옛날 게시판처럼 보인다는
+// 지적을 받았다(2026-08-23). 갈래마다 색을 달리해 훑을 때 눈에 걸리게 한다.
+const 말머리색: Record<string, string> = {
+  free: 'bg-neutral-100 text-neutral-600',
+  question: 'bg-sky-100 text-sky-700',
+  suggestion: 'bg-violet-100 text-violet-700',
+  pulls: 'bg-amber-100 text-amber-700',
+};
+
+// 목록에 한 줄로 보여 줄 본문 맛보기. 꾸미기 표시는 걷어낸다(## · ** · __ · [사진1]).
+function 맛보기(content: string): string {
+  return content
+    .replace(/\[사진\s*\d+(?:\s+(?:작게|보통|크게))?\]/g, '')
+    .replace(/^#{2,3}\s+/gm, '')
+    .replace(/^[-|]\s*/gm, '')
+    .replace(/(\*\*|__)([\s\S]+?)\1/g, '$2')
+    .replace(/^\|.*\|$/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// 조회·좋아요·댓글에 붙는 작은 그림. 숫자만 나열하면 무엇의 숫자인지 안 읽힌다.
+function 작은아이콘({ 종류 }: { 종류: '조회' | '좋아요' | '댓글' }) {
+  const d =
+    종류 === '조회'
+      ? 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z'
+      : 종류 === '좋아요'
+        ? 'M12 20s-7-4.5-7-9a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 4.5-7 9-7 9z'
+        : 'M21 12a8 8 0 0 1-8 8H7l-4 3v-5a8 8 0 1 1 18-6z';
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d={d} strokeLinecap="round" strokeLinejoin="round" />
+      {종류 === '조회' && <circle cx="12" cy="12" r="2.6" />}
+    </svg>
+  );
+}
+
 // 한 쪽에 보여 줄 글 수(사장님 지시 2026-08-11 "10개로 나눠서").
 const POSTS_PER_PAGE = 10;
-
-/**
- * 쪽 번호로 무엇을 보여 줄지. 쪽이 30개면 번호를 30개 그릴 수 없으니 지금 쪽 둘레만 낸다.
- * 앞뒤로 두 개씩(최대 5개) — 네이버 카페도 이런 식이다.
- */
-function 쪽번호들(지금: number, 전체: number): number[] {
-  const 최대 = 5;
-  if (전체 <= 최대) return Array.from({ length: 전체 }, (_, i) => i + 1);
-  // 끝쪽에 붙으면 창을 안쪽으로 밀어, 늘 5개가 보이게 한다.
-  const 시작 = Math.min(Math.max(1, 지금 - 2), 전체 - 최대 + 1);
-  return Array.from({ length: 최대 }, (_, i) => 시작 + i);
-}
 
 function PagerButton({
   disabled,
@@ -102,25 +144,36 @@ function PagerButton({
 /**
  * 글 목록 한 줄.
  *
- * 넓은 화면에서는 제목·작성자·작성일·조회를 칸으로 나눠 세운다(사장님 지시 2026-08-11 —
- * 네이버 카페 꼴이 눈에 익다고 하셨다). 폰에서는 칸을 넷으로 쪼개면 제목이 몇 글자밖에
- * 안 남아서, 제목 한 줄 + 그 밑에 작은 글씨 한 줄로 둔다.
+ * ⚠️ **넓은 화면에서도 폰과 같은 꼴이다**(2026-08-23에 표를 걷어냈다). 예전에는 넓은
+ * 화면만 제목·작성자·작성일·조회 네 칸짜리 표였는데, 빈 칸이 많아 허전했고 같은 줄을
+ * 두 벌로 그리다 보니 **한쪽만 고쳐 어긋나는 일**이 이미 두 번 있었다(좋아요 칸 등).
+ * 지금은 한 벌로 그린다 — 제목 줄 · 맛보기 줄 · 작은 글씨 줄, 오른쪽에 사진.
  */
 function PostRow({ post, onOpen }: { post: CommunityPost; onOpen: (id: number) => void }) {
+  const 썸네일 = post.images?.[0];
+  const 맛 = post.secret ? '' : 맛보기(post.content ?? '');
   return (
     <li>
       <button
         type="button"
         onClick={() => onOpen(post.id)}
-        className="flex w-full items-center gap-3 px-2 py-3 text-left hover:bg-neutral-50"
+        className="flex w-full items-start gap-3 rounded-xl px-3 py-3.5 text-left transition hover:bg-neutral-50"
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-black">
-            {/* 공지(고정 글)는 게시판 말머리 대신 눈에 띄는 공지 배지를 앞에 단다. */}
+          {/* 첫 줄: 말머리 + 제목 + 댓글 수 */}
+          <div className="flex items-start gap-1.5">
             {post.isPinned ? (
-              <span className="mr-1 rounded bg-[#2a78d6] px-1.5 py-0.5 text-[10px] font-bold text-white">공지</span>
+              <span className="mt-0.5 shrink-0 rounded-md bg-neutral-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                공지
+              </span>
             ) : (
-              <span className="mr-1 text-xs font-semibold text-neutral-500">[{CATEGORY_LABEL[post.category]}]</span>
+              <span
+                className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                  말머리색[post.category] ?? 'bg-neutral-100 text-neutral-600'
+                }`}
+              >
+                {CATEGORY_LABEL[post.category]}
+              </span>
             )}
             {/* 비밀글 표시. 이모지는 안 쓴다(사이트 지침) — 작은 자물쇠 그림으로 둔다. */}
             {post.secret && (
@@ -128,7 +181,7 @@ function PostRow({ post, onOpen }: { post: CommunityPost; onOpen: (id: number) =
                 aria-label="비밀글"
                 role="img"
                 viewBox="0 0 24 24"
-                className="mr-1 inline-block h-3.5 w-3.5 align-[-2px] text-neutral-500"
+                className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-500"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.4"
@@ -137,30 +190,52 @@ function PostRow({ post, onOpen }: { post: CommunityPost; onOpen: (id: number) =
                 <path d="M8 10V7a4 4 0 0 1 8 0v3" />
               </svg>
             )}
-            {post.title}
-            {post.commentCount > 0 && <span className="ml-1 text-xs text-indigo-500">[{post.commentCount}]</span>}
-          </p>
-          {/* 폰에서만 쓰는 줄. 넓은 화면에서는 오른쪽 칸들이 같은 것을 보여 준다. */}
-          <p className="mt-0.5 text-xs text-neutral-400 sm:hidden">
-            <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)} · 조회{' '}
-            {(post.viewCount ?? 0).toLocaleString()}
-            {/* 좋아요 수도 목록에서 보이게(사장님 지시 2026-08-10). 0은 줄만 어지럽혀 숨긴다. */}
-            {post.likeCount > 0 && ` · 좋아요 ${post.likeCount.toLocaleString()}`}
-          </p>
+            <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-black">
+              <span className="line-clamp-2">
+                {post.title}
+                {/* ⚠️ 댓글 수는 **제목 바로 뒤**에 붙인다. 오른쪽 끝에 띄워 둘 때는
+                    사진 있는 줄과 없는 줄의 자리가 서로 어긋나 보기 흐트러졌다. */}
+                {post.commentCount > 0 && (
+                  <span className="ml-1.5 inline-flex translate-y-px items-center gap-0.5 align-middle text-[11px] font-bold text-neutral-500">
+                    <작은아이콘 종류="댓글" />
+                    {post.commentCount}
+                  </span>
+                )}
+              </span>
+            </p>
+          </div>
+
+          {/* 둘째 줄: 본문 맛보기. 사진만 있는 글은 이 줄이 없다. */}
+          {맛 && <p className="mt-1 line-clamp-1 text-xs text-neutral-500">{맛}</p>}
+
+          {/* 셋째 줄: 누가·언제·얼마나 봤나 */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-neutral-500">
+            <AuthorName name={post.author} isAdmin={post.authorIsAdmin} />
+            <span>{언제(post.createdAt)}</span>
+            <span className="inline-flex items-center gap-0.5">
+              <작은아이콘 종류="조회" />
+              {(post.viewCount ?? 0).toLocaleString()}
+            </span>
+            {/* 0은 줄만 어지럽혀 숨긴다. */}
+            {post.likeCount > 0 && (
+              <span className="inline-flex items-center gap-0.5">
+                <작은아이콘 종류="좋아요" />
+                {post.likeCount.toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
-        <span className="hidden w-24 shrink-0 truncate text-center text-xs text-neutral-500 sm:block">
-          <AuthorName name={post.author} isAdmin={post.authorIsAdmin} />
-        </span>
-        <span className="hidden w-16 shrink-0 text-center text-xs tabular-nums text-neutral-400 sm:block">
-          {formatDate(post.createdAt)}
-        </span>
-        <span className="hidden w-14 shrink-0 text-right text-xs tabular-nums text-neutral-400 sm:block">
-          {(post.viewCount ?? 0).toLocaleString()}
-        </span>
-        {/* 0은 줄만 어지럽혀 빈칸으로 둔다(폰 줄과 같은 잣대). */}
-        <span className="hidden w-14 shrink-0 text-right text-xs tabular-nums text-neutral-400 sm:block">
-          {post.likeCount > 0 ? post.likeCount.toLocaleString() : ''}
-        </span>
+
+        {/* 사진이 있으면 오른쪽에 미리보기. ⚠️ 목록에 사진이 없으면 자랑글이 그냥 글로
+            보여서 게시판이 밋밋해진다(2026-08-23 지적). */}
+        {썸네일 && !post.secret && (
+          <img
+            src={썸네일}
+            alt=""
+            loading="lazy"
+            className="h-16 w-16 shrink-0 rounded-lg bg-neutral-50 object-cover ring-1 ring-neutral-200"
+          />
+        )}
       </button>
     </li>
   );
@@ -205,38 +280,36 @@ function PostList({
   }
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-black">{heading}</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        {/* 갈래 탭이 이미 어느 게시판인지 말해 주므로 제목은 작게 두고 글 수만 보탠다. */}
+        <p className="text-sm font-semibold text-neutral-500">
+          {heading}
+          {posts.length > 0 && <span className="ml-1.5 font-normal text-neutral-500">{posts.length}</span>}
+        </p>
         {/* 비로그인이어도 글쓰기 버튼은 보여준다 — 누르면 로그인 모달이 뜨므로,
             버튼을 숨겨서 "왜 글을 못 쓰지?" 하게 만드는 것보다 낫다. */}
         <button
           type="button"
           onClick={loggedIn ? onWrite : onRequestLogin}
-          className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-black px-3.5 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
         >
+          <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+          </svg>
           글쓰기
         </button>
       </div>
 
       {loading ? (
-        <p className="text-sm text-neutral-400 py-12 text-center">불러오는 중...</p>
+        <p className="text-sm text-neutral-500 py-12 text-center">불러오는 중...</p>
       ) : posts.length === 0 ? (
-        <p className="text-sm text-neutral-400 py-12 text-center">{emptyText}</p>
+        <p className="text-sm text-neutral-500 py-12 text-center">{emptyText}</p>
       ) : (
         <>
-          {/* 칸 이름줄. 넓은 화면에서만 보인다 — 폰에서는 칸이 좁아 제목만 남기고
-              나머지는 제목 밑에 한 줄로 붙인다(아래 PostRow). */}
-          <div className="hidden border-y border-neutral-200 bg-neutral-50 px-2 py-2 text-xs font-semibold text-neutral-500 sm:flex">
-            <span className="flex-1">제목</span>
-            <span className="w-24 shrink-0 text-center">작성자</span>
-            <span className="w-16 shrink-0 text-center">작성일</span>
-            <span className="w-14 shrink-0 text-right">조회</span>
-            {/* ⚠️ **좋아요 칸이 없어서 넓은 화면에서만 안 보였다**(사장님 지적 2026-08-14).
-                폰 줄(아래 PostRow의 `sm:hidden`)에는 좋아요가 들어 있는데 칸 쪽에는
-                빠져 있었다 — 같은 것을 두 군데서 그리므로 **한쪽만 고치면 이렇게 어긋난다.** */}
-            <span className="w-14 shrink-0 text-right">좋아요</span>
-          </div>
-          <ul className="divide-y divide-neutral-200 border-b border-neutral-200 border-t sm:border-t-0">
+          {/* ⚠️ 옛 표 머리글(제목·작성자·작성일·조회·좋아요)은 뺐다(2026-08-23).
+              칸을 나눠 놓으니 글이 다섯 개만 있어도 관공서 표처럼 보였다 — 지금은
+              폰·PC가 같은 줄 모양이고, 넓은 화면에서는 그 줄이 넓어질 뿐이다. */}
+          <ul className="divide-y divide-neutral-100">
             {/* 공지는 어느 쪽수에서도 맨 위에 둔다. 쪽을 넘겼다고 공지가 사라지면
                 읽으라고 붙여 둔 뜻이 없어진다(네이버 카페도 이렇게 한다). */}
             {공지.map((post) => (
@@ -335,12 +408,24 @@ function PostDetail({
       </button>
 
       <div className="flex items-start justify-between gap-3 mb-1">
+        {/* ⚠️ 말머리 색은 **목록과 똑같이** 쓴다(말머리색 표 · 공지는 검정).
+            예전에는 상세만 파란 「공지」라 목록에서 눌러 들어오면 색이 바뀌어 보였다. */}
         <h2 className="text-lg font-bold text-black">
-          {post.isPinned && (
-            <span className="mr-1.5 align-middle rounded bg-[#2a78d6] px-1.5 py-0.5 text-xs font-bold text-white">공지</span>
+          {post.isPinned ? (
+            <span className="mr-1.5 align-middle rounded-md bg-neutral-900 px-1.5 py-0.5 text-xs font-bold text-white">
+              공지
+            </span>
+          ) : (
+            <span
+              className={`mr-1.5 align-middle rounded-md px-1.5 py-0.5 text-xs font-bold ${
+                말머리색[post.category] ?? 'bg-neutral-100 text-neutral-600'
+              }`}
+            >
+              {CATEGORY_LABEL[post.category]}
+            </span>
           )}
           {post.secret && (
-            <span className="mr-1.5 align-middle rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-bold text-neutral-600">
+            <span className="mr-1.5 align-middle rounded-md bg-neutral-200 px-1.5 py-0.5 text-xs font-bold text-neutral-600">
               비밀글
             </span>
           )}
@@ -349,16 +434,16 @@ function PostDetail({
         <div className="flex flex-shrink-0 gap-2">
           {/* 운영자는 어느 글이든 공지로 올리거나 내릴 수 있다. */}
           {isAdmin && (
-            <button type="button" onClick={onTogglePin} className="text-xs text-neutral-400 hover:text-[#2a78d6]">
+            <button type="button" onClick={onTogglePin} className="text-xs text-neutral-500 hover:text-[#2a78d6]">
               {post.isPinned ? '공지 해제' : '공지 등록'}
             </button>
           )}
           {post.isMine ? (
             <>
-              <button type="button" onClick={onEdit} className="text-xs text-neutral-400 hover:text-black">
+              <button type="button" onClick={onEdit} className="text-xs text-neutral-500 hover:text-black">
                 수정
               </button>
-              <button type="button" onClick={onDelete} className="text-xs text-neutral-400 hover:text-rose-500">
+              <button type="button" onClick={onDelete} className="text-xs text-neutral-500 hover:text-rose-500">
                 삭제
               </button>
             </>
@@ -366,14 +451,15 @@ function PostDetail({
             <button
               type="button"
               onClick={() => handleReport(() => reportPost(post.id))}
-              className="text-xs text-neutral-400 hover:text-rose-500"
+              className="text-xs text-neutral-500 hover:text-rose-500"
             >
               신고
             </button>
           )}
         </div>
       </div>
-      <p className="text-xs text-neutral-400 mb-4">
+      {/* ⚠️ neutral-400은 흰 바탕에서 대비 2.48로 기준(4.5) 미달이다 — 500으로 둔다. */}
+      <p className="mb-4 border-b border-neutral-100 pb-4 text-xs text-neutral-500">
         <AuthorName name={post.author} isAdmin={post.authorIsAdmin} /> · {formatDate(post.createdAt)}
         {post.editedAt != null && ' · 수정됨'}
         {' · 조회 '}
@@ -387,7 +473,7 @@ function PostDetail({
               갓팩입니다. 전부 AR 이상이 나왔습니다.
             </p>
           )}
-          <p className="mb-2 text-xs text-neutral-400">
+          <p className="mb-2 text-xs text-neutral-500">
             {post.pull.pack}
             {/* 같은 카드를 묶은 뒤라 세는 단위가 "장"이 아니라 "종"이다.
                 12종이 실제로는 20장일 수 있다(카드마다 ×3처럼 적힌다). */}
@@ -415,7 +501,7 @@ function PostDetail({
                   ) : null}
                 </div>
                 <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">{c.name}</p>
-                <p className="text-[10px] text-neutral-400">{c.r}</p>
+                <p className="text-[10px] text-neutral-500">{c.r}</p>
                 {/* 뽑았을 그때의 값. 지금 시세가 아니라 **글 올린 날의 값**이라 안 변한다.
                     시세를 못 받은 세트는 값이 안 와서 줄이 안 생긴다(0원이라고 적으면 틀린 말). */}
                 {c.krw ? (
@@ -468,19 +554,19 @@ function PostDetail({
 
       <p className="text-xs font-semibold text-neutral-500 mb-2">댓글 {comments.length}개</p>
       {commentsLoading ? (
-        <p className="text-sm text-neutral-400 py-4">불러오는 중...</p>
+        <p className="text-sm text-neutral-500 py-4">불러오는 중...</p>
       ) : (
         <ul className="mb-4 space-y-3">
           {comments.map((c) => (
             <li key={c.id} className="rounded-lg bg-neutral-50 p-3">
               <div className="flex items-start justify-between gap-3 mb-1">
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-neutral-500">
                   <AuthorName name={c.author} isAdmin={c.authorIsAdmin} /> · {formatDate(c.createdAt)}
                 </p>
                 <button
                   type="button"
                   onClick={() => handleReport(() => reportComment(post.id, c.id))}
-                  className="flex-shrink-0 text-xs text-neutral-400 hover:text-rose-500"
+                  className="flex-shrink-0 text-xs text-neutral-500 hover:text-rose-500"
                 >
                   신고
                 </button>
@@ -553,49 +639,27 @@ function PostForm({
   const [category, setCategory] = useState<PostCategory>(initialCategory);
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
+  // ⚠️ 사진 목록의 주인은 **편집기**다. 본문에 있는 사진을 세어 돌려주므로(PostEditor의
+  //    `읽기`), 여기서는 받아서 그대로 서버에 보내기만 한다. 예전처럼 따로 쌓아 두면
+  //    본문에서 지운 사진이 글 아래에 되살아난다.
   const [images, setImages] = useState<string[]>(initialImages);
+  const 편집기 = useRef<편집기손잡이 | null>(null);
   // 비밀글. 건의 게시판에서만 쓴다(서버도 같은 조건으로 막는다).
   const [secret, setSecret] = useState(initialSecret);
-  const [uploading, setUploading] = useState(false);
   const [imgErr, setImgErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = [...(e.target.files ?? [])];
-    e.target.value = ''; // 같은 파일을 다시 골라도 반응하도록 비운다
-    if (!files.length) return;
-    setImgErr('');
-    setUploading(true);
-    try {
-      for (const f of files) {
-        if (images.length >= MAX_POST_IMAGES) {
-          setImgErr(`사진은 최대 ${MAX_POST_IMAGES}장까지 올릴 수 있습니다.`);
-          break;
-        }
-        const url = await uploadPostImage(f);
-        // ⚠️ 올리자마자 본문 끝에 [사진N] 표시를 넣어 준다(2026-08-23). 이게 없으면
-        //    「자리를 정할 수 있다」는 것을 아무도 모른다 — 표시를 원하는 줄로 옮기면
-        //    거기에 사진이 들어간다. 지우면 예전처럼 글 아래 묶음으로 간다.
-        setImages((prev) => {
-          if (prev.length >= MAX_POST_IMAGES) return prev;
-          const 번호 = prev.length + 1;
-          setContent((c) => (c.trimEnd() ? `${c.trimEnd()}\n\n[사진${번호}]\n` : `[사진${번호}]\n`));
-          return [...prev, url];
-        });
-      }
-    } catch (err) {
-      setImgErr(err instanceof Error ? err.message : '사진을 올리지 못했습니다.');
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) return;
+    // ⚠️ 보낼 때는 **편집기에서 직접 읽는다.** 화면에 든 값(content·images)은 글자를 칠 때
+    //    따라오지만, 마지막 손질과 「등록」 누르기 사이의 아슬아슬한 순간까지 믿을 이유가 없다.
+    const 지금 = 편집기.current?.읽기();
+    const 글 = (지금?.글 ?? content).trim();
+    const 사진 = 지금?.사진들 ?? images;
+    if (!title.trim() || !글) return;
     setSubmitting(true);
     try {
-      await onSubmit({ title: title.trim(), content: content.trim(), category, images, secret: secret && category === 'suggestion' });
+      await onSubmit({ title: title.trim(), content: 글, category, images: 사진, secret: secret && category === 'suggestion' });
     } finally {
       setSubmitting(false);
     }
@@ -651,64 +715,34 @@ function PostForm({
           placeholder="제목"
           className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
         />
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="내용을 입력하세요"
-          rows={10}
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+        {/* ⚠️⚠️ **누르면 그 자리에서 실제로 커지고 굵어진다**(사장님 지시 2026-08-23).
+            표시(## · **)는 저장될 때만 쓰이고 글 쓰는 사람 눈에는 안 보인다.
+            번역은 components/PostEditor.tsx가 한다. */}
+        <PostEditor
+          ref={편집기}
+          처음글={initialContent}
+          처음사진={initialImages}
+          최대사진={MAX_POST_IMAGES}
+          올리기={uploadPostImage}
+          onChange={(글, 사진들) => {
+            setContent(글);
+            setImages(사진들);
+          }}
+          onError={setImgErr}
         />
 
-        {/* 사진 첨부 — 올린 뒤 주소만 글에 담는다. */}
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="cursor-pointer rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50">
-              사진 첨부
-              <input type="file" accept="image/*" multiple onChange={handlePick} className="hidden" />
-            </label>
-            <span className="text-xs text-neutral-400">
-              {uploading ? '올리는 중…' : `${images.length}/${MAX_POST_IMAGES}장 · 한 장에 4MB까지`}
-            </span>
-          </div>
-          {/* 꾸미는 법. 몰라도 그냥 쓰면 예전과 똑같이 나온다 — 알면 더 쓸 수 있다는 안내다. */}
-          <details className="mt-2 text-xs text-neutral-500">
-            <summary className="cursor-pointer font-semibold">글 꾸미는 법</summary>
-            <div className="mt-1.5 space-y-0.5 leading-relaxed">
-              <p>
-                <code>## 제목</code> · <code>### 작은 제목</code> · <code>**굵게**</code> · <code>- 목록</code> ·{' '}
-                <code>---</code> (가로줄)
-              </p>
-              <p>
-                <code>[사진1]</code>을 원하는 줄로 옮기면 그 자리에 사진이 들어갑니다.{' '}
-                <code>[사진1 작게]</code>처럼 크기도 정할 수 있습니다(작게·보통·크게).
-              </p>
-              <p>
-                표는 <code>| 칸 | 칸 |</code>로 쓰고, 다음 줄에 <code>|---|---|</code>를 두면 첫 줄이 머리글이 됩니다.
-              </p>
-            </div>
-          </details>
-          {imgErr && <p className="mt-1 text-xs font-semibold text-rose-600">{imgErr}</p>}
-          {images.length > 0 && (
-            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {images.map((u, i) => (
-                <div key={u} className="relative">
-                  <img src={u} alt="" className="aspect-square w-full rounded-lg object-cover ring-1 ring-neutral-200" />
-                  {/* 본문에 이 번호로 적으면 그 자리에 들어간다. */}
-                  <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white">
-                    [사진{i + 1}]
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setImages((prev) => prev.filter((x) => x !== u))}
-                    className="absolute right-1 top-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-bold text-white"
-                  >
-                    삭제
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* ⚠️ 사진 서랍(글상자 밑에 쌓아 두고 작게·보통·크게로 넣던 칸)은 걷어냈다 —
+            「사진 넣기도 불편」(사장님 2026-08-23). 이제 편집기 안에서 다 한다. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p className="text-xs text-neutral-500">
+            사진은 <b className="text-neutral-700">사진</b> 단추 · 끌어다 놓기 · 붙여넣기로 넣습니다. 넣은 사진을
+            누르면 크기를 바꾸거나 지웁니다.
+          </p>
+          <p className="text-xs text-neutral-500">
+            {images.length}/{MAX_POST_IMAGES}장
+          </p>
         </div>
+        {imgErr && <p className="text-xs font-semibold text-rose-600">{imgErr}</p>}
       </div>
       <div className="flex justify-end gap-2 mt-4">
         <button type="button" onClick={onCancel} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50">
@@ -719,7 +753,7 @@ function PostForm({
           disabled={submitting || !title.trim() || !content.trim()}
           className="rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-50"
         >
-          등록
+          {mode === 'edit' ? '수정 완료' : '등록'}
         </button>
       </div>
     </form>
@@ -836,7 +870,7 @@ export function Community({
     sub.replace({ v: 'detail', id: post.id });
   }
 
-  async function handleUpdatePost(input: { title: string; content: string; category: PostCategory; secret?: boolean }) {
+  async function handleUpdatePost(input: { title: string; content: string; category: PostCategory; images?: string[]; secret?: boolean }) {
     if (!selectedPost) return;
     const updated = await updatePost(selectedPost.id, input);
     setSelectedPost(updated);
@@ -916,6 +950,10 @@ export function Community({
         initialCategory={selectedPost.category}
         initialTitle={selectedPost.title}
         initialContent={selectedPost.content}
+        // ⚠️ 사진을 안 넘기고 있었다(2026-08-23에 잡음). 그래서 수정 화면에서 올린 사진이
+        //    안 보였고, 편집기가 [사진N]을 그릴 그림을 못 찾았다. 서버는 images를 안 보내면
+        //    그대로 두므로 글이 깨지지는 않았지만, 고치려면 보여야 한다.
+        initialImages={selectedPost.images ?? []}
         initialSecret={selectedPost.secret === true}
         onCancel={() => sub.back()}
         onSubmit={handleUpdatePost}

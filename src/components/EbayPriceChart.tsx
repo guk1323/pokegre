@@ -2,6 +2,7 @@ import { 오름폭 } from '../lib/priceTrend';
 import { useMemo, useRef, useState } from 'react';
 import { formatGradeLabel, 대표등급, type EbayGradeStat } from '../api/ebayPrices';
 import { useKrw } from './KrwHint';
+import { 가까운점 } from '../lib/chartPick';
 
 // 이베이 등급별 낙찰 평균가의 날짜별 추이를 그린다. 스니덩크 차트(PriceChart)는 엔화·
 // 스니덩크 타입에 묶여 있어서, 달러·등급 선택·날짜 기반인 이베이용은 따로 둔다.
@@ -15,7 +16,7 @@ function compactDate(iso: string): string {
   return `${String(d.getFullYear()).slice(2)}.${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }: { grades: EbayGradeStat[]; title?: string }) {
+export function EbayPriceChart({ grades, title = '실거래가 추이' }: { grades: EbayGradeStat[]; title?: string }) {
   // 그래프 눈금도 원화로 적는다(화면 전체를 원화로 통일).
   const krw = useKrw();
   // 그래프를 그리려면 점이 최소 2개는 있어야 한다. 낙찰이 뜸한 등급은 히스토리가 짧아
@@ -69,9 +70,10 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
   function handleMove(e: React.MouseEvent<HTMLDivElement>) {
     if (!geom || !wrapRef.current) return;
     const rect = wrapRef.current.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    const idx = Math.round(ratio * (geom.coords.length - 1));
-    setHover(Math.min(Math.max(idx, 0), geom.coords.length - 1));
+    // ⚠️ 뷰박스 기준으로 바꿔서 **가로자리가 제일 가까운 점**을 고른다. 개수로 나누면
+    //    날짜가 띄엄띄엄한 카드에서 세로선이 커서와 어긋난다(`가까운점` 설명).
+    const 커서x = ((e.clientX - rect.left) / rect.width) * VIEW_W;
+    setHover(가까운점(geom.coords, 커서x));
   }
 
   // 그릴 수 있는 등급이 없으면(낙찰 기록이 너무 적으면) 차트 자체를 띄우지 않는다.
@@ -79,9 +81,12 @@ export function EbayPriceChart({ grades, title = '이베이 낙찰가 추이' }:
 
   return (
     <div className="mb-4">
-      <div className="flex items-baseline justify-between mb-2">
-        <p className="text-xs font-semibold text-neutral-500">{title}</p>
-        <span className="text-xs font-semibold text-neutral-400">
+      {/* ⚠️ 등락률은 끊기면 안 된다 — `PriceChart`와 같은 처리(2026-08-27).
+          윈도우 한글 글꼴이 맥보다 넓어 좁은 칸에서 「전체 기간 ▲」/「21.0%」로 갈라졌다.
+          자리가 모자라면 **왼쪽 제목을 줄이고** 숫자는 통째로 남긴다. */}
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <p className="min-w-0 truncate text-xs font-semibold text-neutral-500">{title}</p>
+        <span className="flex-shrink-0 whitespace-nowrap text-xs font-semibold text-neutral-400">
           {기간글 && <span className="mr-1 font-normal">{기간글}</span>}
           {geom.changePct != null && (
             <span className={geom.changePct >= 0 ? 'text-rose-500' : 'text-emerald-600'}>

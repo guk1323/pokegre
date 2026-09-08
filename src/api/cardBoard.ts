@@ -97,13 +97,20 @@ export async function searchCardBoard(
   edition: 'japanese' | 'english' | 'other',
   signal?: AbortSignal,
   /** 도감·세트·작가에서 눌러서 온 그 카드. 주면 맨 앞에 세워 준다(형제 카드도 같이 나온다). */
-  콕?: { slug: string; no: string } | null,
+  콕?: { slug: string; no: string; tcg?: string } | null,
 ): Promise<BoardResult> {
   const p = new URLSearchParams({ q: query, lang: edition });
   if (콕?.slug) {
     p.set('slug', 콕.slug);
     p.set('no', 콕.no);
   }
+  // ⚠️⚠️ **저쪽 번호(tcgPlayerId)를 같이 보낸다 — 번호만으로는 다섯 장 중 한 장이 안 맞는다.**
+  //    우리 색인은 같은 번호를 쓰는 카드를 갈라 두려고 꼬리를 붙인다(`205~517051`). 그런데
+  //    카드에 찍힌 번호는 `205`라, 꼬리째 보내면 서버가 영영 못 맞추고 **조용히 포기한다**
+  //    (오류도 안 난다). 세트에서 205번 뮤 ex를 눌러도 팔데안 페이츠가 맨 위에 떴다.
+  //    도감 58,528장 중 **11,807장(20.2%)**이 이 꼴이다(2026-08-29 실측).
+  //    저쪽 번호는 카드마다 하나뿐이라 꼬리도, 같은 번호 두 장 문제도 없다.
+  if (콕?.tcg) p.set('tcg', 콕.tcg);
   const r = await fetch(`/api/local/card-board?${p}`, { signal });
   if (!r.ok) throw new Error(`card-board ${r.status}`);
   return (await r.json()) as BoardResult;

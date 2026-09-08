@@ -223,7 +223,9 @@ export function EbayCheckView() {
             <div className="py-12 text-center">
               <p className="text-sm text-neutral-500">우리 도감에 그 이름의 카드가 없습니다.</p>
               <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-neutral-400">
-                카드 이름의 일부만 쳐 보시거나, 위에서 판(일본어판·영문판)을 바꿔 보세요.
+                {/* ⚠️ 마디로 묶는다 — 안 묶으면 좁은 화면에서 괄호 안이 갈린다. */}
+                <span className="inline-block">카드 이름의 일부만 쳐 보시거나,</span>{' '}
+                <span className="inline-block">위에서 판(일본어판·영문판)을 바꿔 보세요.</span>
               </p>
             </div>
           )}

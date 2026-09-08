@@ -1,1 +1,235 @@
-{"ed":"en","id":"tk-xy-w","name":"XY trainer Kit (Wigglytuff)","cards":[{"n":"1","name":"Swirlix","img":"","r":"Common","tcg":"98177"},{"n":"2","name":"Pidgeotto","img":"","r":"Uncommon","tcg":"98178"},{"n":"3","name":"Fairy Energy","img":"","r":"Common","tcg":"98179"},{"n":"4","name":"Sentret","img":"","r":"Common","tcg":"98190"},{"n":"5","name":"Fairy Energy","img":"","r":"Common","tcg":"98180"},{"n":"6","name":"Fairy Energy","img":"","r":"Common","tcg":"98181"},{"n":"7","name":"Fairy Energy","img":"","r":"Common","tcg":"98182"},{"n":"8","name":"Fairy Energy","img":"","r":"Common","tcg":"98183"},{"n":"9","name":"Fairy Energy","img":"","r":"Common","tcg":"98184"},{"n":"10","name":"Fairy Energy","img":"","r":"Common","tcg":"98185"},{"n":"11","name":"Pidgey","img":"","r":"Common","tcg":"98191"},{"n":"12","name":"Jigglypuff","img":"","r":"Common","tcg":"98192"},{"n":"13","name":"Clefairy","img":"","r":"Common","tcg":"98193"},{"n":"14","name":"Wigglytuff","img":"","r":"Rare","tcg":"98194"},{"n":"15","name":"Potion","img":"","r":"Common","tcg":"98196"},{"n":"16","name":"Clefable","img":"","r":"Uncommon","tcg":"98195"},{"n":"17","name":"Fairy Energy","img":"","r":"Common","tcg":"98186"},{"n":"18","name":"Swirlix","img":"","r":"Common","tcg":"98198"},{"n":"19","name":"Clefairy","img":"","r":"Common","tcg":"98199"},{"n":"20","name":"Potion","img":"","r":"Common","tcg":"98197"},{"n":"21","name":"Fairy Energy","img":"","r":"Common","tcg":"98187"},{"n":"22","name":"Fairy Energy","img":"","r":"Common","tcg":"98188"},{"n":"23","name":"Pidgeotto","img":"","r":"Uncommon","tcg":"98200"},{"n":"24","name":"Trevor","img":"https://tcgplayer-cdn.tcgplayer.com/product/98201_in_400x400.jpg","r":"Uncommon","tcg":"98201"},{"n":"25","name":"Jigglypuff","img":"","r":"Common","tcg":"98202"},{"n":"26","name":"Tierno","img":"","r":"Uncommon","tcg":"98203"},{"n":"27","name":"Fairy Energy","img":"","r":"Common","tcg":"98189"},{"n":"28","name":"Clefable","img":"","r":"Uncommon","tcg":"98204"},{"n":"29","name":"Pidgey","img":"","r":"Common","tcg":"98205"},{"n":"30","name":"Wigglytuff","img":"","r":"Rare","tcg":"98206"}]}
+{
+ "ed": "en",
+ "id": "tk-xy-w",
+ "name": "XY trainer Kit (Wigglytuff)",
+ "cards": [
+  {
+   "n": "1",
+   "name": "Swirlix",
+   "img": "https://archives.bulbagarden.net/media/upload/8/86/SwirlixKalosStarterSet24.jpg",
+   "r": "Common",
+   "tcg": "98177",
+   "imgBase": true
+  },
+  {
+   "n": "2",
+   "name": "Pidgeotto",
+   "img": "https://archives.bulbagarden.net/media/upload/0/03/PidgeottoFlashfire76.jpg",
+   "r": "Uncommon",
+   "tcg": "98178",
+   "imgBase": true
+  },
+  {
+   "n": "3",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98179"
+  },
+  {
+   "n": "4",
+   "name": "Sentret",
+   "img": "https://archives.bulbagarden.net/media/upload/b/ba/SentretFlashfire81.jpg",
+   "r": "Common",
+   "tcg": "98190",
+   "imgBase": true
+  },
+  {
+   "n": "5",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98180"
+  },
+  {
+   "n": "6",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98181"
+  },
+  {
+   "n": "7",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98182"
+  },
+  {
+   "n": "8",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98183"
+  },
+  {
+   "n": "9",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98184"
+  },
+  {
+   "n": "10",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98185"
+  },
+  {
+   "n": "11",
+   "name": "Pidgey",
+   "img": "https://archives.bulbagarden.net/media/upload/e/ee/PidgeyFlashfire75.jpg",
+   "r": "Common",
+   "tcg": "98191",
+   "imgBase": true
+  },
+  {
+   "n": "12",
+   "name": "Jigglypuff",
+   "img": "https://archives.bulbagarden.net/media/upload/6/63/JigglypuffXY87.jpg",
+   "r": "Common",
+   "tcg": "98192",
+   "imgBase": true
+  },
+  {
+   "n": "13",
+   "name": "Clefairy",
+   "img": "https://archives.bulbagarden.net/media/upload/7/79/ClefairyGenerations50.jpg",
+   "r": "Common",
+   "tcg": "98193",
+   "imgBase": true
+  },
+  {
+   "n": "14",
+   "name": "Wigglytuff",
+   "img": "https://archives.bulbagarden.net/media/upload/8/80/WigglytuffXY90.jpg",
+   "r": "Rare",
+   "tcg": "98194",
+   "imgBase": true
+  },
+  {
+   "n": "15",
+   "name": "Potion",
+   "img": "https://archives.bulbagarden.net/media/upload/0/06/PotionSunMoon127.jpg",
+   "r": "Common",
+   "tcg": "98196",
+   "imgBase": true
+  },
+  {
+   "n": "16",
+   "name": "Clefable",
+   "img": "https://archives.bulbagarden.net/media/upload/2/23/ClefableFuriousFists71.jpg",
+   "r": "Uncommon",
+   "tcg": "98195",
+   "imgBase": true
+  },
+  {
+   "n": "17",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98186"
+  },
+  {
+   "n": "18",
+   "name": "Swirlix",
+   "img": "https://archives.bulbagarden.net/media/upload/8/86/SwirlixKalosStarterSet24.jpg",
+   "r": "Common",
+   "tcg": "98198",
+   "imgBase": true
+  },
+  {
+   "n": "19",
+   "name": "Clefairy",
+   "img": "https://archives.bulbagarden.net/media/upload/7/79/ClefairyGenerations50.jpg",
+   "r": "Common",
+   "tcg": "98199",
+   "imgBase": true
+  },
+  {
+   "n": "20",
+   "name": "Potion",
+   "img": "https://archives.bulbagarden.net/media/upload/0/06/PotionSunMoon127.jpg",
+   "r": "Common",
+   "tcg": "98197",
+   "imgBase": true
+  },
+  {
+   "n": "21",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98187"
+  },
+  {
+   "n": "22",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98188"
+  },
+  {
+   "n": "23",
+   "name": "Pidgeotto",
+   "img": "https://archives.bulbagarden.net/media/upload/0/03/PidgeottoFlashfire76.jpg",
+   "r": "Uncommon",
+   "tcg": "98200",
+   "imgBase": true
+  },
+  {
+   "n": "24",
+   "name": "Trevor",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/98201_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "98201"
+  },
+  {
+   "n": "25",
+   "name": "Jigglypuff",
+   "img": "https://archives.bulbagarden.net/media/upload/6/63/JigglypuffXY87.jpg",
+   "r": "Common",
+   "tcg": "98202",
+   "imgBase": true
+  },
+  {
+   "n": "26",
+   "name": "Tierno",
+   "img": "https://archives.bulbagarden.net/media/upload/1/1b/TiernoKalosStarterSet39.jpg",
+   "r": "Uncommon",
+   "tcg": "98203",
+   "imgBase": true
+  },
+  {
+   "n": "27",
+   "name": "Fairy Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98189"
+  },
+  {
+   "n": "28",
+   "name": "Clefable",
+   "img": "https://archives.bulbagarden.net/media/upload/2/23/ClefableFuriousFists71.jpg",
+   "r": "Uncommon",
+   "tcg": "98204",
+   "imgBase": true
+  },
+  {
+   "n": "29",
+   "name": "Pidgey",
+   "img": "https://archives.bulbagarden.net/media/upload/e/ee/PidgeyFlashfire75.jpg",
+   "r": "Common",
+   "tcg": "98205",
+   "imgBase": true
+  },
+  {
+   "n": "30",
+   "name": "Wigglytuff",
+   "img": "https://archives.bulbagarden.net/media/upload/8/80/WigglytuffXY90.jpg",
+   "r": "Rare",
+   "tcg": "98206",
+   "imgBase": true
+  }
+ ]
+}

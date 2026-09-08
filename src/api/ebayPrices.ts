@@ -32,6 +32,12 @@ export interface EbayGradeStat {
   // 대체한다.
   smartPrice: number | null;
   confidence: string | null;
+  /**
+   * 대표값을 **실제로 몇 건으로 셌는지**(최근 5건까지)와 그 건들이 **며칠에 걸쳐 있는지**.
+   * 우리가 다시 센 칸에만 온다 — 옛 응답에는 없으므로 없으면 안 적는다.
+   */
+  기준건수?: number;
+  기준일수?: number;
   // 그 등급의 날짜별 낙찰 평균가(오래된→최신). 그래프에 쓴다. 없으면 빈 배열.
   history: EbayGradePoint[];
   // 실제 낙찰 몇 건(최근 순, 등급당 최대 5건). 통계가 아니라 낱개 거래다.
@@ -42,7 +48,7 @@ export interface EbayGradeStat {
   sales?: { price: number; date: string; url: string; auction: boolean; title?: string; 뺀까닭?: string; 옮겨온곳?: string; 출처?: string; itm?: string; 고친값?: number; 메모?: string; 베스트오퍼?: boolean }[];
 }
 
-// TCGplayer(미국 마켓) 시세. 미감정(로우) 카드 기준. 값이 있을 때만 서버가 담아준다.
+// TCGplayer(미국 마켓) 시세. 미감정 싱글 기준. 값이 있을 때만 서버가 담아준다.
 export interface TcgPlayerPrice {
   market: number;
   low: number;
@@ -200,10 +206,22 @@ export function formatGradeLabel(grade: string): string {
   //    사람들이 생카드 시세로 오해했다 — 실제로는 대부분 감정된 카드다(위 `등급확인안됨`).
   // ⚠️ 「미감정」만으로는 옆칸 「등급 확인 안 됨」과 무엇이 다른지 안 보인다.
   //    **「싱글」을 붙여 슬랩이 안 씌워진 낱장임을 못 박는다**(사장님 지시 2026-08-19).
+  // ⚠️⚠️ **이 말이 온 사이트의 한 벌이다 — 「미감정 싱글」**(사장님 지시 2026-08-27).
+  //    같은 것을 네 가지로 부르고 있었다: 「미감정 싱글」(여기) · 「미감정(로우)」(TCG 상세)
+  //    · 「싱글 카드」(TCG 설명) · 「미감정」(세트·신팩 힛카드). 전부 이 말로 맞췄고,
+  //    **서버가 검색엔진에 내보내는 글(`topPricedBasis`)도 같이** 맞췄다.
+  //    ⚠️ 영어(Raw·Ungraded)로 안 간다 — 시세몬은 Raw, KREAM은 Ungraded를 쓰지만,
+  //       우리 자료에서 `ungraded`는 **「등급 확인 안 됨」이라는 딴 칸**이다. 화면에
+  //       「Ungraded」라고 적으면 서로 다른 두 칸이 같은 말이 되어 버린다.
+  //    ⚠️ **아래 셋은 같은 말이어도 뜻이 달라 안 바꾼다:** 스니커덩크 검색결과 머리말의
+  //       「싱글카드」(박스·팩과 가르는 말) · 「미감정(A등급)」(스니커덩크 자체 상태 등급)
+  //       · 플리마켓의 「미감정(A~D)」(우리 플리마켓 등급).
   if (grade === 'raw') return '미감정 싱글';
   if (grade === '기타') return '기타 감정 회사';
   if (등급확인안됨(grade)) return '등급 확인 안 됨';
   // ⚠️ 10 위의 등급은 사람 말로 적는다 — 「CGCP 10」이라고 나가면 아무도 못 알아본다.
+  // ⚠️ 「10 위」는 회사마다 하나씩이다 — BGS는 블랙라벨, CGC는 프리스틴이 꼭대기다.
+  //    BGS의 「프리스틴」은 10점의 이름일 뿐이라 따로 안 센다(2026-08-27 슬랩 실물 확인).
   if (grade === 'cgcp10') return 'CGC 프리스틴 10';
   if (grade === 'bgsbl10') return 'BGS 블랙라벨 10';
   // PPT는 소수점 등급을 "cgc9.5"로도, "cgc9_5"로도 보낸다. 밑줄도 소수점으로 받아

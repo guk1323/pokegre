@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { 기준일글 } from '../lib/cardImg';
+import { 힛카드기준글 } from '../lib/cardImg';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
 // ⚠️ cardCatalog가 아니라 cardImg에서 가져온다 — cardCatalog는 이름 사전을 통째로
@@ -46,13 +46,6 @@ interface Latest {
 function releasedOn(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d{2})/);
   return m ? `${m[1]}.${m[2]} 발매` : '';
-}
-
-// 값이 어디서 온 것인지. 세트 화면(SetsView)과 같은 문구를 쓴다 — 한쪽만 고치면
-// 같은 값을 두 화면이 다르게 설명하게 된다.
-function basisLabel(src: string, grade?: string): string {
-  if (src !== 'snkrdunk') return 'TCGplayer 마켓가 · 미감정 기준';
-  return grade === 'psa10' ? 'SNKRDUNK 실거래 · PSA10 기준' : 'SNKRDUNK 실거래 · 미감정(A등급) 기준';
 }
 
 export function NewSetHitCards({
@@ -115,7 +108,7 @@ export function NewSetHitCards({
       <div className="mb-1 flex items-baseline justify-between gap-2">
         {/* ⚠️⚠️ **구역 제목은 두 단으로만 쓴다**(사장님 지시 2026-08-12 "제목 폰트랑 굵기 비율 맞춰").
               주요(시세): text-lg + font-extrabold + 검정  — 인기 검색어 · 힛카드 목록
-              곁다리    : text-sm + font-bold + 회색      — 이번 주 TOP 5 · 포켓몬 소식
+              곁다리    : text-sm + font-bold + 회색      — 오늘의 상점 TOP 5 · 포켓몬 소식
             8월 12일에 이 제목만 한 단계 낮췄다가 인기 검색어와 어긋나 되돌렸다.
             구역을 작게 만들 일이 있으면 **제목이 아니라 카드 칸 수**로 줄인다. */}
         <h2 className="text-lg font-extrabold tracking-tight text-black">{이름} 힛카드 목록</h2>
@@ -133,8 +126,7 @@ export function NewSetHitCards({
       {/* 값의 기준을 안 적으면 "왜 다른 데와 값이 다르냐"는 오해가 그대로 남는다.
           세트 화면과 같은 문구다. */}
       <p className="mb-3 text-xs text-neutral-400">
-        {releasedOn(data.releaseDate)} · {basisLabel(data.src, data.grade)}
-        {기준일글(data.pricedAt)}
+        {releasedOn(data.releaseDate)} · {힛카드기준글(data.src, data.grade, data.pricedAt)}
       </p>
       {/* ⚠️ 폰은 4장, 큰 화면은 8장. 폰에서 8장을 넣으면 한 칸이 80px이라 카드가
           뭔지 알아볼 수 없다(세트 화면에서 겪은 것과 같은 문제). */}

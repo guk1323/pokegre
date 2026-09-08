@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { koreanizeGrade } from '../api/snkrdunk';
 import type { ConditionOption, PricePoint, PriceRange, RangeOption } from '../api/snkrdunk';
 import { useKrw } from './KrwHint';
+import { 가까운점 } from '../lib/chartPick';
 
 
 // 기간이 해를 넘기는 경우가 많아("25.11 ~ 26.7") 연도를 빼면 어느 시점인지 모호해진다.
@@ -44,7 +45,6 @@ export function PriceChart({
   conditions,
   condition,
   onConditionChange,
-  unitLabel,
   loading,
 }: {
   points: PricePoint[];
@@ -54,7 +54,6 @@ export function PriceChart({
   conditions: ConditionOption[];
   condition: string;
   onConditionChange: (next: string) => void;
-  unitLabel?: string;
   loading: boolean;
 }) {
   // 그래프 눈금도 원화로 적는다(화면 전체를 원화로 통일).
@@ -84,9 +83,10 @@ export function PriceChart({
   function handleMove(e: React.MouseEvent<HTMLDivElement>) {
     if (!geom || !wrapRef.current) return;
     const rect = wrapRef.current.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    const idx = Math.round(ratio * (geom.coords.length - 1));
-    setHover(Math.min(Math.max(idx, 0), geom.coords.length - 1));
+    // ⚠️ 뷰박스 기준으로 바꿔서 **가로자리가 제일 가까운 점**을 고른다. 개수로 나누면
+    //    날짜가 띄엄띄엄한 카드에서 세로선이 커서와 어긋난다(`가까운점` 설명).
+    const 커서x = ((e.clientX - rect.left) / rect.width) * VIEW_W;
+    setHover(가까운점(geom.coords, 커서x));
   }
 
   // API는 all을 맨 앞에 주는데, 기간 선택은 짧은 것부터 늘어놓는 게 읽기 자연스럽다.
@@ -96,16 +96,26 @@ export function PriceChart({
 
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2">
-        {/* 수량은 1개(1장) 고정이라, 무슨 단위 시세인지 밝혀준다. */}
-        <p className="text-xs font-semibold text-neutral-500">
-          시세 추이 (실거래{unitLabel ? ` · ${koreanizeGrade(unitLabel)} 기준` : ''})
-        </p>
+      {/* ⚠️ **오른쪽 등락률은 절대 끊기면 안 된다**(사장님 지적 2026-08-27 · 윈도우 화면).
+          「전체 기간 ▲21.0%」가 「전체 기간 ▲」/「21.0%」 두 줄로 갈라져 보였다.
+          까닭: 윈도우 한글 글꼴(맑은 고딕)이 맥(애플 SD 산돌고딕)보다 넓어 **같은 폭에서도
+          글자가 더 길다** — 맥에서만 보고 「폭은 넉넉하다」고 판단하면 못 잡는다.
+          → 등락률에 `whitespace-nowrap`, 왼쪽 제목에 `truncate`. 자리가 모자라면
+             **끊지 말고 왼쪽을 줄인다**(등락률은 숫자라 잘리면 뜻이 깨진다). */}
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        {/* ⚠️⚠️ **그래프 제목은 세 마켓이 「실거래가 추이」로 같다**(사장님 지시 2026-08-27).
+            스니커덩크·이베이·TCGplayer가 **셋 다 팔린 값**이라 뜻이 같기 때문이다
+            (TCGplayer 마켓가도 완료된 거래만으로 매긴다 — 공식 문서 확인).
+            어느 마켓인지는 **화면이 이미 말해 준다**(탭·머리말). 제목에서 또 밝히지 않는다.
+            ⚠️ 「(실거래 · 1장 기준)」을 뺐다 — `unitLabel`은 등급이 아니라 **수량 「1장」**이었고,
+               카드 시세가 낱장인 건 당연하다. 그 군더더기 때문에 좁은 칸에서 제목이
+               「…」로 잘렸다. **말을 줄이면 잘릴 일이 없다.** */}
+        <p className="min-w-0 truncate text-xs font-semibold text-neutral-500">실거래가 추이</p>
         {/* 변동률은 "선택한 기간의 첫 거래 대비 마지막 거래"다. 기준을 안 밝히면
             무엇 대비 몇 %인지 알 수 없어서, 기간 라벨을 붙여 뜻을 분명히 한다.
             "전체" 기준일 땐 "전체 기준"이 어색해서 "전체 기간"으로 다듬는다. */}
         {geom && (
-          <span className="text-xs font-semibold text-neutral-400">
+          <span className="flex-shrink-0 whitespace-nowrap text-xs font-semibold text-neutral-400">
             <span className="mr-1 font-normal">
               {range === 'all' ? '전체 기간' : `최근 ${RANGE_LABELS[range] ?? ''}`}
             </span>

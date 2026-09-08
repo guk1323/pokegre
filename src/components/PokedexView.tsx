@@ -320,11 +320,13 @@ export function PokedexView({
           오른쪽에 두고 좁은 화면에선 아래로 접힌다(2026-08-09 사장님 지적). */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-bold text-black">포켓몬·트레이너별 카드</h2>
-          <p className="mt-1 text-xs text-neutral-400">
-            이름을 고르면 그 카드가 발매 순으로 나옵니다. 어느 세트 것인지도 함께 적습니다.
-            포켓몬뿐 아니라 트레이너·에너지 카드도 찾을 수 있습니다.
-          </p>
+          {/* ⚠️ **제목에 「에너지」를 넣고 설명을 없앴다**(사장님 지시 2026-08-27).
+              예전엔 제목이 「포켓몬·트레이너별」이라 에너지가 안 보여서, 밑에 「트레이너·에너지
+              카드도 찾을 수 있습니다」라고 **설명으로 메우고 있었다.** 설명을 붙이는 대신
+              **이름을 고치는** 쪽이 맞다 — 2026-08-13에 「신뢰도 낮음」을 「거래 적음」으로
+              바꿔 설명 줄을 통째로 없앴던 것과 같은 잣대다.
+              ⚠️ 「이름을 고르면 … 나옵니다」 같은 **조작 안내는 되살리지 말 것.** */}
+          <h2 className="text-lg font-bold text-black">포켓몬·트레이너·에너지별 카드</h2>
         </div>
         {index && index.length > 0 && (
           <SearchInput

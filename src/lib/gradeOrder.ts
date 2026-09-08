@@ -31,9 +31,23 @@ const 기관우선 = ['psa', 'bgs', 'cgc', 'sgc', 'tag'];
  * ⚠️ 이 순서에 기대어 "맨 앞이 대표"라고 쓰면 안 된다. 대표로 보여 줄 등급은
  *    대표등급()이 낙찰 건수로 따로 고른다(api/ebayPrices.ts).
  */
+// ⚠️⚠️ **10 위의 등급은 「10.2점」처럼 쳐서 맨 위에 세운다**(2026-08-27).
+//    예전엔 `bgsbl10`·`cgcp10`이 아래 정규식(`^[a-z]+숫자$`)에 안 맞아 **9,000으로 밀려
+//    맨 끝**에 깔렸다 — 제일 비싼 등급이 BGS 9.5보다도 아래 줄에 있었다.
+//    같은 회사 안에서 퍼펙트/블랙라벨 → 프리스틴 → 맨 10점 차례가 되게 값을 매긴다.
+const 웃등급: Record<string, { 기관: string; 점: number }> = {
+  bgsbl10: { 기관: 'bgs', 점: 10.2 }, // BGS 블랙라벨 — 부분점수 넷이 전부 10
+  cgcp10: { 기관: 'cgc', 점: 10.2 }, // CGC 프리스틴 — CGC의 꼭대기(그 아래가 젬민트 10)
+};
+
 export function 등급순서값(grade: string): number {
   const g = String(grade).toLowerCase();
   if (g === 'ungraded' || g === 'raw') return 8_000; // 값을 못 쓰는 칸 — 맨 아래(모르는 표기보다는 위)
+  const 웃 = 웃등급[g];
+  if (웃) {
+    const 기관 = 기관우선.indexOf(웃.기관);
+    return (기관 < 0 ? 기관우선.length : 기관) * 100 + (100 - 웃.점 * 10);
+  }
   const m = g.match(/^([a-z]+)(\d+(?:[._]\d+)?)$/);
   if (!m) return 9_000; // 모르는 표기는 맨 아래. 버리지는 않는다
   const 기관 = 기관우선.indexOf(m[1]);

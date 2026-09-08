@@ -2,6 +2,7 @@ import { 앨범값, 번호열쇠 } from '../lib/cardNo.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { koName as koCardName } from '../lib/koCardName.ts';
 import { trackEvent } from '../api/localStats';
+import { 쪽번호들 } from '../lib/pager';
 import { fetchExchangeRates, formatKrwApprox, type ExchangeRates } from '../api/exchangeRate';
 import { rankOf, type MirrorFlag, type PackCard } from '../lib/packDraw';
 
@@ -9,7 +10,7 @@ import { rankOf, type MirrorFlag, type PackCard } from '../lib/packDraw';
 // (미러와 일반판이 같은 번호일 수 있어 번호로는 구분이 안 된다).
 type UiCard = PackCard & { i: number; usd?: number };
 const M_LABEL: Record<MirrorFlag, { t: string; cls: string }> = {
-  master: { t: '마스터볼 미러', cls: 'text-amber-600 font-bold' },
+  master: { t: '마스터볼 미러', cls: 'text-amber-700 font-bold' },
   poke: { t: '몬스터볼 미러', cls: 'text-neutral-500' },
   rev: { t: '리버스', cls: 'text-neutral-500' },
 };
@@ -74,12 +75,12 @@ type SimState = {
 
 // 등급 표기(한글·약칭)와 색.
 const RARITY: Record<string, { ko: string; cls: string }> = {
-  Common: { ko: '커먼', cls: 'text-neutral-400 ring-neutral-200' },
+  Common: { ko: '커먼', cls: 'text-neutral-500 ring-neutral-200' },
   Uncommon: { ko: '언커먼', cls: 'text-neutral-500 ring-neutral-300' },
   Rare: { ko: '레어', cls: 'text-sky-600 ring-sky-300' },
   'Double rare': { ko: '더블레어 RR', cls: 'text-indigo-600 ring-indigo-300' },
   'ACE SPEC Rare': { ko: 'ACE', cls: 'text-rose-600 ring-rose-300' },
-  'Illustration rare': { ko: '아트레어 AR', cls: 'text-amber-600 ring-amber-300' },
+  'Illustration rare': { ko: '아트레어 AR', cls: 'text-amber-700 ring-amber-300' },
   'Ultra Rare': { ko: '울트라레어 UR', cls: 'text-fuchsia-600 ring-fuchsia-300' },
   'Special illustration rare': { ko: '스페셜아트레어 SAR', cls: 'text-amber-500 ring-amber-400' },
   'Hyper rare': { ko: '하이퍼레어 HR', cls: 'text-yellow-500 ring-yellow-400' },
@@ -178,6 +179,10 @@ const thumb = (url: string, w: number) => {
 // pokegre 안에서만 쓰는 포인트 "GP(그레포인트)". 실제 돈 같아 보인다는 피드백으로
 // 원화 대신 자체 재화 단위를 쓴다(숫자는 실제 정가 기준 그대로).
 const gp = (n: number) => `${n.toLocaleString()} GP`;
+
+// GP 내역 한 쪽에 보여 줄 줄 수. ⚠️ 게시판 목록(POSTS_PER_PAGE)과 **같은 10**이다 —
+// 한 사이트 안에서 쪽 크기가 자리마다 다르면 그것 자체가 어색하다.
+const LOG_PER_PAGE = 10;
 
 // 내역 줄의 때 표시. 올해 것만 쌓이므로 연도는 안 적는다.
 const 때표시 = (ts: number): string => {
@@ -297,6 +302,9 @@ export function PackSim({
   const [err, setErr] = useState('');
   const [checkinMsg, setCheckinMsg] = useState('');
   const [logOpen, setLogOpen] = useState(false);
+  // GP 내역 쪽 번호. ⚠️ 100줄을 한 번에 쏟으면 화면이 통째로 밀린다(사장님 2026-08-29:
+  //    「5개나 10개로 끊어서 페이지 형태로」). 게시판 목록과 **같은 10개**로 맞춘다.
+  const [logPage, setLogPage] = useState(1);
   // 앨범에 필요한 세트 카드 목록(이름·이미지). 앨범 탭을 열 때만 받아온다.
   const [setCards, setSetCards] = useState<Record<string, PackCard[]>>({});
   // 팩 진열용 이미지(박스 사진·로고). public/sets/index.json에 이미 들어 있다.
@@ -926,7 +934,7 @@ export function PackSim({
           출석·연속일수는 개봉이 끝난 뒤에 봐도 된다(사용자 지적 2026-08-04). */}
       {revealing ? (
         <div className="mt-4 flex items-center justify-between rounded-xl border border-neutral-200 px-4 py-2 text-sm">
-          <span className="text-neutral-400">보유 GP</span>
+          <span className="text-neutral-500">보유 GP</span>
           <span className="font-bold text-black">{(sim?.balance ?? 0).toLocaleString()}</span>
         </div>
       ) : (
@@ -939,16 +947,16 @@ export function PackSim({
               예상 가치로 바꿔 끼운다. 상자 하나가 통째로 없어진다. */}
           <div className="grid w-full grid-cols-3 gap-2 sm:w-auto sm:max-w-md sm:flex-1">
             <div className="min-w-0">
-              <p className="text-xs text-neutral-400">보유 GP</p>
+              <p className="text-xs text-neutral-500">보유 GP</p>
               <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">{(sim?.balance ?? 0).toLocaleString()}</p>
             </div>
             {tab === 'album' ? (
               <>
                 <div className="min-w-0">
-                  <p className="text-xs text-neutral-400">모은 카드</p>
+                  <p className="text-xs text-neutral-500">모은 카드</p>
                   <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">
                     {sim?.album.length ?? 0}종
-                    <span className="ml-1 align-middle text-xs font-semibold text-neutral-400">
+                    <span className="ml-1 align-middle text-xs font-semibold text-neutral-500">
                       {(sim?.album ?? []).reduce((a, b) => a + b.c, 0)}장
                     </span>
                   </p>
@@ -962,7 +970,7 @@ export function PackSim({
                         : '—';
                   return (
                     <div className="min-w-0">
-                      <p className="text-xs text-neutral-400">예상 가치</p>
+                      <p className="text-xs text-neutral-500">예상 가치</p>
                       {/* ⚠️ truncate로 자르면 "약 1,234만…"처럼 값이 잘려 나간다. 값은
                           자르지 말고 글자를 줄여 한 줄에 넣는다(fitNum). */}
                       <p className={`mt-0.5 whitespace-nowrap font-bold text-black ${fitNum(worth)}`}>{worth}</p>
@@ -973,14 +981,14 @@ export function PackSim({
             ) : (
               <>
                 <div className="min-w-0">
-                  <p className="text-xs text-neutral-400">연속 출석</p>
+                  <p className="text-xs text-neutral-500">연속 출석</p>
                   <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">{sim?.streak ?? 0}일</p>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs text-neutral-400">개봉한 팩</p>
+                  <p className="text-xs text-neutral-500">개봉한 팩</p>
                   <p className="mt-0.5 truncate text-lg font-bold text-black sm:text-xl">
                     {sim?.opened ?? 0}팩
-                    {sim?.god ? <span className="ml-1 align-middle text-xs font-semibold text-amber-600">갓팩 {sim.god}</span> : null}
+                    {sim?.god ? <span className="ml-1 align-middle text-xs font-semibold text-amber-700">갓팩 {sim.god}</span> : null}
                   </p>
                 </div>
               </>
@@ -1012,7 +1020,7 @@ export function PackSim({
                   {label}
                 </button>
                 {sim?.canCheckIn && full && (
-                  <p className="mt-1 text-[11px] text-neutral-400 sm:text-right">
+                  <p className="mt-1 text-[11px] text-neutral-500 sm:text-right">
                     GP가 상한({gp(MAX_BALANCE)})이라 GP는 안 늘지만 연속 출석은 이어집니다.
                   </p>
                 )}
@@ -1021,14 +1029,14 @@ export function PackSim({
           })()}
         </div>
         {sim?.admin && (
-          <label className="mt-3 flex items-center justify-end gap-1.5 text-xs text-neutral-400">
+          <label className="mt-3 flex items-center justify-end gap-1.5 text-xs text-neutral-500">
             <input type="checkbox" checked={spend} onChange={(e) => setSpend(e.target.checked)} />
             GP 차감 (끄면 운영자 무제한)
           </label>
         )}
       </div>
       )}
-      {checkinMsg && <p className="mt-2 text-sm font-semibold text-emerald-600">{checkinMsg}</p>}
+      {checkinMsg && <p className="mt-2 text-sm font-semibold gp-plus">{checkinMsg}</p>}
       {err && <p className="mt-2 text-sm text-rose-500">{err}</p>}
 
       {/* 운영자 선물 안내. ⚠️ 이게 없으면 잔액만 늘어서 고장으로 오해한다 — 한 번은 말로 알린다. */}
@@ -1061,6 +1069,8 @@ export function PackSim({
             type="button"
             onClick={() => {
               if (!logOpen) trackEvent('packsim_log');
+              // 다시 열면 늘 첫 쪽부터(닫기 전 쪽에 남아 있으면 새로 생긴 줄을 놓친다).
+              setLogPage(1);
               setLogOpen((v) => !v);
             }}
             className="rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
@@ -1074,41 +1084,82 @@ export function PackSim({
               </p>
               {!sim.log?.length ? (
                 <div className="py-6 text-center">
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-neutral-500">
                     아직 남은 내역이 없습니다. 2026년 8월 22일부터 쌓입니다.
                   </p>
                   {/* ⚠️ 운영자는 「GP 차감」이 꺼져 있으면 팩을 까도 GP가 안 나가서 줄이 안 생긴다.
-                      잔액이 상한이면 출석해도 0원이라 마찬가지다 — 고장으로 오해하기 쉬워 밝혀 둔다. */}
+                      ⚠️ **출석은 이제 0원이어도 남는다**(2026-08-29) — 여기 적던 「잔액이 상한이면
+                      출석해도 줄이 안 생긴다」는 말은 더 이상 맞지 않아 뺐다. */}
                   {sim.admin && (
-                    <p className="mt-2 text-[11px] leading-relaxed text-neutral-400">
-                      운영자 계정은 「GP 차감」이 꺼져 있으면 팩을 까도 GP가 안 나가고,
-                      <br />잔액이 상한({gp(MAX_BALANCE)})이면 출석해도 안 늘어서 줄이 안 생깁니다.
+                    <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+                      운영자 계정은 「GP 차감」이 꺼져 있으면 팩을 까도 GP가 안 나가서 그 줄은 안 생깁니다.
                     </p>
                   )}
                 </div>
               ) : (
                 <>
                   <ul className="mt-2 divide-y divide-neutral-100">
-                    {sim.log.map((r) => (
+                    {sim.log.slice((logPage - 1) * LOG_PER_PAGE, logPage * LOG_PER_PAGE).map((r) => (
                       <li key={r.at + r.종류 + r.금액} className="flex items-center justify-between gap-3 py-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-black">
                             {r.종류}
-                            {r.메모 ? <span className="ml-1 font-normal text-neutral-400">{r.메모}</span> : null}
+                            {r.메모 ? <span className="ml-1 font-normal text-neutral-500">{r.메모}</span> : null}
                           </p>
-                          <p className="text-[11px] text-neutral-400">{때표시(r.at)}</p>
+                          <p className="text-[11px] text-neutral-500">{때표시(r.at)}</p>
                         </div>
                         <div className="flex-shrink-0 text-right">
-                          <p className={`text-sm font-bold ${r.금액 > 0 ? 'text-emerald-600' : 'text-black'}`}>
+                          {/* ⚠️ 0원 줄이 있다 — 잔액이 상한이라 안 들어온 출석·자랑이 그렇다.
+                              들어온 것(초록)·나간 것(검정)과 갈라 **연하게** 적는다. */}
+                          <p
+                            className={`text-sm font-bold ${
+                              r.금액 > 0 ? 'gp-plus' : r.금액 < 0 ? 'text-black' : 'text-neutral-500'
+                            }`}
+                          >
                             {r.금액 > 0 ? '+' : ''}
                             {r.금액.toLocaleString()}
                           </p>
-                          <p className="text-[11px] text-neutral-400">남은 {r.잔액.toLocaleString()}</p>
+                          <p className="text-[11px] text-neutral-500">남은 {r.잔액.toLocaleString()}</p>
                         </div>
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-2 text-[11px] text-neutral-400">최근 100건까지 보입니다.</p>
+                  {(() => {
+                    const 쪽수 = Math.max(1, Math.ceil(sim.log.length / LOG_PER_PAGE));
+                    if (쪽수 <= 1) return null;
+                    const 쪽단추 = (라벨: string, 갈곳: number, 막힘: boolean) => (
+                      <button
+                        key={라벨}
+                        type="button"
+                        disabled={막힘}
+                        onClick={() => setLogPage(갈곳)}
+                        className="h-7 w-7 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                      >
+                        {라벨}
+                      </button>
+                    );
+                    return (
+                      <div className="mt-2 flex items-center justify-center gap-0.5">
+                        {쪽단추('‹', logPage - 1, logPage <= 1)}
+                        {쪽번호들(logPage, 쪽수).map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setLogPage(n)}
+                            className={`h-7 min-w-[28px] rounded-lg px-1.5 text-xs ${
+                              n === logPage ? 'bg-black font-bold text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                        {쪽단추('›', logPage + 1, logPage >= 쪽수)}
+                      </div>
+                    );
+                  })()}
+                  <p className="mt-2 text-center text-[11px] text-neutral-500">
+                    모두 {sim.log.length.toLocaleString()}건 · 최근 100건까지 남습니다.
+                  </p>
                 </>
               )}
             </div>
@@ -1200,7 +1251,7 @@ export function PackSim({
                       </div>
                       <p className="mt-2 line-clamp-1 text-sm font-semibold text-neutral-800">
                         {s2.label.replace(/^\[.+?\]\s*/, '')}
-                        <span className="ml-1 text-xs font-normal text-neutral-400">
+                        <span className="ml-1 text-xs font-normal text-neutral-500">
                           {s2.profile.commons + s2.profile.uncommons + s2.profile.slots.length}장
                         </span>
                       </p>
@@ -1271,7 +1322,7 @@ export function PackSim({
                               );
                             })()}
                           </div>
-                          <p className="text-[11px] text-neutral-400">사서 바로 열거나 보관함에 둡니다.</p>
+                          <p className="text-[11px] text-neutral-500">사서 바로 열거나 보관함에 둡니다.</p>
                         </div>
                       ) : (
                         // ⚠️ 고른 팩은 큰 검정 버튼 두 개인데 나머지는 작은 알약 하나뿐이라
@@ -1306,8 +1357,8 @@ export function PackSim({
               면책은 지우지 않는다 — "실제 카드가 아니고 GP는 현금 가치가 없다"는
               말이 없으면 진짜 결제로 읽힌다(오늘 홈에도 같은 이유로 한 줄 넣었다).
               대신 확률 관련은 확률표 탭이 따로 있으므로 여기서 뺐다. */}
-          <p className="mt-3 text-xs text-neutral-400">상품은 매일 자정에 새롭게 갱신됩니다.</p>
-          <p className="mt-1 text-xs text-neutral-400">
+          <p className="mt-3 text-xs text-neutral-500">상품은 매일 자정에 새롭게 갱신됩니다.</p>
+          <p className="mt-1 text-xs text-neutral-500">
             비공식 팬 시뮬레이션입니다. 실제 카드 거래가 아니며 GP는 현금 가치가 없습니다.
           </p>
         </>
@@ -1424,7 +1475,7 @@ export function PackSim({
                       flipAll();
                       setBoxQueue(null);
                     }}
-                    className="text-xs text-neutral-400 underline"
+                    className="text-xs text-neutral-500 underline"
                   >
                     남은 팩 전부 공개
                   </button>
@@ -1474,7 +1525,7 @@ export function PackSim({
             <div className="mt-3 flex flex-col gap-3 border-t border-neutral-200 pt-3 sm:flex-row sm:flex-wrap sm:items-center">
               <div className="min-w-0">
                 {/* 박스 안내를 여기 넣어 정보 상자 두 개가 연달아 붙는 걸 없앤다. */}
-                {boxInfo && <p className="text-[11px] text-neutral-400">{boxLine(boxInfo, pack!.length, cfg.jp)}</p>}
+                {boxInfo && <p className="text-[11px] text-neutral-500">{boxLine(boxInfo, pack!.length, cfg.jp)}</p>}
                 <p className="text-sm font-semibold text-neutral-700">
                   {keptDone ? '이 팩의 결과입니다' : <>앨범에 넣을 카드를 고르세요 <span className="text-neutral-500">({keep.size}장 선택됨)</span></>}
                 </p>
@@ -1552,7 +1603,7 @@ export function PackSim({
                 <button
                   type="button"
                   onClick={() => setShareOpen(false)}
-                  className="text-xs text-neutral-400 underline"
+                  className="text-xs text-neutral-500 underline"
                 >
                   취소
                 </button>
@@ -1667,7 +1718,7 @@ export function PackSim({
                           <span className="text-sm font-semibold text-neutral-700">
                             나머지 {뒷줄.length}장
                             {뒷줄값 > 0 && rates && (
-                              <span className="ml-1.5 font-normal text-neutral-400">
+                              <span className="ml-1.5 font-normal text-neutral-500">
                                 합계 {formatKrwApprox(뒷줄값 * rates.usdToKrw)}
                               </span>
                             )}
@@ -1694,7 +1745,7 @@ export function PackSim({
       {tab === 'album' && (
         <div className="mt-4">
           {!sim?.album.length ? (
-            <p className="text-sm text-neutral-400">아직 모은 카드가 없습니다.</p>
+            <p className="text-sm text-neutral-500">아직 모은 카드가 없습니다.</p>
           ) : (
             (() => {
               // 예상 가치 밑에 붙는 각주.
@@ -1788,7 +1839,7 @@ export function PackSim({
                             setDelMode(false);
                             setDelPick(new Set());
                           }}
-                          className="text-xs text-neutral-400 underline"
+                          className="text-xs text-neutral-500 underline"
                         >
                           취소
                         </button>
@@ -1798,9 +1849,9 @@ export function PackSim({
                 </div>
                 {/* 위 현황판의 "예상 가치"가 어디서 온 값인지 밝힌다. 조작 줄 아래에
                     옅게 두어, 눈이 카드로 가는 길을 막지 않게 한다. */}
-                <p className="mt-2 text-[11px] leading-snug text-neutral-400">{albumNote}</p>
+                <p className="mt-2 text-[11px] leading-snug text-neutral-500">{albumNote}</p>
                 {!!value?.pending?.length && (
-                  <p className="mt-1 text-[11px] font-semibold text-amber-600">
+                  <p className="mt-1 text-[11px] font-semibold text-amber-700">
                     세트 {value.pending.length}개의 시세를 준비하고 있습니다. 잠시 뒤 자동으로 채워집니다.
                   </p>
                 )}
@@ -1852,15 +1903,15 @@ export function PackSim({
                           )}
                         </div>
                         <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-neutral-700">
-                          {name} {a.c > 1 && <span className="text-neutral-400">×{a.c}</span>}
+                          {name} {a.c > 1 && <span className="text-neutral-500">×{a.c}</span>}
                         </p>
                         <p className={`text-[10px] font-bold ${meta.cls.split(' ')[0]}`}>
                           {rarityKo(a.r, !!cfgA?.jp)}
-                          {a.g ? <span className="ml-1 text-amber-600">갓팩</span> : null}
+                          {a.g ? <span className="ml-1 text-amber-700">갓팩</span> : null}
                         </p>
                         {a.m && <p className={`text-[10px] ${M_LABEL[a.m].cls}`}>{M_LABEL[a.m].t}</p>}
                         {usdOf(a) > 0 && (
-                          <p className="text-[10px] font-semibold text-emerald-700">
+                          <p className="text-[10px] font-semibold gp-plus">
                             {rates ? formatKrwApprox(usdOf(a) * rates.usdToKrw) : `$${usdOf(a)}`}
                             {a.c > 1 ? ` ×${a.c}` : ''}
                           </p>
@@ -1896,10 +1947,10 @@ export function PackSim({
         <div className="mt-4">
           {Object.values(sim?.packs ?? {}).reduce((a, b) => a + b, 0) + Object.values(sim?.boxes ?? {}).reduce((a, b) => a + b, 0) ===
           0 ? (
-            <p className="text-sm text-neutral-400">보관 중인 팩·박스가 없습니다.</p>
+            <p className="text-sm text-neutral-500">보관 중인 팩·박스가 없습니다.</p>
           ) : (
             <>
-              <p className="mb-3 text-xs text-neutral-400">
+              <p className="mb-3 text-xs text-neutral-500">
                 진열이 바뀌어도 열 수 있습니다. (팩 {MAX_STASH}개 · 박스 {MAX_BOX_STASH}개까지)
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -1914,7 +1965,7 @@ export function PackSim({
                       </div>
                       <p className="mt-2 text-sm font-semibold text-neutral-800">
                         {p3.label.replace(/^\[.+?\]\s*/, '')} <span className="text-xs text-neutral-500">박스({p3.boxPacks}팩)</span>{' '}
-                        <span className="text-neutral-400">×{cnt}</span>
+                        <span className="text-neutral-500">×{cnt}</span>
                       </p>
                       <button
                         type="button"
@@ -1942,7 +1993,7 @@ export function PackSim({
                         {img3 && <img src={thumb(img3, 240)} alt="" className="max-h-24 object-contain" />}
                       </div>
                       <p className="mt-2 text-sm font-semibold text-neutral-800">
-                        {p3.label.replace(/^\[.+?\]\s*/, '')} <span className="text-neutral-400">×{cnt}</span>
+                        {p3.label.replace(/^\[.+?\]\s*/, '')} <span className="text-neutral-500">×{cnt}</span>
                       </p>
                       <button
                         type="button"
@@ -1994,7 +2045,7 @@ export function PackSim({
               type="button"
               onClick={() => setBuyMsg('')}
               aria-label="닫기"
-              className="shrink-0 px-1 text-lg leading-none text-neutral-400"
+              className="shrink-0 px-1 text-lg leading-none text-neutral-500"
             >
               ×
             </button>
@@ -2012,9 +2063,9 @@ export function PackSim({
           {profileGroups.map((g) => (
             <div key={g.name} className="mt-5">
               <h3 className="text-sm font-bold text-black">{g.name}</h3>
-              <p className="mt-0.5 text-[11px] text-neutral-400">{g.packs.join(' · ')}</p>
+              <p className="mt-0.5 text-[11px] text-neutral-500">{g.packs.join(' · ')}</p>
               <table className="mt-2 w-full text-left">
-                <thead className="text-xs text-neutral-400">
+                <thead className="text-xs text-neutral-500">
                   <tr>
                     <th className="py-1">등급</th>
                     <th className="py-1">팩당 확률</th>
@@ -2031,7 +2082,7 @@ export function PackSim({
                   ))}
                   {g.godRate > 0 && (
                     <tr className="border-t border-neutral-100">
-                      <td className="py-1.5 font-semibold text-amber-600">갓팩</td>
+                      <td className="py-1.5 font-semibold text-amber-700">갓팩</td>
                       <td className="py-1.5">{(g.godRate * 100).toFixed(2)}%</td>
                       <td className="py-1.5 text-neutral-500">{Math.round(1 / g.godRate)}팩에 1번</td>
                     </tr>

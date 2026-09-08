@@ -54,6 +54,7 @@ const EVENT_ROWS: { key: string; label: string; hint: string; group?: true; dead
   { key: 'card_miss', label: '카드 한 장 시세 못 찾음', hint: '어느 마켓에도 값이 없던 카드. 여기 자주 오르는 카드는 손볼 곳이 있다는 뜻' },
   { key: 'population_search', label: '팝수 조회 — 카드 찾기', hint: '팝수 조회 화면에서 카드를 찾은 횟수' },
   { key: 'population_detail', label: '팝수 조회 — 등급표 봄', hint: '등급표(감정기관별 전 등급)를 실제로 연 횟수. 여기가 낮으면 요약만으로 충분하다는 뜻' },
+  { key: 'population_miss', label: '팝수 조회 — 자료 없음', hint: '팝수를 열었는데 감정 기록이 없던 카드. 여기 자주 오르는 카드부터 PSA에서 값을 채우면 된다' },
   // ⚠️⚠️ **「감정 수량 보임」(`population`)은 뺐다**(사장님 지시 2026-08-19). 사람이 한
   //    행동이 아니라 **화면이 그려질 때 저절로** 세던 것이라(`GradedPopulation.tsx`),
   //    사실상 「팝수 있는 카드를 열었다」였고 카드 여는 수와 겹쳤다. 32일에 1,734회로
@@ -66,6 +67,8 @@ const EVENT_ROWS: { key: string; label: string; hint: string; group?: true; dead
   { key: 'series', label: '시리즈 목록 조회', hint: '검색으로 시리즈 주소(/series/…)에 바로 들어올 때' },
   { key: 'packsim', label: '오늘의 상점', hint: '팩·박스 구매와 개봉' },
   { key: 'packsim_banner', label: '뽑기 결과 줄 클릭', hint: '홈의 "이런 게 나왔습니다" 줄을 눌러 상점으로 들어옴' },
+  { key: 'home_box', label: '박스 시세 클릭', hint: '홈의 「최신 발매 박스 시세」에서 박스를 눌러 그 팩 시세를 본 횟수' },
+  { key: 'home_notice', label: '홈 공지 클릭', hint: '홈 맨 위 공지의 단추를 눌러 공식 안내로 나간 횟수' },
   { key: 'packsim_checkin', label: '개봉 출석', hint: '출석 보상 받기' },
   { key: 'packsim_godpack', label: '갓팩', hint: '전부 AR 이상으로 나온 팩' },
   { key: 'packsim_value', label: '앨범 시세', hint: '앨범 탭에서 예상 가치 조회' },
@@ -113,6 +116,21 @@ const 로봇칸 = new Set([
   '링크 미리보기', '그밖 검색로봇', '그밖 로봇',
 ]);
 
+/**
+ * 「어느 블로그·카페인가」에서 **눌러서 가 볼 수 있는 주소**를 만든다(2026-08-27).
+ * ⚠️ **맞는다고 확신하는 것만 건다.** 틀린 링크는 없느니만 못하다 —
+ *    디시는 정식·마이너·미니 갤러리의 주소가 달라서 아이디만으로는 못 만든다.
+ *    네이버 카페도 새 주소로 온 것은 카페 **번호**라 그대로는 못 연다(숫자면 안 건다).
+ */
+function 곳주소(낱말: string, 곳: string): string | null {
+  // 「(어디인지 안 알려 줌)」 같은 칸에는 링크를 걸면 안 된다.
+  if (!/^[A-Za-z0-9_-]{2,30}$/.test(곳)) return null;
+  if (낱말 === '네이버 블로그') return `https://blog.naver.com/${곳}`;
+  if (낱말 === '네이버 카페') return /^\d+$/.test(곳) ? null : `https://cafe.naver.com/${곳}`;
+  if (낱말 === '아카라이브') return `https://arca.live/b/${곳}`;
+  return null;
+}
+
 // 기간 고르개. 달력과 **같은 자리**를 바꿔 그린다.
 type 기간 = { 종류: 'today' | 'week' | 'month' | 'all' } | { 종류: 'day'; 날: string };
 const 기간이름 = (기: 기간, 오늘: string): string =>
@@ -133,7 +151,7 @@ function 막대목록({ 제목, 설명, 자료, 색, 빈말, 접기 }: {
     return (
       <div>
         <p className="mb-2 text-sm font-bold text-black">{제목}</p>
-        <p className="rounded-lg border border-dashed border-neutral-200 py-6 text-center text-xs text-neutral-400">{빈말}</p>
+        <p className="rounded-lg border border-dashed border-neutral-200 py-6 text-center text-xs text-neutral-500">{빈말}</p>
       </div>
     );
   }
@@ -142,9 +160,9 @@ function 막대목록({ 제목, 설명, 자료, 색, 빈말, 접기 }: {
   return (
     <div>
       <p className="mb-1 text-sm font-bold text-black">
-        {제목} <span className="font-normal text-neutral-400">{총.toLocaleString()}</span>
+        {제목} <span className="font-normal text-neutral-500">{총.toLocaleString()}</span>
       </p>
-      {설명 && <p className="mb-2 text-[11px] text-neutral-400">{설명}</p>}
+      {설명 && <p className="mb-2 text-[11px] text-neutral-500">{설명}</p>}
       <ul className="space-y-1">
         {자료.slice(0, 보임).map((x) => (
           <li key={x.name} className="flex items-center gap-2">
@@ -154,7 +172,7 @@ function 막대목록({ 제목, 설명, 자료, 색, 빈말, 접기 }: {
             </div>
             <span className="w-16 flex-shrink-0 text-right text-xs font-semibold text-neutral-700 tabular-nums">
               {x.count.toLocaleString()}
-              <span className="ml-1 font-normal text-neutral-400">{Math.round((x.count / 총) * 100)}%</span>
+              <span className="ml-1 font-normal text-neutral-500">{Math.round((x.count / 총) * 100)}%</span>
             </span>
           </li>
         ))}
@@ -176,10 +194,14 @@ export function VisitStats() {
   const [credits, setCredits] = useState<VisitStatsResponse['credits']>(undefined);
   const [members, setMembers] = useState<MemberStat[]>([]);
   const [from, setFrom] = useState<NonNullable<VisitStatsResponse['from']>>([]);
+  const [places, setPlaces] = useState<NonNullable<VisitStatsResponse['places']>>([]);
+  const [landings, setLandings] = useState<NonNullable<VisitStatsResponse['landings']>>([]);
   const [botAgents, setBotAgents] = useState<NonNullable<VisitStatsResponse['botAgents']>>({});
   const [events, setEvents] = useState<EventDayBuckets>({});
   const [artists, setArtists] = useState<ArtistStat[]>([]);
   const [sets, setSets] = useState<ArtistStat[]>([]);
+  // 빈손 카드 — 방문자가 열었는데 보여 줄 게 없던 카드(2026-09-01부터 쌓인다).
+  const [misses, setMisses] = useState<ArtistStat[]>([]);
   const [battles, setBattles] = useState<ArtistStat[]>([]);
   const [dayRanks, setDayRanks] = useState<Record<string, { artists: ArtistStat[]; sets: ArtistStat[]; battles?: ArtistStat[] }>>({});
   const [기간, set기간] = useState<기간>({ 종류: 'today' });
@@ -204,6 +226,8 @@ export function VisitStats() {
         setCredits(r.credits);
         setMembers(r.members ?? []);
         setFrom(r.from ?? []);
+        setPlaces(r.places ?? []);
+        setLandings(r.landings ?? []);
         setBotAgents(r.botAgents ?? {});
       })
       .catch(() => setError(true))
@@ -214,14 +238,15 @@ export function VisitStats() {
         setEvents(r.days);
         setArtists(r.artists);
         setSets(r.sets);
+        setMisses(r.misses ?? []);
         setBattles(r.battles ?? []);
         setDayRanks(r.dayRanks ?? {});
       })
       .catch(() => undefined);
   }, []);
 
-  if (loading) return <p className="text-sm text-neutral-400 py-12 text-center">불러오는 중...</p>;
-  if (error) return <p className="text-sm text-neutral-400 py-12 text-center">방문 통계를 불러오지 못했습니다.</p>;
+  if (loading) return <p className="text-sm text-neutral-500 py-12 text-center">불러오는 중...</p>;
+  if (error) return <p className="text-sm text-neutral-500 py-12 text-center">방문 통계를 불러오지 못했습니다.</p>;
 
   // ── 방문 ──
   const today = dayKey(0);
@@ -287,6 +312,43 @@ export function VisitStats() {
   // ⚠️ 「어느 판이 어렵나」에서 **「무엇을 몰라서 지나」**로 넘어가는 표다.
   const 기간까닭 = 까닭모으기(전투원본);
 
+  // 어느 블로그·카페·갤러리에서 왔나 — 고른 기간만 합친다(2026-08-27).
+  // ⚠️ 이건 **우리에게 링크를 건 글이 있는 자리**다. 방문한 사람이 아니다.
+  const 곳별 = (() => {
+    const m = new Map<string, Map<string, number>>();
+    for (const d of places) {
+      if (!이날인가(d.date)) continue;
+      for (const [낱말, 표] of Object.entries(d.counts ?? {})) {
+        const 안 = m.get(낱말) ?? new Map<string, number>();
+        for (const [곳, n] of Object.entries(표)) 안.set(곳, (안.get(곳) ?? 0) + n);
+        m.set(낱말, 안);
+      }
+    }
+    return [...m]
+      .map(([낱말, 안]) => ({
+        낱말,
+        목록: [...안].sort((a, b) => b[1] - a[1]),
+        합: [...안.values()].reduce((a, b) => a + b, 0),
+      }))
+      .sort((a, b) => b.합 - a.합);
+  })();
+
+  // 어느 화면으로 들어왔나 — 고른 기간만 합친다(2026-08-31).
+  // ⚠️ 카드 한 장 주소(/card/<번호>)를 붙인 뒤 그게 사람을 데려오는지 보는 자리다.
+  //    애드센스가 「가치가 별로 없는 콘텐츠」로 떨어뜨린 뒤 넣었다.
+  const 첫화면별 = (() => {
+    const m = new Map<string, number>();
+    for (const d of landings) {
+      if (!이날인가(d.date)) continue;
+      for (const [이름, n] of Object.entries(d.counts ?? {})) m.set(이름, (m.get(이름) ?? 0) + n);
+    }
+    return [...m]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  })();
+  const 첫화면합 = 첫화면별.reduce((a, b) => a + b.count, 0);
+  const 카드로들어온수 = 첫화면별.find((x) => x.name === '카드 한 장')?.count ?? 0;
+
   // 「그밖 로봇」이 실제로 무슨 프로그램이었나 — 고른 기간만 합친다.
   // ⚠️ 칸을 미리 안 만들어도 여기서 바로 확인된다(사장님 2026-08-16).
   const 로봇이름 = (() => {
@@ -305,7 +367,7 @@ export function VisitStats() {
   const crLeft = cr?.left ?? null;
   const crPct = cr && crLeft !== null ? Math.round((crLeft / cr.daily) * 100) : null;
   const crTone =
-    crLeft === null ? 'text-neutral-400'
+    crLeft === null ? 'text-neutral-500'
       : crLeft <= 0 ? 'text-rose-600'
         : crLeft < (cr?.keepForVisitors ?? 8000) ? 'text-amber-600'
           : 'text-black';
@@ -318,13 +380,13 @@ export function VisitStats() {
         <div className="mb-6 rounded-xl border border-neutral-200 p-4">
           <div className="flex items-baseline justify-between">
             <p className="text-xs text-neutral-500">오늘 남은 시세 조회 크레딧</p>
-            <p className="text-[11px] text-neutral-400">
+            <p className="text-[11px] text-neutral-500">
               {new Date(cr.resetAt).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })}에 다시 찹니다
             </p>
           </div>
           <p className={`mt-1 text-2xl font-bold ${crTone}`}>
             {crLeft === null ? '아직 모름' : crLeft.toLocaleString()}
-            <span className="ml-1 text-sm font-normal text-neutral-400">/ {cr.daily.toLocaleString()}</span>
+            <span className="ml-1 text-sm font-normal text-neutral-500">/ {cr.daily.toLocaleString()}</span>
           </p>
           {crPct !== null && (
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
@@ -385,7 +447,7 @@ export function VisitStats() {
         고르기={(날) => set기간({ 종류: 'day', 날 })}
       />
 
-      <p className="mt-3 text-xs text-neutral-400">
+      <p className="mt-3 text-xs text-neutral-500">
         같은 브라우저는 하루 한 번만 집계됩니다. IP·기기·회원 정보는 저장하지 않습니다.
       </p>
 
@@ -410,21 +472,88 @@ export function VisitStats() {
       </div>
 
       <h2 className="mt-4 mb-1 text-base font-bold text-black">{기간이름(기간, today)}에 무슨 일이 있었나</h2>
-      <p className="mb-4 text-xs text-neutral-400">
+      <p className="mb-4 text-xs text-neutral-500">
         위 달력에서 날짜를 누르거나 기간 단추를 눌러 바꿉니다.
       </p>
 
       <div className="grid gap-6 sm:grid-cols-2">
         {/* ⚠️ **사람과 로봇을 갈라 적는다.** 섞으면 「직접」 안에 무엇이 들었는지 알 수 없다.
             2026-08-16에 방문이 두 배가 됐을 때 사람인지 로봇인지 끝내 못 밝힌 일이 있었다. */}
-        <막대목록
-          제목="사람이 어디서 들어왔나"
-          설명="검색·SNS·직접 들어온 것. 로봇은 아래 칸으로 갈라 담습니다."
-          색="#10966e"
-          빈말="이 기간은 유입경로를 안 세고 있었습니다(2026-08-16부터 쌓입니다)."
-          자료={사람유입}
-          접기={12}
-        />
+        <div>
+          <막대목록
+            제목="사람이 어디서 들어왔나"
+            설명="검색·SNS·직접 들어온 것. 로봇은 아래 칸으로 갈라 담습니다."
+            색="#10966e"
+            빈말="이 기간은 유입경로를 안 세고 있었습니다(2026-08-16부터 쌓입니다)."
+            자료={사람유입}
+            접기={12}
+          />
+          {/* ⚠️ 「네이버 블로그 5번」까지만 알고 **어느 블로그인지 알 길이 없었다**
+              (사장님 물음 2026-08-27). 여기 담기는 것은 우리에게 링크를 건 **글이 있는
+              자리**이고, 방문한 사람을 가리키는 값이 아니다. */}
+          {곳별.length > 0 && (
+            <div className="mt-3 rounded-lg border border-neutral-200 p-3">
+              <p className="mb-2 text-xs font-bold text-black">어느 블로그·카페에서 왔나</p>
+              <ul className="space-y-2">
+                {곳별.map(({ 낱말, 목록 }) => (
+                  <li key={낱말}>
+                    <p className="text-[11px] font-semibold text-neutral-500">{낱말}</p>
+                    <ul className="mt-0.5 space-y-0.5">
+                      {목록.map(([곳, 수]) => {
+                        const 주소 = 곳주소(낱말, 곳);
+                        return (
+                          <li key={곳} className="flex items-baseline gap-2">
+                            <span className="w-8 flex-shrink-0 text-right text-xs font-semibold tabular-nums text-neutral-700">
+                              {수}
+                            </span>
+                            {주소 ? (
+                              <a
+                                href={주소}
+                                target="_blank"
+                                rel="noreferrer"
+                                /* ⚠️ 막대 색(#10966e)을 글씨에 쓰면 흰 바탕에서 대비 3.74로 기준(4.5) 미달이다.
+                                   막대는 면이라 괜찮지만 글씨는 아니다 — 사이트 기본 글씨색을 쓴다. */
+                                className="break-all text-xs text-neutral-700 underline decoration-neutral-300 underline-offset-2 hover:text-black"
+                              >
+                                {곳}
+                              </a>
+                            ) : (
+                              <span className="break-all text-xs text-neutral-600">{곳}</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-neutral-500">
+                2026-08-27부터 쌓입니다. 「어디인지 안 알려 줌」은 브라우저가 개인정보 보호로 집 이름까지만
+                알려 준 것입니다 — 이 칸만 쌓이면 이 방법으로는 알 수 없다는 뜻입니다.
+              </p>
+            </div>
+          )}
+          {/* ⚠️⚠️ **카드 한 장 주소가 먹히는지 보는 자리다**(2026-08-31). 애드센스가
+              「가치가 별로 없는 콘텐츠」로 떨어뜨린 뒤(2026-08-30) 카드마다 주소를
+              붙였는데, 방문 수는 하루 총합 하나뿐이라 그게 사람을 데려오는지 볼 수가
+              없었다. 「카드 한 장」 줄이 오르면 시범이 먹힌 것이다. */}
+          <div className="mt-3">
+            <막대목록
+              제목="어느 화면으로 들어왔나"
+              설명="사이트에 처음 닿은 화면입니다. 「카드 한 장」은 카드 주소로 바로 들어온 것입니다."
+              색="#2563eb"
+              빈말="이 기간은 안 세고 있었습니다(2026-08-31부터 쌓입니다)."
+              자료={첫화면별}
+              접기={12}
+            />
+            {첫화면합 > 0 && (
+              <p className="mt-2 text-[11px] text-neutral-500">
+                이 기간에 {첫화면합.toLocaleString()}명이 처음 닿았고, 그중 {카드로들어온수.toLocaleString()}명이
+                카드 주소로 바로 들어왔습니다.
+              </p>
+            )}
+          </div>
+        </div>
         <div>
           <막대목록
             제목="로봇"
@@ -449,7 +578,7 @@ export function VisitStats() {
                   </li>
                 ))}
               </ul>
-              <p className="px-3 pb-2 text-[11px] text-neutral-400">
+              <p className="px-3 pb-2 text-[11px] text-neutral-500">
                 프로그램이 스스로 밝힌 이름입니다. 2026-08-16 저녁부터 쌓입니다.
               </p>
             </details>
@@ -470,7 +599,7 @@ export function VisitStats() {
         <details className="rounded-xl border border-neutral-200">
           <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-black">
             검색을 어떻게 확정했나
-            <span className="ml-2 text-xs font-medium text-neutral-400">
+            <span className="ml-2 text-xs font-medium text-neutral-500">
               검색 한 번의 과정이라 위 그래프에서는 뺐습니다
             </span>
           </summary>
@@ -500,6 +629,22 @@ export function VisitStats() {
             자료={기간세트}
             접기={8}
           />
+        </div>
+
+        {/* ⚠️ 빈손 카드는 **날짜별로 안 쌓는다** — 누적만 본다. 「어디부터 채울까」를
+            고르려는 표라 하루치보다 쭉 모은 것이 쓸모 있다. 그래서 기간을 안 따른다. */}
+        <div className="mt-6">
+          <막대목록
+            제목="빈손 카드 — 열었는데 보여 줄 게 없던 카드"
+            색="#c2410c"
+            빈말="2026-09-01부터 쌓입니다."
+            자료={misses}
+            접기={10}
+          />
+          <p className="mt-2 text-xs text-neutral-500">
+            「시세없음」은 어느 마켓에도 값이 없던 카드, 「팝수없음」은 감정 기록이 없던 카드입니다.
+            위쪽에 있는 카드부터 값을 채우면 가장 많은 사람이 덕을 봅니다. 기간과 무관한 누적 순위입니다.
+          </p>
         </div>
 
         {기간난이도.length > 0 && (
@@ -630,7 +775,7 @@ export function VisitStats() {
           기능 하나하나가 무엇을 세는지
         </summary>
         <div className="border-t border-neutral-100 px-4 py-3">
-          <p className="mb-3 text-xs text-neutral-400">
+          <p className="mb-3 text-xs text-neutral-500">
             숫자는 위에서 기간을 골라 보시고, 여기서는 각 줄이 **무슨 행동일 때 1 올라가는지**만 밝힙니다.
             기능별 사용 횟수만 셉니다. 누가 썼는지·개인정보는 남기지 않습니다.
           </p>
@@ -638,7 +783,7 @@ export function VisitStats() {
             {EVENT_ROWS.filter((r) => !r.dead).map((r) => (
               <li key={r.key}>
                 <span className={`text-xs font-semibold ${r.group ? 'text-neutral-600' : 'text-neutral-700'}`}>{r.label}</span>
-                <span className="block text-[11px] text-neutral-400">{r.hint}</span>
+                <span className="block text-[11px] text-neutral-500">{r.hint}</span>
               </li>
             ))}
           </ul>
@@ -762,7 +907,7 @@ function MemberTable({ members, onGift }: { members: MemberStat[]; onGift: (닉�
   return (
     <>
       <h2 className="text-base font-bold text-black mt-8 mb-1">회원 이용 현황</h2>
-      <p className="text-xs text-neutral-400 mb-4">
+      <p className="text-xs text-neutral-500 mb-4">
         가입한 지 얼마나 됐고 얼마나 쓰는지입니다. 닉네임은 본인이 정한 이름이고, 회원번호는 표시되지 않습니다.
       </p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -794,13 +939,13 @@ function MemberTable({ members, onGift }: { members: MemberStat[]; onGift: (닉�
                     ⚠️ td에는 max-width가 안 먹는다(표가 칸 너비를 스스로 정한다) —
                        대신 닉네임이 20자로 막혀 있어(서버 규칙) 줄바꿈만 막으면 된다. */}
                 <td className="py-2 pr-3 whitespace-nowrap font-medium text-black">
-                  {m.닉네임 || <span className="font-normal text-neutral-400">이름 없음</span>}
+                  {m.닉네임 || <span className="font-normal text-neutral-500">이름 없음</span>}
                 </td>
                 <td className="py-2 pr-3 text-neutral-700">
                   {m.가입한지 == null ? '-' : m.가입한지 === 0 ? '오늘' : `${m.가입한지}일째`}
                 </td>
                 <td className="py-2 pr-3 text-neutral-700">
-                  {!m.마지막출석 ? <span className="text-neutral-400">없음</span>
+                  {!m.마지막출석 ? <span className="text-neutral-500">없음</span>
                     : m.안온지 === 0 ? '오늘'
                     : `${m.안온지}일 전`}
                 </td>

@@ -80,8 +80,34 @@ export function trackVisit(): void {
   fetch('/api/local/track-visit', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ from: 어디서왔나() }),
+    body: JSON.stringify({ ...어디서왔나(), 첫화면: 첫화면() }),
   }).catch(() => undefined);
+}
+
+/**
+ * **어느 화면으로 들어왔는지** 한 낱말로. 주소는 안 보내고 갈래만 보낸다.
+ *
+ * ⚠️ 왜 필요한가: 카드 한 장 주소(/card/<번호>)를 2026-08-31에 붙였는데, 그게 실제로
+ *    사람을 데려오는지 볼 자료가 없었다. 방문 수는 하루 총합 하나뿐이라 「카드 화면으로
+ *    들어온 사람」을 가릴 수 없다. 애드센스 재신청 전에 이 시범이 먹혔는지 봐야 한다.
+ * ⚠️ **주소를 통째로 보내지 않는다.** 카드 번호까지 담으면 누가 무슨 카드를 봤는지
+ *    쌓이는 셈이라, 갈래 이름 하나로 줄여 보낸다.
+ */
+function 첫화면(): string {
+  const p = location.pathname;
+  if (p === '/' || p === '') return '홈';
+  if (/^\/(card|[cet])\//.test(p)) return '카드 한 장';
+  if (/^\/set\//.test(p)) return '세트';
+  if (/^\/series\//.test(p)) return '시리즈';
+  if (/^\/artist\//.test(p)) return '일러스트레이터';
+  if (/^\/community/.test(p)) return '게시판';
+  if (/^\/sets\/?$/.test(p)) return '세트 목록';
+  if (/^\/artists\/?$/.test(p)) return '일러스트레이터 목록';
+  if (/^\/pokedex/.test(p)) return '포켓몬별';
+  if (/^\/packsim/.test(p)) return '카드 뽑기';
+  if (/^\/centering/.test(p)) return '센터링';
+  if (/^\/sealed/.test(p)) return '미개봉';
+  return '그밖';
 }
 
 /**
@@ -95,16 +121,18 @@ export function trackVisit(): void {
  *    크롤러인지 가릴 자료가 하나도 없어서** 못 밝힌 일이 있었다. 서치 콘솔은 2~3일
  *    늦게 나와 그날 일을 그날 못 본다.
  */
-function 어디서왔나(): string {
+function 어디서왔나(): { from: string; 곳?: string } {
   let host = '';
+  let 주소: URL;
   try {
     const r = document.referrer;
-    if (!r) return '직접';
-    host = new URL(r).hostname.replace(/^www\./, '');
+    if (!r) return { from: '직접' };
+    주소 = new URL(r);
+    host = 주소.hostname.replace(/^www\./, '');
   } catch {
-    return '알수없음';
+    return { from: '알수없음' };
   }
-  if (host === location.hostname) return '사이트안';
+  if (host === location.hostname) return { from: '사이트안' };
   // ⚠️ **한 낱말로 잘게 나눈다.** 2026-08-16에 「SNS」 한 칸에 인스타·페북·X를 묶어
   //    놨더니 어디서 온 건지 알 수가 없었다(사장님 지적). 특히 **카카오톡이 「다음·카카오」에
   //    섞여** 검색으로 온 것과 링크로 온 것이 구분이 안 됐다 — 한국에서는 그게 제일 큰 통로다.
@@ -146,8 +174,49 @@ function 어디서왔나(): string {
     [/(^|\.)claude\./, '클로드'],
     [/(^|\.)gemini\.google\./, '제미나이'],
   ];
-  for (const [re, 이름] of 표) if (re.test(host)) return 이름;
-  return '그밖';
+  for (const [re, 이름] of 표) if (re.test(host)) {
+    const 곳 = 곳뽑기(이름, 주소);
+    return 곳 ? { from: 이름, 곳 } : { from: 이름 };
+  }
+  return { from: '그밖' };
+}
+
+// 아이디 꼴. 이것을 통과한 것만 보낸다 — 사람 이름·검색어·글 내용은 이 꼴이 될 수 없다.
+const 아이디꼴 = /^[A-Za-z0-9_-]{2,30}$/;
+
+// 여기 적힌 곳만 「어디인지」를 한 칸 더 본다. 나머지는 예전과 똑같이 낱말만 보낸다.
+// ⚠️ 서버(server/api.ts의 `곳받는곳`)와 **한 글자도 틀리면 안 된다.**
+const 곳볼곳 = new Set(['네이버 블로그', '네이버 카페', '디시인사이드', '아카라이브']);
+
+/**
+ * 「어느 블로그·어느 카페에서 왔나」를 **주소의 아는 칸 하나**에서만 뽑는다(2026-08-27 ·
+ * 사장님 「네이버 블로그에서 들어오는 건 어디 블로그야」).
+ *
+ * ⚠️⚠️ **여기서 뽑는 것은 「우리에게 링크를 건 글이 있는 자리」다.** 방문한 사람이
+ *    누구인지가 아니다 — 블로그 아이디는 이미 세상에 공개된 그 글의 주소다.
+ * ⚠️⚠️ **주소를 통째로 보내면 안 된다.** 글 제목·검색어가 주소에 붙어 오는 일이 있고,
+ *    그러면 남의 글자를 우리가 저장하게 된다. 그래서 ①아는 자리 한 칸만 뽑고
+ *    ②`아이디꼴`을 통과한 것만 보낸다. 하나라도 어긋나면 그냥 안 보낸다.
+ */
+function 곳뽑기(낱말: string, u: URL): string | undefined {
+  if (!곳볼곳.has(낱말)) return undefined;
+  const 칸 = u.pathname.split('/').filter(Boolean);
+  let 값 = '';
+  if (낱말 === '네이버 블로그') {
+    // 폰은 blog.naver.com/<아이디>/<글번호>, PC는 iframe이라 PostView.naver?blogId=<아이디>
+    값 = u.searchParams.get('blogId') || 칸[0] || '';
+    if (/\.(naver|nhn)$/i.test(값)) 값 = ''; // PostView.naver 같은 파일 이름은 아이디가 아니다
+  } else if (낱말 === '네이버 카페') {
+    // 옛 주소는 cafe.naver.com/<카페주소>/<글번호>,
+    // 새 주소는 cafe.naver.com/f-e/cafes/<카페번호>/articles/<글번호>
+    값 = 칸[0] === 'f-e' || 칸[0] === 'ca-fe' ? (칸[칸.indexOf('cafes') + 1] ?? '') : (칸[0] ?? '');
+  } else if (낱말 === '디시인사이드') {
+    // gall.dcinside.com/board/lists/?id=<갤러리> · m.dcinside.com/board/<갤러리>/…
+    값 = u.searchParams.get('id') || (칸[0] === 'board' ? (칸[1] ?? '') : '');
+  } else if (낱말 === '아카라이브') {
+    값 = 칸[0] === 'b' ? (칸[1] ?? '') : '';
+  }
+  return 아이디꼴.test(값) ? 값 : undefined;
 }
 
 // 기능별 사용 횟수만 센다(누가 썼는지·개인정보는 안 남김). 허용된 이벤트만 서버가 받는다.
@@ -156,6 +225,11 @@ export type TrackedEvent =
   | 'feedback'
   // 오늘의 상점의 「내 GP 내역」을 펼친 횟수(2026-08-22).
   | 'packsim_log' 
+  // 홈 「최신 발매 박스 시세」에서 박스를 눌러 그 팩 시세로 들어간 횟수(2026-09-03).
+  // 라벨은 그 팩 이름이다 — 어느 팩이 눌리는지 봐야 목록을 손볼 수 있다.
+  | 'home_box'
+  // 홈 맨 위 공지의 단추를 눌러 공식 안내로 나간 횟수(2026-09-04). 라벨은 공지 제목이다.
+  | 'home_notice'
   // 도감·세트별 목록·작가별 목록에서 카드 한 장을 눌렀을 때(2026-08-06).
   // card_found의 라벨은 값을 찾은 마켓, card_miss의 라벨은 그 카드(세트+번호)다.
   | 'card_found'
@@ -165,6 +239,7 @@ export type TrackedEvent =
   // 팝수 조회 화면(2026-08-07). search=카드를 찾은 횟수, detail=등급표를 실제로 본 횟수.
   | 'population_search'
   | 'population_detail'
+  | 'population_miss'
   | 'share'
   | 'snkrdunk_search'
   | 'ebay_search'
@@ -298,16 +373,18 @@ export async function fetchEventStats(): Promise<{
   days: EventDayBuckets;
   artists: ArtistStat[];
   sets: ArtistStat[];
+  /** 빈손 카드(누적 · 2026-09-01부터). 열었는데 시세도 팝수도 없던 카드다. */
+  misses?: ArtistStat[];
   /** 대전쟁 스테이지별 시작/깸/짐. 「어느 판에서 막히나」를 보는 표다. */
   battles?: ArtistStat[];
 }> {
   const res = await fetch('/api/local/track-event');
   if (!res.ok) throw new Error('기능 통계를 불러오지 못했습니다.');
   const data = (await res.json()) as {
-    days?: EventDayBuckets; artists?: ArtistStat[]; sets?: ArtistStat[]; battles?: ArtistStat[];
+    days?: EventDayBuckets; artists?: ArtistStat[]; sets?: ArtistStat[]; misses?: ArtistStat[]; battles?: ArtistStat[];
     dayRanks?: Record<string, { artists: ArtistStat[]; sets: ArtistStat[]; battles?: ArtistStat[] }>;
   };
-  return { days: data.days ?? {}, artists: data.artists ?? [], sets: data.sets ?? [], battles: data.battles ?? [], dayRanks: data.dayRanks };
+  return { days: data.days ?? {}, artists: data.artists ?? [], sets: data.sets ?? [], misses: data.misses ?? [], battles: data.battles ?? [], dayRanks: data.dayRanks };
 }
 
 export interface VisitStat {
@@ -359,6 +436,15 @@ export interface VisitStatsResponse {
    *    보내고 서버는 아는 낱말만 받는다.
    */
   from?: { date: string; counts: Record<string, number> }[];
+  /**
+   * 어느 블로그·카페·갤러리에서 왔나 — 날짜 → 낱말 → 아이디 → 횟수(2026-08-27).
+   * ⚠️ 담기는 것은 **우리에게 링크를 건 글이 있는 자리**다(블로그 아이디·카페 주소·
+   *    갤러리 이름). 방문한 사람을 가리키는 값이 아니고, 주소도 여전히 안 담는다.
+   * ⚠️ 2026-08-27부터 쌓인다. 그 전 것은 「네이버 블로그 5번」처럼 낱말까지만 남아 있다.
+   */
+  places?: { date: string; counts: Record<string, Record<string, number>> }[];
+  // 어느 화면으로 들어왔나(2026-08-31). 카드 한 장 주소가 먹히는지 보는 자리다.
+  landings?: { date: string; counts: Record<string, number> }[];
   /**
    * 「그밖 로봇」으로 뭉뚱그려진 것이 **실제로 무슨 프로그램인지**. 날짜 → 이름 → 횟수.
    * ⚠️ 칸(구글봇·네이버봇처럼)을 미리 안 만들어도 화면에서 바로 확인하려고 둔다.

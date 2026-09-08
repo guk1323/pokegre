@@ -1,1 +1,235 @@
-{"ed":"en","id":"tk-xy-b","name":"XY trainer Kit (Bisharp)","cards":[{"n":"1","name":"Fletchling","img":"","r":"Common","tcg":"98147"},{"n":"2","name":"Metal Energy","img":"","r":"Common","tcg":"98148"},{"n":"3","name":"Metal Energy","img":"","r":"Common","tcg":"98149"},{"n":"4","name":"Vigoroth","img":"","r":"Uncommon","tcg":"98159"},{"n":"5","name":"Metal Energy","img":"","r":"Common","tcg":"98150"},{"n":"6","name":"Metal Energy","img":"","r":"Common","tcg":"98151"},{"n":"7","name":"Metal Energy","img":"","r":"Common","tcg":"98152"},{"n":"8","name":"Metal Energy","img":"","r":"Common","tcg":"98153"},{"n":"9","name":"Metal Energy","img":"","r":"Common","tcg":"98154"},{"n":"10","name":"Metal Energy","img":"","r":"Common","tcg":"98155"},{"n":"11","name":"Honedge","img":"","r":"Common","tcg":"98160"},{"n":"12","name":"Bidoof","img":"","r":"Common","tcg":"98161"},{"n":"13","name":"Pawniard","img":"","r":"Common","tcg":"98162"},{"n":"14","name":"Doublade","img":"","r":"Uncommon","tcg":"98163"},{"n":"15","name":"Slakoth","img":"","r":"Common","tcg":"98164"},{"n":"16","name":"Bisharp","img":"","r":"Rare","tcg":"98165"},{"n":"17","name":"Patrat","img":"","r":"Common","tcg":"98166"},{"n":"18","name":"Metal Energy","img":"","r":"Common","tcg":"98156"},{"n":"19","name":"Tierno","img":"","r":"Uncommon","tcg":"98167"},{"n":"20","name":"Trevor","img":"https://tcgplayer-cdn.tcgplayer.com/product/98168_in_400x400.jpg","r":"Uncommon","tcg":"98168"},{"n":"21","name":"Pawniard","img":"","r":"Common","tcg":"98169"},{"n":"22","name":"Metal Energy","img":"","r":"Common","tcg":"98157"},{"n":"23","name":"Doublade","img":"","r":"Uncommon","tcg":"98170"},{"n":"24","name":"Metal Energy","img":"","r":"Common","tcg":"98158"},{"n":"25","name":"Potion","img":"","r":"Common","tcg":"98171"},{"n":"26","name":"Slakoth","img":"","r":"Common","tcg":"98173"},{"n":"27","name":"Honedge","img":"","r":"Common","tcg":"98174"},{"n":"28","name":"Vigoroth","img":"","r":"Uncommon","tcg":"98175"},{"n":"29","name":"Potion","img":"","r":"Common","tcg":"98172"},{"n":"30","name":"Bisharp","img":"","r":"Rare","tcg":"98176"}]}
+{
+ "ed": "en",
+ "id": "tk-xy-b",
+ "name": "XY trainer Kit (Bisharp)",
+ "cards": [
+  {
+   "n": "1",
+   "name": "Fletchling",
+   "img": "https://archives.bulbagarden.net/media/upload/7/77/FletchlingXY113.jpg",
+   "r": "Common",
+   "tcg": "98147",
+   "imgBase": true
+  },
+  {
+   "n": "2",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98148"
+  },
+  {
+   "n": "3",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98149"
+  },
+  {
+   "n": "4",
+   "name": "Vigoroth",
+   "img": "https://archives.bulbagarden.net/media/upload/0/0e/VigorothFuriousFists82.jpg",
+   "r": "Uncommon",
+   "tcg": "98159",
+   "imgBase": true
+  },
+  {
+   "n": "5",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98150"
+  },
+  {
+   "n": "6",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98151"
+  },
+  {
+   "n": "7",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98152"
+  },
+  {
+   "n": "8",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98153"
+  },
+  {
+   "n": "9",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98154"
+  },
+  {
+   "n": "10",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98155"
+  },
+  {
+   "n": "11",
+   "name": "Honedge",
+   "img": "https://archives.bulbagarden.net/media/upload/6/66/HonedgeXY83.jpg",
+   "r": "Common",
+   "tcg": "98160",
+   "imgBase": true
+  },
+  {
+   "n": "12",
+   "name": "Bidoof",
+   "img": "https://archives.bulbagarden.net/media/upload/3/3b/BidoofXY106.jpg",
+   "r": "Common",
+   "tcg": "98161",
+   "imgBase": true
+  },
+  {
+   "n": "13",
+   "name": "Pawniard",
+   "img": "https://archives.bulbagarden.net/media/upload/6/67/PawniardKalosStarterSet19.jpg",
+   "r": "Common",
+   "tcg": "98162",
+   "imgBase": true
+  },
+  {
+   "n": "14",
+   "name": "Doublade",
+   "img": "https://archives.bulbagarden.net/media/upload/a/a7/DoubladeXY84.jpg",
+   "r": "Uncommon",
+   "tcg": "98163",
+   "imgBase": true
+  },
+  {
+   "n": "15",
+   "name": "Slakoth",
+   "img": "https://archives.bulbagarden.net/media/upload/f/f9/SlakothFuriousFists81.jpg",
+   "r": "Common",
+   "tcg": "98164",
+   "imgBase": true
+  },
+  {
+   "n": "16",
+   "name": "Bisharp",
+   "img": "https://archives.bulbagarden.net/media/upload/b/b9/BisharpKalosStarterSet20.jpg",
+   "r": "Rare",
+   "tcg": "98165",
+   "imgBase": true
+  },
+  {
+   "n": "17",
+   "name": "Patrat",
+   "img": "https://archives.bulbagarden.net/media/upload/f/f1/PatratFuriousFists84.jpg",
+   "r": "Common",
+   "tcg": "98166",
+   "imgBase": true
+  },
+  {
+   "n": "18",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98156"
+  },
+  {
+   "n": "19",
+   "name": "Tierno",
+   "img": "https://archives.bulbagarden.net/media/upload/1/1b/TiernoKalosStarterSet39.jpg",
+   "r": "Uncommon",
+   "tcg": "98167",
+   "imgBase": true
+  },
+  {
+   "n": "20",
+   "name": "Trevor",
+   "img": "https://tcgplayer-cdn.tcgplayer.com/product/98168_in_400x400.jpg",
+   "r": "Uncommon",
+   "tcg": "98168"
+  },
+  {
+   "n": "21",
+   "name": "Pawniard",
+   "img": "https://archives.bulbagarden.net/media/upload/6/67/PawniardKalosStarterSet19.jpg",
+   "r": "Common",
+   "tcg": "98169",
+   "imgBase": true
+  },
+  {
+   "n": "22",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98157"
+  },
+  {
+   "n": "23",
+   "name": "Doublade",
+   "img": "https://archives.bulbagarden.net/media/upload/a/a7/DoubladeXY84.jpg",
+   "r": "Uncommon",
+   "tcg": "98170",
+   "imgBase": true
+  },
+  {
+   "n": "24",
+   "name": "Metal Energy",
+   "img": "",
+   "r": "Common",
+   "tcg": "98158"
+  },
+  {
+   "n": "25",
+   "name": "Potion",
+   "img": "https://archives.bulbagarden.net/media/upload/0/06/PotionSunMoon127.jpg",
+   "r": "Common",
+   "tcg": "98171",
+   "imgBase": true
+  },
+  {
+   "n": "26",
+   "name": "Slakoth",
+   "img": "https://archives.bulbagarden.net/media/upload/f/f9/SlakothFuriousFists81.jpg",
+   "r": "Common",
+   "tcg": "98173",
+   "imgBase": true
+  },
+  {
+   "n": "27",
+   "name": "Honedge",
+   "img": "https://archives.bulbagarden.net/media/upload/6/66/HonedgeXY83.jpg",
+   "r": "Common",
+   "tcg": "98174",
+   "imgBase": true
+  },
+  {
+   "n": "28",
+   "name": "Vigoroth",
+   "img": "https://archives.bulbagarden.net/media/upload/0/0e/VigorothFuriousFists82.jpg",
+   "r": "Uncommon",
+   "tcg": "98175",
+   "imgBase": true
+  },
+  {
+   "n": "29",
+   "name": "Potion",
+   "img": "https://archives.bulbagarden.net/media/upload/0/06/PotionSunMoon127.jpg",
+   "r": "Common",
+   "tcg": "98172",
+   "imgBase": true
+  },
+  {
+   "n": "30",
+   "name": "Bisharp",
+   "img": "https://archives.bulbagarden.net/media/upload/b/b9/BisharpKalosStarterSet20.jpg",
+   "r": "Rare",
+   "tcg": "98176",
+   "imgBase": true
+  }
+ ]
+}

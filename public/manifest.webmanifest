@@ -1,7 +1,7 @@
 {
   "name": "pokegre — 포켓몬 카드의 모든 것",
   "short_name": "pokegre",
-  "description": "포켓몬 카드 시세 체크",
+  "description": "포켓몬 카드 시세, 도감, 팝수 등 카드 정보를 제공합니다.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

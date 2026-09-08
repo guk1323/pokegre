@@ -14,10 +14,11 @@ import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
 import { koSet } from '../lib/koCardName';
 import { trackEvent } from '../api/localStats';
 import { 일본쪽세트 } from '../lib/cardNo';
+import { cardImg, thumb } from '../lib/cardImg';
 
 type 값 = { name: string; usd: number };
 type 세트값 = { box?: 값; pack?: 값; etb?: 값 };
-type 줄 = { slug: string; ko: string; ed: 'ja' | 'en'; date: string } & 세트값;
+type 줄 = { slug: string; ko: string; ed: 'ja' | 'en'; date: string; cover: string } & 세트값;
 
 export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => void }) {
   const [줄들, set줄들] = useState<줄[] | null>(null);
@@ -33,14 +34,14 @@ export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => v
       fetch('/api/local/sealed-prices').then((r) => (r.ok ? r.json() : {})),
       fetch('/sets/index.json').then((r) => r.json()),
     ])
-      .then(([시세, 색인]: [Record<string, 세트값>, { slug: string; ed?: string; name?: string; releaseDate?: string }[]]) => {
+      .then(([시세, 색인]: [Record<string, 세트값>, { slug: string; ed?: string; name?: string; releaseDate?: string; cover?: string }[]]) => {
         const 세트로 = new Map(색인.map((s) => [s.slug, s]));
         const out: 줄[] = [];
         for (const [slug, v] of Object.entries(시세)) {
           const s = 세트로.get(slug);
           if (!s || (!v.box && !v.pack && !v.etb)) continue;
           const ed = 일본쪽세트(slug) ? 'ja' : 'en';
-          out.push({ slug, ko: koSet(ed, String(s.name ?? '')), ed, date: String(s.releaseDate ?? ''), ...v });
+          out.push({ slug, ko: koSet(ed, String(s.name ?? '')), ed, date: String(s.releaseDate ?? ''), cover: String(s.cover ?? ''), ...v });
         }
         set줄들(out);
       })
@@ -71,22 +72,49 @@ export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => v
     );
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="text-lg font-bold text-black">미개봉 박스·팩</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        세트별 부스터 박스·부스터 팩·엘리트 트레이너 박스의 현재 시세입니다. TCGplayer(미국) 마켓 기준이며, 세트
-        이름을 누르면 그 세트의 카드 목록으로 이동합니다.
-      </p>
+    // ⚠️ **폭은 `max-w-6xl`** — 도감 세 화면(세트·포켓몬·작가)의 목록이 다 이 폭이다.
+    //    혼자 `4xl`이라 양옆이 더 비어 보였다(사장님 지적 2026-08-27).
+    <div className="mx-auto max-w-6xl">
+      {/* ⚠️ **제목 줄을 도감 세 화면과 같은 뼈대로 맞췄다**(사장님 지시 2026-08-27).
+          왼쪽에 제목, **오른쪽 위에 둥근 검색칸** — 세트·포켓몬·작가 화면이 다 이 꼴이다.
+          예전엔 검색칸이 제목 아래 전체 폭이라 이 화면만 생김새가 달랐다.
+          ⚠️ 「미개봉」을 뺐다 — 박스·팩은 뜯으면 카드가 되니 **안 뜯은 상태가 기본**이다.
+             드롭다운도 「박스·팩」으로 줄여 옆 셋과 줄을 맞췄다.
+          ⚠️ 다만 **브라우저 탭 제목은 「미개봉」을 그대로 둔다** — 검색어로 쓸모가 있다. */}
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-bold text-black">박스·팩 시세</h1>
+          {/* ⚠️ **여기만 설명을 남긴다.** 도감 세 화면은 제목이 곧 설명이라 없앴지만, 여기는
+              **값이 나가는 화면**이라 어디 값인지 안 밝히면 국내 시세로 오해한다 —
+              박스는 한국·미국 값 차이가 크다. 조작 안내는 뺐다. */}
+          <p className="mt-1 text-xs text-neutral-400">TCGplayer(미국) 마켓 시세입니다.</p>
+        </div>
+        <div className="relative w-full flex-shrink-0 sm:w-60 md:w-72">
+          <input
+            type="text"
+            value={찾을말}
+            onChange={(e) => set찾을말(e.target.value)}
+            placeholder="세트 찾기"
+            className="w-full rounded-full border border-neutral-200 bg-white py-2.5 pl-4 pr-9 text-sm outline-none focus:border-neutral-400"
+          />
+          {찾을말 && (
+            <button
+              type="button"
+              aria-label="검색어 지우기"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => set찾을말('')}
+              className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
 
-      {/* 판·정렬·검색 — 세트 화면과 같은 뼈대(검색칸 전체 폭, 토글은 아래). */}
-      <div className="mt-4">
-        <input
-          value={찾을말}
-          onChange={(e) => set찾을말(e.target.value)}
-          placeholder="세트 이름 찾기. 예: 이볼빙, 태그올스타즈"
-          className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
-        />
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex w-fit overflow-hidden rounded-lg border border-neutral-300">
             {(
               [
@@ -137,12 +165,30 @@ export function SealedPricesView({ onOpenSet }: { onOpenSet: (slug: string) => v
             <tbody>
               {보일것.map((r) => (
                 <tr key={r.slug} className="border-b border-neutral-100 hover:bg-neutral-50">
-                  <td className="max-w-[240px] py-2 pr-2">
+                  {/* ⚠️ **세트 표지를 붙였다**(사장님 지시 2026-08-27: 「다른 도감이랑 생긴 게
+                      좀 달라서」). 도감 세 화면은 그림 타일인데 여기만 글자 표라 튀었다.
+                      표는 그대로 둔다 — 이 화면은 **값을 견주는 곳**이라 한 눈에 여러 줄이
+                      보여야 한다(타일로 바꾸면 15줄 → 7칸으로 줄어든다).
+                      ⚠️ 판 구분 점(●)은 그대로 뒀다 — 표지만으로는 일본판·영문판이 안 갈린다.
+                      ⚠️⚠️ **`cardImg()`를 반드시 거친다.** TCGdex 표지는 확장자가 없는 베이스
+                         주소라(`.../bw/bw11/115`) 그냥 부르면 **404**다 — 만들 때 이걸 빠뜨려
+                         표지가 다 깨졌다(2026-08-27). `cardImg()`가 `/high.webp`를 붙여 준다. */}
+                  <td className="max-w-[260px] py-2 pr-2">
                     <button
                       type="button"
                       onClick={() => onOpenSet(r.slug)}
-                      className="flex items-center gap-1.5 text-left font-semibold text-neutral-800 hover:underline"
+                      className="flex items-center gap-2 text-left font-semibold text-neutral-800 hover:underline"
                     >
+                      {r.cover ? (
+                        <img
+                          src={thumb(cardImg(r.cover), 80)}
+                          alt=""
+                          loading="lazy"
+                          className="card-dim h-9 w-7 shrink-0 rounded-sm object-cover"
+                        />
+                      ) : (
+                        <span className="h-9 w-7 shrink-0 rounded-sm bg-neutral-100" />
+                      )}
                       <span
                         className={`inline-block h-2 w-2 shrink-0 rounded-full ${r.ed === 'ja' ? 'bg-rose-500' : 'bg-indigo-500'}`}
                         aria-label={r.ed === 'ja' ? '일본어판' : '영문판'}

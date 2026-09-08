@@ -222,7 +222,6 @@ export function CardDetail({ card }: { card: SnkrdunkCard }) {
           conditions={pickedConditions}
           condition={condition}
           onConditionChange={setCondition}
-          unitLabel={history?.variants[0]?.name}
           loading={historyLoading}
         />
       </div>

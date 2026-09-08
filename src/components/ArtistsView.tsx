@@ -390,10 +390,9 @@ export function ArtistsView({ onPickCard }: { onPickCard: (card: 도감카드정
           에선 아래로 접힌다. */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
+          {/* ⚠️ 설명 줄을 없앴다(사장님 지시 2026-08-27) — 제목이 곧 설명이고, 화면에
+              작가 이름이 죽 깔려 있어 무엇을 하는 곳인지 바로 보인다. */}
           <h2 className="text-lg font-bold text-black">작가별 카드</h2>
-          <p className="mt-1 text-xs text-neutral-400">
-            일러스트레이터로 카드를 모아 봅니다. 카드 아트는 일본어판도 같은 작가입니다. (해외 카드 DB 기준)
-          </p>
         </div>
         {index && index.length > 0 && (
           <SearchInput

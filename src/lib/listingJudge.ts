@@ -422,9 +422,87 @@ export const 검수변형표: Record<string, 판정카드['변형']> = {
  * 열 장을 재 보니 전부 실물과 맞았고 `totalSetNumber`는 전부 null이었다 · 2026-08-19).
  * 이 표는 저쪽 cardNumber가 비거나 틀린 카드만 적는다.
  */
-export const 검수총표: Record<string, string> = { '106999': '102', '42382': '102' }
+// ⚠️ 총 장수를 모르면 제목의 「091/087」을 **딴 시리즈로 버린다.** M리자몽(CP6)은 저쪽이
+//    낙찰을 0줄 줘서 서류철에 총이 안 적혔다 — 이베이 제목 53건이 전부 `/087`이라 087이 맞다.
+export const 검수총표: Record<string, string> = { '106999': '102', '42382': '102', '606085': '087' }
 
-const 앞0떼기 = (s: string) => s.replace(/^0+/, '') || '0'
+/**
+ * **도감에 번호가 없는 카드의 진짜 번호.** 저쪽 상품번호가 번호 자리에 들어간 카드용이다.
+ *
+ * ⚠️⚠️ **번호가 없으면 낙찰을 하나도 못 담는다.** 우리는 「이 낙찰이 이 카드 것인가」를
+ *    **제목 속 번호**로 가리는데, 번호가 `670191`(저쪽 상품번호)이면 어떤 이베이 제목에도
+ *    없어서 **전부 남의 카드로 걸러진다.** 리자몽 CD 프로모는 이베이에 낙찰이 367건 있는데
+ *    우리 화면은 「거래 내역이 없습니다」였다(2026-08-29에 사장님이 찾아내심).
+ *    도감 57,344장 중 **2,008장**이 이 꼴이고, 그중 값나가는 157장에서 143장이 0건이었다.
+ * ⚠️ `세트말`은 **제목에 반드시 들어 있어야 하는 말**이다. 옛 일본 카드 번호는 `006`처럼
+ *    도감번호라 한 자리로 줄면(`6`) 제목에 흔한 숫자와 구별이 안 된다 — 그래서
+ *    `내낙찰인가`가 짧은 번호를 안 믿는다. 세트말을 같이 주면 그때만 믿는다.
+ * ⚠️ **눈으로 확인한 것만 적는다.** 이베이 제목 여러 건에서 같은 번호가 나오는지 보고 넣는다.
+ */
+/** 여러 장을 한꺼번에 판 매물. 세 장 세트·2장 묶음이 흔해서 따로 뺀다. */
+const 묶음말 = /\bset of\b|\b\d\s*set\b|trio|sequential|\bseq\b|\s&\s|\blot\b/i
+/** 「CD 프로모」를 여러 꼴로 적는다 — CD Promo · Promo … CD · Trainer CD · Mini CD. */
+const CD프로모 = /cd[\s-]*(?:\w+[\s-]+){0,3}promo|promo[\s-]*(?:\w+[\s-]+){0,4}cd\b|trainer\s*cd\b|mini\s*cd\b/i
+// ⚠️⚠️ **CD 프로모(1998~99)와 헷갈리는 딴 물건.** 담긴 줄을 눈으로 훑다가 이상해꽃 칸에서
+//    6줄을 찾았다(2026-08-29). ① 2016년 「Venusaur EX · XY CD Promo · 233/XY-P」는 이름과
+//    「CD Promo」가 겹칠 뿐 **딴 카드**다. ② 「Erika's Venusaur」는 체육관 세트 카드다.
+//    ⚠️ 이슬(Misty's Treatment)은 우리 카드 이름 자체라 여기 넣으면 안 된다.
+const CD딴것 = /xy-?p\b|233\s*\/\s*xy|\b(?:venusaur|charizard|blastoise)\s*ex\b|erika|brock|sabrina|blaine|koga|giovanni|lt\.?\s*surge/i
+
+export const 검수번호표: Record<string, { no: string; 꼭?: RegExp[]; 빼기?: RegExp[] }> = {
+  // 리자몽 · Japanese CD Promo. 이 세트는 카드가 **딱 세 장**이다 —
+  // 리자몽(006) · 거북왕(009) · 이상해꽃(003). 그래서 번호가 아니라 **이름**으로 가린다.
+  // ⚠️ 번호로 가리려 했다가 240줄 중 33줄을 잘못 버렸다(2026-08-29). 제목 대부분이
+  //    「Charizard Holo CD Promo - Japanese Pokemon Card - 1998」처럼 번호를 안 적는다.
+  // ⚠️ 이 네 장은 저쪽(PPT)이 낙찰을 **0줄** 준다. 그런데 이베이엔 수백 건이 있다
+  //    (2026-08-29 실측: 리자몽 367 · 이상해꽃 259 · 거북왕·이슬 각 240줄).
+  //    그래서 **크롬으로 직접 긁어** 채웠다. 아래는 그때 쓰는 잣대다.
+  '670191': { no: '006', 꼭: [/charizard/i, CD프로모], 빼기: [/blastoise|venusaur/i, 묶음말, CD딴것, /\bno\.?\s*0*(?:3|9)\b/i] },
+  '670189': { no: '009', 꼭: [/blastoise/i, CD프로모], 빼기: [/charizard|venusaur/i, 묶음말, CD딴것, /\bno\.?\s*0*(?:3|6)\b/i] },
+  '670187': { no: '003', 꼭: [/venusaur/i, CD프로모], 빼기: [/charizard|blastoise/i, 묶음말, CD딴것, /\bno\.?\s*0*(?:6|9)\b/i] },
+  // 이슬의 Treatment는 이름만으로도 거의 갈린다(Misty's Kindness·Tentacool·Tears는 딴 카드).
+  // ⚠️ 다만 **Gym Heroes에도 같은 이름 카드**가 있어 그건 뺀다.
+  '670162': { no: '', 꼭: [/misty.?s\s*treatment/i, /\bcd\b|promo/i], 빼기: [/\bgym\b/i, 묶음말, /xy-?p\b/i] },
+}
+
+/**
+ * 긁어 온 제목이 **이 카드 것인가**. `검수번호표`에 `꼭`/`빼기`가 있는 카드만 쓴다.
+ *
+ * ⚠️⚠️ **정확함이 1순위, 양이 2순위다**(사장님 지시 2026-08-29). 애매하면 **버린다** —
+ *    33건을 놓치는 것이 딴 카드 1건이 섞이는 것보다 낫다. 덜 모은 것은 다시 긁으면 되지만,
+ *    틀린 값은 어디가 틀렸는지 찾기 어렵고 방문자가 우리를 못 믿게 된다.
+ * ⚠️ 이 잣대는 **긁을 때만** 쓴다. 저쪽(PPT)이 준 줄은 이미 이 카드 것이라고 온 것이라
+ *    애매해도 살린다 — 잣대가 다른 까닭이 여기 있다.
+ */
+/**
+ * **세트마다 「제목에 이 말이 있으면 딴 판이다」.** 같은 포켓몬이 시리즈별로 또 있는 세트용.
+ *
+ * ⚠️⚠️ 자판기(반다이 카드다스) 세트는 **Series 1(파랑)·2(빨강)·3(초록)**이 따로인데
+ *    같은 포켓몬이 여러 시리즈에 나온다. 도감번호로 맞추면 시리즈가 섞인다 —
+ *    2026-08-30 실측으로 384건 중 11건이 딴 시리즈였다(「Snorlax #143 … Green」이
+ *    파랑 칸에 들어왔다). 값이 시리즈마다 다르므로 섞이면 시세가 틀린다.
+ * ⚠️ 제 시리즈 말이 같이 있으면 안 뺀다 — 「Series 1 … Red back」처럼 둘 다 적는 제목이 있다.
+ */
+export const 세트빼기표: Record<string, { 딴판: RegExp; 내판: RegExp }> = {
+  'ja-vending-machine-cards-series-1-blu': { 딴판: /\b(series\s*[23]|green|red)\b/i, 내판: /\b(series\s*1|blue)\b/i },
+  'ja-vending-machine-cards-series-2-red': { 딴판: /\b(series\s*[13]|blue|green)\b/i, 내판: /\b(series\s*2|red)\b/i },
+  'ja-vending-machine-cards-series-3-gre': { 딴판: /\b(series\s*[12]|blue|red)\b/i, 내판: /\b(series\s*3|green)\b/i },
+}
+
+export function 긁은줄내것인가(id: string, 제목: string): boolean | null {
+  const 표 = 검수번호표[id]
+  if (!표?.꼭) return null // 이 카드는 이 잣대를 안 쓴다(부르는 쪽이 옛 길로 간다)
+  const t = String(제목 ?? '')
+  if (!표.꼭.every((re) => re.test(t))) return false
+  if (표.빼기?.some((re) => re.test(t))) return false
+  return true
+}
+
+// ⚠️⚠️ **글자 뒤에 붙은 0도 뗀다** — 우리 번호는 `H01`인데 이베이 제목은 `H1/H32`라고 적는다.
+//    2026-08-29에 `server/api.ts`의 `내낙찰인가`만 고치고 **여기를 안 고쳤다.** 그래서 긁어
+//    담은 것이 승격에서 다시 버려졌다(후딘 50줄 → 4줄). **번호 잣대를 고칠 땐 두 자리를 같이 본다.**
+//    ⚠️ 숫자만 있는 번호는 예전과 똑같이 앞의 0만 뗀다 — 회귀 검사 971,391줄에서 바뀐 것 0건.
+const 앞0떼기 = (s: string) => s.replace(/^([a-z]*)0+(?=\d)/, '$1') || '0'
 
 /** 등급 숫자(PSA 9의 9)를 카드 번호로 읽지 않게 감정 구절을 지운다 — listingTitle과 같은 회사 목록. */
 const 회사말 = 'psa|bgs|bccg|beckett|brg|cgc|sgc|ace|tag|ars|rgr|pgs|pcg|mpg|cci|csg|gma|hga|isa|ags|pyxis|acg|tqg|aph|lcc|plg|mnt|ccg|mgc|hgc|bctc|cga|dsg|rpa|ksa|jbh|toc|tga|pg|ark|wag|kvu|rcg|gcg|gbtc'
@@ -577,7 +655,11 @@ export function 낙찰판정(제목: string, 카드: 판정카드): 판정 {
   //    이름에 그 말이 없으면 딴 카드다(우리 이상해꽃 프로모에 「MEGA VENUSAUR EX」가
   //    새어 들었다 · 2026-08-20 실측). ex·V는 옛 세트 이름과 부딪혀 못 쓴다 — 안전한 것만.
   {
-    const 이름소2 = (카드.nameEn ?? '').toLowerCase()
+    // ⚠️⚠️ **TCGplayer는 메가 카드를 「M Charizard EX」라고 적는다.** 그런데 이베이 판매자는
+    //    「Mega Charizard EX」라고 쓴다. 앞의 `M `을 mega로 읽어 주지 않으면 **우리 메가 카드가
+    //    제 낙찰을 「딴 카드」로 보고 버린다**(2026-08-29에 M리자몽에서 잡았다).
+    //    이 꼴이 도감에 155장이다. 이름이 `M `로 시작하는 카드는 전부 메가라 안전하다.
+    const 이름소2 = (카드.nameEn ?? '').toLowerCase().replace(/^m\s+/, 'mega ')
     for (const 수식 of ['mega', 'vmax', 'vstar', 'gx', 'lv.x']) {
       const re = new RegExp(`\\b${수식.replace('.', '\\.')}\\b`, 'i')
       if (re.test(t) && !re.test(이름소2) && !(setEn && re.test(setEn))) {
@@ -594,6 +676,14 @@ export function 낙찰판정(제목: string, 카드: 판정카드): 판정 {
     const 해들 = [...new Set([...벗김.matchAll(/\b(19[89]\d|20[0-2]\d)\b/g)].map((m) => Number(m[1])))]
     if (해들.length && 해들.every((y) => Math.abs(y - 카드.세트해!) > 4)) {
       return { 자리: '뺀다', 왜: `연도 다름(제목 ${해들[0]} · 세트 ${카드.세트해})` }
+    }
+  }
+
+  // ③-5 세트 안에서 갈리는 판(자판기 시리즈 등) — 딴 판 말이 있고 내 판 말이 없으면 뺀다.
+  {
+    const 규칙 = 세트빼기표[String(카드.slug ?? '')]
+    if (규칙 && 규칙.딴판.test(t) && !규칙.내판.test(t)) {
+      return { 자리: '뺀다', 왜: '딴 판(세트 안 갈래 다름)' }
     }
   }
 
@@ -628,7 +718,8 @@ export function 낙찰판정(제목: string, 카드: 판정카드): 판정 {
   if (!번호확인) {
     // 짝이 없으면 홑 번호로 본다 — 등급 구절을 지운 뒤에(「PSA 9」의 9가 번호로 읽힌 사고 방지).
     const 등급뗀 = 소.replace(등급구절, ' ')
-    const 낱말 = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // ⚠️ 제목이 거꾸로 `H07`이라 적었을 수도 있다 — 글자와 숫자 사이에도 0을 허용한다.
+    const 낱말 = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/^([a-z]+)(\d)/, '$1' + '0*' + '$2')
     if (new RegExp('(^|[^0-9a-z])0*' + 낱말 + '($|[^0-9a-z])').test(등급뗀)) 번호확인 = true
     // 구판: 우리 번호(포켈렉터 순번) 대신 **카드에 실제로 찍힌 도감번호**나 **발매 연도**로 본다.
     // ⚠️⚠️ 도감번호는 **혼자서는 못 믿는다** — 같은 도감번호를 다른 제품도 쓴다. 실측(2026-08-24):

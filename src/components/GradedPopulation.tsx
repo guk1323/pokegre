@@ -1,5 +1,3 @@
-import { useEffect, useRef } from 'react';
-import { trackEvent } from '../api/localStats';
 
 // 감정 수량. "이 카드가 전 세계에 감정된 게 몇 장인가"를 보여준다.
 //
@@ -46,18 +44,15 @@ export function GradedPopulation({
   population?: Population | null;
 }) {
   const p = population;
-  // ⚠️ 넘겨받아 보여 줄 때도 **본 횟수는 센다.** 안 세면 통계에서 새 길 몫이 통째로 빠져
-  //    「감정 수량을 아무도 안 본다」로 읽힌다(사장님이 새 기능은 통계에 넣으라고 하셨다).
-  const 셌나 = useRef(false);
-  useEffect(() => {
-    if (!p || !(p.all > 0) || 셌나.current) return;
-    셌나.current = true;
-    trackEvent('population');
-  }, [p]);
-  useEffect(() => {
-    셌나.current = false;
-  }, [tcgPlayerId]);
-  if (!p || !(p.all > 0)) return null;
+  // ⚠️⚠️ **`population`은 안 센다**(사장님 지시 2026-08-19). 사람이 누른 게 아니라
+  //    화면이 저절로 세던 것이라 사람 행동이 아니었다. 그때 서버 허용목록에서 뺐는데
+  //    **여기서 보내는 것은 안 지웠다** — 카드를 열 때마다 서버가 400으로 되돌려보내는
+  //    헛요청이 하나씩 나가고 있었다(2026-09-01에 잡음). 사람이 누른 것은 팝수 화면의
+  //    `population_detail`이 센다.
+  // ⚠️⚠️ **PSA 10 장수만 보여 준다**(사장님 지시 2026-09-01: 「그냥 psa10만 보여줘」).
+  //    전체 장수를 뺐으므로, PSA 10을 모르는 카드(다른 회사만 감정된 카드)는 보여 줄 게
+  //    없다 — 줄을 통째로 안 낸다. 예전엔 `p.all > 0`이면 냈다.
+  if (!p || !(p.all > 0) || p.psa10 == null) return null;
 
   // 여기 요약은 PSA 10·9·전체 셋뿐이다. 전체가 4,000장인데 10등급 2,000·9등급 1,000이면
   // **나머지 1,000장이 어디 갔는지 알 수 없다**(사장님 지적 2026-08-07). 그래서 눌러서
@@ -81,9 +76,11 @@ export function GradedPopulation({
       href={자세히}
       className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-neutral-50 px-3 py-2 hover:bg-neutral-100"
     >
+      {/* ⚠️ 전체 장수는 뺐다(2026-09-01). 「감정된 게 적어…」 한마디는 남긴다 — 숫자가
+          아니라 **읽는 사람을 지키는 말**이라, PSA 10이 2장인 카드의 감정품 시세를
+          미감정 시세와 같은 것으로 보면 크게 어긋난다. 잣대는 그대로 전체 장수다. */}
       <span className="min-w-0 truncate text-[11px] text-neutral-500">
-        감정 수량 <span className="text-xs font-bold text-black">{p.all.toLocaleString()}장</span>
-        {p.psa10 != null && <span> · PSA 10 {p.psa10.toLocaleString()}장</span>}
+        PSA 10 <span className="text-xs font-bold text-black">{p.psa10.toLocaleString()}장</span>
         {p.all < 적음 && <span className="text-amber-600"> · 감정된 게 적어 시세가 크게 다를 수 있습니다</span>}
       </span>
       <span className="flex-shrink-0 text-[11px] font-semibold text-neutral-600">자세히 →</span>

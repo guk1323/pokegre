@@ -76,19 +76,23 @@ export function StatsCalendar({
             →
           </button>
         </div>
-        <span className="text-[11px] text-neutral-400">진할수록 방문 많음 · 날짜를 누르면 그날만 봅니다</span>
+        <span className="text-[11px] text-neutral-500">진할수록 방문 많음 · 날짜를 누르면 그날만 봅니다</span>
       </div>
 
       <div className="grid grid-cols-7 gap-1">
         {요일.map((w) => (
-          <div key={w} className="pb-1 text-center text-[11px] text-neutral-400">
+          <div key={w} className="pb-1 text-center text-[11px] text-neutral-500">
             {w}
           </div>
         ))}
         {칸들.map((iso, i) => {
           if (!iso) return <div key={`b${i}`} />;
           const 수 = 방문표[iso] ?? 0;
-          const 진하기 = 수 ? 0.12 + 0.78 * (수 / 최대방문) : 0;
+          // ⚠️⚠️ **제일 진한 칸에서 0.9까지 가면 안 된다.** 그러면 칸 색이 너무 진해져
+          //    그 위의 날짜·숫자가 밝은 화면에서 4.4, 어두운 화면에서 2.5까지 떨어진다
+          //    (2026-08-27 실측). 0.55에서 멈추면 두 화면 다 5를 넘고, 옅은 칸과 진한 칸의
+          //    차이는 그대로 보인다.
+          const 진하기 = 수 ? 0.12 + 0.43 * (수 / 최대방문) : 0;
           const 고름 = iso === 고른날;
           return (
             <button
@@ -103,7 +107,7 @@ export function StatsCalendar({
               style={{ background: 수 ? `rgba(16,150,110,${진하기})` : undefined }}
             >
               <span className="text-neutral-800">{Number(iso.slice(8))}</span>
-              {!!수 && <span className="text-[10px] text-neutral-500">{수}</span>}
+              {!!수 && <span className="text-[10px] text-neutral-700">{수}</span>}
             </button>
           );
         })}

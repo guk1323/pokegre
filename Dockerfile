@@ -33,13 +33,23 @@ COPY src/lib/nameFix.ts src/lib/packSets.ts src/lib/packDraw.ts src/lib/koreaniz
 COPY src/data/pokemonNames.json src/data/pokemonNameAliases.json src/data/packNames.json src/data/cardNameKoEn.json ./src/data/
 # 세트별 힛카드(값이 제일 높은 카드). scripts/fetch-set-hit-cards.mjs가 미리 받아 둔 것.
 # 앨범 시세를 매일 받는 22세트 말고 나머지 세트의 힛카드가 여기서 나온다.
-COPY src/data/setHitCards.json src/data/pptSetNames.json src/data/setCardNumberAlias.json src/data/pptSetList.json src/data/setNameKoPpt.json src/data/cardValue.json src/data/psaPopFix.json ./src/data/
+COPY src/data/setHitCards.json src/data/pptSetNames.json src/data/setCardNumberAlias.json src/data/pptSetList.json src/data/setNameKoPpt.json src/data/cardValue.json src/data/psaPopFix.json src/data/cgcPopFix.json src/data/bgsPopFix.json ./src/data/
+# 홈 「최신 발매 박스 시세」가 어떤 팩을 걸지 담은 목록. 서버가 뜰 때 불러오므로
+# 없으면 서버가 죽는다(scripts/check-deploy-files.mjs 가 미리 잡아 준다).
+COPY src/data/boxSets.json ./src/data/
+# PPT에 상품이 없어 시세가 저절로 안 붙는 카드(한국 전용 프로모 등)의 손 시세.
+# 서버가 카드 목록을 만들 때 읽으므로 없으면 서버가 죽는다.
+COPY src/data/handPrices.json ./src/data/
 # 카드 이름 검색용 색인(31,603장). 서버만 읽는다 — public/ 에 두면 3MB가 그대로
 # 공개돼 크롤러가 긁어 간다. scripts/gen-card-index.mts 로 만든다.
 COPY card-index.json ./
 # 이베이 검수 씨앗(31MB) — 로컬에서 검수한 낙찰 2만 장을 통째 압축한 것. 운영에서
 # 승격(POST /api/local/ebay-check {승격:1})을 누르면 /data에 풀어 실제 화면 저장소로
-# 굽는다. 만드는 법: tar czf seed/ebay-check.tar.gz -C data ebay-check listing-verdicts.json
+# 굽는다. 만드는 법:
+#   COPYFILE_DISABLE=1 tar -czf seed/ebay-check.tar.gz -C data ebay-check
+#   node scripts/ebay-check/make-tcg-seed.mjs        (seed/tcg-history.json.gz)
+# ⚠️ 씨앗은 둘이다 — 검수 자료(이베이 낙찰)와 TCG 날짜별 추이. 추이는 덤프에 없어
+#    카드마다 낱장으로 받아야 하는데, 그 자료가 화면 저장소에 살아 예전엔 배를 못 탔다.
 COPY seed ./seed
 
 EXPOSE 3000

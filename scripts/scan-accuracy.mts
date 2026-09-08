@@ -43,6 +43,7 @@ const numKey = (s: string) => String(s ?? '').split('/')[0].trim().replace(/^0+(
 let nameOk = 0
 let numOk = 0
 let found = 0
+const times: number[] = []
 console.log(`카드 ${picks.length}장으로 시험 · ${HOST}\n`)
 
 for (const { slug, card } of picks) {
@@ -60,6 +61,7 @@ for (const { slug, card } of picks) {
   }
 
   let out: Record<string, unknown> = {}
+  const t0 = Date.now()
   try {
     const r = await fetch(`${HOST}/api/local/scan-card`, {
       method: 'POST',
@@ -77,6 +79,8 @@ for (const { slug, card } of picks) {
     continue
   }
 
+  const ms = Date.now() - t0
+  times.push(ms)
   if (out.found) found++
   const gotNum = numKey(String(out.cardNumber ?? ''))
   const wantNum = numKey(card.n)
@@ -94,4 +98,5 @@ for (const { slug, card } of picks) {
 
 console.log(`\n  카드로 인식한 것 ${found}/${picks.length}`)
 console.log(`  번호까지 맞힌 것 ${numOk}/${picks.length}`)
+if (times.length) console.log(`  걸린 시간  평균 ${Math.round(times.reduce((x, y) => x + y, 0) / times.length)}ms · 최대 ${Math.max(...times)}ms`)
 console.log('  (이름은 영문으로 답하므로 위 목록을 눈으로 견줄 것)')

@@ -22,7 +22,7 @@ import {
   usable,
   type SetCard,
   type SetIndexEntry,
-  기준일글,
+  힛카드기준글,
 } from '../lib/cardCatalog';
 import pokemonNames from '../data/pokemonNames.json';
 import { serieSlug } from '../lib/setNameKo';
@@ -32,7 +32,7 @@ import type { 도감카드정보 } from '../lib/pokedexRoute';
 import { useSubScreen } from '../lib/useSubScreen';
 import { trackEvent } from '../api/localStats';
 import { fetchExchangeRates, formatKrwApprox } from '../api/exchangeRate';
-import { 일본쪽세트 } from '../lib/cardNo';
+import { 일본쪽세트, 판이름 } from '../lib/cardNo';
 
 // 세트(발매 패키지)별 수록 카드. 데이터는 TCGdex에서 미리 긁어 public/sets/에 저장해둔 걸
 // 읽는다. 일본판(ja)·영문판(en). 카드 이름은 원어로 저장돼 있어 화면에서 우리 변환기로
@@ -391,8 +391,10 @@ export function SetsView({
           <div className="min-w-0">
             <h2 className="text-xl font-extrabold leading-tight text-black">{koSet(selected.ed, selected.name)}</h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white ${selected.ed === 'ja' ? 'bg-rose-500' : 'bg-indigo-500'}`}>
-                {selected.ed === 'ja' ? '일본어판' : '영문판'}
+              {/* ⚠️ `ed`만 보면 **중국어판·한국어판이 「일본어판」으로 붙는다** — 세트 틀이
+                  ja/en 둘뿐이라 그렇게 적혀 있다. 판 이름은 슬러그를 보는 `판이름()`이 정한다. */}
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white ${일본쪽세트(selected.slug) ? 'bg-rose-500' : 'bg-indigo-500'}`}>
+                {판이름(selected.slug, selected.ed)}
               </span>
               <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">{selected.count}종</span>
               {selected.releaseDate && (
@@ -455,14 +457,9 @@ export function SetsView({
                          보여주면서 라벨만 그대로 두면 오해가 더 커진다. */}
                   {pricedMode && (
                     <span className="text-[11px] text-neutral-400">
-                      {hitSrc !== 'snkrdunk'
-                        ? 'TCGplayer 마켓가 · 미감정 기준'
-                        : hitGrade === 'psa10'
-                          ? 'SNKRDUNK 실거래 · PSA10 기준'
-                          : 'SNKRDUNK 실거래 · 미감정(A등급) 기준'}
-                      {/* 홈 힛카드와 **같은 함수**를 쓴다. 한쪽만 고치면 같은 값을
-                          두 화면이 다르게 설명하게 된다. */}
-                      {기준일글(hitAt)}
+                      {/* 홈 힛카드와 **같은 함수**를 쓴다(문구·날짜 통째로).
+                          한쪽만 고치면 같은 값을 두 화면이 다르게 설명하게 된다. */}
+                      {힛카드기준글(hitSrc, hitGrade, hitAt)}
                     </span>
                   )}
                 </div>
@@ -627,8 +624,11 @@ export function SetsView({
         <div className="min-w-0 flex-1">
           {/* ⚠️ 도감 세 화면(포켓몬·세트·작가)은 제목을 **"…별 카드"로 맞춘다.**
               예전엔 "세트별 목록"만 꼴이 달랐다(2026-08-08). */}
+          {/* ⚠️ 설명 줄을 없앴다(사장님 지시 2026-08-27). 「일부 세트는 이미지를 다듬는
+              중」이라는 변명도 같이 뺐다 — **그림 없는 세트를 열면 그 안에 안내가 따로 뜬다**
+              (아래 「이 세트는 카드 그림을 구하지 못했습니다」). 필요한 자리에 이미 있으므로
+              목록 맨 위에서 미리 변명할 까닭이 없다. */}
           <h2 className="text-lg font-bold text-black">세트별 카드</h2>
-          <p className="mt-1 text-xs text-neutral-400">발매 팩별로 수록 카드를 볼 수 있습니다. 일부 세트는 이미지·이름을 다듬는 중입니다.</p>
         </div>
         {index && index.length > 0 && (
           <div className="relative w-full flex-shrink-0 sm:w-60 md:w-72">

@@ -52,11 +52,28 @@ export const usable = (url?: string) =>
 //    방문자가 왜 다른지 알 길이 없다 — 상세는 지금 값이라 다른 게 맞다.
 // ⚠️ 두 화면이 **같은 함수**를 써야 한다. 한쪽만 고치면 같은 값을 두 화면이
 //    다르게 설명하게 된다(NewSetHitCards의 basisLabel 주석과 같은 이유).
-export const 기준일글 = (at?: number): string => {
-  if (!at || !Number.isFinite(at)) return '';
+// ⚠️⚠️ **문구까지 이 한 벌이 정한다**(2026-08-27에 합쳤다). 예전엔 날짜만 함수를
+//    나눠 쓰고 「TCGplayer 마켓가 · 미감정 기준」 같은 **문구는 두 화면에 따로** 적혀
+//    있었다. 바로 위 주석이 「같은 함수를 쓴다」고 못 박고 있었는데도 그랬다 —
+//    **한쪽만 고치면 같은 값을 두 화면이 다르게 설명한다.**
+// ⚠️ 「기준」은 **맨 끝에 한 번만.** 예전엔 「미감정 싱글 기준 · 8.10 기준」처럼 두 번
+//    나왔다(사장님 지적 2026-08-27).
+// ⚠️ 날짜가 없으면 「기준」도 안 붙인다 — 언제 것인지 모르면서 「기준」이라 하면 거짓이다.
+// ⚠️⚠️ **날짜와 「기준」 사이는 안 끊기는 빈칸(NBSP)이다.** 그냥 빈칸으로 두면 320px 폰
+//    (아이폰 SE)에서 「…미감정 싱글 8.29」/「기준」으로 갈려 **「기준」 두 글자가 홀로
+//    남는다**(2026-08-27 실측). 눈에 잘 안 띄는 자리라 실제 폭을 재 보고야 잡았다.
+//    → 묶어 두면 줄이 모자랄 때 「8.29 기준」이 **덩이째** 아래로 내려간다.
+export const 힛카드기준글 = (src: string, grade?: string, at?: number): string => {
+  const 어디 =
+    src !== 'snkrdunk'
+      ? 'TCGplayer 마켓가 · 미감정 싱글'
+      : grade === 'psa10'
+        ? 'SNKRDUNK 실거래 · PSA10'
+        : 'SNKRDUNK 실거래 · 미감정(A등급)';
+  if (!at || !Number.isFinite(at)) return 어디;
   const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '';
-  return ` · ${d.getMonth() + 1}.${d.getDate()} 기준`;
+  if (Number.isNaN(d.getTime())) return 어디;
+  return `${어디} ${d.getMonth() + 1}.${d.getDate()}\u00A0기준`;
 };
 
 // 공유·탭 제목에 쓸 카드 이름. **한 곳에서만 정한다.**

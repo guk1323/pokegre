@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PopulationGuide } from './PopulationGuide';
 import { AdSlot } from './AdSlot';
 import { 은는 } from '../lib/josa';
 import { 시트가스스로닫힘 } from '../lib/sheetHistory';
@@ -116,7 +117,15 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
         //    없었다**(사장님 지적 2026-08-13). 서버가 같이 보내 주는 카드를 여기서 세운다.
         // ⚠️ 이미 고른 카드가 있으면 안 덮는다 — 찾기로 고른 카드는 그쪽이 주인이다.
         set고른것((전) => 전 ?? (j?.card ? { ...j.card, rarity: '' } : null));
+        // ⚠️ **없을 때도 센다**(2026-09-01). 있을 때만 세면 「팝수를 열었는데 텅 빈」
+        //    횟수가 어디에도 안 남아, PSA 값을 채우는 일이 쓸모가 있는지 알 길이 없다.
+        // ⚠️⚠️ 라벨은 **저쪽 번호만 보낸다.** 이름 붙이기는 서버가 한다 — 자료가 없는
+        //    카드는 서버가 `card`도 안 줘서 화면에는 붙일 이름이 없고, 화면의 「고른 카드」를
+        //    끌어다 쓰면 이 콜백이 그 상태에 매여 다시 만들어진다(무한 되풀이의 씨앗).
+        //    서버는 도감을 갖고 있으니 번호를 「세트 번호」로 바꿔 `card_miss`와 같은
+        //    순위표에 담는다(`server/api.ts`의 track-event).
         if (j?.detail) trackEvent('population_detail');
+        else trackEvent('population_miss', id);
       })
       .catch(() => {
         if (표 !== 마지막요청.current) return;
@@ -323,29 +332,29 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
     : [];
 
   return (
-    <div className="mx-auto max-w-3xl">
+    // ⚠️ 너비를 **다른 화면과 맞춘다**(사장님 지적 2026-09-01: "이것만 가운데에 있어").
+    //    예전엔 max-w-3xl(768px)이라 미개봉(6xl)·세트(4xl)보다 눈에 띄게 좁았고,
+    //    등급표가 다섯 칸인데 가운데에만 몰려 있었다.
+    <div className="mx-auto max-w-6xl">
       {/* ⚠️ **머리를 카드 한 장처럼 짠다**(사장님 지시 2026-08-11 — "너무 텅텅빈 느낌").
           예전엔 제목·설명 두 줄 뒤에 곧장 흰 여백이라, 검색 전 화면이 비어 보였다.
           제목 옆에 **팝수가 무엇인지**를 짧게 붙이고, 아래에 읽는 법 세 칸을 둔다. */}
-      <div className="rounded-2xl border border-neutral-200 bg-gradient-to-b from-neutral-50 to-white p-5">
+      {/* ⚠️ 그라데이션을 뺐다(2026-09-02). 카드 아래쪽이 `bg-white`로 끝나서 같은 색인
+          입력칸이 배경에 묻혔다. 평평한 `neutral-50`으로 두면 어두운 화면·밝은 화면
+          어느 쪽에서도 입력칸이 한 겹 떠 보인다. */}
+      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
         <h1 className="text-lg font-bold text-black">팝수 조회</h1>
+        {/* ⚠️ 「10등급이 적을수록 구하기 어렵다」를 뺐다(사장님 지적 2026-09-02). 수집가에게는
+            너무 당연한 말이라 화면 격만 떨어뜨린다. 그 뜻은 아래 견주기 막대가 이미 보여 준다. */}
         <p className="mt-1 text-sm text-neutral-600">
-          감정 기관이 이 카드에 매긴 등급이 각각 몇 장인지 전부 보여 드립니다. <b className="text-neutral-800">10등급이
-          적을수록 구하기 어려운 카드</b>입니다.
+          감정 기관별 등급 수량과 카드의 희소성을 한눈에 확인합니다.
         </p>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {[
-            ['전체 장수', '지금까지 감정받은 총 장수입니다. 적을수록 귀합니다.'],
-            ['10등급 비율', '전체 중 만점을 받은 비율. 낮을수록 만점 받기 어려운 카드입니다.'],
-            ['기관별 표', 'PSA·BGS·CGC·SGC가 매긴 등급을 반칸(9.5)까지 빠짐없이 봅니다.'],
-          ].map(([제목, 설명]) => (
-            <div key={제목} className="rounded-xl bg-white/70 p-3 ring-1 ring-neutral-200/70">
-              <p className="text-xs font-bold text-neutral-800">{제목}</p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-neutral-500">{설명}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+        {/* ⚠️ 「기관별 표」 한 칸을 뺐다(2026-09-01). 바로 아래 안내글이 같은 것을 더 자세히
+            말하고 있어 두 번 나왔다. 안내글은 아직 아무 카드도 안 찾았을 때만 뜬다. */}
+        {/* ⚠️ **검색바를 머리 카드 안으로 넣었다**(사장님 지적 2026-09-02:
+            "글이 많아서 검색바가 찾기 어렵지 않냐"). 밖에 두면 아래 안내 상자들이
+            더 무거워 보여서, 정작 이 화면에서 제일 먼저 할 일인 「카드 찾기」가
+            묻혔다. 제목·설명과 한 덩어리로 묶어 맨 위에 세운다. */}
 
       {/* ⚠️ **도감 화면들과 같은 뼈대로 맞춘다.** 예전엔 [판][검색칸][찾기]가 한 줄이라
           핸드폰에서 입력칸이 146px밖에 안 되어 안내문이 잘렸다(2026-08-08 실측).
@@ -399,7 +408,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
             //    `py-3` + `text-sm` + 테두리 = **46px**이고, 그게 `CardScanButton`의
             //    `h-[46px]`와 같은 값이다. 예전엔 `py-2`(38px)라 옆 단추만 8px 더 컸다.
             //    ⚠️ 둘 중 하나를 고치면 다른 쪽도 봐야 한다 — 높이를 정하는 자리가 둘이다.
-            className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-3 pr-10 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-black"
+            className="w-full rounded-xl border border-neutral-400 bg-white py-3 pl-3 pr-10 text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-black"
           />
           {/* 검색어가 있을 때만 오른쪽 끝에 지우기(X). **홈 검색바와 같은 부품·같은 크기**다
               (`components/SearchBar.tsx`). 보이는 동그라미는 24px 그대로 두고 누를 자리만
@@ -465,6 +474,7 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
           ))}
         </div>
       </form>
+      </div>
 
       {찾는중 && <p className="mt-3 text-sm text-neutral-400">찾는 중…</p>}
       {오류 && <p className="mt-3 text-sm text-amber-600">{오류}</p>}
@@ -518,14 +528,12 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                         {c.rarity ? ` · ${레어도한글(c.rarity)}` : ''}
                       </p>
                     </div>
-                    {/* ⚠️ **줄 세운 잣대를 적어 준다.** 감정 많은 순으로 세우는데 그 수가
-                        화면에 없으면 순서가 뜬금없어 보인다. 여기가 팝수 화면이니
-                        방문자가 제일 알고 싶은 숫자이기도 하다. */}
-                    {(c.population?.all ?? 0) > 0 && (
-                      <span className="flex-shrink-0 text-[11px] tabular-nums text-neutral-500">
-                        {(c.population!.all as number).toLocaleString()}장
-                      </span>
-                    )}
+                    {/* ⚠️⚠️ **장수는 안 적는다**(사장님 지시 2026-09-01). 이 화면에서 요약
+                        숫자를 다 뺐는데(총계·10등급 비율·전체 장수) 목록에만 남겨 두면
+                        같은 숫자가 한 화면에서 나왔다 들어갔다 한다.
+                        ⚠️ 줄 세우는 잣대는 그대로 **감정 많은 순**이다 — 순서만 남고 수는
+                           안 보인다. 되살리고 싶으면 목록 위 안내에 「감정 많은 순」을
+                           적는 쪽을 먼저 볼 것(숫자 없이도 까닭이 보인다). */}
                   </button>
                 </li>
               ))}
@@ -550,6 +558,10 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
           ← 찾은 목록으로
         </button>
       )}
+
+      {/* ⚠️ 아직 아무 카드도 안 찾았으면 안내글을 보여 준다. 예전엔 검색바만 덩그러니
+          있었다(사장님 지적 2026-09-01). 카드를 찾으면 사라지고 등급표가 주인공이 된다. */}
+      {!고른것 && !처음카드 && <PopulationGuide />}
 
       {(고른것 || 처음카드) && (
         <div className="mt-3">
@@ -585,22 +597,13 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
 
           {자료 && (
             <>
-              <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-xl border border-neutral-200 px-4 py-3">
-                <div>
-                  <span className="text-xs text-neutral-500">전체 </span>
-                  <span className="text-base font-bold text-black">{자료.all.toLocaleString()}장</span>
-                </div>
-                {자료.gems != null && (
-                  <div>
-                    <span className="text-xs text-neutral-500">10등급 </span>
-                    <span className="text-base font-bold text-black">{자료.gems.toLocaleString()}장</span>
-                    <span className="ml-1 text-xs text-neutral-400">
-                      ({Math.round((자료.gems / 자료.all) * 1000) / 10}%)
-                    </span>
-                  </div>
-                )}
-              </div>
-
+              {/* ⚠️⚠️⚠️ **요약 숫자는 하나도 안 쓴다**(사장님 지시 2026-09-01: 「총계는 쓰지마」 →
+                  「10등급 비율같은건 넣지마」 → 「전체 몇장인지도 넣지마 그냥 등급별로 몇장인지만
+                  나눠」). 이 화면은 **등급별 장수만** 보여 준다.
+                  ⚠️ 왜 이렇게까지 하나: 요약 숫자는 저마다 잣대가 달라 표와 어긋난다. 총계는
+                     반칸을 안 세고(PSA), 「10등급」은 회사마다 뜻이 달라(BGS는 9.5부터) 표를
+                     아무리 봐도 그 숫자가 안 나온다. 안 맞는 숫자를 얹느니 **아예 안 적는다.**
+                  ⚠️ 되살리고 싶어지면 먼저 「그 숫자가 아래 표에서 더해서 나오나」를 물을 것. */}
               {/* 표가 좁은 화면에서 넘칠 수 있어 가로로만 밀리게 한다(본문은 안 밀린다). */}
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[320px] border-collapse text-sm">
@@ -638,22 +641,17 @@ export function PopulationView({ 처음카드 }: { 처음카드?: { id: string; 
                         </tr>
                       );
                     })}
-                    <tr className="border-t-2 border-neutral-300">
-                      <td className="py-2 pr-2 text-left text-xs font-semibold text-neutral-500">합계</td>
-                      {볼기관.map((g) => (
-                        <td key={g} className="px-2 py-2 text-right text-sm font-bold tabular-nums text-black">
-                          {(자료.byGrader[g]?.total ?? 0).toLocaleString()}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td className="py-1 pr-2 text-left text-xs text-neutral-500">10등급 비율</td>
-                      {볼기관.map((g) => (
-                        <td key={g} className="px-2 py-1 text-right text-xs tabular-nums text-neutral-500">
-                          {자료.byGrader[g]?.gem != null ? `${자료.byGrader[g].gem}%` : '—'}
-                        </td>
-                      ))}
-                    </tr>
+                    {/* ⚠️ **합계 줄은 안 쓴다**(사장님 지시 2026-09-01 「총계는 쓰지마」).
+                        우리가 PSA에서 손으로 읽어 적은 값은 10등급·9등급만 있어서,
+                        합계(74)와 줄의 합(31+33=64)이 안 맞는 카드가 7,994장이다.
+                        나머지 10장은 1~8등급인데 우리가 안 적었을 뿐 틀린 값은 아니다.
+                        맨 위 「전체」는 기관을 다 합친 값이라 줄과 어긋나지 않으니 그대로 둔다. */}
+                    {/* ⚠️⚠️ **「10등급 비율」 줄도 안 쓴다**(사장님 지시 2026-09-01).
+                        회사마다 「최고 등급」의 잣대가 달라 한 이름으로 못 묶는다 — BGS는
+                        9.5부터가 젬 민트라 4장 중 1장만 10등급인데 75%로 적혔다. CGC는
+                        10만 센다. 값은 회사 잣대대로가 맞지만, 줄 이름 하나로는 뜻이
+                        어긋나서 보여 주지 않는다. 위 「합계」 줄을 뺀 것과 같은 까닭이다.
+                        기관을 합친 「10등급 N장(%)」은 맨 위에 그대로 있다. */}
                   </tbody>
                 </table>
               </div>

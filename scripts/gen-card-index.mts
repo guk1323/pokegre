@@ -161,7 +161,14 @@ async function main() {
     // ⚠️ 2026-08-22에 「· 리버스 홀로」(-rev) 곁이 늘었다(사장님 승인). 꼬리 목록은 서버
     //    다시짓기의 곁이름들과 같아야 한다 — 한쪽만 늘리면 파일은 생기는데 도감엔 안 선다.
     const 곁파일들 = (await readdir(검수폴더)).filter((f) => /-(1st|lang|rev)\.json$/.test(f) && !f.startsWith('._'))
+    // ⚠️ 곁 카드는 **원본과 같은 카드**다(언어·초판·리버스만 다르다). 레어도는 원본 것을 그대로
+    //    물려받는다 — 비워 두면 「저지맨 SR」처럼 레어도로 찾을 때 곁 카드가 안 나오고, 세트
+    //    간판(레어도 순)에서도 빠진다(2026-09-08: 곁 3,983장 중 3,522장이 이 때문에 빈칸이었다).
+    //    그림도 곁 파일에 없으면 원본 그림을 쓴다(18장).
+    const 원본 = new Map<string, Row>()
+    for (const r of rows) if (r[7] && !String(r[7]).includes('~')) 원본.set(String(r[7]), r)
     let 곁수 = 0
+    let 물려받음 = 0
     for (const f of 곁파일들) {
       try {
         const 검 = JSON.parse(await readFile(path.join(검수폴더, f), 'utf8')) as {
@@ -173,11 +180,15 @@ async function main() {
         //    도감의 중국어판 카드(zh-CBB1C · 617410~zh)라, 세우면 같은 낙찰이 두 카드에
         //    실린다(영문 카드의 「일본판」을 지우는 것과 같은 까닭 — 주인이 따로 있으면 안 겹친다).
         if (base === '617410' && 꼬리 === '~lang') continue
-        rows.push([검.slug, String(검.no ?? ''), String(검.name ?? ''), String(검.img ?? ''), '', '', '', `${base}${꼬리}`, String(검.nameEn ?? ''), '', '', ''])
+        const 부모 = 원본.get(base)
+        const 레어도 = 부모?.[9] ?? ''
+        const 그림 = String(검.img ?? '') || 부모?.[3] || ''
+        if (부모 && (레어도 || (!검.img && 그림))) 물려받음++
+        rows.push([검.slug, String(검.no ?? ''), String(검.name ?? ''), 그림, '', '', '', `${base}${꼬리}`, String(검.nameEn ?? ''), 레어도, '', ''])
         곁수++
       } catch { /* 깨진 파일은 건너뜀 */ }
     }
-    if (곁수) console.log(`  검수 곁 카드 ${곁수.toLocaleString()}장을 도감에 세웠습니다(1st Edition·기타 언어).`)
+    if (곁수) console.log(`  검수 곁 카드 ${곁수.toLocaleString()}장을 도감에 세웠습니다(1st Edition·기타 언어) · 원본에서 레어도·그림을 물려받은 것 ${물려받음.toLocaleString()}장.`)
   } catch { /* 검수 저장소가 없는 환경이면 곁 카드 없이 만든다 */ }
 
   await writeFile(OUT, JSON.stringify({ sets, rows }))

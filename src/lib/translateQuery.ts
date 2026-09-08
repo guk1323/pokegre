@@ -137,6 +137,46 @@ function spaceInsensitivePattern(name: string): RegExp {
 
 const packPatterns = sortedPackKo.map((e) => ({ re: spaceInsensitivePattern(e.ko), ja: e.ja }));
 
+/**
+ * **팩 이름을 앞부분만 쳤을 때** 보낼 일본어. 못 찾으면 null.
+ *
+ * 왜 — 위 packPatterns는 팩 이름이 **통째로** 있어야 걸린다. 그래서 「스톰」·「어비스」·
+ * 「30주년」은 한 글자도 안 바뀌고 **한글 그대로** 스니커덩크에 나가 0건이었다
+ * (2026-09-03 사장님 지적 → 실측 확인: 「스톰에메랄다」는 되는데 「스톰」·「스톰에메」는 0건).
+ * 정작 스니커덩크는 앞머리 검색을 잘한다 — 직접 물어보니 ストーム 박스 9개 · アビス 6개 ·
+ * 30周年 박스 12개였다. 우리가 못 옮겨서 못 쓰고 있었을 뿐이다.
+ *
+ * ⚠️⚠️ **이건 마지막 수단이다.** 일본어로도 영어로도 못 옮겼을 때만 부른다
+ *    (`스니덩말로`). 앞에 끼우면 되던 것이 깨진다 — 「드래곤」은 영어 "Dragon"이 996건인데
+ *    앞머리로는 ドラゴンストーム 632건이고 박스가 0개다(2026-09-03 실측).
+ * ⚠️ **구조 낱말(STRUCTURAL_TERMS)은 보지 않는다.** 카드·트레이너 이름까지 들어 있어
+ *    「팀로켓」이 「これがチームロケットが来ます！」로, 「카세키」가 「かいじゅうマニア」로
+ *    끌려갔다(실측 14건). 세트 앞머리를 찾는 자리에 카드 이름을 섞으면 안 된다.
+ * ⚠️ 여러 팩에 걸리면 **일본어 이름들의 공통 앞머리**만 보낸다. 하나를 골라 보내면
+ *    사용자가 고르지도 않은 세트를 보게 된다. 공통 앞머리가 한 글자면 뜻이 없어 포기한다.
+ */
+export function 팩앞머리(query: string): string | null {
+  const 뗀말 = 전각부호펴기(query).trim().replace(/\s+/g, '');
+  // 한두 글자는 아무 팩에나 걸린다.
+  if (뗀말.length < 2) return null;
+  const jas = new Set<string>();
+  for (const e of sortedPackKo) {
+    const ko = e.ko.replace(/\s+/g, '');
+    // 통째로 같은 것은 이미 packPatterns가 잡았다 — 여기 올 일이 없다.
+    if (ko.length > 뗀말.length && ko.startsWith(뗀말)) jas.add(e.ja);
+  }
+  if (jas.size === 0) return null;
+  const 여럿 = [...jas];
+  let 앞 = 여럿[0];
+  for (const ja of 여럿) {
+    let i = 0;
+    while (i < 앞.length && i < ja.length && 앞[i] === ja[i]) i++;
+    앞 = 앞.slice(0, i);
+  }
+  앞 = 앞.trim();
+  return 앞.length >= 2 ? 앞 : null;
+}
+
 // koreanizeTitle의 STRUCTURAL_TERMS(일본어→한글)를 뒤집어서 재사용한다. "메가"처럼
 // 카드명 접두사로 자주 붙는 말은 검색어 번역에서도 빠지면 안 되기 때문.
 // 같은 한글에 일본어가 여럿 붙어 있을 때 검색에 쓸 쪽을 고른다(실측으로 정했다).

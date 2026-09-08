@@ -82,7 +82,10 @@ export async function fetchPost(id: number): Promise<CommunityPost> {
 
 // 작성자는 서버가 세션에서 가져오므로 보내지 않는다.
 // 사진 한 장을 올리고 주소를 받는다. 글을 저장할 때 이 주소만 같이 보낸다.
-export const MAX_POST_IMAGES = 4;
+// ⚠️ 서버(server/api.ts)에도 같은 값이 있다. 한쪽만 고치면 서버가 조용히 잘라 낸다.
+// 2026-08-23에 4 → 20(사장님 「사진 4개는 너무 적다」). 올린 사진은 아래에서 긴 변
+// 1600px으로 줄여 보내므로 한 장이 보통 0.3MB쯤이다 — 20장이라도 6MB 안쪽이다.
+export const MAX_POST_IMAGES = 20;
 // 서버와 같은 한도. 넘는 파일은 보내기 전에 막는다 — 서버는 몸통이 한도를 넘는 순간
 // 메모리를 지키려고 연결을 끊어 버려서, 413이 브라우저까지 오지 않고 그냥 통신 오류가
 // 된다(그러면 "너무 큽니다" 대신 "올리지 못했습니다"가 떠서 이유를 알 수 없다).
@@ -134,10 +137,19 @@ async function stripMetadata(file: File): Promise<string> {
   }
 }
 
+// 줄이기 전에 한 번만 막는 선. 요즘 폰 사진이 8~12MB이므로 그보다 넉넉히 위에 둔다 —
+// 이만한 파일을 캔버스에 펼치면 폰에서 화면이 멈춘다.
+const 못다루는크기 = 40 * 1024 * 1024;
+
 export async function uploadPostImage(file: File): Promise<string> {
-  if (file.size > MAX_UPLOAD_BYTES) throw new Error(TOO_LARGE);
+  if (file.size > 못다루는크기) throw new Error('사진이 너무 큽니다. 사진 앱에서 줄여 올려 주세요.');
   // 다시 그리기가 실패하면(특이한 형식 등) 원본으로 보낸다 — 못 올리는 것보다는 낫다.
   const dataUrl = await stripMetadata(file).catch(() => fileToDataUrl(file));
+  // ⚠️⚠️ 크기는 **줄인 뒤에** 잰다. 예전에는 고른 파일 자체를 먼저 재서 막았는데,
+  //    요즘 폰 사진은 원본이 8~12MB라 **줄이면 0.3MB가 될 사진을 열어 보지도 않고
+  //    「너무 큽니다」로 돌려보냈다.** 서버가 받는 것은 줄인 쪽이니 그쪽을 재는 게 맞다.
+  const 바이트 = Math.floor(((dataUrl.length - dataUrl.indexOf(',') - 1) * 3) / 4);
+  if (바이트 > MAX_UPLOAD_BYTES) throw new Error(TOO_LARGE);
   const res = await fetch('/api/local/community/upload', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -145,6 +157,10 @@ export async function uploadPostImage(file: File): Promise<string> {
   });
   if (res.status === 401) throw new Error(LOGIN_REQUIRED);
   if (res.status === 413) throw new Error(TOO_LARGE);
+  // 아이폰 HEIC처럼 브라우저가 못 여는 형식은 줄이기가 실패해 원본 그대로 올라간다.
+  if (res.status === 400) throw new Error('이 형식은 올릴 수 없습니다. JPG·PNG로 저장해 올려 주세요.');
+  if (res.status === 429) throw new Error('사진을 너무 많이 올렸습니다. 잠시 후 다시 해 주세요.');
+  if (res.status === 507) throw new Error('사진 저장 공간이 가득 찼습니다. 운영자에게 알려 주세요.');
   if (!res.ok) throw new Error('사진을 올리지 못했습니다.');
   const j = (await res.json()) as { url: string };
   return j.url;

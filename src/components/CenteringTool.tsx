@@ -539,9 +539,14 @@ export function CenteringTool({ onSearchByPhoto }: { onSearchByPhoto?: (file: Fi
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-[10px] text-neutral-400">
-            종합은 앞·뒷면 중 낮은 등급이에요(실제 감정 방식). 센터링만 본 값이라 실제 등급은 모서리·표면·스크래치도
-            함께 봅니다.
+          {/* ⚠️ 「~이에요」를 「~입니다」로 고쳤다 — 사이트 문구는 습니다체다. */}
+          {/* ⚠️⚠️ **이 표는 PSA 공식 범위보다 깐깐하다.** PSA는 앞면 55:45에서 60:40 정도까지
+              10을 주는데, 여기서는 55를 자른 값으로 잡는다(COMPANY_LADDERS). 밝혀 두지 않으면
+              60:40인 카드를 재고 「9」가 나와 틀린 줄 안다. 팝수 안내 화면에 적었다가
+              그쪽은 맥락이 튄다는 지적을 받아 이 자리로 옮겼다(2026-09-02). */}
+          <p className="mt-2 text-[10px] leading-relaxed text-neutral-400">
+            종합은 앞·뒷면 중 낮은 등급입니다(실제 감정 방식). 센터링만 본 값이라 실제 등급은 모서리·표면·스크래치도
+            함께 봅니다. 여기서는 PSA 10을 55:45로 자릅니다 — PSA 공식 범위(55:45~60:40)보다 깐깐한 값입니다.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {onSearchByPhoto && (
